@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DrillPress.Core/DrillPress.Core.csproj" />
+    <Project Path="src/DrillPress.Cli/DrillPress.Cli.csproj" />
+    <Project Path="src/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
+  </Folder>
+</Solution>

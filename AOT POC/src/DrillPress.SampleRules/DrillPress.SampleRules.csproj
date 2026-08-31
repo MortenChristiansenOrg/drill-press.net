@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>DrillPress.SampleRules</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <!-- Roslyn 5.0 is not trim-annotated for a handful of internal pooled
+         delegate and UI-culture helpers. The exercised compiler APIs are
+         rooted below; the publish is verified by running the native binary. -->
+    <NoWarn>$(NoWarn);IL2026;IL2075;IL2091;IL2104;IL3000</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DrillPress.Core/DrillPress.Core.csproj" />
+    <TrimmerRootAssembly Include="Microsoft.CodeAnalysis" />
+    <TrimmerRootAssembly Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+</Project>
