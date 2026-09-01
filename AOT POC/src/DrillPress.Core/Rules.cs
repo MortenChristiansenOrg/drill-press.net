@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -6,13 +7,32 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
-public sealed class RuleCondition<T>(Func<T, bool> evaluate)
+public sealed class RuleCondition<T>
 {
-    internal bool Evaluate(T value) => evaluate(value);
+    private readonly Func<T, bool> _evaluate;
 
-    public RuleCondition<T> And(RuleCondition<T> other) => new(value => Evaluate(value) && other.Evaluate(value));
+    public RuleCondition(Func<T, bool> evaluate)
+        : this(evaluate, null)
+    {
+    }
 
-    public RuleCondition<T> Or(RuleCondition<T> other) => new(value => Evaluate(value) || other.Evaluate(value));
+    private RuleCondition(Func<T, bool> evaluate, ImmutableHashSet<string>? requiredMemberNames)
+    {
+        _evaluate = evaluate;
+        RequiredMemberNames = requiredMemberNames;
+    }
+
+    internal ImmutableHashSet<string>? RequiredMemberNames { get; }
+
+    internal bool Evaluate(T value) => _evaluate(value);
+
+    public RuleCondition<T> And(RuleCondition<T> other) => new(
+        value => Evaluate(value) && other.Evaluate(value),
+        IntersectRequiredMemberNames(RequiredMemberNames, other.RequiredMemberNames));
+
+    public RuleCondition<T> Or(RuleCondition<T> other) => new(
+        value => Evaluate(value) || other.Evaluate(value),
+        UnionRequiredMemberNames(RequiredMemberNames, other.RequiredMemberNames));
 
     public RuleCondition<T> Not() => new(value => !Evaluate(value));
 
@@ -22,6 +42,28 @@ public sealed class RuleCondition<T>(Func<T, bool> evaluate)
     public RuleCondition<T> ExceptWhen(RuleCondition<T> exception) => Or(exception);
 
     public static RuleCondition<T> From(Func<T, bool> condition) => new(condition);
+
+    internal static RuleCondition<T> FromMemberNames(
+        Func<T, bool> condition,
+        params string[] memberNames) =>
+        new(condition, memberNames.ToImmutableHashSet(StringComparer.Ordinal));
+
+    private static ImmutableHashSet<string>? IntersectRequiredMemberNames(
+        ImmutableHashSet<string>? left,
+        ImmutableHashSet<string>? right)
+    {
+        if (left is null)
+        {
+            return right;
+        }
+
+        return right is null ? left : left.Intersect(right);
+    }
+
+    private static ImmutableHashSet<string>? UnionRequiredMemberNames(
+        ImmutableHashSet<string>? left,
+        ImmutableHashSet<string>? right) =>
+        left is null || right is null ? null : left.Union(right);
 }
 
 public sealed class RuleLocation<T>(Func<T, SourceLocation> select)
@@ -42,24 +84,52 @@ public sealed class RuleFix<T>(Func<T, ImmutableArray<TextEdit>> create)
 
 public sealed record TextEdit(string FilePath, TextSpan Span, string NewText);
 
-public sealed class CodeQuery<T>(Func<AnalysisSolution, IEnumerable<T>> select)
+public sealed class CodeQuery<T>
 {
-    internal IEnumerable<T> Evaluate(AnalysisSolution solution) => select(solution);
+    private readonly Func<AnalysisSolution, ImmutableHashSet<string>?, IEnumerable<T>> _select;
+    private readonly RuleCondition<T>? _filter;
+
+    public CodeQuery(Func<AnalysisSolution, IEnumerable<T>> select)
+        : this((solution, _) => select(solution), selectsMemberReferences: false, filter: null)
+    {
+    }
+
+    internal CodeQuery(
+        Func<AnalysisSolution, ImmutableHashSet<string>?, IEnumerable<T>> select,
+        bool selectsMemberReferences,
+        RuleCondition<T>? filter = null)
+    {
+        _select = select;
+        SelectsMemberReferences = selectsMemberReferences;
+        _filter = filter;
+    }
+
+    internal bool SelectsMemberReferences { get; }
+
+    internal ImmutableHashSet<string>? RequiredMemberNames => _filter?.RequiredMemberNames;
+
+    internal IEnumerable<T> Evaluate(AnalysisSolution solution) =>
+        _filter is null
+            ? _select(solution, null)
+            : _select(solution, _filter.RequiredMemberNames).Where(_filter.Evaluate);
 
     public CodeQuery<T> Where(RuleCondition<T> condition) =>
-        new(solution => Evaluate(solution).Where(condition.Evaluate));
+        new(_select, SelectsMemberReferences, _filter is null ? condition : _filter.And(condition));
 }
 
 public static class Code
 {
-    public static CodeQuery<MethodModel> Methods { get; } = new(solution => solution.Methods);
+    public static CodeQuery<MethodModel> Methods { get; } =
+        new((solution, _) => solution.Methods, selectsMemberReferences: false);
 
-    public static CodeQuery<InterfaceModel> Interfaces { get; } = new(solution => solution.Interfaces);
+    public static CodeQuery<InterfaceModel> Interfaces { get; } =
+        new((solution, _) => solution.Interfaces, selectsMemberReferences: false);
 
-    public static CodeQuery<NamedTypeModel> Types { get; } = new(solution => solution.Types);
+    public static CodeQuery<NamedTypeModel> Types { get; } =
+        new((solution, _) => solution.Types, selectsMemberReferences: false);
 
     public static CodeQuery<MemberReferenceModel> MemberReferences { get; } =
-        new(solution => solution.MemberReferences);
+        new((solution, names) => solution.GetMemberReferences(names), selectsMemberReferences: true);
 }
 
 public sealed record RuleDescriptor(string Id, string Message);
@@ -71,6 +141,10 @@ public sealed record RuleDiagnostic(
 
 internal interface ICompiledRule
 {
+    bool SelectsMemberReferences { get; }
+
+    ImmutableHashSet<string>? RequiredMemberNames { get; }
+
     IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution);
 }
 
@@ -81,6 +155,10 @@ internal sealed class RequiredRule<T>(
     RuleLocation<T> location,
     RuleFix<T>? fix) : ICompiledRule
 {
+    public bool SelectsMemberReferences => query.SelectsMemberReferences;
+
+    public ImmutableHashSet<string>? RequiredMemberNames => query.RequiredMemberNames;
+
     public IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
         foreach (var candidate in query.Evaluate(solution))
@@ -130,12 +208,48 @@ public sealed class RuleSet
                 fix)));
     }
 
-    public ImmutableArray<RuleDiagnostic> Evaluate(AnalysisSolution solution) =>
-        _rules.SelectMany(rule => rule.Evaluate(solution))
+    public ImmutableArray<RuleDiagnostic> Evaluate(
+        AnalysisSolution solution,
+        Action<string, TimeSpan>? reportProfile = null)
+    {
+        var memberRules = _rules.Where(static rule => rule.SelectsMemberReferences).ToArray();
+        if (memberRules.Length > 0)
+        {
+            var preparationStarted = Stopwatch.GetTimestamp();
+            var requiredNames = memberRules.Any(static rule => rule.RequiredMemberNames is null)
+                ? null
+                : memberRules.SelectMany(static rule => rule.RequiredMemberNames!).ToImmutableHashSet(StringComparer.Ordinal);
+            solution.PrepareMemberReferences(requiredNames);
+            reportProfile?.Invoke(
+                "prepare-member-references",
+                Stopwatch.GetElapsedTime(preparationStarted));
+        }
+
+        IEnumerable<RuleDiagnostic> diagnostics = reportProfile is null
+            ? _rules.SelectMany(rule => rule.Evaluate(solution))
+            : EvaluateProfiled(solution, reportProfile);
+        return diagnostics
             .OrderBy(diagnostic => diagnostic.Location.Document.Path, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.Span.Start)
             .ThenBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
             .ToImmutableArray();
+    }
+
+    private IEnumerable<RuleDiagnostic> EvaluateProfiled(
+        AnalysisSolution solution,
+        Action<string, TimeSpan> reportProfile)
+    {
+        foreach (var rule in _rules.Cast<IRuleWithId>())
+        {
+            var started = Stopwatch.GetTimestamp();
+            var diagnostics = ((ICompiledRule)rule).Evaluate(solution).ToImmutableArray();
+            reportProfile(rule.Id, Stopwatch.GetElapsedTime(started));
+            foreach (var diagnostic in diagnostics)
+            {
+                yield return diagnostic;
+            }
+        }
+    }
 
     private interface IRuleWithId
     {
@@ -145,6 +259,10 @@ public sealed class RuleSet
     private sealed class IdentifiedRule<T>(string id, ICompiledRule inner) : ICompiledRule, IRuleWithId
     {
         public string Id { get; } = id;
+
+        public bool SelectsMemberReferences => inner.SelectsMemberReferences;
+
+        public ImmutableHashSet<string>? RequiredMemberNames => inner.RequiredMemberNames;
 
         public IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution) => inner.Evaluate(solution);
     }
@@ -261,9 +379,11 @@ public static class Members
         Are(CodeType.Of<TDeclaringType>(), memberName);
 
     public static RuleCondition<MemberReferenceModel> Are(CodeType containingType, string memberName) =>
-        RuleCondition<MemberReferenceModel>.From(reference =>
-            reference.Symbol.Name == memberName &&
-            CodeTypeMatching.Matches(reference.Symbol.ContainingType, containingType));
+        RuleCondition<MemberReferenceModel>.FromMemberNames(
+            reference =>
+                reference.Symbol.Name == memberName &&
+                CodeTypeMatching.Matches(reference.Symbol.ContainingType, containingType),
+            memberName);
 
     public static RuleCondition<MemberReferenceModel> Are(string containingType, string memberName) =>
         Are(CodeType.Named(containingType), memberName);

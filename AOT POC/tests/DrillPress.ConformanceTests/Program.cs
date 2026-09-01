@@ -208,6 +208,87 @@ try
 
     Check(fixCount == 3, "JSONL output must expose three fixable findings.");
 
+    var profiledCheck = await RunAsync(
+        "dotnet",
+        [ruleAssembly, "check", manifestPath, "--profile"],
+        repositoryRoot);
+    Check(profiledCheck.ExitCode == 1, "A profiled check must preserve the findings exit code.");
+    Check(profiledCheck.StandardError.Contains("drillpress: phases:", StringComparison.Ordinal) &&
+          profiledCheck.StandardError.Contains("drillpress: rule-phase:", StringComparison.Ordinal),
+        "Profiled checks must report load and rule phase timing on stderr.");
+
+    Console.WriteLine("conformance: CLI BuildHost orchestration");
+    var cliAssembly = Path.Combine(
+        repositoryRoot,
+        "AOT POC",
+        "src",
+        "DrillPress.Cli",
+        "bin",
+        buildConfiguration,
+        "net10.0",
+        "drillpress.dll");
+    var buildHostAssembly = Path.Combine(
+        repositoryRoot,
+        "AOT POC",
+        "src",
+        "DrillPress.BuildHost",
+        "bin",
+        buildConfiguration,
+        "net10.0",
+        "DrillPress.BuildHost.dll");
+    var coordinatedCheck = await RunAsync(
+        "dotnet",
+        [
+            cliAssembly,
+            "check",
+            "--rules",
+            ruleAssembly,
+            sampleSolution,
+            "--build-host",
+            buildHostAssembly,
+            "--fast",
+        ],
+        repositoryRoot);
+    Check(coordinatedCheck.ExitCode == 1, "The coordinated check must preserve the findings exit code.");
+    Check(coordinatedCheck.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 8,
+        "The coordinator must export and analyze all eight sample findings.");
+    Check(coordinatedCheck.StandardError.Contains("compiler diagnostics skipped", StringComparison.Ordinal),
+        "The coordinator did not forward fast export mode to BuildHost.");
+
+    var coordinatedSolutionDirectory = Path.Combine(temporaryRoot, "Coordinated Sample Solution");
+    CopyDirectory(Path.Combine(repositoryRoot, "Sample Solution"), coordinatedSolutionDirectory);
+    var coordinatedSolution = Path.Combine(coordinatedSolutionDirectory, "DrillPress.SampleTarget.slnx");
+    var coordinatedFix = await RunAsync(
+        "dotnet",
+        [
+            cliAssembly,
+            "fix",
+            "--rules",
+            ruleAssembly,
+            coordinatedSolution,
+            "--build-host",
+            buildHostAssembly,
+            "--fast",
+        ],
+        repositoryRoot);
+    Check(coordinatedFix.ExitCode == 1,
+        "The coordinated fix must report remaining unfixable findings with exit code 1.");
+    Check(coordinatedFix.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 5,
+        "The coordinated fix must regenerate its manifest and output five remaining findings.");
+    Check(coordinatedFix.StandardError.Contains("applied 3 edit(s)", StringComparison.Ordinal),
+        "The coordinated fix did not report its three deduplicated edits.");
+    var coordinatedSources = Directory.EnumerateFiles(coordinatedSolutionDirectory, "*.cs", SearchOption.AllDirectories)
+        .Select(File.ReadAllText)
+        .ToArray();
+    Check(!coordinatedSources.Any(source => source.Contains("string.Empty", StringComparison.Ordinal)),
+        "string.Empty remained after the coordinated fix.");
+    Check(!coordinatedSources.Any(source => source.Contains("StringComparer.Ordinal", StringComparison.Ordinal)),
+        "StringComparer.Ordinal remained after the coordinated fix.");
+    var coordinatedBuild = await RunAsync("dotnet", ["build", coordinatedSolution, "--nologo"], repositoryRoot);
+    Check(coordinatedBuild.ExitCode == 0,
+        $"The solution fixed through the coordinator does not build:{Environment.NewLine}" +
+        coordinatedBuild.StandardOutput);
+
     Console.WriteLine("conformance: automatic fixes");
     var copiedSolutionDirectory = Path.Combine(temporaryRoot, "Sample Solution");
     CopyDirectory(Path.Combine(repositoryRoot, "Sample Solution"), copiedSolutionDirectory);

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis.Text;
@@ -12,7 +13,7 @@ public static class RuleApplication
         string[] args,
         CancellationToken cancellationToken = default)
     {
-        if (!TryParseArguments(args, out var command, out var target, out var format))
+        if (!TryParseArguments(args, out var command, out var target, out var format, out var profile))
         {
             WriteUsage();
             return 2;
@@ -26,24 +27,62 @@ public static class RuleApplication
                     "A compilation manifest is an immutable snapshot. Fix the original target, then export a new manifest.");
             }
 
+            var totalStarted = Stopwatch.GetTimestamp();
+            var loadStarted = Stopwatch.GetTimestamp();
             var solution = await SolutionLoader.LoadAsync(target, cancellationToken);
-            var diagnostics = rules.Evaluate(solution);
+            var loadElapsed = Stopwatch.GetElapsedTime(loadStarted);
+            var evaluationStarted = Stopwatch.GetTimestamp();
+            var diagnostics = rules.Evaluate(
+                solution,
+                profile
+                    ? static (phase, elapsed) => Console.Error.WriteLine(
+                        $"drillpress: rule-phase: {phase}={elapsed.TotalSeconds:F2}s")
+                    : null);
+            var evaluationElapsed = Stopwatch.GetElapsedTime(evaluationStarted);
             var applied = 0;
+            var fixElapsed = TimeSpan.Zero;
+            var reloadElapsed = TimeSpan.Zero;
+            var reevaluationElapsed = TimeSpan.Zero;
             if (command == "fix")
             {
+                var fixStarted = Stopwatch.GetTimestamp();
                 applied = await ApplyFixesAsync(diagnostics, cancellationToken);
+                fixElapsed = Stopwatch.GetElapsedTime(fixStarted);
                 if (applied > 0)
                 {
+                    var reloadStarted = Stopwatch.GetTimestamp();
                     solution = await SolutionLoader.LoadAsync(target, cancellationToken);
-                    diagnostics = rules.Evaluate(solution);
+                    reloadElapsed = Stopwatch.GetElapsedTime(reloadStarted);
+                    var reevaluationStarted = Stopwatch.GetTimestamp();
+                    diagnostics = rules.Evaluate(
+                        solution,
+                        profile
+                            ? static (phase, elapsed) => Console.Error.WriteLine(
+                                $"drillpress: rule-phase: recheck-{phase}={elapsed.TotalSeconds:F2}s")
+                            : null);
+                    reevaluationElapsed = Stopwatch.GetElapsedTime(reevaluationStarted);
                 }
             }
 
+            var outputStarted = Stopwatch.GetTimestamp();
             WriteDiagnostics(diagnostics, format);
+            var outputElapsed = Stopwatch.GetElapsedTime(outputStarted);
 
             if (command == "fix" && applied > 0)
             {
                 Console.Error.WriteLine($"Applied {applied} edit(s). Run check again to verify the result.");
+            }
+
+            if (profile)
+            {
+                Console.Error.WriteLine(
+                    $"drillpress: phases: load={loadElapsed.TotalSeconds:F2}s, " +
+                    $"evaluate={evaluationElapsed.TotalSeconds:F2}s, " +
+                    $"fix={fixElapsed.TotalSeconds:F2}s, " +
+                    $"reload={reloadElapsed.TotalSeconds:F2}s, " +
+                    $"reevaluate={reevaluationElapsed.TotalSeconds:F2}s, " +
+                    $"output={outputElapsed.TotalSeconds:F2}s, " +
+                    $"total={Stopwatch.GetElapsedTime(totalStarted).TotalSeconds:F2}s");
             }
 
             return diagnostics.IsEmpty ? 0 : 1;
@@ -59,11 +98,13 @@ public static class RuleApplication
         string[] args,
         out string command,
         out string target,
-        out string format)
+        out string format,
+        out bool profile)
     {
         command = args.FirstOrDefault() ?? string.Empty;
         target = string.Empty;
         format = "jsonl";
+        profile = false;
         if (command is not ("check" or "fix"))
         {
             return false;
@@ -74,6 +115,10 @@ public static class RuleApplication
             if (args[index] == "--format" && index + 1 < args.Length)
             {
                 format = args[++index];
+            }
+            else if (args[index] == "--profile")
+            {
+                profile = true;
             }
             else if (string.IsNullOrEmpty(target))
             {
@@ -90,7 +135,9 @@ public static class RuleApplication
 
     private static void WriteUsage()
     {
-        Console.Error.WriteLine("Usage: <rule-bundle> <check|fix> <solution|project|file|directory|glob> [--format jsonl|text]");
+        Console.Error.WriteLine(
+            "Usage: <rule-bundle> <check|fix> <solution|project|file|directory|glob> " +
+            "[--format jsonl|text] [--profile]");
     }
 
     private static void WriteDiagnostics(

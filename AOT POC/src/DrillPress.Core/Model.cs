@@ -49,6 +49,8 @@ public sealed class ProjectModel
     private ImmutableArray<InterfaceModel> _interfaces;
     private ImmutableArray<NamedTypeModel> _types;
     private ImmutableArray<MemberReferenceModel> _memberReferences;
+    private readonly Dictionary<string, ImmutableArray<MemberReferenceModel>> _memberReferencesByName =
+        new(StringComparer.Ordinal);
 
     internal ProjectModel(string name, string path, bool isTestProject)
     {
@@ -78,8 +80,27 @@ public sealed class ProjectModel
     internal ImmutableArray<NamedTypeModel> Types =>
         !_types.IsDefault ? _types : _types = DiscoverTypes();
 
-    internal ImmutableArray<MemberReferenceModel> MemberReferences =>
-        !_memberReferences.IsDefault ? _memberReferences : _memberReferences = DiscoverMemberReferences();
+    internal void PrepareMemberReferences(ImmutableHashSet<string>? requiredNames)
+    {
+        if (!_memberReferences.IsDefault ||
+            requiredNames is not null && requiredNames.All(_memberReferencesByName.ContainsKey))
+        {
+            return;
+        }
+
+        DiscoverMemberReferences(requiredNames);
+    }
+
+    internal IEnumerable<MemberReferenceModel> GetMemberReferences(ImmutableHashSet<string>? requiredNames)
+    {
+        PrepareMemberReferences(requiredNames);
+        if (requiredNames is null)
+        {
+            return _memberReferences;
+        }
+
+        return requiredNames.SelectMany(name => _memberReferencesByName[name]);
+    }
 
     private ImmutableArray<MethodModel> DiscoverMethods()
     {
@@ -132,14 +153,25 @@ public sealed class ProjectModel
         return result.ToImmutable();
     }
 
-    private ImmutableArray<MemberReferenceModel> DiscoverMemberReferences()
+    private void DiscoverMemberReferences(ImmutableHashSet<string>? requiredNames)
     {
         var result = ImmutableArray.CreateBuilder<MemberReferenceModel>();
+        var byName = requiredNames?.ToDictionary(
+            static name => name,
+            static _ => ImmutableArray.CreateBuilder<MemberReferenceModel>(),
+            StringComparer.Ordinal);
         foreach (var document in Documents)
         {
-            foreach (var expression in document.Root.DescendantNodes().OfType<ExpressionSyntax>())
+            foreach (var identifier in document.Root.DescendantNodes().OfType<SimpleNameSyntax>())
             {
-                if (!IsCompleteMemberReference(expression))
+                var name = identifier.Identifier.ValueText;
+                if (requiredNames is not null && !requiredNames.Contains(name))
+                {
+                    continue;
+                }
+
+                var expression = GetCompleteMemberReference(identifier);
+                if (expression is null)
                 {
                     continue;
                 }
@@ -148,38 +180,47 @@ public sealed class ProjectModel
                 var symbol = symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault();
                 if (symbol is IFieldSymbol or IPropertySymbol or IMethodSymbol)
                 {
-                    result.Add(new MemberReferenceModel(document, expression, symbol));
+                    var memberReference = new MemberReferenceModel(document, expression, symbol);
+                    result.Add(memberReference);
+                    byName?[name].Add(memberReference);
                 }
             }
         }
 
-        return result.ToImmutable();
+        if (requiredNames is null)
+        {
+            _memberReferences = result.ToImmutable();
+            return;
+        }
+
+        foreach (var (name, references) in byName!)
+        {
+            _memberReferencesByName[name] = references.ToImmutable();
+        }
     }
 
-    private static bool IsCompleteMemberReference(ExpressionSyntax expression)
+    private static ExpressionSyntax? GetCompleteMemberReference(SimpleNameSyntax identifier)
     {
-        if (expression is MemberAccessExpressionSyntax)
+        if (identifier.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == identifier)
         {
-            return true;
+            return memberAccess;
         }
 
-        if (expression is not IdentifierNameSyntax identifier)
-        {
-            return false;
-        }
-
-        return identifier.Parent switch
-        {
-            MemberAccessExpressionSyntax memberAccess when memberAccess.Name == identifier => false,
-            QualifiedNameSyntax => false,
-            AliasQualifiedNameSyntax => false,
-            _ => true,
-        };
+        return identifier is not IdentifierNameSyntax
+            ? null
+            : identifier.Parent switch
+            {
+                QualifiedNameSyntax => null,
+                AliasQualifiedNameSyntax => null,
+                _ => identifier,
+            };
     }
 }
 
 public sealed class AnalysisSolution
 {
+    private Dictionary<ISymbol, ImmutableArray<NamedTypeModel>>? _implementationsByInterface;
+
     internal AnalysisSolution(ImmutableArray<ProjectModel> projects)
     {
         Projects = projects;
@@ -197,8 +238,50 @@ public sealed class AnalysisSolution
 
     public IEnumerable<NamedTypeModel> Types => Projects.SelectMany(static project => project.Types);
 
-    public IEnumerable<MemberReferenceModel> MemberReferences =>
-        Projects.SelectMany(static project => project.MemberReferences);
+    public IEnumerable<MemberReferenceModel> MemberReferences => GetMemberReferences(null);
+
+    internal void PrepareMemberReferences(ImmutableHashSet<string>? requiredNames)
+    {
+        foreach (var project in Projects)
+        {
+            project.PrepareMemberReferences(requiredNames);
+        }
+    }
+
+    internal IEnumerable<MemberReferenceModel> GetMemberReferences(ImmutableHashSet<string>? requiredNames) =>
+        Projects.SelectMany(project => project.GetMemberReferences(requiredNames));
+
+    internal IEnumerable<NamedTypeModel> GetNonTestConcreteImplementations(INamedTypeSymbol interfaceSymbol)
+    {
+        _implementationsByInterface ??= BuildImplementationIndex();
+        return _implementationsByInterface.GetValueOrDefault(interfaceSymbol, []);
+    }
+
+    private Dictionary<ISymbol, ImmutableArray<NamedTypeModel>> BuildImplementationIndex()
+    {
+        var builders = new Dictionary<ISymbol, ImmutableArray<NamedTypeModel>.Builder>(SymbolEqualityComparer.Default);
+        foreach (var type in Types.Where(static type =>
+                     !type.Document.Project.IsTestProject &&
+                     type.Symbol.TypeKind == TypeKind.Class &&
+                     !type.Symbol.IsAbstract))
+        {
+            foreach (var @interface in type.Symbol.AllInterfaces)
+            {
+                if (!builders.TryGetValue(@interface, out var implementations))
+                {
+                    implementations = ImmutableArray.CreateBuilder<NamedTypeModel>();
+                    builders.Add(@interface, implementations);
+                }
+
+                implementations.Add(type);
+            }
+        }
+
+        return builders.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value.ToImmutable(),
+            SymbolEqualityComparer.Default);
+    }
 }
 
 public sealed class MethodModel(SourceDocument document, MethodDeclarationSyntax declaration, IMethodSymbol symbol)
@@ -299,11 +382,7 @@ public sealed class InterfaceModel(
     public SourceLocation Location => new(Document, Declaration.Identifier.Span);
 
     public IEnumerable<NamedTypeModel> NonTestConcreteImplementations =>
-        Document.Project.Solution.Types.Where(type =>
-            !type.Document.Project.IsTestProject &&
-            type.Symbol.TypeKind == TypeKind.Class &&
-            !type.Symbol.IsAbstract &&
-            type.Symbol.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, Symbol)));
+        Document.Project.Solution.GetNonTestConcreteImplementations(Symbol);
 }
 
 public sealed class NamedTypeModel(

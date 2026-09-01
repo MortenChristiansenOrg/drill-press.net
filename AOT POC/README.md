@@ -14,21 +14,23 @@ because MSBuild and workspace evaluation are outside the AOT boundary.
 ## Architecture and execution boundary
 
 ```text
-solution/project ──> managed BuildHost ──> .drillpress.json snapshot
-                                                │
-                                                v
-caller ──> NativeAOT CLI coordinator ──> compiled rule bundle ──> JSONL
+                                      ┌─> managed BuildHost ─> temporary snapshot ─┐
+solution/project ─> NativeAOT CLI ────┤                                         ├─> compiled rule bundle ─> JSONL
+file/glob/manifest ─> NativeAOT CLI ──┴─────────────────────────────────────────┘
 ```
 
 There are two target-loading paths:
 
-- The direct loader runs inside the rule bundle and is useful for individual
-  files, globs, and ordinary SDK projects. It deliberately implements only a
-  small predictable subset of project evaluation.
+- The direct loader runs inside the rule bundle for individual files, globs,
+  and prebuilt manifests. It deliberately implements only a small predictable
+  subset of project evaluation and remains useful when calling a bundle
+  without the coordinator.
 - BuildHost uses `MSBuildWorkspace`, runs source generators, and serializes the
-  resulting compilations. This is the fidelity path for real solutions. The
-  NativeAOT rule bundle only parses the data manifest and C# syntax; it never
-  loads MSBuild, evaluates a project, discovers rules, or compiles rule text.
+  resulting compilations. The CLI automatically uses this fidelity path for
+  solutions, projects, and directories, passes its temporary snapshot to the
+  rule bundle, and removes it afterward. The NativeAOT rule bundle only parses
+  the data manifest and C# syntax; it never loads MSBuild, evaluates a project,
+  discovers rules, or compiles rule text.
 
 The rule DLL is an executable contract rather than a plugin loaded into the CLI
 process. It accepts `check|fix`, a target, and an optional output format. This
@@ -42,9 +44,10 @@ keeps rule discovery static and avoids runtime assembly loading under AOT.
   MSBuild projects to export a versioned, immutable compilation manifest.
 - `DrillPress.SampleRules` defines seven rules and builds to an executable
   `DrillPress.SampleRules.dll`. The same project publishes to a native binary.
-- `DrillPress.Cli` is a small NativeAOT coordinator. It starts either a managed
-  executable rule DLL through `dotnet`, or a natively published rule bundle
-  directly. It never loads rule code into its own process.
+- `DrillPress.Cli` is a small NativeAOT coordinator. It orchestrates BuildHost,
+  temporary manifests, compiled rule bundles, and fix/re-export/recheck. It
+  starts either a managed executable rule DLL through `dotnet`, or a natively
+  published rule bundle directly, and never loads rule code into its process.
 - `DrillPress.ConformanceTests` is a dependency-free executable test suite for
   loading, manifest reconstruction, JSONL, fixes, and evaluated SDK features.
 
@@ -60,8 +63,16 @@ dotnet build "AOT POC/DrillPress.Aot.slnx"
 dotnet "AOT POC/src/DrillPress.Cli/bin/Debug/net10.0/drillpress.dll" \
   check \
   --rules "AOT POC/src/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll" \
+  --build-host "AOT POC/src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll" \
   "Sample Solution/DrillPress.SampleTarget.slnx"
 ```
+
+For a deployed layout, place `DrillPress.BuildHost.dll` and its managed output
+next to the coordinator. The CLI resolves BuildHost in this order:
+`--build-host`, `DRILLPRESS_BUILD_HOST`, then an adjacent
+`DrillPress.BuildHost.dll` or native executable. `--property Name=Value` may be
+repeated for MSBuild properties. Validated export is the default;
+`--fast` explicitly skips the compiler-diagnostics audit.
 
 JSON Lines is the default output. A compact human format is also available:
 
@@ -106,6 +117,7 @@ Then run the native coordinator and native rules:
 "AOT POC/artifacts/cli-linux-x64/drillpress" \
   check \
   --rules "AOT POC/artifacts/rules-linux-x64/DrillPress.SampleRules" \
+  --build-host "AOT POC/src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll" \
   "Sample Solution/DrillPress.SampleTarget.slnx"
 ```
 
@@ -128,7 +140,9 @@ Measured in this workspace with a warm filesystem cache and eight findings:
 | Native rule check, three runs | 0.04 s each |
 
 These are POC measurements rather than a formal benchmark, but they preserve a
-useful size/startup baseline for comparison with the planned non-AOT design.
+useful size/startup baseline for comparison with managed execution.
+The coordinator grew to 2.8 MB after adding JSONL fix orchestration; the rule
+bundle is 69.5 MB before excluding its separate debug-symbol file.
 
 ## Rule definitions and composition
 
@@ -249,20 +263,32 @@ The included rules are:
 ## Applying fixes
 
 ```bash
-dotnet "AOT POC/src/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll" \
-  fix path/to/target.sln
+dotnet "AOT POC/src/DrillPress.Cli/bin/Debug/net10.0/drillpress.dll" \
+  fix \
+  --rules "AOT POC/src/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll" \
+  --build-host "AOT POC/src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll" \
+  path/to/target.sln
 ```
 
-Edits are grouped by file, checked for overlap, applied from the end of each
-file, and written through a temporary file. The target is then analyzed again,
-so stdout contains only remaining findings. DP1005 uses speculative semantic
-binding and offers its removal only when the rewritten invocation resolves.
+For SDK-evaluated targets, the coordinator checks a temporary manifest in JSONL
+mode, deduplicates identical edits from multi-target projects, checks all edits
+for overlap, and applies them from the end of each file through a temporary
+file. It then exports a fresh manifest and rechecks it, so stdout contains only
+remaining findings. If exporting or recompiling the changed target fails, the
+CLI returns exit code 2 rather than reporting stale results. DP1005 uses
+speculative semantic binding and offers its removal only when the rewritten
+invocation resolves.
+
+Direct file and glob fixes still run inside the rule bundle. A manifest itself
+remains immutable and cannot be fixed directly; the coordinator must receive
+the original solution/project target so it can regenerate the snapshot.
 
 ## Deliberate POC limitations
 
-The AOT process does not host MSBuild. The small loader understands ordinary SDK
-projects for fast file-oriented checks. For compiler-faithful solution and
-project checks, use the SDK-side build host:
+The AOT process does not host MSBuild. The coordinator starts the managed
+BuildHost as a separate process for compiler-faithful solution and project
+checks. The explicit two-step form remains available for CI caching,
+diagnostics, and benchmarking:
 
 ```bash
 # Build first when the graph contains source-generator project references.
@@ -321,15 +347,22 @@ analysis.
 
 Compilation manifests are immutable snapshots. `fix` intentionally rejects a
 manifest target because re-checking its embedded source after editing the
-original file would be stale. Fix the original source/solution target and then
-export a new manifest. Findings in generated source are reported, but never
-offer edits to generated output.
+original file would be stale. Findings in generated source are reported, but
+never offer edits to generated output.
 
-The remaining POC gaps are automatic BuildHost orchestration in the CLI,
-incremental manifests, preservation of every uncommon compilation option, and
-application of analyzer-config severity to Drill Press rules. Test-project
-classification is currently a name/path/framework-reference heuristic rather
-than a serialized evaluated `IsTestProject` property.
+The core POC workflow is complete. Production-oriented work that remains is:
+
+- incremental/cached manifests or a persistent BuildHost to reduce repeated
+  `MSBuildWorkspace` startup;
+- a defined multi-target diagnostic policy before sharing semantic results or
+  deduplicating findings across target frameworks;
+- preservation of uncommon metadata-reference properties such as aliases and
+  embedded interop types;
+- application of analyzer-config severity to Drill Press rules;
+- an evaluated `IsTestProject` value rather than the current
+  name/path/framework-reference heuristic;
+- cancellation, process timeouts, packaging, schema migration policy, and
+  Windows/macOS plus another-repository acceptance runs.
 
 ## Conformance and realistic fixture
 
@@ -343,7 +376,9 @@ source, an `AdditionalFiles`-driven incremental generator, `.editorconfig`,
 per-tree compiler severity, project references, test-project classification,
 and generated-source fix safety. The suite also compares direct and manifest
 diagnostics exactly, checks all target modes, validates the JSONL schema,
-applies the three sample fixes, and builds the fixed solution. An external
+checks profiling output, exercises automatic CLI/BuildHost orchestration,
+applies the three sample fixes both directly and through the faithful manifest
+path, regenerates and rechecks, and builds both fixed solutions. An external
 manifest can be checked with `-- --manifest path/to/file.drillpress.json`.
 
 ## xUnit benchmark
@@ -376,7 +411,9 @@ cache, `/usr/bin/time`, and JSONL aggregated through `jq`:
 | Original validated SDK export | 47.15 s | 1,759,992 KB | Sequential compilation acquisition |
 | Optimized validated SDK export | 45.93 s | 1,758,004 KB | Concurrent acquisition; full diagnostic audit |
 | Optimized fast SDK export, 2 runs | 22.27-22.95 s | 1,104,148-1,105,628 KB | Diagnostic audit explicitly skipped |
-| Full native analysis | 49.46 s | 2,514,784 KB | 5,776 findings, 686 fixable |
+| Original full native analysis | 49.46 s | 2,514,784 KB | 5,776 findings, 686 fixable |
+| Query-planned full native analysis | 25.14 s | 1,616,556 KB | Same 5,776 findings and 686 fixes |
+| Query-planned full managed analysis | 36.60 s | 1,698,584 KB | Byte-identical JSONL to native |
 | Clean v1 test-project export | 2.71 s | 176,352 KB | 96 trees, 68 references, 0 errors |
 | Clean v1 native analysis, 3 runs | 0.30-0.32 s | 115,712-116,224 KB | 93 findings |
 | Clean v1 managed analysis, 3 runs | 2.02-2.15 s | 130,140-130,364 KB | 93 findings |
@@ -385,6 +422,58 @@ The full manifest is 47,841,128 bytes and includes every target-framework
 project produced by `MSBuildWorkspace`; it is intentionally a scale test rather
 than a deduplicated count of physical source files. The clean v1 project is the
 smaller correctness/startup comparison.
+
+The rule optimization preserves the high-level definitions. Conditions such
+as `Members.Are<string>(nameof(string.Empty))` now contribute a query-planning
+hint, so the model scans syntax once for the four requested member names and
+only asks Roslyn to bind those candidates. An unfiltered
+`Code.MemberReferences` query still discovers every reference, preserving the
+general model. The cross-solution interface rule also uses a one-time
+interface-to-concrete-type index instead of rescanning every type per
+interface. On a same-session pre-change run the old model took 53.18 seconds,
+so the 25.14-second result is a 52.7% wall-time reduction; against the original
+documented 49.46-second baseline it is 49.2%. Peak RSS fell by 35.7%.
+
+Pass `--profile` to the rule bundle or coordinator for timings on stderr while
+keeping JSONL stdout unchanged. The optimized full xUnit run reported:
+
+| Native analysis phase | Time |
+| --- | ---: |
+| Manifest load and compilation reconstruction | 2.87 s |
+| Planned member-reference preparation | 5.74 s |
+| DP1001 xUnit method/blank-line check | 2.19 s |
+| DP1002 assertion ordering and exception | 13.02 s |
+| DP1003 indexed implementation check | 1.17 s |
+| Remaining four member rules together | 0.01 s |
+| Output | 0.05 s |
+
+DP1002 is now the largest isolated rule cost. Its semantic assertion binding
+cannot safely be shared across target-framework compilations without defining
+what happens when symbols, conditional code, or references differ by target.
+The 5,776 emitted xUnit records contain 1,547 unique
+rule/file/span/message signatures because the benchmark intentionally includes
+all target-framework projects. This POC keeps those distinct evaluations
+rather than silently trading correctness for a lower number; a production
+multi-target policy is the next meaningful performance decision.
+
+### NativeAOT versus managed execution
+
+The managed comparison runs the same Release rule assembly, Core code,
+manifest, queries, and output path with `dotnet`; only ahead-of-time versus JIT
+execution differs. Its JSONL is byte-for-byte identical to the native run. On
+the full xUnit snapshot, NativeAOT was 31.3% faster (25.14 versus 36.60 seconds),
+used 4.8% less peak memory, and used roughly half the measured user CPU. With
+the fastest SDK export measured above, the two-process end-to-end estimates are
+about 47.4 seconds native and 58.9 seconds managed. The small clean-project
+numbers also show the much larger native startup advantage: 0.30-0.32 seconds
+versus 2.02-2.15 seconds.
+
+This is deliberately an execution-mode comparison, not a second architecture.
+A managed-only design could host `MSBuildWorkspace` and rule evaluation in one
+process and avoid the manifest handoff, but that would also change isolation,
+memory lifetime, deployment, and the rule-DLL contract. It is a reasonable
+separate experiment only if those tradeoffs are in scope; the current data says
+switching this architecture from NativeAOT to JIT by itself is not a speed win.
 
 Phase timing showed why the fast mode matters. On the final validated run,
 solution loading took 18.16 seconds, compilation acquisition 3.98 seconds, and
