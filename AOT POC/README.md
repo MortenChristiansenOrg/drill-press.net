@@ -275,6 +275,22 @@ dotnet "AOT POC/src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.
   check path/to/target.drillpress.json
 ```
 
+The default export performs a full compiler-diagnostics audit. After a
+successful build, latency-sensitive callers can explicitly select the fast path:
+
+```bash
+dotnet "AOT POC/src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll" \
+  export path/to/target.slnx path/to/target.drillpress.json \
+  --skip-compiler-diagnostics
+```
+
+Fast manifests store `null` rather than `0` for `compilerErrorCount`, making it
+impossible to confuse “not evaluated” with “compiler clean”. Both modes capture
+the same compilations and rule inputs. Compilation requests are started
+concurrently; diagnostics remain sequential because bounded parallel diagnostic
+passes increased wall time and nearly doubled CPU consumption on the xUnit
+workload.
+
 The manifest contains evaluated C# parse and compilation options, preprocessor
 symbols, source-generator output, linked source, additional files, analyzer
 configuration (including effective per-tree compiler severity), NuGet/framework
@@ -282,7 +298,9 @@ metadata references, and project references.
 The NativeAOT process reconstructs Roslyn compilations from that snapshot; it
 does not evaluate MSBuild or parse rule definitions.
 
-Manifest schema v2 exists because compiler severity can vary per syntax tree;
+Manifest schema v3 preserves nullable compiler-audit results. The per-tree
+compiler-severity support originally introduced in v2 remains necessary because
+severity can vary per syntax tree;
 without preserving this, `TreatWarningsAsErrors` can turn an editorconfig-
 suppressed warning into an AOT-side compiler error. The xUnit audit found this
 case with CS9113. The external conformance mode verifies that every reconstructed
@@ -295,9 +313,11 @@ portable to another SDK installation or machine.
 
 BuildHost writes the manifest even when it finds errors, but returns non-zero
 for a workspace failure or any compiler error. `--allow-compiler-errors` relaxes
-only the compiler-error gate. Up to three compiler errors per project are shown
-on stderr for diagnosis. This prevents a fast but semantically incomplete run
-from being mistaken for a valid analysis.
+only the compiler-error gate. `--skip-compiler-diagnostics` omits that audit and
+records nullable error counts; workspace failures still produce a non-zero exit.
+Up to three compiler errors per project are shown on stderr for diagnosis. This
+prevents a fast but semantically incomplete run from being mistaken for a valid
+analysis.
 
 Compilation manifests are immutable snapshots. `fix` intentionally rejects a
 manifest target because re-checking its embedded source after editing the
@@ -332,6 +352,9 @@ manifest can be checked with `-- --manifest path/to/file.drillpress.json`.
 `6bbefaed1d0a995bc9970800384f9e8a1b9d2331`, including its submodules, exports
 the full solution, publishes the NativeAOT rules, and records export and
 analysis wall time plus peak RSS. The checkout is ignored by this repository.
+The script uses validated export by default. Once that confirms clean
+compilations, set `DRILLPRESS_SKIP_COMPILER_DIAGNOSTICS=1` to reproduce the fast
+path.
 
 Use the complete clone and initialize submodules. A shallow clone makes
 Nerdbank.GitVersioning fail while calculating version height, and omitting the
@@ -341,15 +364,18 @@ script handles both requirements and performs the pinned locked restore.
 The pinned xUnit revision currently has locked-package hash failures for
 `Microsoft.DotNet.ILCompiler.10.0.11` in two AOT runner projects. BuildHost
 therefore returns 1 for the full export, but the resulting manifest contains 94
-projects with zero Roslyn compiler errors. The workspace failures remain in the
-manifest rather than being hidden.
+projects. A validated export and AOT reconstruction confirm zero Roslyn compiler
+errors in all 94. The workspace failures remain in the manifest rather than
+being hidden.
 
 Measured on Linux x64 with .NET SDK 10.0.111, Roslyn 5.9.0, a warm filesystem
 cache, `/usr/bin/time`, and JSONL aggregated through `jq`:
 
 | xUnit workload | Wall time | Peak RSS | Result |
 | --- | ---: | ---: | --- |
-| Full SDK export | 47.15 s | 1,759,992 KB | 94 projects, 7,028 trees, 392 generated |
+| Original validated SDK export | 47.15 s | 1,759,992 KB | Sequential compilation acquisition |
+| Optimized validated SDK export | 45.93 s | 1,758,004 KB | Concurrent acquisition; full diagnostic audit |
+| Optimized fast SDK export, 2 runs | 22.27-22.95 s | 1,104,148-1,105,628 KB | Diagnostic audit explicitly skipped |
 | Full native analysis | 49.46 s | 2,514,784 KB | 5,776 findings, 686 fixable |
 | Clean v1 test-project export | 2.71 s | 176,352 KB | 96 trees, 68 references, 0 errors |
 | Clean v1 native analysis, 3 runs | 0.30-0.32 s | 115,712-116,224 KB | 93 findings |
@@ -359,3 +385,12 @@ The full manifest is 47,841,128 bytes and includes every target-framework
 project produced by `MSBuildWorkspace`; it is intentionally a scale test rather
 than a deduplicated count of physical source files. The clean v1 project is the
 smaller correctness/startup comparison.
+
+Phase timing showed why the fast mode matters. On the final validated run,
+solution loading took 18.16 seconds, compilation acquisition 3.98 seconds, and
+compiler diagnostics 22.87 seconds; documents and serialization took only 0.50
+seconds combined. Fast-mode manifests were structurally identical to validated
+manifests after normalizing the timestamp, workspace-generated project IDs, and
+the intentionally nullable compiler-error count. The remaining roughly
+18-second floor is `MSBuildWorkspace` evaluation and would require a different
+compiler-front-end strategy—not JSON or source-capture micro-optimization.

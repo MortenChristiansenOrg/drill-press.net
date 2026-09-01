@@ -8,11 +8,17 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 
-if (!TryParseArguments(args, out var target, out var output, out var properties, out var allowCompilerErrors))
+if (!TryParseArguments(
+        args,
+        out var target,
+        out var output,
+        out var properties,
+        out var allowCompilerErrors,
+        out var skipCompilerDiagnostics))
 {
     Console.Error.WriteLine(
         "Usage: DrillPress.BuildHost export <solution|project|directory> <manifest.json> " +
-        "[--property Name=Value] [--allow-compiler-errors]");
+        "[--property Name=Value] [--allow-compiler-errors] [--skip-compiler-diagnostics]");
     return 2;
 }
 
@@ -24,36 +30,60 @@ try
 
     using var workspace = MSBuildWorkspace.Create(properties);
     var workspaceMessages = ImmutableArray.CreateBuilder<ManifestMessage>();
+    var workspaceMessagesLock = new object();
     workspace.RegisterWorkspaceFailedHandler(eventArgs =>
     {
-        workspaceMessages.Add(new ManifestMessage(
-            eventArgs.Diagnostic.Kind.ToString(),
-            eventArgs.Diagnostic.Message));
+        lock (workspaceMessagesLock)
+        {
+            workspaceMessages.Add(new ManifestMessage(
+                eventArgs.Diagnostic.Kind.ToString(),
+                eventArgs.Diagnostic.Message));
+        }
     });
 
+    var openStarted = Stopwatch.GetTimestamp();
     var solution = Path.GetExtension(target).Equals(".csproj", StringComparison.OrdinalIgnoreCase)
         ? (await workspace.OpenProjectAsync(target)).Solution
         : await workspace.OpenSolutionAsync(target);
+    var openElapsed = Stopwatch.GetElapsedTime(openStarted);
+    var csharpProjects = solution.Projects
+        .Where(static project => project.Language == LanguageNames.CSharp)
+        .OrderBy(static project => project.FilePath, StringComparer.Ordinal)
+        .ToImmutableArray();
+    var compilationStarted = Stopwatch.GetTimestamp();
+    var projectCompilations = await Task.WhenAll(
+        csharpProjects.Select(static project => project.GetCompilationAsync()));
+    var compilationElapsed = Stopwatch.GetElapsedTime(compilationStarted);
+    var diagnosticsElapsed = TimeSpan.Zero;
     var projects = ImmutableArray.CreateBuilder<ManifestProject>();
     var totalCompilerErrors = 0;
+    var generatorElapsed = TimeSpan.Zero;
+    var documentElapsed = TimeSpan.Zero;
 
-    foreach (var project in solution.Projects
-                 .Where(static project => project.Language == LanguageNames.CSharp)
-                 .OrderBy(static project => project.FilePath, StringComparer.Ordinal))
+    for (var projectIndex = 0; projectIndex < csharpProjects.Length; projectIndex++)
     {
-        if (await project.GetCompilationAsync() is not CSharpCompilation compilation ||
+        var project = csharpProjects[projectIndex];
+        var projectCompilation = projectCompilations[projectIndex];
+        if (projectCompilation is not CSharpCompilation compilation ||
             project.ParseOptions is not CSharpParseOptions parseOptions ||
             project.CompilationOptions is not CSharpCompilationOptions compilationOptions)
         {
-            workspaceMessages.Add(new ManifestMessage(
-                "Failure",
-                $"Could not create a C# compilation for '{project.Name}'.",
-                project.FilePath));
+            lock (workspaceMessagesLock)
+            {
+                workspaceMessages.Add(new ManifestMessage(
+                    "Failure",
+                    $"Could not create a C# compilation for '{project.Name}'.",
+                    project.FilePath));
+            }
+
             continue;
         }
 
         // Force generators to complete before reading Compilation.SyntaxTrees.
+        var generatorStarted = Stopwatch.GetTimestamp();
         _ = await project.GetSourceGeneratedDocumentsAsync();
+        generatorElapsed += Stopwatch.GetElapsedTime(generatorStarted);
+        var documentStarted = Stopwatch.GetTimestamp();
         var ordinaryPaths = project.Documents
             .Select(static document => document.FilePath)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
@@ -83,6 +113,7 @@ try
             })
             .OrderBy(static document => document.Path, StringComparer.Ordinal)
             .ToImmutableArray();
+        documentElapsed += Stopwatch.GetElapsedTime(documentStarted);
         var metadataReferences = compilation.References
             .OfType<PortableExecutableReference>()
             .Select(static reference => reference.FilePath)
@@ -91,11 +122,18 @@ try
             .Distinct(GetPathComparer())
             .OrderBy(static path => path, StringComparer.Ordinal)
             .ToImmutableArray();
-        var compilerErrors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToImmutableArray();
-        var compilerErrorCount = compilerErrors.Length;
-        totalCompilerErrors += compilerErrorCount;
+        var compilerErrors = ImmutableArray<Diagnostic>.Empty;
+        int? compilerErrorCount = null;
+        if (!skipCompilerDiagnostics)
+        {
+            var diagnosticsStarted = Stopwatch.GetTimestamp();
+            compilerErrors = compilation.GetDiagnostics()
+                .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+                .ToImmutableArray();
+            diagnosticsElapsed += Stopwatch.GetElapsedTime(diagnosticsStarted);
+            compilerErrorCount = compilerErrors.Length;
+            totalCompilerErrors += compilerErrorCount.Value;
+        }
         var specificDiagnostics = compilationOptions.SpecificDiagnosticOptions
             .ToImmutableDictionary(
                 static pair => pair.Key,
@@ -132,11 +170,20 @@ try
 
         Console.Error.WriteLine(
             $"manifest: {project.Name}: {documents.Length} source(s), " +
-            $"{metadataReferences.Length} reference(s), {compilerErrorCount} compiler error(s)");
+            $"{metadataReferences.Length} reference(s), " +
+            (compilerErrorCount is null
+                ? "compiler diagnostics skipped"
+                : $"{compilerErrorCount} compiler error(s)"));
         foreach (var diagnostic in compilerErrors.Take(3))
         {
             Console.Error.WriteLine($"manifest:   {diagnostic.Id}: {diagnostic.GetMessage()}");
         }
+    }
+
+    ImmutableArray<ManifestMessage> workspaceMessageSnapshot;
+    lock (workspaceMessagesLock)
+    {
+        workspaceMessageSnapshot = workspaceMessages.ToImmutable();
     }
 
     var manifest = new CompilationManifest(
@@ -144,10 +191,11 @@ try
         target,
         DateTimeOffset.UtcNow,
         projects.ToImmutable(),
-        workspaceMessages.ToImmutable());
+        workspaceMessageSnapshot);
     var fullOutput = Path.GetFullPath(output);
     Directory.CreateDirectory(Path.GetDirectoryName(fullOutput)!);
     var temporaryOutput = fullOutput + ".tmp";
+    var serializationStarted = Stopwatch.GetTimestamp();
     await using (var stream = File.Create(temporaryOutput))
     {
         await JsonSerializer.SerializeAsync(
@@ -157,10 +205,18 @@ try
     }
 
     File.Move(temporaryOutput, fullOutput, true);
+    var serializationElapsed = Stopwatch.GetElapsedTime(serializationStarted);
     stopwatch.Stop();
     Console.Error.WriteLine(
         $"manifest: wrote {projects.Count} project(s) to '{fullOutput}' in {stopwatch.Elapsed.TotalSeconds:F2}s");
-    var workspaceFailed = workspaceMessages.Any(message => message.Kind == "Failure");
+    Console.Error.WriteLine(
+        $"manifest: phases: open={openElapsed.TotalSeconds:F2}s, " +
+        $"compilations={compilationElapsed.TotalSeconds:F2}s, " +
+        $"generators={generatorElapsed.TotalSeconds:F2}s, " +
+        $"documents={documentElapsed.TotalSeconds:F2}s, " +
+        $"diagnostics={diagnosticsElapsed.TotalSeconds:F2}s, " +
+        $"serialize={serializationElapsed.TotalSeconds:F2}s");
+    var workspaceFailed = workspaceMessageSnapshot.Any(message => message.Kind == "Failure");
     return workspaceFailed || (!allowCompilerErrors && totalCompilerErrors > 0) ? 1 : 0;
 }
 catch (Exception exception)
@@ -174,12 +230,14 @@ static bool TryParseArguments(
     out string target,
     out string output,
     out Dictionary<string, string> properties,
-    out bool allowCompilerErrors)
+    out bool allowCompilerErrors,
+    out bool skipCompilerDiagnostics)
 {
     target = string.Empty;
     output = string.Empty;
     properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     allowCompilerErrors = false;
+    skipCompilerDiagnostics = false;
     if (arguments.Length < 3 || arguments[0] != "export")
     {
         return false;
@@ -192,6 +250,12 @@ static bool TryParseArguments(
         if (arguments[index] == "--allow-compiler-errors")
         {
             allowCompilerErrors = true;
+            continue;
+        }
+
+        if (arguments[index] == "--skip-compiler-diagnostics")
+        {
+            skipCompilerDiagnostics = true;
             continue;
         }
 

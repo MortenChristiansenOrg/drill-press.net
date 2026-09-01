@@ -10,7 +10,7 @@ public sealed record CompilationManifest(
     ImmutableArray<ManifestProject> Projects,
     ImmutableArray<ManifestMessage> Messages)
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 }
 
 public sealed record ManifestProject(
@@ -39,7 +39,7 @@ public sealed record ManifestProject(
     ImmutableArray<ManifestDocument> AnalyzerConfigDocuments,
     ImmutableArray<string> MetadataReferences,
     ImmutableArray<string> ProjectReferences,
-    int CompilerErrorCount);
+    int? CompilerErrorCount);
 
 public sealed record ManifestDocument(
     string Path,

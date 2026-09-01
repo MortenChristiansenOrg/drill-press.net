@@ -8,6 +8,8 @@ var repositoryRoot = FindRepositoryRoot();
 var sampleSolution = Path.Combine(repositoryRoot, "Sample Solution", "DrillPress.SampleTarget.slnx");
 var ruleAssembly = typeof(SampleRuleSet).Assembly.Location;
 var rules = SampleRuleSet.Create();
+var buildConfiguration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name
+    ?? throw new InvalidOperationException("Could not determine the test build configuration.");
 var temporaryRoot = Path.Combine(Path.GetTempPath(), $"drillpress-conformance-{Guid.NewGuid():N}");
 Directory.CreateDirectory(temporaryRoot);
 
@@ -45,7 +47,18 @@ try
         "DrillPress.BuildHost.csproj");
     var export = await RunAsync(
         "dotnet",
-        ["run", "--project", buildHostProject, "--no-build", "--", "export", sampleSolution, manifestPath],
+        [
+            "run",
+            "--project",
+            buildHostProject,
+            "--configuration",
+            buildConfiguration,
+            "--no-build",
+            "--",
+            "export",
+            sampleSolution,
+            manifestPath,
+        ],
         repositoryRoot);
     Check(export.ExitCode == 0, $"Manifest export failed:{Environment.NewLine}{export.StandardError}");
 
@@ -76,6 +89,31 @@ try
     Check(Signatures(manifestDiagnostics).SequenceEqual(Signatures(directDiagnostics), StringComparer.Ordinal),
         "Manifest and direct loading produced different rule diagnostics.");
 
+    var fastManifestPath = Path.Combine(temporaryRoot, "sample-fast.drillpress.json");
+    var fastExport = await RunAsync(
+        "dotnet",
+        [
+            "run",
+            "--project",
+            buildHostProject,
+            "--configuration",
+            buildConfiguration,
+            "--no-build",
+            "--",
+            "export",
+            sampleSolution,
+            fastManifestPath,
+            "--skip-compiler-diagnostics",
+        ],
+        repositoryRoot);
+    Check(fastExport.ExitCode == 0, $"Fast manifest export failed:{Environment.NewLine}{fastExport.StandardError}");
+    var fastManifest = await ReadManifestAsync(fastManifestPath);
+    Check(fastManifest.Projects.All(static project => project.CompilerErrorCount is null),
+        "Fast manifests must mark compiler diagnostics as unevaluated.");
+    var fastManifestDiagnostics = rules.Evaluate(await SolutionLoader.LoadAsync(fastManifestPath));
+    Check(Signatures(fastManifestDiagnostics).SequenceEqual(Signatures(manifestDiagnostics), StringComparer.Ordinal),
+        "Fast and validated manifests produced different rule diagnostics.");
+
     Console.WriteLine("conformance: realistic evaluated project features");
     var realisticSolution = Path.Combine(
         repositoryRoot,
@@ -90,7 +128,18 @@ try
         $"Realistic fixture build failed:{Environment.NewLine}{realisticBuild.StandardOutput}");
     var realisticExport = await RunAsync(
         "dotnet",
-        ["run", "--project", buildHostProject, "--no-build", "--", "export", realisticSolution, realisticManifestPath],
+        [
+            "run",
+            "--project",
+            buildHostProject,
+            "--configuration",
+            buildConfiguration,
+            "--no-build",
+            "--",
+            "export",
+            realisticSolution,
+            realisticManifestPath,
+        ],
         repositoryRoot);
     Check(realisticExport.ExitCode == 0,
         $"Realistic manifest export failed:{Environment.NewLine}{realisticExport.StandardError}");
@@ -190,10 +239,15 @@ try
             var expectedErrors = externalManifest.Projects
                 .Single(candidate => candidate.ProjectPath == project.Path && candidate.Name == project.Name)
                 .CompilerErrorCount;
+            if (expectedErrors is null)
+            {
+                continue;
+            }
+
             var actualErrors = project.Compilation.GetDiagnostics()
                 .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
                 .ToArray();
-            Check(actualErrors.Length == expectedErrors,
+            Check(actualErrors.Length == expectedErrors.Value,
                 $"Reconstructed project '{project.Name}' has {actualErrors.Length} compiler error(s); " +
                 $"the build-host compilation had {expectedErrors}:{Environment.NewLine}" +
                 string.Join(Environment.NewLine, actualErrors.Take(10)));

@@ -23,21 +23,34 @@ dotnet publish "$repository_root/AOT POC/src/DrillPress.SampleRules/DrillPress.S
 
 # xUnit currently reports two locked-package hash failures for its AOT runner
 # projects. MSBuildWorkspace still creates all 94 compilations, so preserve the
-# non-zero status but continue far enough to verify compiler fidelity and time
-# the immutable manifest.
+# non-zero status but continue far enough to time the immutable manifest. The
+# default includes the full compiler-diagnostics audit. After that succeeds,
+# set DRILLPRESS_SKIP_COMPILER_DIAGNOSTICS=1 to measure the fast path.
+build_host_arguments=(
+  export
+  "$xunit_root/xunit.slnx"
+  "$artifacts/xunit.drillpress.json"
+)
+export_mode="validated"
+if [[ "${DRILLPRESS_SKIP_COMPILER_DIAGNOSTICS:-0}" == "1" ]]; then
+  export_mode="fast"
+  build_host_arguments+=(--skip-compiler-diagnostics)
+fi
+
 set +e
 dotnet restore "$xunit_root/xunit.slnx" --locked-mode
 restore_status=$?
 /usr/bin/time -f 'export_wall=%e export_user=%U export_sys=%S export_max_rss_kb=%M' \
   dotnet "$repository_root/AOT POC/src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll" \
-  export "$xunit_root/xunit.slnx" "$artifacts/xunit.drillpress.json"
+  "${build_host_arguments[@]}"
 export_status=$?
 set -e
 
 echo "restore_exit=$restore_status"
+echo "export_mode=$export_mode"
 echo "build_host_exit=$export_status"
 if command -v jq >/dev/null; then
-  jq '{projects: (.projects|length), documents: ([.projects[].documents|length]|add), generatedDocuments: ([.projects[].documents[]|select(.isGenerated)]|length), compilerErrors: ([.projects[].compilerErrorCount]|add), workspaceMessages: (.messages|length)}' \
+  jq '{projects: (.projects|length), documents: ([.projects[].documents|length]|add), generatedDocuments: ([.projects[].documents[]|select(.isGenerated)]|length), compilerDiagnosticsEvaluated: ([.projects[]|select(.compilerErrorCount != null)]|length), compilerErrors: ([.projects[].compilerErrorCount // 0]|add), workspaceMessages: (.messages|length)}' \
     "$artifacts/xunit.drillpress.json"
 fi
 
