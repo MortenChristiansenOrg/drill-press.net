@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
@@ -13,6 +14,12 @@ public static partial class SolutionLoader
     public static async Task<AnalysisSolution> LoadAsync(string target, CancellationToken cancellationToken = default)
     {
         var fullTarget = Path.GetFullPath(target);
+        if (File.Exists(fullTarget) &&
+            fullTarget.EndsWith(".drillpress.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return await LoadManifestAsync(fullTarget, cancellationToken);
+        }
+
         var specs = DiscoverProjects(fullTarget);
         if (specs.Count == 0)
         {
@@ -100,6 +107,117 @@ public static partial class SolutionLoader
         }
 
         return new AnalysisSolution(projectsByPath.Values.OrderBy(project => project.Path, PathComparer).ToImmutableArray());
+    }
+
+    private static async Task<AnalysisSolution> LoadManifestAsync(
+        string manifestPath,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(manifestPath);
+        var manifest = await JsonSerializer.DeserializeAsync(
+                stream,
+                CompilationManifestJsonContext.Default.CompilationManifest,
+                cancellationToken)
+            ?? throw new InvalidOperationException($"Manifest '{manifestPath}' is empty.");
+        if (manifest.Version != CompilationManifest.CurrentVersion)
+        {
+            throw new InvalidOperationException(
+                $"Manifest version {manifest.Version} is not supported; expected {CompilationManifest.CurrentVersion}.");
+        }
+
+        var projectIds = manifest.Projects.Select(static project => project.Id).ToHashSet(StringComparer.Ordinal);
+        var projectsById = new Dictionary<string, ProjectModel>(StringComparer.Ordinal);
+        var compilationsById = new Dictionary<string, CSharpCompilation>(StringComparer.Ordinal);
+        var metadataReferenceCache = new Dictionary<string, MetadataReference>(PathComparer);
+        var pending = new Queue<ManifestProject>(manifest.Projects);
+        var attemptsWithoutProgress = 0;
+
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var manifestProject = pending.Dequeue();
+            var unresolved = manifestProject.ProjectReferences
+                .Where(reference => projectIds.Contains(reference) && !compilationsById.ContainsKey(reference));
+            if (unresolved.Any())
+            {
+                pending.Enqueue(manifestProject);
+                attemptsWithoutProgress++;
+                if (attemptsWithoutProgress >= pending.Count)
+                {
+                    throw new InvalidOperationException("The manifest project graph contains a cycle or unresolved reference.");
+                }
+
+                continue;
+            }
+
+            attemptsWithoutProgress = 0;
+            var parseOptions = new CSharpParseOptions(
+                (LanguageVersion)manifestProject.LanguageVersion,
+                (DocumentationMode)manifestProject.DocumentationMode,
+                (SourceCodeKind)manifestProject.SourceCodeKind,
+                manifestProject.PreprocessorSymbols);
+            var trees = manifestProject.Documents.Select(document =>
+                CSharpSyntaxTree.ParseText(
+                    SourceText.From(document.Text, Encoding.UTF8),
+                    parseOptions,
+                    document.Path,
+                    cancellationToken: cancellationToken)).ToImmutableArray<SyntaxTree>();
+            var metadataReferences = manifestProject.MetadataReferences
+                .Where(File.Exists)
+                .Select(path =>
+                {
+                    if (!metadataReferenceCache.TryGetValue(path, out var reference))
+                    {
+                        reference = MetadataReference.CreateFromFile(path);
+                        metadataReferenceCache.Add(path, reference);
+                    }
+
+                    return reference;
+                });
+            var projectReferences = manifestProject.ProjectReferences
+                .Where(compilationsById.ContainsKey)
+                .Select(reference => compilationsById[reference].ToMetadataReference());
+            var specificDiagnostics = manifestProject.SpecificDiagnosticOptions.ToImmutableDictionary(
+                static pair => pair.Key,
+                static pair => (ReportDiagnostic)pair.Value,
+                StringComparer.Ordinal);
+            var compilationOptions = new CSharpCompilationOptions((OutputKind)manifestProject.OutputKind)
+                .WithNullableContextOptions((NullableContextOptions)manifestProject.NullableContextOptions)
+                .WithOptimizationLevel((OptimizationLevel)manifestProject.OptimizationLevel)
+                .WithPlatform((Platform)manifestProject.Platform)
+                .WithGeneralDiagnosticOption((ReportDiagnostic)manifestProject.GeneralDiagnosticOption)
+                .WithSpecificDiagnosticOptions(specificDiagnostics)
+                .WithWarningLevel(manifestProject.WarningLevel)
+                .WithAllowUnsafe(manifestProject.AllowUnsafe)
+                .WithOverflowChecks(manifestProject.CheckOverflow)
+                .WithDeterministic(manifestProject.Deterministic)
+                .WithSyntaxTreeOptionsProvider(new ManifestSyntaxTreeOptionsProvider(
+                    trees.Zip(manifestProject.Documents).ToImmutableDictionary(
+                        static pair => pair.First,
+                        static pair => pair.Second),
+                    manifestProject.GlobalCompilerDiagnosticOptions))
+                .WithConcurrentBuild(true);
+            var compilation = CSharpCompilation.Create(
+                manifestProject.AssemblyName,
+                trees,
+                metadataReferences.Concat(projectReferences),
+                compilationOptions);
+            var project = new ProjectModel(
+                manifestProject.Name,
+                manifestProject.ProjectPath,
+                manifestProject.IsTestProject)
+            {
+                Compilation = compilation,
+            };
+            project.Documents = trees.Zip(manifestProject.Documents)
+                .Select(pair => new SourceDocument(project, pair.Second.Path, pair.First, pair.Second.IsGenerated))
+                .ToImmutableArray();
+            projectsById.Add(manifestProject.Id, project);
+            compilationsById.Add(manifestProject.Id, compilation);
+        }
+
+        return new AnalysisSolution(
+            projectsById.Values.OrderBy(project => project.Path, PathComparer).ToImmutableArray());
     }
 
     private static List<ProjectSpec> DiscoverProjects(string target)
@@ -285,6 +403,48 @@ public static partial class SolutionLoader
     private static StringComparer PathComparer => OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
+
+    private sealed class ManifestSyntaxTreeOptionsProvider(
+        ImmutableDictionary<SyntaxTree, ManifestDocument> documents,
+        ImmutableDictionary<string, int> globalDiagnosticOptions) : SyntaxTreeOptionsProvider
+    {
+        public override GeneratedKind IsGenerated(SyntaxTree tree, CancellationToken cancellationToken) =>
+            documents.TryGetValue(tree, out var document) && document.IsGenerated
+                ? GeneratedKind.MarkedGenerated
+                : GeneratedKind.NotGenerated;
+
+        public override bool TryGetDiagnosticValue(
+            SyntaxTree tree,
+            string diagnosticId,
+            CancellationToken cancellationToken,
+            out ReportDiagnostic severity)
+        {
+            if (documents.TryGetValue(tree, out var document) &&
+                document.CompilerDiagnosticOptions.TryGetValue(diagnosticId, out var value))
+            {
+                severity = (ReportDiagnostic)value;
+                return true;
+            }
+
+            severity = ReportDiagnostic.Default;
+            return false;
+        }
+
+        public override bool TryGetGlobalDiagnosticValue(
+            string diagnosticId,
+            CancellationToken cancellationToken,
+            out ReportDiagnostic severity)
+        {
+            if (globalDiagnosticOptions.TryGetValue(diagnosticId, out var value))
+            {
+                severity = (ReportDiagnostic)value;
+                return true;
+            }
+
+            severity = ReportDiagnostic.Default;
+            return false;
+        }
+    }
 
     [GeneratedRegex("Project\\([^)]*\\)\\s*=\\s*\"[^\"]*\",\\s*\"([^\"]+\\.csproj)\"", RegexOptions.CultureInvariant)]
     private static partial Regex ClassicProjectPattern();

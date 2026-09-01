@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- The fixture intentionally keeps every project on .NET 10. It is loaded
+         only by the .NET 10 compiler host used in this POC. -->
+    <NoWarn>$(NoWarn);RS1036;RS1041</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

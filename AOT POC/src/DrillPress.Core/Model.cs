@@ -20,11 +20,12 @@ public sealed class SourceDocument
 {
     private SemanticModel? _semanticModel;
 
-    internal SourceDocument(ProjectModel project, string path, SyntaxTree syntaxTree)
+    internal SourceDocument(ProjectModel project, string path, SyntaxTree syntaxTree, bool isGenerated = false)
     {
         Project = project;
         Path = path;
         SyntaxTree = syntaxTree;
+        IsGenerated = isGenerated;
     }
 
     public ProjectModel Project { get; }
@@ -32,6 +33,8 @@ public sealed class SourceDocument
     public string Path { get; }
 
     public SyntaxTree SyntaxTree { get; }
+
+    public bool IsGenerated { get; }
 
     public SourceText Text => SyntaxTree.GetText();
 

@@ -20,6 +20,12 @@ public static class RuleApplication
 
         try
         {
+            if (command == "fix" && target.EndsWith(".drillpress.json", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "A compilation manifest is an immutable snapshot. Fix the original target, then export a new manifest.");
+            }
+
             var solution = await SolutionLoader.LoadAsync(target, cancellationToken);
             var diagnostics = rules.Evaluate(solution);
             var applied = 0;

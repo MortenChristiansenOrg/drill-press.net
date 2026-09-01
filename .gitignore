@@ -1,4 +1,5 @@
 **/bin/
 **/obj/
 AOT POC/artifacts/
+Benchmark Repositories/
 *.drillpress.tmp

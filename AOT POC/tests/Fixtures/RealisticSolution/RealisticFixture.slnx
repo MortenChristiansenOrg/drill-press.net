@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Fixture.Generator/Fixture.Generator.csproj" />
+    <Project Path="src/Fixture.Library/Fixture.Library.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Fixture.Library.Tests/Fixture.Library.Tests.csproj" />
+  </Folder>
+</Solution>

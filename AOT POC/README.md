@@ -6,15 +6,47 @@ They are compiled directly into an executable rule bundle: there is no rule
 file parser, expression-tree compilation, reflection-based discovery, or
 dynamic managed assembly loading.
 
+All projects target .NET 10, use C# 14 and nullable reference types, and treat
+warnings as errors. The rule engine uses Roslyn 5.9.0. The rule bundle and
+coordinator support NativeAOT; the SDK-facing BuildHost is deliberately managed
+because MSBuild and workspace evaluation are outside the AOT boundary.
+
+## Architecture and execution boundary
+
+```text
+solution/project ──> managed BuildHost ──> .drillpress.json snapshot
+                                                │
+                                                v
+caller ──> NativeAOT CLI coordinator ──> compiled rule bundle ──> JSONL
+```
+
+There are two target-loading paths:
+
+- The direct loader runs inside the rule bundle and is useful for individual
+  files, globs, and ordinary SDK projects. It deliberately implements only a
+  small predictable subset of project evaluation.
+- BuildHost uses `MSBuildWorkspace`, runs source generators, and serializes the
+  resulting compilations. This is the fidelity path for real solutions. The
+  NativeAOT rule bundle only parses the data manifest and C# syntax; it never
+  loads MSBuild, evaluates a project, discovers rules, or compiles rule text.
+
+The rule DLL is an executable contract rather than a plugin loaded into the CLI
+process. It accepts `check|fix`, a target, and an optional output format. This
+keeps rule discovery static and avoids runtime assembly loading under AOT.
+
 ## Projects
 
 - `DrillPress.Core` contains the composable rule API, Roslyn-backed solution
   model, target loader, deterministic diagnostics, and text-edit application.
+- `DrillPress.BuildHost` is the SDK-side compiler front end. It uses evaluated
+  MSBuild projects to export a versioned, immutable compilation manifest.
 - `DrillPress.SampleRules` defines seven rules and builds to an executable
   `DrillPress.SampleRules.dll`. The same project publishes to a native binary.
 - `DrillPress.Cli` is a small NativeAOT coordinator. It starts either a managed
   executable rule DLL through `dotnet`, or a natively published rule bundle
   directly. It never loads rule code into its own process.
+- `DrillPress.ConformanceTests` is a dependency-free executable test suite for
+  loading, manifest reconstruction, JSONL, fixes, and evaluated SDK features.
 
 The sample target is in the repository's separate `Sample Solution` folder.
 
@@ -39,10 +71,22 @@ dotnet "AOT POC/src/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRu
 ```
 
 Supported targets are `.sln`, `.slnx`, `.csproj`, `.cs`, a directory, or a
-quoted `*`/`**`/`?` file pattern.
+quoted `*`/`**`/`?` file pattern. A `.drillpress.json` compilation manifest is
+also a target.
 
 Exit codes are `0` for clean, `1` for findings, and `2` for invalid input or an
 analysis failure. Diagnostics go to stdout; operational messages go to stderr.
+
+Each default JSONL record is independently parseable and contains schema
+version `v`, rule id, severity, file, absolute text span, one-based line and
+column, remediation message, and optional text edits. For example:
+
+```json
+{"v":1,"rule":"DP1004","severity":"warning","file":"src/A.cs","start":42,"length":12,"line":3,"column":16,"message":"Use the empty string literal \"\" instead of string.Empty.","fixes":[{"file":"src/A.cs","start":42,"length":12,"text":"\"\""}]}
+```
+
+Machine consumers should use the numeric span for edits and line/column for
+display. Findings are ordered deterministically by file, span, and rule id.
 
 ## NativeAOT
 
@@ -65,7 +109,7 @@ Then run the native coordinator and native rules:
   "Sample Solution/DrillPress.SampleTarget.slnx"
 ```
 
-Roslyn 5.0 has several missing trimming annotations in internal pooled-delegate,
+Roslyn 5.9 has several missing trimming annotations in internal pooled-delegate,
 UI-culture, assembly-location, and analyzer-loading paths. The rule bundle roots
 the two Roslyn compiler assemblies and narrowly suppresses those warnings. This
 POC does not invoke Roslyn's analyzer loader. Native publication and execution
@@ -217,11 +261,101 @@ binding and offers its removal only when the rewritten invocation resolves.
 ## Deliberate POC limitations
 
 The AOT process does not host MSBuild. The small loader understands ordinary SDK
-projects, project references, default `Compile` files, and the common SDK
-implicit usings. It does not yet evaluate conditional MSBuild properties,
-custom `Compile` items, NuGet compile assets, source generators, multi-targeting,
-or per-project language settings.
+projects for fast file-oriented checks. For compiler-faithful solution and
+project checks, use the SDK-side build host:
 
-A production version should invoke an SDK-side manifest broker which evaluates
-MSBuild and writes source/reference/options manifests. The NativeAOT rule bundle
-can consume those manifests without dynamically loading MSBuild or rule code.
+```bash
+# Build first when the graph contains source-generator project references.
+dotnet build path/to/target.slnx
+
+dotnet "AOT POC/src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll" \
+  export path/to/target.slnx path/to/target.drillpress.json
+
+"AOT POC/artifacts/rules-linux-x64/DrillPress.SampleRules" \
+  check path/to/target.drillpress.json
+```
+
+The manifest contains evaluated C# parse and compilation options, preprocessor
+symbols, source-generator output, linked source, additional files, analyzer
+configuration (including effective per-tree compiler severity), NuGet/framework
+metadata references, and project references.
+The NativeAOT process reconstructs Roslyn compilations from that snapshot; it
+does not evaluate MSBuild or parse rule definitions.
+
+Manifest schema v2 exists because compiler severity can vary per syntax tree;
+without preserving this, `TreatWarningsAsErrors` can turn an editorconfig-
+suppressed warning into an AOT-side compiler error. The xUnit audit found this
+case with CS9113. The external conformance mode verifies that every reconstructed
+project has the same compiler-error count as its BuildHost compilation.
+
+Manifests contain complete source text and machine-local absolute paths to
+metadata references. Treat them as build artifacts that may contain sensitive
+source, do not publish them unintentionally, and do not expect them to be
+portable to another SDK installation or machine.
+
+BuildHost writes the manifest even when it finds errors, but returns non-zero
+for a workspace failure or any compiler error. `--allow-compiler-errors` relaxes
+only the compiler-error gate. Up to three compiler errors per project are shown
+on stderr for diagnosis. This prevents a fast but semantically incomplete run
+from being mistaken for a valid analysis.
+
+Compilation manifests are immutable snapshots. `fix` intentionally rejects a
+manifest target because re-checking its embedded source after editing the
+original file would be stale. Fix the original source/solution target and then
+export a new manifest. Findings in generated source are reported, but never
+offer edits to generated output.
+
+The remaining POC gaps are automatic BuildHost orchestration in the CLI,
+incremental manifests, preservation of every uncommon compilation option, and
+application of analyzer-config severity to Drill Press rules. Test-project
+classification is currently a name/path/framework-reference heuristic rather
+than a serialized evaluated `IsTestProject` property.
+
+## Conformance and realistic fixture
+
+```bash
+dotnet run --project \
+  "AOT POC/tests/DrillPress.ConformanceTests/DrillPress.ConformanceTests.csproj"
+```
+
+The realistic fixture covers conditional symbols, a NuGet reference, linked
+source, an `AdditionalFiles`-driven incremental generator, `.editorconfig`,
+per-tree compiler severity, project references, test-project classification,
+and generated-source fix safety. The suite also compares direct and manifest
+diagnostics exactly, checks all target modes, validates the JSONL schema,
+applies the three sample fixes, and builds the fixed solution. An external
+manifest can be checked with `-- --manifest path/to/file.drillpress.json`.
+
+## xUnit benchmark
+
+`benchmarks/run-xunit.sh` checks out xUnit at
+`6bbefaed1d0a995bc9970800384f9e8a1b9d2331`, including its submodules, exports
+the full solution, publishes the NativeAOT rules, and records export and
+analysis wall time plus peak RSS. The checkout is ignored by this repository.
+
+Use the complete clone and initialize submodules. A shallow clone makes
+Nerdbank.GitVersioning fail while calculating version height, and omitting the
+`assert.xunit` submodule produces thousands of misleading compiler errors. The
+script handles both requirements and performs the pinned locked restore.
+
+The pinned xUnit revision currently has locked-package hash failures for
+`Microsoft.DotNet.ILCompiler.10.0.11` in two AOT runner projects. BuildHost
+therefore returns 1 for the full export, but the resulting manifest contains 94
+projects with zero Roslyn compiler errors. The workspace failures remain in the
+manifest rather than being hidden.
+
+Measured on Linux x64 with .NET SDK 10.0.111, Roslyn 5.9.0, a warm filesystem
+cache, `/usr/bin/time`, and JSONL aggregated through `jq`:
+
+| xUnit workload | Wall time | Peak RSS | Result |
+| --- | ---: | ---: | --- |
+| Full SDK export | 47.15 s | 1,759,992 KB | 94 projects, 7,028 trees, 392 generated |
+| Full native analysis | 49.46 s | 2,514,784 KB | 5,776 findings, 686 fixable |
+| Clean v1 test-project export | 2.71 s | 176,352 KB | 96 trees, 68 references, 0 errors |
+| Clean v1 native analysis, 3 runs | 0.30-0.32 s | 115,712-116,224 KB | 93 findings |
+| Clean v1 managed analysis, 3 runs | 2.02-2.15 s | 130,140-130,364 KB | 93 findings |
+
+The full manifest is 47,841,128 bytes and includes every target-framework
+project produced by `MSBuildWorkspace`; it is intentionally a scale test rather
+than a deduplicated count of physical source files. The clean v1 project is the
+smaller correctness/startup comparison.

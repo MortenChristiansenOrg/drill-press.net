@@ -1,7 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/DrillPress.Core/DrillPress.Core.csproj" />
+    <Project Path="src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
     <Project Path="src/DrillPress.Cli/DrillPress.Cli.csproj" />
     <Project Path="src/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DrillPress.ConformanceTests/DrillPress.ConformanceTests.csproj" />
   </Folder>
 </Solution>

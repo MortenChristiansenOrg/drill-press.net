@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);DRILLPRESS_FEATURE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Humanizer.Core" Version="2.14.1" />
+    <ProjectReference Include="../Fixture.Generator/Fixture.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <Compile Include="../../Shared/LinkedContract.cs" Link="Contracts/LinkedContract.cs" />
+    <AdditionalFiles Include="GeneratorInput.txt" />
+  </ItemGroup>
+</Project>

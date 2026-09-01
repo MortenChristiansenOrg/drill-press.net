@@ -87,10 +87,11 @@ internal sealed class RequiredRule<T>(
         {
             if (!condition.Evaluate(candidate))
             {
+                var selectedLocation = location.Select(candidate);
                 yield return new RuleDiagnostic(
                     descriptor,
-                    location.Select(candidate),
-                    fix?.Create(candidate) ?? []);
+                    selectedLocation,
+                    selectedLocation.Document.IsGenerated ? [] : fix?.Create(candidate) ?? []);
             }
         }
     }
