@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Misleading.Tests/Misleading.Tests.csproj" />
+  <Project Path="Odd.Specifications/Odd.Specifications.csproj" />
+</Solution>

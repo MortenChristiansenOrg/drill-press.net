@@ -13,7 +13,7 @@ public static class RuleApplication
         string[] args,
         CancellationToken cancellationToken = default)
     {
-        if (!TryParseArguments(args, out var command, out var target, out var format, out var profile))
+        if (!TryParseArguments(args, out var command, out var target, out var outputOptions, out var profile))
         {
             WriteUsage();
             return 2;
@@ -46,7 +46,7 @@ public static class RuleApplication
             if (command == "fix")
             {
                 var fixStarted = Stopwatch.GetTimestamp();
-                applied = await ApplyFixesAsync(diagnostics, cancellationToken);
+                applied = await ApplyFixesAsync(AggregateDiagnostics(diagnostics), cancellationToken);
                 fixElapsed = Stopwatch.GetElapsedTime(fixStarted);
                 if (applied > 0)
                 {
@@ -65,7 +65,7 @@ public static class RuleApplication
             }
 
             var outputStarted = Stopwatch.GetTimestamp();
-            WriteDiagnostics(diagnostics, format);
+            WriteDiagnostics(AggregateDiagnostics(diagnostics), outputOptions);
             var outputElapsed = Stopwatch.GetElapsedTime(outputStarted);
 
             if (command == "fix" && applied > 0)
@@ -98,12 +98,15 @@ public static class RuleApplication
         string[] args,
         out string command,
         out string target,
-        out string format,
+        out OutputOptions outputOptions,
         out bool profile)
     {
         command = args.FirstOrDefault() ?? string.Empty;
         target = string.Empty;
-        format = "jsonl";
+        var format = "llm";
+        var details = false;
+        var includeContexts = false;
+        outputOptions = new OutputOptions(format, details, includeContexts);
         profile = false;
         if (command is not ("check" or "fix"))
         {
@@ -120,6 +123,14 @@ public static class RuleApplication
             {
                 profile = true;
             }
+            else if (args[index] == "--details")
+            {
+                details = true;
+            }
+            else if (args[index] == "--include-contexts")
+            {
+                includeContexts = true;
+            }
             else if (string.IsNullOrEmpty(target))
             {
                 target = args[index];
@@ -130,61 +141,75 @@ public static class RuleApplication
             }
         }
 
-        return !string.IsNullOrWhiteSpace(target) && format is "jsonl" or "text";
+        outputOptions = new OutputOptions(format, details, includeContexts);
+        return !string.IsNullOrWhiteSpace(target) &&
+               format is "llm" or "jsonl" or "text" &&
+               (!details || format == "jsonl");
     }
 
     private static void WriteUsage()
     {
         Console.Error.WriteLine(
             "Usage: <rule-bundle> <check|fix> <solution|project|file|directory|glob> " +
-            "[--format jsonl|text] [--profile]");
+            "[--format llm|jsonl|text] [--details] [--include-contexts] [--profile]");
     }
 
     private static void WriteDiagnostics(
-        ImmutableArray<RuleDiagnostic> diagnostics,
-        string format)
+        ImmutableArray<OutputDiagnostic> diagnostics,
+        OutputOptions options)
     {
+        if (options.Format is "llm" or "text")
+        {
+            WriteLlmDiagnostics(diagnostics, options.IncludeContexts);
+            return;
+        }
+
         foreach (var diagnostic in diagnostics)
         {
-            var text = diagnostic.Location.Document.Text;
+            var text = diagnostic.Diagnostic.Location.Document.Text;
             var linePosition = text.Lines.GetLinePosition(diagnostic.Location.Span.Start);
-            var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), diagnostic.Location.Document.Path)
-                .Replace(Path.DirectorySeparatorChar, '/');
-            if (format == "text")
-            {
-                Console.Out.WriteLine(
-                    $"{relativePath}:{linePosition.Line + 1}:{linePosition.Character + 1}: " +
-                    $"{diagnostic.Descriptor.Id} {diagnostic.Descriptor.Message}");
-                continue;
-            }
 
             using var buffer = new MemoryStream();
             using (var writer = new Utf8JsonWriter(buffer))
             {
                 writer.WriteStartObject();
-                writer.WriteNumber("v", 1);
                 writer.WriteString("rule", diagnostic.Descriptor.Id);
-                writer.WriteString("severity", "warning");
-                writer.WriteString("file", relativePath);
-                writer.WriteNumber("start", diagnostic.Location.Span.Start);
-                writer.WriteNumber("length", diagnostic.Location.Span.Length);
+                writer.WriteString("file", diagnostic.RelativePath);
                 writer.WriteNumber("line", linePosition.Line + 1);
                 writer.WriteNumber("column", linePosition.Character + 1);
                 writer.WriteString("message", diagnostic.Descriptor.Message);
-                if (!diagnostic.Fixes.IsEmpty)
+                if (options.Details)
                 {
-                    writer.WriteStartArray("fixes");
-                    foreach (var edit in diagnostic.Fixes)
+                    writer.WriteNumber("start", diagnostic.Location.Span.Start);
+                    writer.WriteNumber("length", diagnostic.Location.Span.Length);
+                    if (!diagnostic.Fixes.IsEmpty)
                     {
-                        writer.WriteStartObject();
-                        writer.WriteString(
-                            "file",
-                            Path.GetRelativePath(Directory.GetCurrentDirectory(), edit.FilePath)
-                                .Replace(Path.DirectorySeparatorChar, '/'));
-                        writer.WriteNumber("start", edit.Span.Start);
-                        writer.WriteNumber("length", edit.Span.Length);
-                        writer.WriteString("text", edit.NewText);
-                        writer.WriteEndObject();
+                        writer.WriteStartArray("fixes");
+                        foreach (var edit in diagnostic.Fixes)
+                        {
+                            writer.WriteStartObject();
+                            var editPath = GetRelativePath(edit.FilePath);
+                            if (!PathComparer.Equals(editPath, diagnostic.RelativePath))
+                            {
+                                writer.WriteString("file", editPath);
+                            }
+
+                            writer.WriteNumber("start", edit.Span.Start);
+                            writer.WriteNumber("length", edit.Span.Length);
+                            writer.WriteString("text", edit.NewText);
+                            writer.WriteEndObject();
+                        }
+
+                        writer.WriteEndArray();
+                    }
+                }
+
+                if (options.IncludeContexts && !diagnostic.Contexts.IsEmpty)
+                {
+                    writer.WriteStartArray("contexts");
+                    foreach (var context in diagnostic.Contexts)
+                    {
+                        writer.WriteStringValue(context);
                     }
 
                     writer.WriteEndArray();
@@ -197,8 +222,83 @@ public static class RuleApplication
         }
     }
 
+    private static void WriteLlmDiagnostics(
+        ImmutableArray<OutputDiagnostic> diagnostics,
+        bool includeContexts)
+    {
+        foreach (var ruleGroup in diagnostics.GroupBy(static diagnostic => diagnostic.Descriptor.Id))
+        {
+            var descriptor = ruleGroup.First().Descriptor;
+            Console.Out.WriteLine($"{descriptor.Id} {descriptor.Message}");
+            foreach (var fileGroup in ruleGroup.GroupBy(static diagnostic => diagnostic.RelativePath))
+            {
+                Console.Out.WriteLine(fileGroup.Key);
+                foreach (var diagnostic in fileGroup)
+                {
+                    var linePosition = diagnostic.Diagnostic.Location.Document.Text.Lines.GetLinePosition(
+                        diagnostic.Location.Span.Start);
+                    Console.Out.Write(diagnostic.Fixes.IsEmpty ? "  " : "  +");
+                    Console.Out.Write(linePosition.Line + 1);
+                    if (linePosition.Character > 0)
+                    {
+                        Console.Out.Write($":{linePosition.Character + 1}");
+                    }
+                    if (includeContexts && !diagnostic.Contexts.IsEmpty)
+                    {
+                        Console.Out.Write($" [{string.Join(',', diagnostic.Contexts)}]");
+                    }
+
+                    Console.Out.WriteLine();
+                }
+            }
+        }
+    }
+
+    private static ImmutableArray<OutputDiagnostic> AggregateDiagnostics(
+        ImmutableArray<RuleDiagnostic> diagnostics) =>
+        diagnostics
+            .GroupBy(static diagnostic => new DiagnosticKey(
+                diagnostic.Descriptor.Id,
+                NormalizePath(diagnostic.Location.Document.Path),
+                diagnostic.Location.Span.Start,
+                diagnostic.Location.Span.Length,
+                diagnostic.Descriptor.Message))
+            .Select(static group =>
+            {
+                var grouped = group.ToImmutableArray();
+                var first = grouped[0];
+                var commonFixes = first.Fixes
+                    .Where(edit => grouped.Skip(1).All(diagnostic => diagnostic.Fixes.Contains(edit)))
+                    .Distinct()
+                    .ToImmutableArray();
+                var contexts = grouped
+                    .Select(static diagnostic => GetProjectContext(diagnostic.Location.Document.Project))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(static context => context, StringComparer.Ordinal)
+                    .ToImmutableArray();
+                return new OutputDiagnostic(
+                    first with { Fixes = commonFixes },
+                    GetRelativePath(first.Location.Document.Path),
+                    contexts);
+            })
+            .OrderBy(static diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
+            .ThenBy(static diagnostic => diagnostic.RelativePath, StringComparer.Ordinal)
+            .ThenBy(static diagnostic => diagnostic.Location.Span.Start)
+            .ToImmutableArray();
+
+    private static string GetProjectContext(ProjectModel project) =>
+        $"{GetRelativePath(project.Path)}|{project.Name}";
+
+    private static string GetRelativePath(string path) =>
+        Path.GetRelativePath(Directory.GetCurrentDirectory(), path)
+            .Replace(Path.DirectorySeparatorChar, '/');
+
+    private static string NormalizePath(string path) => OperatingSystem.IsWindows()
+        ? Path.GetFullPath(path).ToUpperInvariant()
+        : Path.GetFullPath(path);
+
     private static async Task<int> ApplyFixesAsync(
-        ImmutableArray<RuleDiagnostic> diagnostics,
+        ImmutableArray<OutputDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
         var applied = 0;
@@ -247,4 +347,20 @@ public static class RuleApplication
     private static StringComparer PathComparer => OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
+
+    private sealed record OutputOptions(string Format, bool Details, bool IncludeContexts);
+
+    private sealed record DiagnosticKey(string Rule, string Path, int Start, int Length, string Message);
+
+    private sealed record OutputDiagnostic(
+        RuleDiagnostic Diagnostic,
+        string RelativePath,
+        ImmutableArray<string> Contexts)
+    {
+        public RuleDescriptor Descriptor => Diagnostic.Descriptor;
+
+        public SourceLocation Location => Diagnostic.Location;
+
+        public ImmutableArray<TextEdit> Fixes => Diagnostic.Fixes;
+    }
 }

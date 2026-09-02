@@ -57,7 +57,7 @@ fi
 set +e
 /usr/bin/time -f 'analysis_wall=%e analysis_user=%U analysis_sys=%S analysis_max_rss_kb=%M' \
   "$repository_root/AOT POC/artifacts/rules-linux-x64/DrillPress.SampleRules" \
-  check "$artifacts/xunit.drillpress.json" --profile \
+  check "$artifacts/xunit.drillpress.json" --format jsonl --details --profile \
   | if command -v jq >/dev/null; then
       jq -s '{findings:length, fixable:([.[]|select(has("fixes"))]|length), byRule:(group_by(.rule)|map({rule:.[0].rule,count:length}))}'
     else

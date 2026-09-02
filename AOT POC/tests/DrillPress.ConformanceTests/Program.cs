@@ -114,6 +114,70 @@ try
     Check(Signatures(fastManifestDiagnostics).SequenceEqual(Signatures(manifestDiagnostics), StringComparer.Ordinal),
         "Fast and validated manifests produced different rule diagnostics.");
 
+    Console.WriteLine("conformance: evaluated test classification and diagnostic aggregation");
+    var classificationSolution = Path.Combine(
+        repositoryRoot,
+        "AOT POC",
+        "tests",
+        "Fixtures",
+        "ClassificationSolution",
+        "ClassificationFixture.slnx");
+    var classificationManifestPath = Path.Combine(temporaryRoot, "classification.drillpress.json");
+    var classificationExport = await RunAsync(
+        "dotnet",
+        [
+            "run",
+            "--project",
+            buildHostProject,
+            "--configuration",
+            buildConfiguration,
+            "--no-build",
+            "--",
+            "export",
+            classificationSolution,
+            classificationManifestPath,
+            "--skip-compiler-diagnostics",
+        ],
+        repositoryRoot);
+    Check(classificationExport.ExitCode == 0,
+        $"Classification manifest export failed:{Environment.NewLine}{classificationExport.StandardError}");
+    var classificationManifest = await ReadManifestAsync(classificationManifestPath);
+    Check(!classificationManifest.Projects.Single(project => project.Name == "Misleading.Tests").IsTestProject,
+        "An explicit evaluated IsTestProject=false must override test-like names and paths.");
+    Check(classificationManifest.Projects.Single(project => project.Name == "Odd.Specifications").IsTestProject,
+        "An explicit evaluated IsTestProject=true must override the naming heuristic.");
+    var classificationSolutionModel = await SolutionLoader.LoadAsync(classificationManifestPath);
+    var classificationDiagnostics = rules.Evaluate(classificationSolutionModel);
+    Check(classificationDiagnostics.Count(diagnostic => diagnostic.Descriptor.Id == "DP1004") == 2,
+        "The linked source must be evaluated independently in both project contexts.");
+
+    var aggregatedJson = await RunAsync(
+        "dotnet",
+        [
+            ruleAssembly,
+            "check",
+            classificationManifestPath,
+            "--format",
+            "jsonl",
+            "--details",
+            "--include-contexts",
+        ],
+        repositoryRoot);
+    Check(aggregatedJson.ExitCode == 1, "The aggregated linked-source check must report a finding.");
+    var aggregatedLines = aggregatedJson.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+    Check(aggregatedLines.Length == 1,
+        "Identical linked-source findings must collapse to one source diagnostic.");
+    using (var aggregatedDocument = JsonDocument.Parse(aggregatedLines[0]))
+    {
+        var root = aggregatedDocument.RootElement;
+        Check(root.GetProperty("contexts").GetArrayLength() == 2,
+            "Opt-in output must retain both contributing project contexts.");
+        Check(root.GetProperty("fixes").GetArrayLength() == 1,
+            "A fix that is safe in every context must remain available once.");
+        Check(!root.GetProperty("fixes")[0].TryGetProperty("file", out _),
+            "A same-file fix must not repeat the diagnostic file path.");
+    }
+
     Console.WriteLine("conformance: realistic evaluated project features");
     var realisticSolution = Path.Combine(
         repositoryRoot,
@@ -186,7 +250,7 @@ try
     Console.WriteLine("conformance: JSONL process contract");
     var check = await RunAsync(
         "dotnet",
-        [ruleAssembly, "check", manifestPath],
+        [ruleAssembly, "check", manifestPath, "--format", "jsonl", "--details"],
         repositoryRoot);
     Check(check.ExitCode == 1, "A check with findings must exit with code 1.");
     var jsonLines = check.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -196,10 +260,12 @@ try
     {
         using var json = JsonDocument.Parse(line);
         var root = json.RootElement;
-        Check(root.GetProperty("v").GetInt32() == 1, "Unexpected JSONL schema version.");
         Check(root.GetProperty("rule").GetString()!.StartsWith("DP", StringComparison.Ordinal),
             "JSONL rule id is missing.");
-        Check(root.GetProperty("severity").GetString() == "warning", "JSONL severity is missing.");
+        Check(!root.TryGetProperty("v", out _) && !root.TryGetProperty("severity", out _),
+            "JSONL must not repeat constant schema or severity properties.");
+        Check(root.TryGetProperty("start", out _) && root.TryGetProperty("length", out _),
+            "Detailed JSONL must include exact diagnostic spans.");
         if (root.TryGetProperty("fixes", out _))
         {
             fixCount++;
@@ -207,6 +273,34 @@ try
     }
 
     Check(fixCount == 3, "JSONL output must expose three fixable findings.");
+
+    var minimalJson = await RunAsync(
+        "dotnet",
+        [ruleAssembly, "check", manifestPath, "--format", "jsonl"],
+        repositoryRoot);
+    Check(minimalJson.ExitCode == 1, "Minimal JSONL must preserve the findings exit code.");
+    foreach (var line in minimalJson.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+    {
+        using var json = JsonDocument.Parse(line);
+        var root = json.RootElement;
+        Check(!root.TryGetProperty("start", out _) &&
+              !root.TryGetProperty("length", out _) &&
+              !root.TryGetProperty("fixes", out _) &&
+              !root.TryGetProperty("contexts", out _),
+            "Minimal JSONL included opt-in details.");
+    }
+
+    var llmCheck = await RunAsync("dotnet", [ruleAssembly, "check", manifestPath], repositoryRoot);
+    Check(llmCheck.ExitCode == 1, "Default LLM output must preserve the findings exit code.");
+    Check(llmCheck.StandardOutput.Length < minimalJson.StandardOutput.Length,
+        "Grouped LLM output must be smaller than minimal JSONL.");
+    Check(CountOccurrences(llmCheck.StandardOutput, "  +") == 3,
+        "Default LLM output must mark exactly three common-safe fixes.");
+    foreach (var ruleId in directDiagnostics.Select(static diagnostic => diagnostic.Descriptor.Id).Distinct())
+    {
+        Check(CountOccurrences(llmCheck.StandardOutput, ruleId) == 1,
+            $"Default LLM output repeated rule guidance for {ruleId}.");
+    }
 
     var profiledCheck = await RunAsync(
         "dotnet",
@@ -247,6 +341,8 @@ try
             "--build-host",
             buildHostAssembly,
             "--fast",
+            "--format",
+            "jsonl",
         ],
         repositoryRoot);
     Check(coordinatedCheck.ExitCode == 1, "The coordinated check must preserve the findings exit code.");
@@ -269,6 +365,8 @@ try
             "--build-host",
             buildHostAssembly,
             "--fast",
+            "--format",
+            "jsonl",
         ],
         repositoryRoot);
     Check(coordinatedFix.ExitCode == 1,
@@ -295,7 +393,7 @@ try
     var copiedSolution = Path.Combine(copiedSolutionDirectory, "DrillPress.SampleTarget.slnx");
     var fix = await RunAsync(
         "dotnet",
-        [ruleAssembly, "fix", copiedSolution],
+        [ruleAssembly, "fix", copiedSolution, "--format", "jsonl"],
         repositoryRoot);
     Check(fix.ExitCode == 1, "Fix must report remaining unfixable findings with exit code 1.");
     Check(fix.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 5,
@@ -434,6 +532,17 @@ static void Check(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static int CountOccurrences(string value, string search)
+{
+    var count = 0;
+    for (var index = 0; (index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0; index += search.Length)
+    {
+        count++;
+    }
+
+    return count;
 }
 
 internal sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);

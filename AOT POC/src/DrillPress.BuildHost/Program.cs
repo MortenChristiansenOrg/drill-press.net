@@ -29,6 +29,7 @@ try
     MSBuildLocator.RegisterDefaults();
 
     using var workspace = MSBuildWorkspace.Create(properties);
+    using var projectClassifier = new EvaluatedProjectClassifier(properties);
     var workspaceMessages = ImmutableArray.CreateBuilder<ManifestMessage>();
     var workspaceMessagesLock = new object();
     workspace.RegisterWorkspaceFailedHandler(eventArgs =>
@@ -145,7 +146,7 @@ try
             project.Name,
             project.AssemblyName ?? project.Name,
             Path.GetFullPath(project.FilePath ?? throw new InvalidOperationException($"Project '{project.Name}' has no path.")),
-            IsTestProject(project),
+            projectClassifier.IsTestProject(project),
             (int)parseOptions.LanguageVersion,
             (int)parseOptions.DocumentationMode,
             (int)parseOptions.Kind,
@@ -298,20 +299,6 @@ static string ResolveTarget(string target)
         ? candidates[0]
         : throw new InvalidOperationException(
             $"Directory '{target}' must contain exactly one solution or project; found {candidates.Length}.");
-}
-
-static bool IsTestProject(Project project)
-{
-    var path = project.FilePath ?? string.Empty;
-    var name = project.Name;
-    return name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ||
-           name.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) ||
-           path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-               .Any(segment => segment.Equals("test", StringComparison.OrdinalIgnoreCase) ||
-                               segment.Equals("tests", StringComparison.OrdinalIgnoreCase)) ||
-           project.MetadataReferences.Any(reference =>
-               Path.GetFileNameWithoutExtension(reference.Display ?? string.Empty) is
-                   "xunit.core" or "nunit.framework" or "Microsoft.VisualStudio.TestPlatform.TestFramework");
 }
 
 static bool IsUnderBuildOutput(string path, string? projectPath)

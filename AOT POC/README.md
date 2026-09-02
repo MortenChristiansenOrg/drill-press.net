@@ -15,7 +15,7 @@ because MSBuild and workspace evaluation are outside the AOT boundary.
 
 ```text
                                       ┌─> managed BuildHost ─> temporary snapshot ─┐
-solution/project ─> NativeAOT CLI ────┤                                         ├─> compiled rule bundle ─> JSONL
+solution/project ─> NativeAOT CLI ────┤                                         ├─> compiled rule bundle ─> findings
 file/glob/manifest ─> NativeAOT CLI ──┴─────────────────────────────────────────┘
 ```
 
@@ -49,7 +49,8 @@ keeps rule discovery static and avoids runtime assembly loading under AOT.
   starts either a managed executable rule DLL through `dotnet`, or a natively
   published rule bundle directly, and never loads rule code into its process.
 - `DrillPress.ConformanceTests` is a dependency-free executable test suite for
-  loading, manifest reconstruction, JSONL, fixes, and evaluated SDK features.
+  loading, manifest reconstruction, LLM/JSONL output, fixes, aggregation, and
+  evaluated SDK features.
 
 The sample target is in the repository's separate `Sample Solution` folder.
 
@@ -74,12 +75,22 @@ next to the coordinator. The CLI resolves BuildHost in this order:
 repeated for MSBuild properties. Validated export is the default;
 `--fast` explicitly skips the compiler-diagnostics audit.
 
-JSON Lines is the default output. A compact human format is also available:
+The default output is optimized for LLM context. It prints each remediation
+message once, each file path once per rule, and then only source coordinates:
 
-```bash
-dotnet "AOT POC/src/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll" \
-  check "Sample Solution" --format text
+```text
+DP1004 Use the empty string literal "" instead of string.Empty.
+src/Widget.cs
+  +12:29
+  47
 ```
+
+The column is omitted when it is one. A leading `+` means the location has an
+automatic fix that is safe in every compilation context; an LLM can apply all
+such edits with the `fix` command. `--format text` is retained as an alias for
+`--format llm`. A clean check writes nothing. This format is deliberately not
+padded with a summary, severity, schema version, or repeated message text: the
+exit code and rule text already convey what an LLM needs.
 
 Supported targets are `.sln`, `.slnx`, `.csproj`, `.cs`, a directory, or a
 quoted `*`/`**`/`?` file pattern. A `.drillpress.json` compilation manifest is
@@ -88,16 +99,34 @@ also a target.
 Exit codes are `0` for clean, `1` for findings, and `2` for invalid input or an
 analysis failure. Diagnostics go to stdout; operational messages go to stderr.
 
-Each default JSONL record is independently parseable and contains schema
-version `v`, rule id, severity, file, absolute text span, one-based line and
-column, remediation message, and optional text edits. For example:
+JSON Lines remains available when a caller needs structured output. Its default
+shape contains only the information needed to locate and understand a finding:
 
 ```json
-{"v":1,"rule":"DP1004","severity":"warning","file":"src/A.cs","start":42,"length":12,"line":3,"column":16,"message":"Use the empty string literal \"\" instead of string.Empty.","fixes":[{"file":"src/A.cs","start":42,"length":12,"text":"\"\""}]}
+{"rule":"DP1004","file":"src/A.cs","line":3,"column":16,"message":"Use the empty string literal \"\" instead of string.Empty."}
 ```
 
-Machine consumers should use the numeric span for edits and line/column for
-display. Findings are ordered deterministically by file, span, and rule id.
+Use `--format jsonl --details` to opt into exact diagnostic spans and safe text
+edits. A fix omits its file when it edits the diagnostic file, avoiding a
+usually redundant path:
+
+```json
+{"rule":"DP1004","file":"src/A.cs","line":3,"column":16,"message":"Use the empty string literal \"\" instead of string.Empty.","start":42,"length":12,"fixes":[{"start":42,"length":12,"text":"\"\""}]}
+```
+
+`--include-contexts` adds the evaluated project/target identities that produced
+each finding. They are omitted by default because an LLM normally needs to fix
+the physical source location, not inspect every compilation that contains it.
+Findings are ordered deterministically by rule, file, and span.
+
+The engine still evaluates linked files and multi-target projects in every
+compilation context. Output groups identical rule/file/span/message findings
+into one location. A fix survives grouping only when the exact edit is offered
+in every contributing context, preventing a rewrite that is safe for one target
+from being applied to all targets. On the xUnit benchmark this turns 5,776
+context findings into 1,547 actionable locations. The default output is 55,570
+bytes versus 1,696,407 bytes for the former repeated JSONL output: a 96.7%
+reduction before tokenization.
 
 ## NativeAOT
 
@@ -270,14 +299,14 @@ dotnet "AOT POC/src/DrillPress.Cli/bin/Debug/net10.0/drillpress.dll" \
   path/to/target.sln
 ```
 
-For SDK-evaluated targets, the coordinator checks a temporary manifest in JSONL
-mode, deduplicates identical edits from multi-target projects, checks all edits
-for overlap, and applies them from the end of each file through a temporary
-file. It then exports a fresh manifest and rechecks it, so stdout contains only
-remaining findings. If exporting or recompiling the changed target fails, the
-CLI returns exit code 2 rather than reporting stale results. DP1005 uses
-speculative semantic binding and offers its removal only when the rewritten
-invocation resolves.
+For SDK-evaluated targets, the coordinator requests detailed JSONL internally,
+intersects fixes across compilation contexts, checks all edits for overlap, and
+applies them from the end of each file through a temporary file. This internal
+format does not affect the concise final output. The CLI then exports a fresh
+manifest and rechecks it, so stdout contains only remaining findings. If
+exporting or recompiling the changed target fails, the CLI returns exit code 2
+rather than reporting stale results. DP1005 uses speculative semantic binding
+and offers its removal only when the rewritten invocation resolves.
 
 Direct file and glob fixes still run inside the rule bundle. A manifest itself
 remains immutable and cannot be fixed directly; the coordinator must receive
@@ -350,17 +379,20 @@ manifest target because re-checking its embedded source after editing the
 original file would be stale. Findings in generated source are reported, but
 never offer edits to generated output.
 
+BuildHost separately evaluates `IsTestProject` for each physical project and
+target-framework context. An explicit evaluated `true` or `false` takes
+precedence over names, paths, and references. Only projects for which MSBuild
+leaves the property unset use the compatibility heuristic. This matters to
+cross-project rules such as DP1003: a project named `.Tests` can explicitly be
+production, and an unusually named test project can explicitly be a test.
+
 The core POC workflow is complete. Production-oriented work that remains is:
 
 - incremental/cached manifests or a persistent BuildHost to reduce repeated
   `MSBuildWorkspace` startup;
-- a defined multi-target diagnostic policy before sharing semantic results or
-  deduplicating findings across target frameworks;
 - preservation of uncommon metadata-reference properties such as aliases and
   embedded interop types;
 - application of analyzer-config severity to Drill Press rules;
-- an evaluated `IsTestProject` value rather than the current
-  name/path/framework-reference heuristic;
 - cancellation, process timeouts, packaging, schema migration policy, and
   Windows/macOS plus another-repository acceptance runs.
 
@@ -380,6 +412,14 @@ checks profiling output, exercises automatic CLI/BuildHost orchestration,
 applies the three sample fixes both directly and through the faithful manifest
 path, regenerates and rechecks, and builds both fixed solutions. An external
 manifest can be checked with `-- --manifest path/to/file.drillpress.json`.
+
+The classification fixture adds two projects that share the same physical
+source: `Odd.Specifications` evaluates `IsTestProject=true`, while
+`Misleading.Tests` evaluates it to `false`. Conformance verifies the serialized
+classification, two independent semantic evaluations, one default actionable
+location, both opt-in contexts, and one common safe fix. It also asserts that
+default LLM output is smaller than minimal JSONL and repeats each rule message
+only once.
 
 ## xUnit benchmark
 
@@ -411,8 +451,9 @@ cache, `/usr/bin/time`, and JSONL aggregated through `jq`:
 | Original validated SDK export | 47.15 s | 1,759,992 KB | Sequential compilation acquisition |
 | Optimized validated SDK export | 45.93 s | 1,758,004 KB | Concurrent acquisition; full diagnostic audit |
 | Optimized fast SDK export, 2 runs | 22.27-22.95 s | 1,104,148-1,105,628 KB | Diagnostic audit explicitly skipped |
-| Original full native analysis | 49.46 s | 2,514,784 KB | 5,776 findings, 686 fixable |
-| Query-planned full native analysis | 25.14 s | 1,616,556 KB | Same 5,776 findings and 686 fixes |
+| Fast export with evaluated test classification | 27.00 s | 1,140,188 KB | 94 project/target contexts |
+| Original full native analysis | 49.46 s | 2,514,784 KB | 5,776 context findings, 686 fixable |
+| Query-planned full native analysis | 25.14 s | 1,616,556 KB | 1,547 locations, 155 common safe fixes |
 | Query-planned full managed analysis | 36.60 s | 1,698,584 KB | Byte-identical JSONL to native |
 | Clean v1 test-project export | 2.71 s | 176,352 KB | 96 trees, 68 references, 0 errors |
 | Clean v1 native analysis, 3 runs | 0.30-0.32 s | 115,712-116,224 KB | 93 findings |
@@ -435,7 +476,7 @@ so the 25.14-second result is a 52.7% wall-time reduction; against the original
 documented 49.46-second baseline it is 49.2%. Peak RSS fell by 35.7%.
 
 Pass `--profile` to the rule bundle or coordinator for timings on stderr while
-keeping JSONL stdout unchanged. The optimized full xUnit run reported:
+keeping diagnostic stdout unchanged. The optimized full xUnit run reported:
 
 | Native analysis phase | Time |
 | --- | ---: |
@@ -447,14 +488,13 @@ keeping JSONL stdout unchanged. The optimized full xUnit run reported:
 | Remaining four member rules together | 0.01 s |
 | Output | 0.05 s |
 
-DP1002 is now the largest isolated rule cost. Its semantic assertion binding
-cannot safely be shared across target-framework compilations without defining
-what happens when symbols, conditional code, or references differ by target.
-The 5,776 emitted xUnit records contain 1,547 unique
-rule/file/span/message signatures because the benchmark intentionally includes
-all target-framework projects. This POC keeps those distinct evaluations
-rather than silently trading correctness for a lower number; a production
-multi-target policy is the next meaningful performance decision.
+DP1002 is now the largest isolated rule cost. Its semantic assertion binding is
+not shared across target-framework compilations because symbols, conditional
+code, and references may differ by target. The engine preserves all 5,776
+context evaluations, then aggregates their 1,547 unique
+rule/file/span/message locations for output. Detailed output retains 155 fixes
+whose exact edit is safe in every contributing context. `--include-contexts` makes the
+contributing project/target identities explicit when that distinction matters.
 
 ### NativeAOT versus managed execution
 
@@ -463,8 +503,8 @@ manifest, queries, and output path with `dotnet`; only ahead-of-time versus JIT
 execution differs. Its JSONL is byte-for-byte identical to the native run. On
 the full xUnit snapshot, NativeAOT was 31.3% faster (25.14 versus 36.60 seconds),
 used 4.8% less peak memory, and used roughly half the measured user CPU. With
-the fastest SDK export measured above, the two-process end-to-end estimates are
-about 47.4 seconds native and 58.9 seconds managed. The small clean-project
+the current evaluated-classification fast export, the two-process end-to-end
+estimates are about 52.1 seconds native and 63.6 seconds managed. The small clean-project
 numbers also show the much larger native startup advantage: 0.30-0.32 seconds
 versus 2.02-2.15 seconds.
 

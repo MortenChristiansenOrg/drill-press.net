@@ -40,7 +40,7 @@ try
         var edits = ParseFixes(initialCheck.StandardOutput);
         if (edits.Count == 0)
         {
-            if (options.Format == "jsonl")
+            if (options.Format == "jsonl" && options.Details && !options.IncludeContexts)
             {
                 Console.Out.Write(initialCheck.StandardOutput);
                 return initialCheck.ExitCode;
@@ -137,14 +137,14 @@ static async Task<int> ExportAsync(Options options, string buildHost, string man
 static Task<ProcessResult> RunRuleBundleCapturedAsync(Options options, string manifest) =>
     RunProcessAsync(
         options.Rules,
-        CreateRuleArguments(options, "check", manifest, "jsonl"),
+        CreateRuleArguments(options, "check", manifest, "jsonl", details: true, includeContexts: false),
         captureOutput: true);
 
 static async Task<int> RunRuleBundleAsync(Options options, string command, string target, string format)
 {
     var result = await RunProcessAsync(
         options.Rules,
-        CreateRuleArguments(options, command, target, format),
+        CreateRuleArguments(options, command, target, format, options.Details, options.IncludeContexts),
         captureOutput: false);
     return result.ExitCode;
 }
@@ -153,9 +153,21 @@ static IReadOnlyList<string> CreateRuleArguments(
     Options options,
     string command,
     string target,
-    string format)
+    string format,
+    bool details,
+    bool includeContexts)
 {
     var arguments = new List<string> { command, target, "--format", format };
+    if (details)
+    {
+        arguments.Add("--details");
+    }
+
+    if (includeContexts)
+    {
+        arguments.Add("--include-contexts");
+    }
+
     if (options.Profile)
     {
         arguments.Add("--profile");
@@ -200,16 +212,22 @@ static IReadOnlyList<TextEdit> ParseFixes(string jsonLines)
     foreach (var line in jsonLines.Split('\n', StringSplitOptions.RemoveEmptyEntries))
     {
         using var document = JsonDocument.Parse(line);
-        if (!document.RootElement.TryGetProperty("fixes", out var fixes))
+        var root = document.RootElement;
+        if (!root.TryGetProperty("fixes", out var fixes))
         {
             continue;
         }
 
+        var diagnosticFile = Path.GetFullPath(root.GetProperty("file").GetString()
+            ?? throw new InvalidOperationException("A diagnostic has no file path."));
+
         foreach (var fix in fixes.EnumerateArray())
         {
             edits.Add(new TextEdit(
-                Path.GetFullPath(fix.GetProperty("file").GetString()
-                    ?? throw new InvalidOperationException("A fix has no file path.")),
+                fix.TryGetProperty("file", out var fixFile)
+                    ? Path.GetFullPath(fixFile.GetString()
+                        ?? throw new InvalidOperationException("A fix has an empty file path."))
+                    : diagnosticFile,
                 fix.GetProperty("start").GetInt32(),
                 fix.GetProperty("length").GetInt32(),
                 fix.GetProperty("text").GetString() ?? string.Empty));
@@ -286,6 +304,8 @@ internal sealed record Options(
     bool Fast,
     bool AllowCompilerErrors,
     bool Profile,
+    bool Details,
+    bool IncludeContexts,
     IReadOnlyList<string> Properties)
 {
     public static bool TryParse(string[] arguments, out Options options)
@@ -293,11 +313,13 @@ internal sealed record Options(
         var command = arguments.FirstOrDefault() ?? string.Empty;
         var rules = string.Empty;
         var target = string.Empty;
-        var format = "jsonl";
+        var format = "llm";
         string? buildHost = null;
         var fast = false;
         var allowCompilerErrors = false;
         var profile = false;
+        var details = false;
+        var includeContexts = false;
         var properties = new List<string>();
         var valid = command is "check" or "fix";
 
@@ -326,6 +348,12 @@ internal sealed record Options(
                 case "--profile":
                     profile = true;
                     break;
+                case "--details":
+                    details = true;
+                    break;
+                case "--include-contexts":
+                    includeContexts = true;
+                    break;
                 default:
                     if (arguments[index].StartsWith("--", StringComparison.Ordinal) ||
                         !string.IsNullOrEmpty(target))
@@ -344,7 +372,8 @@ internal sealed record Options(
         valid = valid &&
                 File.Exists(rules) &&
                 !string.IsNullOrWhiteSpace(target) &&
-                format is "jsonl" or "text" &&
+                format is "llm" or "jsonl" or "text" &&
+                (!details || format == "jsonl") &&
                 properties.All(static property =>
                     property.IndexOf('=') is > 0 and var equals && equals < property.Length - 1);
         options = new Options(
@@ -356,6 +385,8 @@ internal sealed record Options(
             fast,
             allowCompilerErrors,
             profile,
+            details,
+            includeContexts,
             properties);
         return valid;
     }
@@ -364,7 +395,8 @@ internal sealed record Options(
     {
         Console.Error.WriteLine(
             "Usage: drillpress <check|fix> --rules <rule-bundle.dll|native-rule-bundle> " +
-            "<solution|project|file|directory|glob> [--build-host <path>] [--format jsonl|text] " +
-            "[--property Name=Value] [--fast] [--allow-compiler-errors] [--profile]");
+            "<solution|project|file|directory|glob> [--build-host <path>] [--format llm|jsonl|text] " +
+            "[--details] [--include-contexts] [--property Name=Value] [--fast] " +
+            "[--allow-compiler-errors] [--profile]");
     }
 }
