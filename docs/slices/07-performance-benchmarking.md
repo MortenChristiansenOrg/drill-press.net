@@ -61,5 +61,6 @@ hardware-independent timing gates, or fixed expected finding counts.
 
 ## Dependencies
 
-Depends on #4 for the real-project snapshot, #5 for the representative rule
-workload, and #6 for final diagnostic and common-fix signatures.
+Depends on #2 for native comparison, #4 for the real-project snapshot, #5 for
+the representative rule workload, and #6 for final diagnostic and common-fix
+signatures.
