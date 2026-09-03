@@ -18,8 +18,8 @@ into the CLI.
 
 ## Implementation scope
 
-- Create the production solution and the five projects described by the shared
-  implementation plan.
+- Create the production solution, its five production projects, and the sample
+  rule project described by the shared implementation plan.
 - Add central .NET 10, C# 14, nullable, deterministic-build, package-version,
   and warning settings.
 - Define the smallest snapshot DTO needed for the sample project.
