@@ -50,13 +50,13 @@ public sealed class RuleApplicationTests
 
         Assert.Equal(RuleExitCode.Findings, exitCode);
         Assert.Equal(
-            string.Join(
-                Environment.NewLine,
-                "TEST001 Do not use Target.Empty.",
-                "Violations.cs",
-                "  8:35",
-                "  9:36",
-                string.Empty),
+            """
+            TEST001 Do not use Target.Empty.
+            Violations.cs
+              8:35
+              9:36
+
+            """,
             output.ToString());
     }
 
