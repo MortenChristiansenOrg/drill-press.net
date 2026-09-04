@@ -24,6 +24,18 @@ public static class AnalysisEngine
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
 
         var snapshot = await CompilationSnapshot.ReadAsync(snapshotPath, cancellationToken);
+        return await AnalyzeAsync(rules, snapshot, cancellationToken);
+    }
+
+    /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
+    /// <param name="rules">The statically constructed rules to evaluate.</param>
+    /// <param name="snapshot">The compilation snapshot to analyze.</param>
+    /// <param name="cancellationToken">Stops analysis.</param>
+    public static async Task<IReadOnlyList<RuleDiagnostic>> AnalyzeAsync(
+        RuleSet rules,
+        CompilationSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
         var references = new Dictionary<string, MetadataReference>(PathComparer);
         var memberReferences = new List<MemberReference>();
 

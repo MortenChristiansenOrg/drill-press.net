@@ -1,3 +1,5 @@
+using DrillPress.Manifest;
+
 namespace DrillPress.Engine;
 
 /// <summary>Hosts a compiled rule set behind the executable rule-bundle contract.</summary>
@@ -24,15 +26,30 @@ public static class RuleApplication
 
         try
         {
-            var diagnostics = await AnalysisEngine.AnalyzeAsync(rules, snapshotPath, cancellationToken);
-            WriteDiagnostics(diagnostics, standardOutput);
-            return diagnostics.Count == 0 ? RuleExitCode.Clean : RuleExitCode.Findings;
+            var snapshot = await CompilationSnapshot.ReadAsync(snapshotPath, cancellationToken);
+            return await RunAsync(rules, snapshot, standardOutput, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             await standardError.WriteLineAsync($"drillpress-rules: {exception.Message}");
             return RuleExitCode.Failure;
         }
+    }
+
+    /// <summary>
+    /// Evaluates a previously loaded snapshot and writes its compact diagnostics without
+    /// accessing the file system.
+    /// </summary>
+    public static async Task<RuleExitCode> RunAsync(
+        RuleSet rules,
+        CompilationSnapshot snapshot,
+        TextWriter? standardOutput = null,
+        CancellationToken cancellationToken = default)
+    {
+        standardOutput ??= Console.Out;
+        var diagnostics = await AnalysisEngine.AnalyzeAsync(rules, snapshot, cancellationToken);
+        WriteDiagnostics(diagnostics, standardOutput);
+        return diagnostics.Count == 0 ? RuleExitCode.Clean : RuleExitCode.Findings;
     }
 
     private static void WriteDiagnostics(

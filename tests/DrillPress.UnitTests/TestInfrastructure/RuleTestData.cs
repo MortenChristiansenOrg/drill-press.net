@@ -11,11 +11,13 @@ internal static class RuleTestData
             memberName,
             new SourceLocation(path, start, memberName.Length, 1, start + 1));
 
-    public static RuleSet StringEmptyRuleSet()
+    public static RuleSet TargetEmptyRuleSet()
     {
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty))))
-            .Forbid("DP1004", "Use the empty string literal instead of string.Empty.");
+        var targetType = CodeType.Named("Sample.Target");
+        rules.For(Code.MemberReferences.Where(new RuleCondition<MemberReference>(reference =>
+                reference.ContainingType == targetType && reference.MemberName == "Empty")))
+            .Forbid("TEST001", "Do not use Target.Empty.");
         return rules;
     }
 

@@ -10,6 +10,5 @@
     <ProjectReference Include="../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <ProjectReference Include="../../src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <ProjectReference Include="../../src/DrillPress.Engine/DrillPress.Engine.csproj" />
-    <ProjectReference Include="../../samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
   </ItemGroup>
 </Project>

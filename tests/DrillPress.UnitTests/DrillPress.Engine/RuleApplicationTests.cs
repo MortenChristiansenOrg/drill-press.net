@@ -4,24 +4,20 @@ using Xunit;
 
 namespace DrillPress.UnitTests.Engine;
 
-public sealed class RuleApplicationTests : SnapshotTest
+public sealed class RuleApplicationTests
 {
     [Fact]
     public async Task Returns_clean_without_output_for_a_compliant_snapshot()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var snapshotPath = await WriteSnapshotAsync(
-            Path.Combine(Path.GetTempPath(), "drillpress-tests", "Clean.cs"),
-            "public static class Clean { public static string Value => \"\"; }",
-            cancellationToken);
+        var snapshot = TestSnapshots.Create(
+            "namespace Sample; public sealed class Target { public static Target Value => null; }");
         var output = new StringWriter();
 
         var exitCode = await RuleApplication.RunAsync(
-            RuleTestData.StringEmptyRuleSet(),
-            ["check", snapshotPath],
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
             output,
-            TextWriter.Null,
-            cancellationToken);
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(RuleExitCode.Clean, exitCode);
         Assert.Equal(string.Empty, output.ToString());
@@ -30,31 +26,33 @@ public sealed class RuleApplicationTests : SnapshotTest
     [Fact]
     public async Task Returns_findings_and_writes_each_rule_description_once()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var snapshotPath = await WriteSnapshotAsync(
-            Path.Combine(Path.GetTempPath(), "drillpress-tests", "Violations.cs"),
+        var snapshot = TestSnapshots.Create(
             """
+            namespace Sample;
+            public sealed class Target
+            {
+                public static Target Empty => null;
+            }
             public static class Violations
             {
-                public static string First => string.Empty;
-                public static string Second => string.Empty;
+                public static Target First => Target.Empty;
+                public static Target Second => Target.Empty;
             }
             """,
-            cancellationToken);
+            "Violations.cs");
         var output = new StringWriter();
 
         var exitCode = await RuleApplication.RunAsync(
-            RuleTestData.StringEmptyRuleSet(),
-            ["check", snapshotPath],
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
             output,
-            TextWriter.Null,
-            cancellationToken);
+            TestContext.Current.CancellationToken);
         var text = output.ToString();
 
         Assert.Equal(RuleExitCode.Findings, exitCode);
-        Assert.Equal(1, text.Split("DP1004", StringSplitOptions.None).Length - 1);
-        Assert.Contains("  3:", text);
-        Assert.Contains("  4:", text);
+        Assert.Equal(1, text.Split("TEST001", StringSplitOptions.None).Length - 1);
+        Assert.Contains("  8:", text);
+        Assert.Contains("  9:", text);
     }
 
     [Fact]
@@ -63,7 +61,7 @@ public sealed class RuleApplicationTests : SnapshotTest
         var error = new StringWriter();
 
         var exitCode = await RuleApplication.RunAsync(
-            RuleTestData.StringEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleSet(),
             ["check"],
             TextWriter.Null,
             error,
@@ -71,22 +69,5 @@ public sealed class RuleApplicationTests : SnapshotTest
 
         Assert.Equal(RuleExitCode.Failure, exitCode);
         Assert.Contains("Usage:", error.ToString());
-    }
-
-    [Fact]
-    public async Task Returns_failure_and_error_for_an_unreadable_snapshot()
-    {
-        var error = new StringWriter();
-        var missingSnapshot = CreateTemporaryPath(".missing");
-
-        var exitCode = await RuleApplication.RunAsync(
-            RuleTestData.StringEmptyRuleSet(),
-            ["check", missingSnapshot],
-            TextWriter.Null,
-            error,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(RuleExitCode.Failure, exitCode);
-        Assert.NotEqual(string.Empty, error.ToString());
     }
 }

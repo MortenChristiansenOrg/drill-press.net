@@ -29,11 +29,25 @@ public sealed record CompilationSnapshot(
         CancellationToken cancellationToken = default)
     {
         await using var stream = File.OpenRead(path);
+        return await ReadAsync(stream, $"Compilation snapshot '{path}'", cancellationToken);
+    }
+
+    /// <summary>Reads and validates a snapshot from <paramref name="stream"/>.</summary>
+    public static Task<CompilationSnapshot> ReadAsync(
+        Stream stream,
+        CancellationToken cancellationToken = default) =>
+        ReadAsync(stream, "Compilation snapshot stream", cancellationToken);
+
+    private static async Task<CompilationSnapshot> ReadAsync(
+        Stream stream,
+        string source,
+        CancellationToken cancellationToken)
+    {
         var snapshot = await JsonSerializer.DeserializeAsync(
                 stream,
                 CompilationSnapshotJsonContext.Default.CompilationSnapshot,
                 cancellationToken)
-            ?? throw new InvalidDataException($"Compilation snapshot '{path}' is empty.");
+            ?? throw new InvalidDataException($"{source} is empty.");
         snapshot.Validate();
         return snapshot;
     }
@@ -43,6 +57,18 @@ public sealed record CompilationSnapshot(
     {
         Validate();
         await using var stream = File.Create(path);
+        await WriteValidatedAsync(stream, cancellationToken);
+    }
+
+    /// <summary>Validates and serializes the snapshot to <paramref name="stream"/>.</summary>
+    public async Task WriteAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        Validate();
+        await WriteValidatedAsync(stream, cancellationToken);
+    }
+
+    private async Task WriteValidatedAsync(Stream stream, CancellationToken cancellationToken)
+    {
         await JsonSerializer.SerializeAsync(
             stream,
             this,
