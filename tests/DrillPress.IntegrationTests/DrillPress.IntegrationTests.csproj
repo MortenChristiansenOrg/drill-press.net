@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <ProjectReference Include="../../src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../src/DrillPress.Cli/DrillPress.Cli.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../src/DrillPress.Engine/DrillPress.Engine.csproj" />
     <ProjectReference Include="../../src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <ProjectReference Include="../../samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />

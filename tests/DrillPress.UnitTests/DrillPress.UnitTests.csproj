@@ -11,5 +11,6 @@
     <ProjectReference Include="../../src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <ProjectReference Include="../../src/DrillPress.Engine/DrillPress.Engine.csproj" />
     <ProjectReference Include="../../src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
+    <ProjectReference Include="../../src/DrillPress.Cli/DrillPress.Cli.csproj" />
   </ItemGroup>
 </Project>
