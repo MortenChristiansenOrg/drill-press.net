@@ -42,33 +42,10 @@ public static class AnalysisEngine
         foreach (var project in snapshot.Projects)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var parseOptions = new CSharpParseOptions(
-                (LanguageVersion)project.LanguageVersion,
-                preprocessorSymbols: project.PreprocessorSymbols);
-            var syntaxTrees = project.Documents
-                .Select(document => CSharpSyntaxTree.ParseText(
-                    SourceText.From(document.Text),
-                    parseOptions,
-                    document.Path,
-                    cancellationToken: cancellationToken))
-                .ToArray();
-            var metadataReferences = project.MetadataReferences.Select(path =>
-            {
-                if (!references.TryGetValue(path, out var reference))
-                {
-                    reference = MetadataReference.CreateFromFile(path);
-                    references.Add(path, reference);
-                }
-
-                return reference;
-            });
-            var compilation = CSharpCompilation.Create(
-                project.AssemblyName,
-                syntaxTrees,
-                metadataReferences,
-                new CSharpCompilationOptions((OutputKind)project.OutputKind)
-                    .WithNullableContextOptions((NullableContextOptions)project.NullableContextOptions)
-                    .WithConcurrentBuild(true));
+            var (compilation, syntaxTrees) = CreateCompilation(
+                project,
+                references,
+                cancellationToken);
 
             foreach (var (tree, document) in syntaxTrees.Zip(project.Documents))
             {
@@ -77,40 +54,110 @@ public static class AnalysisEngine
                     continue;
                 }
 
-                var semanticModel = compilation.GetSemanticModel(tree);
-                foreach (var name in (await tree.GetRootAsync(cancellationToken))
-                             .DescendantNodes()
-                             .OfType<SimpleNameSyntax>())
-                {
-                    var expression = GetCompleteMemberReference(name);
-                    if (expression is null)
-                    {
-                        continue;
-                    }
-
-                    var symbolInfo = semanticModel.GetSymbolInfo(expression, cancellationToken);
-                    var symbol = symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault();
-                    if (symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol) ||
-                        symbol.ContainingType is null)
-                    {
-                        continue;
-                    }
-
-                    var lineSpan = tree.GetLineSpan(expression.Span, cancellationToken).StartLinePosition;
-                    memberReferences.Add(new MemberReference(
-                        CodeType.Named(GetMetadataName(symbol.ContainingType)),
-                        symbol.Name,
-                        new SourceLocation(
-                            document.Path,
-                            expression.Span.Start,
-                            expression.Span.Length,
-                            lineSpan.Line + 1,
-                            lineSpan.Character + 1)));
-                }
+                memberReferences.AddRange(await FindMemberReferencesAsync(
+                    compilation,
+                    tree,
+                    document,
+                    cancellationToken));
             }
         }
 
         return rules.Evaluate(memberReferences);
+    }
+
+    private static (CSharpCompilation Compilation, SyntaxTree[] SyntaxTrees) CreateCompilation(
+        ProjectSnapshot project,
+        Dictionary<string, MetadataReference> references,
+        CancellationToken cancellationToken)
+    {
+        var parseOptions = new CSharpParseOptions(
+            (LanguageVersion)project.LanguageVersion,
+            preprocessorSymbols: project.PreprocessorSymbols);
+        var syntaxTrees = project.Documents
+            .Select(document => CSharpSyntaxTree.ParseText(
+                SourceText.From(document.Text),
+                parseOptions,
+                document.Path,
+                cancellationToken: cancellationToken))
+            .ToArray<SyntaxTree>();
+        var metadataReferences = project.MetadataReferences
+            .Select(path => GetMetadataReference(path, references))
+            .ToArray();
+        var compilation = CSharpCompilation.Create(
+            project.AssemblyName,
+            syntaxTrees,
+            metadataReferences,
+            new CSharpCompilationOptions((OutputKind)project.OutputKind)
+                .WithNullableContextOptions((NullableContextOptions)project.NullableContextOptions)
+                .WithConcurrentBuild(true));
+        return (compilation, syntaxTrees);
+    }
+
+    private static MetadataReference GetMetadataReference(
+        string path,
+        Dictionary<string, MetadataReference> references)
+    {
+        if (!references.TryGetValue(path, out var reference))
+        {
+            reference = MetadataReference.CreateFromFile(path);
+            references.Add(path, reference);
+        }
+
+        return reference;
+    }
+
+    private static async Task<IReadOnlyList<MemberReference>> FindMemberReferencesAsync(
+        CSharpCompilation compilation,
+        SyntaxTree tree,
+        DocumentSnapshot document,
+        CancellationToken cancellationToken)
+    {
+        var semanticModel = compilation.GetSemanticModel(tree);
+        var root = await tree.GetRootAsync(cancellationToken);
+        return root.DescendantNodes()
+            .OfType<SimpleNameSyntax>()
+            .Select(name => CreateMemberReference(
+                semanticModel,
+                tree,
+                document.Path,
+                name,
+                cancellationToken))
+            .Where(reference => reference is not null)
+            .Select(reference => reference!)
+            .ToArray();
+    }
+
+    private static MemberReference? CreateMemberReference(
+        SemanticModel semanticModel,
+        SyntaxTree tree,
+        string documentPath,
+        SimpleNameSyntax name,
+        CancellationToken cancellationToken)
+    {
+        var expression = GetCompleteMemberReference(name);
+        if (expression is null)
+        {
+            return null;
+        }
+
+        var symbolInfo = semanticModel.GetSymbolInfo(expression, cancellationToken);
+        var symbol = symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault();
+        if (symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol) ||
+            symbol.ContainingType is null)
+        {
+            return null;
+        }
+
+        var lineSpan = tree.GetLineSpan(expression.Span, cancellationToken).StartLinePosition;
+        return new MemberReference(
+            CodeType.Named(GetMetadataName(symbol.ContainingType)),
+            symbol.Name,
+            new SourceLocation(
+                documentPath,
+                expression.Span.Start,
+                expression.Span.Length,
+                lineSpan.Line + 1,
+                lineSpan.Character + 1));
     }
 
     private static ExpressionSyntax? GetCompleteMemberReference(SimpleNameSyntax name)

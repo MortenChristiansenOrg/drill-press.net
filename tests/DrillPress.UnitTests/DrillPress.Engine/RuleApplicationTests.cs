@@ -47,12 +47,17 @@ public sealed class RuleApplicationTests
             snapshot,
             output,
             TestContext.Current.CancellationToken);
-        var text = output.ToString();
 
         Assert.Equal(RuleExitCode.Findings, exitCode);
-        Assert.Equal(1, text.Split("TEST001", StringSplitOptions.None).Length - 1);
-        Assert.Contains("  8:", text);
-        Assert.Contains("  9:", text);
+        Assert.Equal(
+            string.Join(
+                Environment.NewLine,
+                "TEST001 Do not use Target.Empty.",
+                "Violations.cs",
+                "  8:35",
+                "  9:36",
+                string.Empty),
+            output.ToString());
     }
 
     [Fact]
@@ -68,6 +73,8 @@ public sealed class RuleApplicationTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(RuleExitCode.Failure, exitCode);
-        Assert.Contains("Usage:", error.ToString());
+        Assert.Equal(
+            $"Usage: <rule-bundle> check <snapshot>{Environment.NewLine}",
+            error.ToString());
     }
 }
