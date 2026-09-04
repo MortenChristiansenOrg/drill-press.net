@@ -3,11 +3,13 @@
     <Project Path="src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <Project Path="src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <Project Path="src/DrillPress.Engine/DrillPress.Engine.csproj" />
+    <Project Path="src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DrillPress.UnitTests/DrillPress.UnitTests.csproj" />
+    <Project Path="tests/DrillPress.IntegrationTests/DrillPress.IntegrationTests.csproj" />
   </Folder>
 </Solution>
