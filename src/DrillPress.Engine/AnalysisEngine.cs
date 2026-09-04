@@ -125,7 +125,7 @@ public static class AnalysisEngine
             : type.MetadataName;
     }
 
-    private static StringComparer PathComparer => OperatingSystem.IsWindows()
+    private static IEqualityComparer<string> PathComparer => OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase
-        : StringComparer.Ordinal;
+        : EqualityComparer<string>.Default;
 }
