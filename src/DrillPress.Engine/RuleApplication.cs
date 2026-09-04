@@ -1,7 +1,12 @@
 namespace DrillPress.Engine;
 
+/// <summary>Hosts a compiled rule set behind the executable rule-bundle contract.</summary>
 public static class RuleApplication
 {
+    /// <summary>
+    /// Executes the rule-bundle command, writes compact diagnostics, and returns the
+    /// clean, findings, or failure exit code understood by the coordinator.
+    /// </summary>
     public static async Task<int> RunAsync(
         RuleSet rules,
         string[] args,

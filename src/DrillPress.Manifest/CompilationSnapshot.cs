@@ -1,19 +1,29 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace DrillPress.Manifest;
 
+/// <summary>
+/// Represents the versioned envelope exchanged between BuildHost and a compiled rule bundle.
+/// </summary>
+/// <param name="Magic">The file-type identifier checked before payload evaluation.</param>
+/// <param name="FormatVersion">The exact snapshot contract version.</param>
+/// <param name="Projects">The evaluated project compilations carried by the snapshot.</param>
 public sealed record CompilationSnapshot(
     string Magic,
     int FormatVersion,
     ProjectSnapshot[] Projects)
 {
+    /// <summary>Identifies files that contain a Drill Press compilation snapshot.</summary>
     public const string ExpectedMagic = "drillpress-compilation";
+
+    /// <summary>Identifies the exact snapshot shape supported by this build.</summary>
     public const int CurrentFormatVersion = 1;
 
+    /// <summary>Creates a snapshot using the current envelope identifiers.</summary>
     public static CompilationSnapshot Create(params ProjectSnapshot[] projects) =>
         new(ExpectedMagic, CurrentFormatVersion, projects);
 
+    /// <summary>Reads and validates a snapshot before exposing its payload.</summary>
     public static async Task<CompilationSnapshot> ReadAsync(
         string path,
         CancellationToken cancellationToken = default)
@@ -28,6 +38,7 @@ public sealed record CompilationSnapshot(
         return snapshot;
     }
 
+    /// <summary>Validates and serializes the snapshot to <paramref name="path"/>.</summary>
     public async Task WriteAsync(string path, CancellationToken cancellationToken = default)
     {
         Validate();
@@ -53,20 +64,3 @@ public sealed record CompilationSnapshot(
         }
     }
 }
-
-public sealed record ProjectSnapshot(
-    string Name,
-    string AssemblyName,
-    string ProjectPath,
-    int LanguageVersion,
-    int OutputKind,
-    int NullableContextOptions,
-    string[] PreprocessorSymbols,
-    DocumentSnapshot[] Documents,
-    string[] MetadataReferences);
-
-public sealed record DocumentSnapshot(string Path, string Text, bool IsGenerated);
-
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(CompilationSnapshot))]
-public sealed partial class CompilationSnapshotJsonContext : JsonSerializerContext;

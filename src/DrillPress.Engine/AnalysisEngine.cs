@@ -6,8 +6,16 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress.Engine;
 
+/// <summary>
+/// Reconstructs Roslyn compilations from an exported snapshot and presents semantic
+/// member references to a compiled rule set.
+/// </summary>
 public static class AnalysisEngine
 {
+    /// <summary>Analyzes one snapshot and returns its deterministically ordered diagnostics.</summary>
+    /// <param name="rules">The statically constructed rules to evaluate.</param>
+    /// <param name="snapshotPath">The compilation snapshot exported by BuildHost.</param>
+    /// <param name="cancellationToken">Stops snapshot loading and analysis.</param>
     public static async Task<IReadOnlyList<RuleDiagnostic>> AnalyzeAsync(
         RuleSet rules,
         string snapshotPath,
