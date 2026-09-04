@@ -15,16 +15,13 @@ public sealed class CodeQuery<T>
     }
 
     /// <summary>Returns a query restricted to candidates that satisfy <paramref name="condition"/>.</summary>
-    public CodeQuery<T> Where(RuleCondition<T> condition)
-    {
-        ArgumentNullException.ThrowIfNull(condition);
-        return new CodeQuery<T>(
+    public CodeQuery<T> Where(RuleCondition<T> condition) =>
+        new(
             _select,
             _condition is null
                 ? condition
                 : new RuleCondition<T>(candidate =>
                     _condition.Evaluate(candidate) && condition.Evaluate(candidate)));
-    }
 
     internal IEnumerable<T> Evaluate(IReadOnlyList<MemberReference> memberReferences)
     {

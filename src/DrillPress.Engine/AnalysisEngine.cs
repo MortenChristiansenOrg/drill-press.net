@@ -21,7 +21,6 @@ public static class AnalysisEngine
         string snapshotPath,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(rules);
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
 
         var snapshot = await CompilationSnapshot.ReadAsync(snapshotPath, cancellationToken);

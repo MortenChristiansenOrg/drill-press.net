@@ -13,6 +13,6 @@ public static class Members
         var declaringType = CodeType.Of<TDeclaringType>();
         return new RuleCondition<MemberReference>(reference =>
             reference.ContainingType == declaringType &&
-            StringComparer.Ordinal.Equals(reference.MemberName, memberName));
+            reference.MemberName == memberName);
     }
 }

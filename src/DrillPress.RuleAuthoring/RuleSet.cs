@@ -6,18 +6,14 @@ public sealed class RuleSet
     private readonly List<ICompiledRule> _rules = [];
 
     /// <summary>Begins a rule declaration over candidates selected by <paramref name="query"/>.</summary>
-    public RuleScope<T> For<T>(CodeQuery<T> query)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        return new RuleScope<T>(this, query);
-    }
+    public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
 
     /// <summary>Evaluates every registered rule and returns diagnostics in deterministic order.</summary>
     public IReadOnlyList<RuleDiagnostic> Evaluate(IReadOnlyList<MemberReference> memberReferences) =>
         _rules
             .SelectMany(rule => rule.Evaluate(memberReferences))
-            .OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
-            .ThenBy(diagnostic => diagnostic.Location.FilePath, StringComparer.Ordinal)
+            .OrderBy(diagnostic => diagnostic.Descriptor.Id)
+            .ThenBy(diagnostic => diagnostic.Location.FilePath)
             .ThenBy(diagnostic => diagnostic.Location.Start)
             .ToArray();
 
@@ -25,7 +21,7 @@ public sealed class RuleSet
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        if (_rules.Any(rule => StringComparer.Ordinal.Equals(rule.Id, id)))
+        if (_rules.Any(rule => rule.Id == id))
         {
             throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");
         }
