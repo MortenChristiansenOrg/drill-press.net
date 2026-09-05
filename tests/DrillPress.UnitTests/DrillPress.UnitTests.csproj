@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
+    <ProjectReference Include="../../src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
+    <ProjectReference Include="../../src/DrillPress.Engine/DrillPress.Engine.csproj" />
+    <ProjectReference Include="../../src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
+    <ProjectReference Include="../../src/DrillPress.Cli/DrillPress.Cli.csproj" />
+  </ItemGroup>
+</Project>
