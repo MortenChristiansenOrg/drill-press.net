@@ -19,7 +19,17 @@ public sealed record ProjectSnapshot(
     int NullableContextOptions,
     string[] PreprocessorSymbols,
     DocumentSnapshot[] Documents,
-    string[] MetadataReferences);
+    string[] MetadataReferences)
+{
+    /// <summary>Contains metadata emitted from project dependencies, including reference aliases.</summary>
+    public MetadataImageSnapshot[] ProjectReferences { get; init; } = [];
+}
+
+/// <summary>Preserves a project dependency as metadata without requiring a built assembly on disk.</summary>
+/// <param name="Image">The emitted metadata assembly.</param>
+/// <param name="Aliases">The aliases assigned to this reference in the consuming project.</param>
+/// <param name="EmbedInteropTypes">Whether the consuming project embeds interop types from this reference.</param>
+public sealed record MetadataImageSnapshot(byte[] Image, string[] Aliases, bool EmbedInteropTypes);
 
 /// <summary>Captures source text together with its physical and generated-source identity.</summary>
 /// <param name="Path">The stable physical or generated document path.</param>

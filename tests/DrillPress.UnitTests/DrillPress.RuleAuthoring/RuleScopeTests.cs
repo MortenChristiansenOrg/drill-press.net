@@ -18,6 +18,7 @@ public sealed class RuleScopeTests
         Assert.Same(scope, returnedScope);
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("TEST001", diagnostic.Descriptor.Id);
+        Assert.Equal("Test message.", diagnostic.Descriptor.Message);
         Assert.Equal(reference.Location, diagnostic.Location);
     }
 }

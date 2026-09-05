@@ -3,6 +3,7 @@ using DrillPress.Manifest;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.MSBuild;
 
 namespace DrillPress.BuildHost;
@@ -134,7 +135,10 @@ public static class BuildHostApplication
             (int)compilation.Options.NullableContextOptions,
             parseOptions.PreprocessorSymbolNames.ToArray(),
             CreateDocumentSnapshots(project, compilation, cancellationToken),
-            CreateMetadataReferencePaths(compilation));
+            CreateMetadataReferencePaths(compilation))
+        {
+            ProjectReferences = CreateProjectReferenceImages(compilation, cancellationToken),
+        };
     }
 
     private static DocumentSnapshot[] CreateDocumentSnapshots(
@@ -174,6 +178,33 @@ public static class BuildHostApplication
             .Distinct(PathComparer)
             .OrderBy(path => path)
             .ToArray();
+    }
+
+    private static MetadataImageSnapshot[] CreateProjectReferenceImages(
+        CSharpCompilation compilation,
+        CancellationToken cancellationToken) =>
+        compilation.References.OfType<CompilationReference>()
+            .Select(reference => CreateMetadataImage(reference, cancellationToken))
+            .ToArray();
+
+    private static MetadataImageSnapshot CreateMetadataImage(
+        CompilationReference reference,
+        CancellationToken cancellationToken)
+    {
+        using var stream = new MemoryStream();
+        var result = reference.Compilation.Emit(
+            stream,
+            options: new EmitOptions(metadataOnly: true, includePrivateMembers: true),
+            cancellationToken: cancellationToken);
+        if (!result.Success)
+        {
+            var errors = result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+            throw new InvalidOperationException(
+                $"Could not export project reference '{reference.Compilation.AssemblyName}': {string.Join("; ", errors)}");
+        }
+
+        return new MetadataImageSnapshot(
+            stream.ToArray(), reference.Properties.Aliases.ToArray(), reference.Properties.EmbedInteropTypes);
     }
 
     private static async Task WriteSnapshotAsync(

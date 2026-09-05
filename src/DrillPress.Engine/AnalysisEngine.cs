@@ -82,6 +82,11 @@ public static class AnalysisEngine
             .ToArray<SyntaxTree>();
         var metadataReferences = project.MetadataReferences
             .Select(path => GetMetadataReference(path, references))
+            .Concat(project.ProjectReferences.Select(reference => MetadataReference.CreateFromImage(
+                reference.Image,
+                MetadataReferenceProperties.Assembly
+                    .WithAliases(reference.Aliases)
+                    .WithEmbedInteropTypes(reference.EmbedInteropTypes))))
             .ToArray();
         var compilation = CSharpCompilation.Create(
             project.AssemblyName,

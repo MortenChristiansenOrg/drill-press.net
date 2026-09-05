@@ -12,5 +12,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/DrillPress.UnitTests/DrillPress.UnitTests.csproj" />
     <Project Path="tests/DrillPress.IntegrationTests/DrillPress.IntegrationTests.csproj" />
+    <Project Path="tests/DrillPress.TestProcess/DrillPress.TestProcess.csproj" />
   </Folder>
 </Solution>

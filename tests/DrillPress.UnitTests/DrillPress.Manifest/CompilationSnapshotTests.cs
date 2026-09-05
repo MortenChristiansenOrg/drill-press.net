@@ -11,7 +11,11 @@ public sealed class CompilationSnapshotTests
     public async Task Round_trips_the_current_snapshot_format_in_memory()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var expectedProject = TestSnapshots.CreateProject("Example.cs", "public class Example { }");
+        var expectedProject = TestSnapshots.CreateProject("Example.cs", "public class Example { }") with
+        {
+            PreprocessorSymbols = ["FEATURE"],
+            ProjectReferences = [new MetadataImageSnapshot([1, 2, 3], ["Dependency"], false)],
+        };
         var expected = CompilationSnapshot.Create(expectedProject);
         await using var stream = new MemoryStream();
         await expected.WriteAsync(stream, cancellationToken);
@@ -23,9 +27,31 @@ public sealed class CompilationSnapshotTests
         Assert.Equal(CompilationSnapshot.CurrentFormatVersion, snapshot.FormatVersion);
         var project = Assert.Single(snapshot.Projects);
         Assert.Equal(expectedProject.Name, project.Name);
+        Assert.Equal(expectedProject.AssemblyName, project.AssemblyName);
         Assert.Equal(expectedProject.ProjectPath, project.ProjectPath);
+        Assert.Equal(expectedProject.LanguageVersion, project.LanguageVersion);
+        Assert.Equal(expectedProject.OutputKind, project.OutputKind);
+        Assert.Equal(expectedProject.NullableContextOptions, project.NullableContextOptions);
+        Assert.Equal(expectedProject.PreprocessorSymbols, project.PreprocessorSymbols);
         Assert.Equal(expectedProject.MetadataReferences, project.MetadataReferences);
         Assert.Equal(expectedProject.Documents, project.Documents);
+        var reference = Assert.Single(project.ProjectReferences);
+        Assert.Equal(expectedProject.ProjectReferences[0].Image, reference.Image);
+        Assert.Equal(expectedProject.ProjectReferences[0].Aliases, reference.Aliases);
+        Assert.Equal(expectedProject.ProjectReferences[0].EmbedInteropTypes, reference.EmbedInteropTypes);
+    }
+
+    [Theory]
+    [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":1}""")]
+    [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":null}""")]
+    public async Task Read_rejects_missing_or_null_projects(string json)
+    {
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CompilationSnapshot.ReadAsync(stream, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Compilation snapshot must contain a projects array.", exception.Message);
     }
 
     [Fact]

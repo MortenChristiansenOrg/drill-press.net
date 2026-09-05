@@ -67,6 +67,7 @@ public static class CliApplication
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var isManagedAssembly = executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
         var startInfo = new ProcessStartInfo(isManagedAssembly ? "dotnet" : executable)
         {
@@ -84,7 +85,17 @@ public static class CliApplication
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{executable}'.");
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(CancellationToken.None);
+            throw;
+        }
+
         return process.ExitCode;
     }
 

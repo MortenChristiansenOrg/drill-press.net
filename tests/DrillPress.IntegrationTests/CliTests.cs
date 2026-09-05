@@ -78,13 +78,7 @@ public sealed class CliTests : IntegrationTest
         var temporaryRoot = CreateTemporaryDirectory("drillpress-cli-test-");
         var cli = GetOutputPath("DrillPress.Cli");
         var buildHost = GetOutputPath("DrillPress.BuildHost");
-        var rules = RepositoryPath(
-            "samples",
-            "DrillPress.SampleRules",
-            "bin",
-            "Debug",
-            "net10.0",
-            "DrillPress.SampleRules.dll");
+        var rules = GetOutputPath("DrillPress.SampleRules", "samples");
         var environment = new Dictionary<string, string>
         {
             ["TMPDIR"] = temporaryRoot.FullName,

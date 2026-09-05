@@ -1,10 +1,15 @@
 using System.Diagnostics;
+using System.Reflection;
 
 namespace DrillPress.IntegrationTests;
 
 public abstract class IntegrationTest : IDisposable
 {
     private readonly List<DirectoryInfo> _temporaryDirectories = [];
+    private readonly List<Process> _testProcesses = [];
+
+    private static string BuildConfiguration { get; } = typeof(IntegrationTest).Assembly
+        .GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
 
     protected static string RepositoryRoot { get; } = FindRepositoryRoot();
 
@@ -16,6 +21,17 @@ public abstract class IntegrationTest : IDisposable
 
     public void Dispose()
     {
+        foreach (var process in _testProcesses)
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+            }
+
+            process.Dispose();
+        }
+
         foreach (var temporaryDirectory in _temporaryDirectories)
         {
             temporaryDirectory.Delete(recursive: true);
@@ -34,8 +50,8 @@ public abstract class IntegrationTest : IDisposable
     protected static string RepositoryPath(params string[] segments) =>
         Path.Combine(RepositoryRoot, Path.Combine(segments));
 
-    protected static string GetOutputPath(string projectName) =>
-        RepositoryPath("src", projectName, "bin", "Debug", "net10.0", $"{projectName}.dll");
+    protected static string GetOutputPath(string projectName, string projectDirectory = "src") =>
+        RepositoryPath(projectDirectory, projectName, "bin", BuildConfiguration, "net10.0", $"{projectName}.dll");
 
     protected static async Task<ProcessResult> RunProcessAsync(
         string fileName,
@@ -44,6 +60,7 @@ public abstract class IntegrationTest : IDisposable
         CancellationToken cancellationToken,
         IReadOnlyDictionary<string, string>? environment = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var startInfo = new ProcessStartInfo(fileName)
         {
             WorkingDirectory = workingDirectory,
@@ -66,10 +83,36 @@ public abstract class IntegrationTest : IDisposable
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{fileName}'.");
-        var standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        return new ProcessResult(process.ExitCode, await standardOutput, await standardError);
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+            await Task.WhenAll(standardOutput, standardError).WaitAsync(cancellationToken);
+            return new ProcessResult(process.ExitCode, await standardOutput, await standardError);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(CancellationToken.None);
+            await Task.WhenAll(standardOutput, standardError);
+            throw;
+        }
+    }
+
+    protected async Task<Process> WaitForTestProcessAsync(string readyPath)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+            Xunit.TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        while (!File.Exists(readyPath))
+        {
+            await Task.Delay(20, timeout.Token);
+        }
+
+        var process = Process.GetProcessById(int.Parse(await File.ReadAllTextAsync(readyPath, timeout.Token)));
+        _testProcesses.Add(process);
+        return process;
     }
 
     private static string FindRepositoryRoot()

@@ -88,5 +88,11 @@ public sealed record CompilationSnapshot(
             throw new InvalidDataException(
                 $"Compilation snapshot format {FormatVersion} is not supported; expected {CurrentFormatVersion}.");
         }
+
+        // JSON input can omit non-nullable constructor parameters.
+        if (Projects is null)
+        {
+            throw new InvalidDataException("Compilation snapshot must contain a projects array.");
+        }
     }
 }
