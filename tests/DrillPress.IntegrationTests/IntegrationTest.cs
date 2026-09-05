@@ -100,19 +100,45 @@ public abstract class IntegrationTest : IDisposable
         }
     }
 
-    protected async Task<Process> WaitForTestProcessAsync(string readyPath)
+    protected async Task<Process> WaitForTestProcessAsync(
+        string readyPath,
+        Task launch,
+        CancellationTokenSource cancellation,
+        TimeSpan? readinessTimeout = null)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-            Xunit.TestContext.Current.CancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        while (!File.Exists(readyPath))
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
+        timeout.CancelAfter(readinessTimeout ?? TimeSpan.FromSeconds(30));
+        try
         {
-            await Task.Delay(20, timeout.Token);
-        }
+            while (!File.Exists(readyPath))
+            {
+                if (launch.IsCompleted)
+                {
+                    await launch;
+                    throw new InvalidOperationException("The test process exited before reporting readiness.");
+                }
 
-        var process = Process.GetProcessById(int.Parse(await File.ReadAllTextAsync(readyPath, timeout.Token)));
-        _testProcesses.Add(process);
-        return process;
+                await Task.Delay(20, timeout.Token);
+            }
+
+            var process = Process.GetProcessById(int.Parse(await File.ReadAllTextAsync(readyPath, timeout.Token)));
+            _testProcesses.Add(process);
+            return process;
+        }
+        catch
+        {
+            await cancellation.CancelAsync();
+            try
+            {
+                await launch;
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                // The launch task has finished stopping its child process.
+            }
+
+            throw;
+        }
     }
 
     private static string FindRepositoryRoot()
