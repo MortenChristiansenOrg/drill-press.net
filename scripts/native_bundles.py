@@ -40,8 +40,10 @@ def validate_publish_warnings(output):
 
 
 def run(command, expected=0, log=None):
+    environment = {**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en-US", "VSLANG": "1033"}
     result = subprocess.run(
-        [str(part) for part in command], cwd=ROOT, capture_output=True, timeout=600
+        [str(part) for part in command], cwd=ROOT, capture_output=True, timeout=600,
+        env=environment,
     )
     if log is not None:
         log.write_bytes(result.stdout + result.stderr)
@@ -75,6 +77,15 @@ def build_and_publish(output, rid):
     )
 
 
+def display_path(path):
+    try:
+        relative = os.path.relpath(path, ROOT)
+    except ValueError:
+        # Path.GetRelativePath also returns the original path for different drives.
+        relative = str(path)
+    return relative.replace("\\", "/")
+
+
 def create_cases(directory):
     project = directory / "Probe.csproj"
     source = directory / "Probe.cs"
@@ -96,11 +107,10 @@ def create_cases(directory):
         run(["dotnet", build_host, "export", project, snapshot])
         expected_output = b""
         if exit_code == 1:
-            display_path = os.path.relpath(source, ROOT).replace("\\", "/")
             newline = "\r\n" if sys.platform == "win32" else "\n"
             expected_output = newline.join([
                 'DP1004 Use the empty string literal "" instead of string.Empty.',
-                display_path, "  4:35", "",
+                display_path(source), "  4:35", "",
             ]).encode("utf-8")
         cases.append((name, snapshot, exit_code, expected_output, b""))
 

@@ -1,8 +1,9 @@
 """Contract checks for the fail-closed NativeAOT warning gate."""
 
 import unittest
+from unittest.mock import patch
 
-from native_bundles import validate_publish_warnings
+from native_bundles import display_path, validate_publish_warnings
 
 
 class PublishWarningTests(unittest.TestCase):
@@ -33,6 +34,24 @@ class PublishWarningTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "Unexplained publication warning"):
             validate_publish_warnings(output)
+
+
+class DisplayPathTests(unittest.TestCase):
+    def test_keeps_an_absolute_path_when_windows_drives_differ(self):
+        source = r"C:\temp\Probe.cs"
+
+        with patch("native_bundles.os.path.relpath", side_effect=ValueError("different drives")):
+            result = display_path(source)
+
+        self.assertEqual("C:/temp/Probe.cs", result)
+
+    def test_normalizes_relative_windows_separators(self):
+        source = r"D:\a\temp\Probe.cs"
+
+        with patch("native_bundles.os.path.relpath", return_value=r"..\temp\Probe.cs"):
+            result = display_path(source)
+
+        self.assertEqual("../temp/Probe.cs", result)
 
 
 if __name__ == "__main__":
