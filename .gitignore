@@ -1,7 +1,6 @@
 **/bin/
 **/obj/
 /artifacts/
-**/__pycache__/
 AOT POC/artifacts/
 Benchmark Repositories/
 *.drillpress.tmp

@@ -14,4 +14,7 @@
     <Project Path="tests/DrillPress.IntegrationTests/DrillPress.IntegrationTests.csproj" />
     <Project Path="tests/DrillPress.TestProcess/DrillPress.TestProcess.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
+  </Folder>
 </Solution>

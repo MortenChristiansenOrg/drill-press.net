@@ -60,12 +60,13 @@ On Windows use `-r win-x64 -o artifacts/native/win-x64`; the executable ends in
 `--rules` option instead of the managed DLL. The native bundle needs no .NET
 runtime installation, but the managed CLI and BuildHost still do.
 
-Run the publication and execution gate from either platform with Python 3.10+
-(`python` may be the command name on Windows):
+Run the publication and execution gate from either platform with the repository's
+.NET SDK. The file-based C# entry point delegates to testable helper classes;
+no additional scripting runtime is required:
 
 ```bash
-python3 -m unittest discover -s scripts -p "test_*.py"
-python3 scripts/native_bundles.py
+dotnet run --file scripts/NativeBundles.cs
+dotnet test --solution DrillPress.slnx -c Release --no-build
 ```
 
 The gate builds Release managed outputs, publishes natively, then sends the
@@ -83,7 +84,7 @@ six known diagnostics in `CommonCompiler.GetAssemblyLocation`, pooled callback
 helpers, and `RoslynLazyInitializer.EnsureInitialized`. The first already
 handles an empty assembly location; pooled callbacks use explicit factories.
 The current import-tracking constructor path is exercised by the alias case.
-The exact reviewed members are documented next to `KNOWN_WARNINGS` in the gate.
+The exact reviewed members are documented in `PublishWarnings.cs` in the gate.
 IL2091/IL3000 remain visible rather than errors during publication, but the
 gate rejects either code from any other member and rejects all other warnings.
 Use the gate, not publication alone, to validate changes. Roslyn upgrades and
