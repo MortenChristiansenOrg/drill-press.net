@@ -1,8 +1,9 @@
 using DrillPress.Benchmarks;
 using DrillPress.BundleVerification;
+using DrillPress.IntegrationTests.TestInfrastructure;
 using Xunit;
 
-namespace DrillPress.IntegrationTests;
+namespace DrillPress.IntegrationTests.DrillPress.Benchmarks;
 
 public sealed class ArtifactMeasurementsTests : IntegrationTest
 {
