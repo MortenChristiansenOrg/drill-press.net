@@ -43,7 +43,7 @@ still produces the executable managed DLL for fast development.
 
 Supported native targets are `linux-x64` (Ubuntu 24.04 or compatible glibc) and
 `win-x64` (Windows x64). Build each on its own operating system; cross-OS native
-publication is not supported. Use SDK **10.0.111**, as pinned in `global.json`.
+publication is not supported. Use the SDK selected by [global.json](global.json).
 Linux needs a native compiler/linker and zlib headers (`sudo apt-get install
 clang zlib1g-dev` on Ubuntu; the SDK also supports GCC fallback). Windows needs
 Visual Studio 2022 or later with **Desktop development with C++**, including the
