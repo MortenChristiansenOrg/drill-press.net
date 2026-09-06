@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <Project Path="src/DrillPress.Manifest/DrillPress.Manifest.csproj" />

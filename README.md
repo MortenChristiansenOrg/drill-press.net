@@ -65,7 +65,7 @@ Run the publication and execution gate from either platform with the repository'
 no additional scripting runtime is required:
 
 ```bash
-dotnet run --file scripts/NativeBundles.cs
+dotnet run --file scripts/NativeBundles.cs -c Release --no-cache
 dotnet test --solution DrillPress.slnx -c Release --no-build
 ```
 
@@ -76,6 +76,63 @@ incompatible-snapshot cases assert exact stdout/stderr bytes and exit codes
 within one platform; Slice 3 will lock the cross-platform output contract.
 Logs and byte outputs are retained in a fresh `artifacts/native-<rid>-*`
 directory. `--output <new-directory>` selects a fresh report destination.
+
+### Measurements and continuous validation
+
+Use `--no-cache` so the file-based app rebuilds referenced helper changes instead
+of reusing a stale cached copy. This build remains outside all measurements.
+The same C# entry point runs BenchmarkDotNet (centrally pinned) after publication
+and parity verification. Its Monitoring job uses one benchmark-process launch,
+one warmup, and five single-invocation iterations for each of eight cases:
+managed/native × startup/clean/violating/invalid. Compilation is outside timing.
+Raw timing data and summaries are in `BenchmarkDotNet/results` (JSON, CSV, HTML,
+and Markdown); BenchmarkDotNet also retains its execution log. `report.json`
+contains SDK, revision, dirty-worktree status, platform, artifact inventories,
+and supplemental memory samples. There are no performance thresholds.
+
+Startup is explicitly a **proxy**: process launch through the no-argument usage
+response and exit, including static rule construction but no snapshot loading.
+Wall time for each clean, violating, and invalid snapshot includes launch,
+loading, evaluation, output draining, and exit. Every measured execution must
+still match the exact byte and exit-code contract. BenchmarkDotNet controls
+ordering and timing; verification runs first and filesystem caches are not
+cleared. These are warm-workflow measurements, not cold-boot claims.
+
+Peak memory is the OS child-process high-water mark: Linux GNU `/usr/bin/time`
+`%M`, converted from KiB to bytes, or Windows
+`GetProcessMemoryInfo.PeakWorkingSetSize`. Each untimed sample uses a fresh,
+prebuilt C# worker. On Linux it delegates child launch to GNU time's small native
+process: direct `getrusage` from C# can include the managed launcher's inherited
+pre-exec memory floor. Install the `time` package if absent. No time fields from
+GNU time are collected. BenchmarkDotNet times the bundle directly, without
+either memory-measurement launcher.
+Its MemoryDiagnoser is not used: harness allocations are not bundle memory.
+Artifact bytes count dedicated publish directories without debug symbols
+or XML documentation; the managed runtime and native system-library prerequisites
+are external and excluded. Compare reports on the same machine and options.
+
+`.github/workflows/native-bundles.yml` uses Blacksmith's x64 runners:
+`blacksmith-2vcpu-ubuntu-2404` (`linux-x64`) and
+`blacksmith-2vcpu-windows-2025` (`win-x64`). Enable Blacksmith for the repository
+before running the workflow; Windows runners are currently in public beta.
+See [Blacksmith runner types](https://docs.blacksmith.sh/blacksmith-runners/overview)
+and [setup](https://docs.blacksmith.sh/introduction/quickstart).
+The jobs are predominantly sequential; start with 2 vCPUs and resize only when
+measured runtime or memory pressure justifies it.
+The workflow installs the pinned SDK, uses the
+runner's Visual C++ tools on Windows and installs Clang/zlib headers and GNU
+time on Linux.
+Both jobs run these commands (substitute the platform RID in the output path):
+
+```bash
+dotnet run --file scripts/NativeBundles.cs -c Release --no-cache -- --output artifacts/ci-linux-x64
+dotnet test --solution DrillPress.slnx -c Release --no-build
+```
+
+Build and publish commands are the script's first steps. CI uploads logs,
+golden-case stdout/stderr, and measurements even on failure. Later slices must
+extend these executable cases as protocols and rule behavior grow; a successful
+native publish alone is never the parity gate.
 
 ### Roslyn compatibility boundary
 

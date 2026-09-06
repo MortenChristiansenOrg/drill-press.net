@@ -1,6 +1,6 @@
-#:project ../tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj
+#:project ../benchmarks/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj
 #:property PublishAot=false
 
-using DrillPress.BundleVerification;
+using DrillPress.Benchmarks;
 
-return await VerificationApplication.RunAsync(args);
+return await BenchmarkApplication.RunAsync(args);
