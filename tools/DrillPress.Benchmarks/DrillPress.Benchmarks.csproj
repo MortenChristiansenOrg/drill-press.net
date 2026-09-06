@@ -4,6 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
-    <ProjectReference Include="../../tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
+    <ProjectReference Include="../DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
   </ItemGroup>
 </Project>

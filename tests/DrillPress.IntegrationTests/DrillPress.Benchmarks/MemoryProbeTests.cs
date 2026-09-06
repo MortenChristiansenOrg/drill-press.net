@@ -20,7 +20,7 @@ public sealed class MemoryProbeTests : IntegrationTest
         await File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan), TestContext.Current.CancellationToken);
 
         var output = await ProcessRunner.RunAsync("dotnet",
-            [GetOutputPath("DrillPress.Benchmarks", "benchmarks"), "--memory-worker", planPath, "Managed", "bytes"],
+            [GetOutputPath("DrillPress.Benchmarks", "tools"), "--memory-worker", planPath, "Managed", "bytes"],
             RepositoryRoot, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, output.ExitCode);

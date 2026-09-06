@@ -113,8 +113,11 @@ tests/
   DrillPress.ConformanceTests/
   DrillPress.IntegrationTests/
   Fixtures/
-benchmarks/
+tools/
+  DrillPress.BundleVerification/
   DrillPress.Benchmarks/
+scripts/
+  NativeBundles.cs
   run-xunit.sh
 Sample Solution/             Small end-to-end target
 ```

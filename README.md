@@ -79,6 +79,13 @@ directory. `--output <new-directory>` selects a fresh report destination.
 
 ### Measurements and continuous validation
 
+Both tooling projects live under `tools/`. The dependency chain is
+`scripts/NativeBundles.cs → DrillPress.Benchmarks → DrillPress.BundleVerification`.
+The benchmark runner first calls `VerificationSession.CreateAsync` to build,
+publish and verify the bundles, then measures them. The verification library
+owns those checks and shared process helpers without depending on BenchmarkDotNet;
+the runner owns command dispatch and measurements.
+
 Use `--no-cache` so the file-based app rebuilds referenced helper changes instead
 of reusing a stale cached copy. This build remains outside all measurements.
 The same C# entry point runs BenchmarkDotNet (centrally pinned) after publication

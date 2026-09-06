@@ -1,7 +1,4 @@
 <Solution>
-  <Folder Name="/benchmarks/">
-    <Project Path="benchmarks/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />
-  </Folder>
   <Folder Name="/src/">
     <Project Path="src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <Project Path="src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
@@ -18,6 +15,7 @@
     <Project Path="tests/DrillPress.TestProcess/DrillPress.TestProcess.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />
     <Project Path="tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
   </Folder>
 </Solution>
