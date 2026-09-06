@@ -1,6 +1,7 @@
+using DrillPress.IntegrationTests.TestInfrastructure;
 using Xunit;
 
-namespace DrillPress.IntegrationTests;
+namespace DrillPress.IntegrationTests.DrillPress.Cli;
 
 public sealed class CliTests : IntegrationTest
 {

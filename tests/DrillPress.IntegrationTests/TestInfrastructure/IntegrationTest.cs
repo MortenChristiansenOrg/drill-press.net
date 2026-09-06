@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 
-namespace DrillPress.IntegrationTests;
+namespace DrillPress.IntegrationTests.TestInfrastructure;
 
 public abstract class IntegrationTest : IDisposable
 {

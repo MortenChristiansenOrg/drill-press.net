@@ -1,9 +1,10 @@
 using DrillPress.Engine;
+using DrillPress.IntegrationTests.TestInfrastructure;
 using DrillPress.Manifest;
 using DrillPress.SampleRules;
 using Xunit;
 
-namespace DrillPress.IntegrationTests;
+namespace DrillPress.IntegrationTests.DrillPress.BuildHost;
 
 public sealed class BuildHostTests : IntegrationTest
 {
