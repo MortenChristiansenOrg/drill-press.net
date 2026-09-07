@@ -5,6 +5,8 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../tools/DrillPress.Conformance/DrillPress.Conformance.csproj" ReferenceOutputAssembly="false" />
     <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../../tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />
     <ProjectReference Include="../../tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />

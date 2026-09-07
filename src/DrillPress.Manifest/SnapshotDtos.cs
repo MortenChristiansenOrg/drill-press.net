@@ -34,6 +34,21 @@ public sealed record ProjectSnapshot(
     /// <summary>Records effective MSBuild property overrides for this context.</summary>
     public Dictionary<string, string> Properties { get; init; } = [];
 
+    /// <summary>External references with validated byte identity and complete binding properties.</summary>
+    public MetadataReferenceSnapshot[] ExternalReferences { get; init; } = [];
+
+    /// <summary>Source compilation edges, preserving evaluated framework mappings.</summary>
+    public CompilationReferenceSnapshot[] CompilationReferences { get; init; } = [];
+
+    /// <summary>Compiler settings captured from the live compilation.</summary>
+    public CompilerOptionsSnapshot CompilerOptions { get; init; } = new();
+
+    /// <summary>Evaluated test-project classification, with inference only when the property is absent.</summary>
+    public bool IsTestProject { get; init; }
+
+    /// <summary>The SDK selected relative to the target's global.json.</summary>
+    public string SdkVersion { get; init; } = "";
+
     /// <summary>Contains metadata emitted from project dependencies, including reference aliases.</summary>
     public MetadataImageSnapshot[] ProjectReferences { get; init; } = [];
 }
@@ -50,6 +65,9 @@ public sealed record MetadataImageSnapshot(byte[] Image, string[] Aliases, bool 
 /// <param name="IsGenerated">Whether rules must exclude the document from candidate discovery.</param>
 public sealed record DocumentSnapshot(string Path, string Text, bool IsGenerated)
 {
+    /// <summary>Per-tree compiler settings, or the enclosing project's defaults for legacy synthetic inputs.</summary>
+    public SourceOptionsSnapshot? Options { get; init; }
+
     /// <summary>Identifies membership in one compilation context.</summary>
     [System.Text.Json.Serialization.JsonRequired]
     public string DocumentId { get; init; } = Guid.NewGuid().ToString("N");

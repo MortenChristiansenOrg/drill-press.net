@@ -44,6 +44,8 @@ public sealed class CliTests : IntegrationTest
             "public static class Clean { public static string Value => \"\"; }",
             TestContext.Current.CancellationToken);
 
+        await RestoreAsync(FileSystem.Path.Combine(projectDirectory.FullName, "Clean.csproj"));
+
         var result = await RunCliAsync(FileSystem.Path.Combine(projectDirectory.FullName, "Clean.csproj"));
 
         Assert.Equal(0, result.ExitCode);

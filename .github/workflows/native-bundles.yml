@@ -40,6 +40,8 @@ jobs:
         run: dotnet run --file scripts/NativeBundles.cs -c Release --no-cache -- --output artifacts/ci-${{ matrix.rid }}
       - name: Test solution and gate helpers
         run: dotnet test --solution DrillPress.slnx -c Release --no-build
+      - name: Retain compiler conformance evidence
+        run: dotnet run --project tools/DrillPress.Conformance -c Release --no-build -- fixtures/CompilerSnapshot/Selected.slnx artifacts/ci-${{ matrix.rid }}/compiler-conformance.json
       - name: Retain verification logs and measurements
         if: always()
         uses: actions/upload-artifact@v4

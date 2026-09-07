@@ -33,16 +33,17 @@ public sealed class BuildHostApplication
         CancellationToken cancellationToken = default)
     {
         standardError ??= Console.Error;
-        if (args is not ["export", var projectPath, var outputPath])
+        if (args.Length < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
-                "Usage: DrillPress.BuildHost export <project.csproj> <snapshot>");
+                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation]");
             return BuildHostExitCode.Failure;
         }
 
         try
         {
-            await ExportAsync(projectPath, outputPath, cancellationToken);
+            var options = ParseOptions(args[3..]);
+            await ExportAsync(args[1], args[2], options, cancellationToken);
             return BuildHostExitCode.Success;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -61,24 +62,41 @@ public sealed class BuildHostApplication
         string outputPath,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        var fullProjectPath = ResolveProjectPath(projectPath);
-        var snapshot = await _snapshotLoader.LoadAsync(fullProjectPath, cancellationToken);
+        await ExportAsync(projectPath, outputPath, new SnapshotLoadOptions(), cancellationToken);
+    }
 
+    /// <summary>Exports a resolved solution, project, directory, or loose-source target with explicit evaluation options.</summary>
+    public async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        var resolved = new TargetResolver(_fileSystem).Resolve(target);
+        var snapshot = await _snapshotLoader.LoadAsync(resolved, options, cancellationToken);
         await WriteSnapshotAsync(snapshot, outputPath, cancellationToken);
     }
 
-    private string ResolveProjectPath(string projectPath)
+    private static SnapshotLoadOptions ParseOptions(string[] args)
     {
-        var fullProjectPath = _fileSystem.Path.GetFullPath(projectPath);
-        if (!_fileSystem.File.Exists(fullProjectPath) ||
-            !StringComparer.OrdinalIgnoreCase.Equals(_fileSystem.Path.GetExtension(fullProjectPath), ".csproj"))
+        var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var validate = false;
+        for (var index = 0; index < args.Length; index++)
         {
-            throw new FileNotFoundException($"C# project '{projectPath}' was not found.", fullProjectPath);
+            if (args[index] == "--validate-compilation")
+            {
+                validate = true;
+            }
+            else if (args[index] == "--property" && ++index < args.Length && args[index].IndexOf('=') is > 0 and var separator)
+            {
+                properties[args[index][..separator]] = args[index][(separator + 1)..];
+            }
+            else
+            {
+                throw new ArgumentException("Expected --property Name=Value or --validate-compilation.");
+            }
         }
 
-        return fullProjectPath;
+        return new SnapshotLoadOptions { Properties = properties, ValidateCompilation = validate };
     }
 
     private async Task WriteSnapshotAsync(

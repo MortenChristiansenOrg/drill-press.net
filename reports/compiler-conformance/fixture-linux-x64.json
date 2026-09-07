@@ -1,0 +1,43 @@
+{
+  "target": "fixtures/CompilerSnapshot/Selected.slnx",
+  "sdk": [
+    "10.0.111"
+  ],
+  "snapshotBytes": 192099,
+  "ruleParity": true,
+  "contexts": [
+    {
+      "Project": "Consumer(net10.0)",
+      "Framework": "net10.0",
+      "Probes": 163,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "Consumer(net9.0)",
+      "Framework": "net9.0",
+      "Probes": 161,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "Dependency(net10.0)",
+      "Framework": "net10.0",
+      "Probes": 116,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "Dependency(net9.0)",
+      "Framework": "net9.0",
+      "Probes": 114,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    }
+  ],
+  "platform": "linux-x64"
+}
