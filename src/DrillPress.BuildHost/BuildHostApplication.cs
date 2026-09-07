@@ -6,10 +6,26 @@ namespace DrillPress.BuildHost;
 /// <summary>
 /// Isolates SDK project evaluation and exports the compiler inputs needed by rule bundles.
 /// </summary>
-/// <param name="fileSystem">Owns project path checks and snapshot output.</param>
-/// <param name="snapshotLoader">Loads projects from the same filesystem through the external SDK boundary.</param>
-public sealed class BuildHostApplication(IFileSystem fileSystem, ICompilationSnapshotLoader snapshotLoader)
+public sealed class BuildHostApplication
 {
+    private readonly IFileSystem fileSystem;
+    private readonly ICompilationSnapshotLoader snapshotLoader;
+
+    /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
+    public BuildHostApplication() : this(new FileSystem())
+    {
+    }
+
+    private BuildHostApplication(IFileSystem fileSystem) : this(fileSystem, new MsBuildSnapshotLoader(fileSystem))
+    {
+    }
+
+    internal BuildHostApplication(IFileSystem fileSystem, ICompilationSnapshotLoader snapshotLoader)
+    {
+        this.fileSystem = fileSystem;
+        this.snapshotLoader = snapshotLoader;
+    }
+
     /// <summary>Executes the BuildHost command-line contract.</summary>
     public async Task<BuildHostExitCode> RunAsync(
         string[] args,

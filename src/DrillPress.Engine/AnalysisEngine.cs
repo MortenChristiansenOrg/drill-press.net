@@ -11,9 +11,20 @@ namespace DrillPress.Engine;
 /// Reconstructs Roslyn compilations from an exported snapshot and presents semantic
 /// member references to a compiled rule set.
 /// </summary>
-/// <param name="fileSystem">Supplies metadata assemblies referenced by the snapshot.</param>
-public sealed class AnalysisEngine(IFileSystem fileSystem)
+public sealed class AnalysisEngine
 {
+    private readonly IFileSystem fileSystem;
+
+    /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
+    public AnalysisEngine() : this(new FileSystem())
+    {
+    }
+
+    internal AnalysisEngine(IFileSystem fileSystem)
+    {
+        this.fileSystem = fileSystem;
+    }
+
     /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
     /// <param name="rules">The statically constructed rules to evaluate.</param>
     /// <param name="snapshot">The compilation snapshot to analyze.</param>

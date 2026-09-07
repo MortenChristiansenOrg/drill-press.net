@@ -10,9 +10,20 @@ using Microsoft.CodeAnalysis.MSBuild;
 namespace DrillPress.BuildHost;
 
 /// <summary>Loads compiler inputs through the installed SDK; projects must exist on the OS filesystem.</summary>
-/// <param name="fileSystem">The real filesystem shared with MSBuild and source generators.</param>
-public sealed class MsBuildSnapshotLoader(IFileSystem fileSystem) : ICompilationSnapshotLoader
+public sealed class MsBuildSnapshotLoader : ICompilationSnapshotLoader
 {
+    private readonly IFileSystem fileSystem;
+
+    /// <summary>Creates an SDK loader for local C# projects.</summary>
+    public MsBuildSnapshotLoader() : this(new FileSystem())
+    {
+    }
+
+    internal MsBuildSnapshotLoader(IFileSystem fileSystem)
+    {
+        this.fileSystem = fileSystem;
+    }
+
     /// <inheritdoc />
     public async Task<CompilationSnapshot> LoadAsync(
         string projectPath,

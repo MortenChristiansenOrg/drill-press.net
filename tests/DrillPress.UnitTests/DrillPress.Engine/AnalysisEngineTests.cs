@@ -10,6 +10,16 @@ namespace DrillPress.UnitTests.Engine;
 
 public sealed class AnalysisEngineTests
 {
+    [Fact]
+    public void Public_construction_requires_no_external_dependencies()
+    {
+        var type = typeof(AnalysisEngine);
+
+        var constructors = type.GetConstructors();
+
+        Assert.Equal([0], constructors.Select(constructor => constructor.GetParameters().Length));
+    }
+
     private readonly MockFileSystem _fileSystem = new();
 
     [Fact]

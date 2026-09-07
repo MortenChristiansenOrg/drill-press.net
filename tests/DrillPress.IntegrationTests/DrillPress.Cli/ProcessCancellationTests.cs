@@ -14,7 +14,7 @@ public sealed class ProcessCancellationTests : IntegrationTest
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        var run = new CliApplication(FileSystem, new ChildProcessRunner()).RunAsync(
+        var run = new CliApplication().RunAsync(
             ["check", "--build-host", testProcess, "--rules", "unused.dll", readyPath],
             TextWriter.Null,
             cancellation.Token);

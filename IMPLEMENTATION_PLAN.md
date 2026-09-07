@@ -96,7 +96,9 @@ raw project inputs.
 - Windows and Linux are supported and run the managed and NativeAOT integration
   paths.
 - All active file and directory access uses an injected
-  `System.IO.Abstractions.IFileSystem`, constructed at process entry points.
+  `System.IO.Abstractions.IFileSystem`. Public library constructors compose it
+  internally; consumers do not reference filesystem package types. Internal
+  constructors share dependencies, including in-memory filesystems in unit tests.
   Snapshot persistence has one path-based API; analysis takes the loaded
   snapshot and reads metadata assemblies through that same filesystem.
   Unit tests use in-memory files, including snapshot serialization and command

@@ -5,4 +5,7 @@
     <ProjectReference Include="../DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DrillPress.UnitTests" />
+  </ItemGroup>
 </Project>

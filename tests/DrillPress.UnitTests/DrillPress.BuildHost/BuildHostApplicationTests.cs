@@ -8,6 +8,16 @@ namespace DrillPress.UnitTests.BuildHost;
 
 public sealed class BuildHostApplicationTests
 {
+    [Fact]
+    public void Public_construction_requires_no_external_dependencies()
+    {
+        var type = typeof(BuildHostApplication);
+
+        var constructors = type.GetConstructors();
+
+        Assert.Equal([0], constructors.Select(constructor => constructor.GetParameters().Length));
+    }
+
     private readonly MockFileSystem _fileSystem = new();
 
     [Fact]

@@ -7,6 +7,16 @@ namespace DrillPress.UnitTests.Cli;
 
 public sealed class CliApplicationTests
 {
+    [Fact]
+    public void Public_construction_requires_no_external_dependencies()
+    {
+        var type = typeof(CliApplication);
+
+        var constructors = type.GetConstructors();
+
+        Assert.Equal([0], constructors.Select(constructor => constructor.GetParameters().Length));
+    }
+
     private readonly MockFileSystem _fileSystem = new();
 
     [Theory]

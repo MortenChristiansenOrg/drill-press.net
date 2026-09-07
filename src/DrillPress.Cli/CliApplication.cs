@@ -6,10 +6,22 @@ namespace DrillPress.Cli;
 /// Coordinates target export and compiled rule execution without loading MSBuild,
 /// Roslyn, or rule assemblies into the CLI process.
 /// </summary>
-/// <param name="fileSystem">Owns the temporary snapshot; external tools must see the same filesystem.</param>
-/// <param name="processRunner">Executes BuildHost and the rule bundle.</param>
-public sealed class CliApplication(IFileSystem fileSystem, IChildProcessRunner processRunner)
+public sealed class CliApplication
 {
+    private readonly IFileSystem fileSystem;
+    private readonly IChildProcessRunner processRunner;
+
+    /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
+    public CliApplication() : this(new FileSystem(), new ChildProcessRunner())
+    {
+    }
+
+    internal CliApplication(IFileSystem fileSystem, IChildProcessRunner processRunner)
+    {
+        this.fileSystem = fileSystem;
+        this.processRunner = processRunner;
+    }
+
     /// <summary>
     /// Executes the public check command and returns its typed process outcome.
     /// </summary>

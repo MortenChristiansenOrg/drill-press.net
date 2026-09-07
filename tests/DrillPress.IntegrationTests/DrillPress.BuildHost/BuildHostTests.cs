@@ -45,8 +45,8 @@ public sealed class BuildHostTests : IntegrationTest
         var result = await RunProcessAsync(
             "dotnet", [GetOutputPath("DrillPress.BuildHost"), "export", projectPath, snapshotPath],
             RepositoryRoot, cancellationToken);
-        var snapshot = await new CompilationSnapshotFile(FileSystem).ReadAsync(snapshotPath, cancellationToken);
-        var diagnostics = await new AnalysisEngine(FileSystem).AnalyzeAsync(rules, snapshot, cancellationToken);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(snapshotPath, cancellationToken);
+        var diagnostics = await new AnalysisEngine().AnalyzeAsync(rules, snapshot, cancellationToken);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(string.Empty, result.StandardError);
@@ -71,8 +71,8 @@ public sealed class BuildHostTests : IntegrationTest
             [buildHost, "export", SampleProjectPath, snapshotPath],
             RepositoryRoot,
             cancellationToken);
-        var snapshot = await new CompilationSnapshotFile(FileSystem).ReadAsync(snapshotPath, cancellationToken);
-        var diagnostics = await new AnalysisEngine(FileSystem).AnalyzeAsync(
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(snapshotPath, cancellationToken);
+        var diagnostics = await new AnalysisEngine().AnalyzeAsync(
             SampleRuleSet.Create(), snapshot, cancellationToken);
 
         Assert.Equal(0, result.ExitCode);

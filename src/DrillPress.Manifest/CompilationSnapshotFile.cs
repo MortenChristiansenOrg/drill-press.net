@@ -3,10 +3,21 @@ using System.Text.Json;
 
 namespace DrillPress.Manifest;
 
-/// <summary>Persists the internal snapshot contract through the caller's filesystem.</summary>
-/// <param name="fileSystem">The filesystem containing the snapshot files.</param>
-public sealed class CompilationSnapshotFile(IFileSystem fileSystem)
+/// <summary>Persists the internal snapshot contract through the internal filesystem boundary.</summary>
+public sealed class CompilationSnapshotFile
 {
+    private readonly IFileSystem fileSystem;
+
+    /// <summary>Creates snapshot storage on the local filesystem.</summary>
+    public CompilationSnapshotFile() : this(new FileSystem())
+    {
+    }
+
+    internal CompilationSnapshotFile(IFileSystem fileSystem)
+    {
+        this.fileSystem = fileSystem;
+    }
+
     /// <summary>Reads and validates the versioned envelope before exposing compiler inputs.</summary>
     public async Task<CompilationSnapshot> ReadAsync(string path, CancellationToken cancellationToken = default)
     {

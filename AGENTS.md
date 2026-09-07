@@ -21,6 +21,8 @@ might require opt-in flags for more detailed information, etc.
   types once at their boundary instead of scattering casts.
 - Cover non-trivial production logic through public APIs. Mirror production
   projects and files in the unit-test layout; do not expose members for tests.
+  Unit tests may configure internal dependency-injection constructors through
+  friend-assembly access; assertions exercise public operations.
 - Use in-memory filesystems for file-policy unit tests; reserve real filesystem
   and process I/O for integration tests. Share repeated setup and isolate resources.
 - Structure tests as arrange, act, and assert groups separated by blank lines,
@@ -36,18 +38,16 @@ might require opt-in flags for more detailed information, etc.
   reads, temporary files, benchmark plans, publish inventories, and reports.
   Use its path API when resolving paths or depending on the current directory.
   Pure string path transformations need no filesystem dependency.
-- Create `FileSystem` only at executable entry points, BenchmarkDotNet setup
-  (a separate process entry), and integration-test fixtures. Require injection
-  elsewhere; do not add hidden real-filesystem defaults or static global state.
-- Internal files are our own exchange/storage contracts, not a reason for a
-  second stream API. Expose one path-based persistence API using the injected
-  filesystem. Keep genuine streams for compiler-generated metadata images,
-  console/process pipes, and private serialization internals.
+- Keep filesystem package types out of consumer-facing APIs and sample code.
+  Public library constructors compose the real filesystem internally; internal
+  constructors accept the shared injected dependencies. Tool entry points,
+  BenchmarkDotNet setup, and integration fixtures also compose real filesystems.
+  Require injection within implementations and avoid static mutable state.
+- Internal exchange and storage contracts use path-based persistence APIs.
 - External files are consumed by MSBuild, source generators, child processes,
   NativeAOT tooling, or OS probes. Our side still uses `IFileSystem`, but the
   external consumer requires real OS paths. Unit-test our policy with both a
   `MockFileSystem` and a fake external loader/runner; exercise real consumers,
   cancellation, platform behavior, and performance in integration tests.
-- These conventions cover the active root solution and its tools, scripts,
-  samples, and tests. `AOT POC/` is the historical standalone proof of concept,
-  not maintained production code; apply these conventions when porting from it.
+- These conventions cover the root solution and its tools, scripts, samples,
+  and tests.

@@ -4,9 +4,20 @@ using DrillPress.Manifest;
 namespace DrillPress.Engine;
 
 /// <summary>Hosts a compiled rule set behind the executable rule-bundle contract.</summary>
-/// <param name="fileSystem">Supplies snapshots, metadata assemblies, and diagnostic path context.</param>
-public sealed class RuleApplication(IFileSystem fileSystem)
+public sealed class RuleApplication
 {
+    private readonly IFileSystem fileSystem;
+
+    /// <summary>Creates a rule-bundle host for local compilation snapshots.</summary>
+    public RuleApplication() : this(new FileSystem())
+    {
+    }
+
+    internal RuleApplication(IFileSystem fileSystem)
+    {
+        this.fileSystem = fileSystem;
+    }
+
     /// <summary>
     /// Executes the rule-bundle command, writes compact diagnostics, and returns the
     /// clean, findings, or failure exit code understood by the coordinator.
