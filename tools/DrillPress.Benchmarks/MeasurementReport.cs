@@ -10,6 +10,7 @@ public static class MeasurementReport
 {
     public static async Task WriteAsync(VerificationSession session, MemorySample[] memory)
     {
+        var artifacts = new ArtifactMeasurements();
         var report = new
         {
             TimestampUtc = DateTimeOffset.UtcNow,
@@ -29,8 +30,8 @@ public static class MeasurementReport
             Size = "Dedicated publish directories excluding pdb/dbg/xml; external runtimes/system libraries excluded.",
             Artifacts = new[]
             {
-                ArtifactMeasurements.Read(BundleMode.Managed, Path.Combine(session.OutputDirectory, "managed")),
-                ArtifactMeasurements.Read(BundleMode.Native, Path.Combine(session.OutputDirectory, "native")),
+                artifacts.Read(BundleMode.Managed, Path.Combine(session.OutputDirectory, "managed")),
+                artifacts.Read(BundleMode.Native, Path.Combine(session.OutputDirectory, "native")),
             },
             MemorySamples = memory,
         };

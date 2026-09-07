@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
   </ItemGroup>
 </Project>

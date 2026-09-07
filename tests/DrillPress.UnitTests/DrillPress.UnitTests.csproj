@@ -5,6 +5,8 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />
     <ProjectReference Include="../../tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />

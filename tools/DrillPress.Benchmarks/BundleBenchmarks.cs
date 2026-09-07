@@ -18,7 +18,7 @@ public class BundleBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        plan = BenchmarkExecution.ReadPlan(
+        plan = new BenchmarkPlanFile().Read(
             Environment.GetEnvironmentVariable(PlanEnvironmentVariable)
             ?? throw new InvalidOperationException("A verified benchmark plan is required."));
         scenario = plan.Cases.Single(item => item.Name == Case);

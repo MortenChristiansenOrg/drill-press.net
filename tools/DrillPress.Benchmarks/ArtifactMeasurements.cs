@@ -1,15 +1,20 @@
+using System.IO.Abstractions;
 using DrillPress.BundleVerification;
 
 namespace DrillPress.Benchmarks;
 
-public static class ArtifactMeasurements
+public sealed class ArtifactMeasurements(IFileSystem fileSystem)
 {
-    public static ArtifactInventory Read(BundleMode mode, string directory)
+    public ArtifactMeasurements() : this(new FileSystem())
     {
-        var files = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
-            .Where(path => Path.GetExtension(path).ToLowerInvariant() is not (".pdb" or ".dbg" or ".xml"))
+    }
+
+    public ArtifactInventory Read(BundleMode mode, string directory)
+    {
+        var files = fileSystem.Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Where(path => fileSystem.Path.GetExtension(path).ToLowerInvariant() is not (".pdb" or ".dbg" or ".xml"))
             .Select(path => new ArtifactFile(
-                Path.GetRelativePath(directory, path).Replace('\\', '/'), new FileInfo(path).Length))
+                fileSystem.Path.GetRelativePath(directory, path).Replace('\\', '/'), fileSystem.FileInfo.New(path).Length))
             .OrderBy(file => file.Path)
             .ToArray();
         return new ArtifactInventory(mode, files.Sum(file => file.Bytes), files);

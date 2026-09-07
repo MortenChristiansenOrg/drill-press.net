@@ -95,6 +95,12 @@ raw project inputs.
   exact finding counts are not release contracts.
 - Windows and Linux are supported and run the managed and NativeAOT integration
   paths.
+- Test application-owned file and directory policies through an injected
+  `System.IO.Abstractions.IFileSystem`, using an in-memory filesystem for unit
+  tests. Prefer existing stream-based APIs when they already isolate the logic.
+- Keep real filesystem and process integration checks for project loading,
+  external tools, cancellation, platform behavior and performance measurements.
+  An in-memory filesystem is not a substitute for those boundaries.
 
 ## Repository layout
 

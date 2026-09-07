@@ -7,7 +7,7 @@ public static class MemoryProbe
 {
     public static async Task<MemorySample> RunWorkerAsync(string planPath, BundleMode mode, string caseName)
     {
-        var plan = BenchmarkExecution.ReadPlan(planPath);
+        var plan = new BenchmarkPlanFile().Read(planPath);
         var scenario = plan.Cases.Single(item => item.Name == caseName);
         if (OperatingSystem.IsLinux())
         {

@@ -48,7 +48,7 @@ public static class BenchmarkApplication
         var plan = new BenchmarkPlan(session.RepositoryRoot, session.ManagedBundle,
             session.NativeBundle, [startup, .. session.Cases]);
         var planPath = Path.Combine(session.OutputDirectory, "benchmark-plan.json");
-        await File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan));
+        await new BenchmarkPlanFile().WriteAsync(planPath, plan);
         var memory = await MemoryProbe.CollectAsync(plan, planPath);
         await MeasurementReport.WriteAsync(session, memory);
 
