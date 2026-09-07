@@ -1,1 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DrillPress.Engine" />
+    <InternalsVisibleTo Include="DrillPress.BuildHost" />
+    <InternalsVisibleTo Include="DrillPress.UnitTests" />
+  </ItemGroup>
+</Project>

@@ -1,7 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <ProjectReference Include="../DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DrillPress.UnitTests" />
   </ItemGroup>
 </Project>

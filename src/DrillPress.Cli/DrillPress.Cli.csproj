@@ -2,4 +2,10 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DrillPress.UnitTests" />
+  </ItemGroup>
 </Project>

@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -10,28 +11,25 @@ namespace DrillPress.Engine;
 /// Reconstructs Roslyn compilations from an exported snapshot and presents semantic
 /// member references to a compiled rule set.
 /// </summary>
-public static class AnalysisEngine
+public sealed class AnalysisEngine
 {
-    /// <summary>Analyzes one snapshot and returns its deterministically ordered diagnostics.</summary>
-    /// <param name="rules">The statically constructed rules to evaluate.</param>
-    /// <param name="snapshotPath">The compilation snapshot exported by BuildHost.</param>
-    /// <param name="cancellationToken">Stops snapshot loading and analysis.</param>
-    public static async Task<IReadOnlyList<RuleDiagnostic>> AnalyzeAsync(
-        RuleSet rules,
-        string snapshotPath,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
+    private readonly IFileSystem _fileSystem;
 
-        var snapshot = await CompilationSnapshot.ReadAsync(snapshotPath, cancellationToken);
-        return await AnalyzeAsync(rules, snapshot, cancellationToken);
+    /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
+    public AnalysisEngine() : this(new FileSystem())
+    {
+    }
+
+    internal AnalysisEngine(IFileSystem fileSystem)
+    {
+        _fileSystem = fileSystem;
     }
 
     /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
     /// <param name="rules">The statically constructed rules to evaluate.</param>
     /// <param name="snapshot">The compilation snapshot to analyze.</param>
     /// <param name="cancellationToken">Stops analysis.</param>
-    public static async Task<IReadOnlyList<RuleDiagnostic>> AnalyzeAsync(
+    public async Task<IReadOnlyList<RuleDiagnostic>> AnalyzeAsync(
         RuleSet rules,
         CompilationSnapshot snapshot,
         CancellationToken cancellationToken = default)
@@ -65,7 +63,7 @@ public static class AnalysisEngine
         return rules.Evaluate(memberReferences);
     }
 
-    private static (CSharpCompilation Compilation, SyntaxTree[] SyntaxTrees) CreateCompilation(
+    private (CSharpCompilation Compilation, SyntaxTree[] SyntaxTrees) CreateCompilation(
         ProjectSnapshot project,
         Dictionary<string, MetadataReference> references,
         CancellationToken cancellationToken)
@@ -98,13 +96,14 @@ public static class AnalysisEngine
         return (compilation, syntaxTrees);
     }
 
-    private static MetadataReference GetMetadataReference(
+    private MetadataReference GetMetadataReference(
         string path,
         Dictionary<string, MetadataReference> references)
     {
         if (!references.TryGetValue(path, out var reference))
         {
-            reference = MetadataReference.CreateFromFile(path);
+            using var stream = _fileSystem.File.OpenRead(path);
+            reference = MetadataReference.CreateFromStream(stream, filePath: path);
             references.Add(path, reference);
         }
 

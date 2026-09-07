@@ -95,6 +95,21 @@ raw project inputs.
   exact finding counts are not release contracts.
 - Windows and Linux are supported and run the managed and NativeAOT integration
   paths.
+- All active file and directory access uses an injected
+  `System.IO.Abstractions.IFileSystem`. Public library constructors compose it
+  internally; consumers do not reference filesystem package types. Internal
+  constructors share dependencies, including in-memory filesystems in unit tests.
+  Snapshot persistence has one path-based API; analysis takes the loaded
+  snapshot and reads metadata assemblies through that same filesystem.
+  Unit tests use in-memory files, including snapshot serialization and command
+  file handling. Streams remain for compiler images and process pipes, not as
+  parallel persistence APIs introduced just for tests.
+- Keep real filesystem and process integration checks for project loading,
+  external tools, cancellation, platform behavior and performance measurements.
+  External consumers cannot see an in-memory filesystem: fake the project
+  loader/process runner alongside it for policy tests. The filesystem boundary
+  conventions in AGENTS.md apply throughout the active solution; the separate
+  historical AOT POC is unchanged.
 
 ## Repository layout
 
@@ -113,8 +128,11 @@ tests/
   DrillPress.ConformanceTests/
   DrillPress.IntegrationTests/
   Fixtures/
-benchmarks/
+tools/
+  DrillPress.BundleVerification/
   DrillPress.Benchmarks/
+scripts/
+  NativeBundles.cs
   run-xunit.sh
 Sample Solution/             Small end-to-end target
 ```

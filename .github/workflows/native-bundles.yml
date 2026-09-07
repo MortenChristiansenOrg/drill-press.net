@@ -1,0 +1,55 @@
+name: Native rule bundles
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-2vcpu-ubuntu-2404
+            rid: linux-x64
+          - os: blacksmith-2vcpu-windows-2025
+            rid: win-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+      DOTNET_CLI_UI_LANGUAGE: en-US
+      VSLANG: 1033
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install Linux native prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev time
+      - name: Build, publish, execute parity cases, and measure
+        run: dotnet run --file scripts/NativeBundles.cs -c Release --no-cache -- --output artifacts/ci-${{ matrix.rid }}
+      - name: Test solution and gate helpers
+        run: dotnet test --solution DrillPress.slnx -c Release --no-build
+      - name: Retain verification logs and measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-bundle-report-${{ matrix.rid }}
+          path: |
+            artifacts/ci-${{ matrix.rid }}/*.log
+            artifacts/ci-${{ matrix.rid }}/*.stdout
+            artifacts/ci-${{ matrix.rid }}/*.stderr
+            artifacts/ci-${{ matrix.rid }}/*.json
+            artifacts/ci-${{ matrix.rid }}/BenchmarkDotNet/**/*.log
+            artifacts/ci-${{ matrix.rid }}/BenchmarkDotNet/results/*
+          if-no-files-found: warn

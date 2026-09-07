@@ -1,3 +1,3 @@
 using DrillPress.Cli;
 
-return (int)await CliApplication.RunAsync(args);
+return (int)await new CliApplication().RunAsync(args);

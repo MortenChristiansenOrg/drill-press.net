@@ -1,3 +1,3 @@
 using DrillPress.BuildHost;
 
-return (int)await BuildHostApplication.RunAsync(args);
+return (int)await new BuildHostApplication().RunAsync(args);

@@ -1,11 +1,14 @@
 using System.Diagnostics;
+using System.IO.Abstractions;
 using System.Reflection;
 
-namespace DrillPress.IntegrationTests;
+namespace DrillPress.IntegrationTests.TestInfrastructure;
 
 public abstract class IntegrationTest : IDisposable
 {
-    private readonly List<DirectoryInfo> _temporaryDirectories = [];
+    protected static IFileSystem FileSystem { get; } = new FileSystem();
+
+    private readonly List<IDirectoryInfo> _temporaryDirectories = [];
     private readonly List<Process> _testProcesses = [];
 
     private static string BuildConfiguration { get; } = typeof(IntegrationTest).Assembly
@@ -40,15 +43,15 @@ public abstract class IntegrationTest : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    protected DirectoryInfo CreateTemporaryDirectory(string prefix)
+    protected IDirectoryInfo CreateTemporaryDirectory(string prefix)
     {
-        var directory = Directory.CreateTempSubdirectory(prefix);
+        var directory = FileSystem.Directory.CreateTempSubdirectory(prefix);
         _temporaryDirectories.Add(directory);
         return directory;
     }
 
     protected static string RepositoryPath(params string[] segments) =>
-        Path.Combine(RepositoryRoot, Path.Combine(segments));
+        FileSystem.Path.Combine(RepositoryRoot, FileSystem.Path.Combine(segments));
 
     protected static string GetOutputPath(string projectName, string projectDirectory = "src") =>
         RepositoryPath(projectDirectory, projectName, "bin", BuildConfiguration, "net10.0", $"{projectName}.dll");
@@ -110,7 +113,7 @@ public abstract class IntegrationTest : IDisposable
         timeout.CancelAfter(readinessTimeout ?? TimeSpan.FromSeconds(30));
         try
         {
-            while (!File.Exists(readyPath))
+            while (!FileSystem.File.Exists(readyPath))
             {
                 if (launch.IsCompleted)
                 {
@@ -121,7 +124,7 @@ public abstract class IntegrationTest : IDisposable
                 await Task.Delay(20, timeout.Token);
             }
 
-            var process = Process.GetProcessById(int.Parse(await File.ReadAllTextAsync(readyPath, timeout.Token)));
+            var process = Process.GetProcessById(int.Parse(await FileSystem.File.ReadAllTextAsync(readyPath, timeout.Token)));
             _testProcesses.Add(process);
             return process;
         }
@@ -143,8 +146,8 @@ public abstract class IntegrationTest : IDisposable
 
     private static string FindRepositoryRoot()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DrillPress.slnx")))
+        var directory = FileSystem.DirectoryInfo.New(AppContext.BaseDirectory);
+        while (directory is not null && !FileSystem.File.Exists(FileSystem.Path.Combine(directory.FullName, "DrillPress.slnx")))
         {
             directory = directory.Parent;
         }

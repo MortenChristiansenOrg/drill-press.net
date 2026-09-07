@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.IO.Abstractions;
 
 namespace DrillPress.Cli;
 
@@ -6,12 +6,26 @@ namespace DrillPress.Cli;
 /// Coordinates target export and compiled rule execution without loading MSBuild,
 /// Roslyn, or rule assemblies into the CLI process.
 /// </summary>
-public static class CliApplication
+public sealed class CliApplication
 {
+    private readonly IFileSystem _fileSystem;
+    private readonly ChildProcessRunner _processRunner;
+
+    /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
+    public CliApplication() : this(new FileSystem(), new ChildProcessRunner())
+    {
+    }
+
+    internal CliApplication(IFileSystem fileSystem, ChildProcessRunner processRunner)
+    {
+        _fileSystem = fileSystem;
+        _processRunner = processRunner;
+    }
+
     /// <summary>
     /// Executes the public check command and returns its typed process outcome.
     /// </summary>
-    public static async Task<CliExitCode> RunAsync(
+    public async Task<CliExitCode> RunAsync(
         string[] args,
         TextWriter? standardError = null,
         CancellationToken cancellationToken = default)
@@ -26,11 +40,11 @@ public static class CliApplication
 
         try
         {
-            var temporaryDirectory = Directory.CreateTempSubdirectory("drillpress-");
+            var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
-                var snapshotPath = Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
-                var buildHostExitCode = await RunManagedProcessAsync(
+                var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
+                var buildHostExitCode = await _processRunner.RunAsync(
                     options.BuildHost,
                     ["export", options.Target, snapshotPath],
                     cancellationToken);
@@ -39,7 +53,7 @@ public static class CliApplication
                     return CliExitCode.Failure;
                 }
 
-                var ruleExitCode = await RunManagedProcessAsync(
+                var ruleExitCode = await _processRunner.RunAsync(
                     options.Rules,
                     ["check", snapshotPath],
                     cancellationToken);
@@ -60,43 +74,6 @@ public static class CliApplication
             await standardError.WriteLineAsync($"drillpress: {exception.Message}");
             return CliExitCode.Failure;
         }
-    }
-
-    private static async Task<int> RunManagedProcessAsync(
-        string executable,
-        IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var isManagedAssembly = executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
-        var startInfo = new ProcessStartInfo(isManagedAssembly ? "dotnet" : executable)
-        {
-            UseShellExecute = false,
-        };
-        if (isManagedAssembly)
-        {
-            startInfo.ArgumentList.Add(executable);
-        }
-
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Could not start '{executable}'.");
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            await process.WaitForExitAsync(CancellationToken.None);
-            throw;
-        }
-
-        return process.ExitCode;
     }
 
     private sealed record CliOptions(string BuildHost, string Rules, string Target)
