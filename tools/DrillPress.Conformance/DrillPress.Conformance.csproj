@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
+    <ProjectReference Include="../../samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
+    <ProjectReference Include="../DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
+  </ItemGroup>
+</Project>

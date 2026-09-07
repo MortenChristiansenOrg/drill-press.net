@@ -43,6 +43,12 @@ public abstract class IntegrationTest : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    protected async Task RestoreAsync(string target)
+    {
+        var result = await RunProcessAsync("dotnet", ["restore", target, "--nologo"], RepositoryRoot, Xunit.TestContext.Current.CancellationToken);
+        Xunit.Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+    }
+
     protected IDirectoryInfo CreateTemporaryDirectory(string prefix)
     {
         var directory = FileSystem.Directory.CreateTempSubdirectory(prefix);

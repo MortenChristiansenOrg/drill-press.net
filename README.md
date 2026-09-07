@@ -29,6 +29,7 @@ For now, run the built tool directly from this checkout.
 From the repository root, run the included rule against the sample project:
 
 ```sh
+dotnet restore "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
 dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-host src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll --rules samples/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
 ```
 
@@ -73,10 +74,72 @@ Missing, inactive-source, or ambiguous-binding validation withholds the fix.
 Conflicting batches are withheld in full; independent fixes survive. Insertions
 conflict at either boundary of another edit when their order would be ambiguous.
 The renderer and future fix writer consume the same validated plan. Scope is the
-loaded project graph. Production editable-source capture arrives with target
-loading in Slice 4, and automatic writes arrive in Slice 6.
+loaded project graph. BuildHost captures editable source identities; automatic
+writes arrive in Slice 6.
 
 Snapshots contain source and machine-local paths. Rule bundles execute trusted
 code; protocol validation is not a sandbox. Native verification retains exact
 internal response bytes and `public.stdout`; its report records public UTF-8
 bytes and a rough token estimate (bytes / 4, rounded up).
+
+BuildHost accepts `.sln`, `.slnx`, `.csproj`, a directory, a C# file, or a single
+quoted C# glob. A directory selects its sole top-level solution, otherwise its
+sole C# project; ambiguity requires an explicit file. Globs use `*` for zero or
+more characters within a path segment, `?` for one, and `**` for recursive
+segments (`**/` also matches no directories). Matching C# paths are deduplicated
+and ordinal-sorted. Pattern matching is case-sensitive on both platforms;
+recursive expansion skips symbolic links. Quote globs to keep the shell from
+expanding them.
+
+Pass repeatable `--property Name=Value` options to override MSBuild global
+properties; the last assignment wins. `--property TargetFramework=net10.0`
+selects a framework; otherwise every evaluated framework context is retained.
+The selected target's `global.json` controls SDK discovery, even when invoked
+from another directory. SDK targets must already be restored: BuildHost does
+not restore or build them. Source-generator assemblies must also be available.
+Failures explain when to install an SDK or run `dotnet restore`.
+
+Loose files and globs always use an ad hoc C# 14 library compilation, even inside
+a project. Nullable annotations and warnings are enabled, there are no
+preprocessor symbols or implicit usings, and references come from the BuildHost
+runtime's trusted platform assembly set (captured with byte fingerprints).
+MSBuild properties are rejected in loose mode. These defaults are deliberately
+independent of nearby project settings.
+
+Fast export permits ordinary compiler errors. `--validate-compilation` explicitly
+enumerates compiler errors and rejects an invalid target. Generator exceptions,
+missing inputs, incomplete project graphs, and load failures fail both modes.
+Rules see only resolved symbols. Source project references remain compilation
+references, so an erroneous dependency need not emit an assembly. Generated
+source participates in binding but is excluded from reportable candidates and
+edits. Explicit evaluated `IsTestProject` values take precedence over inference.
+
+Snapshots preserve physical source text, byte fingerprints, encoding/BOM,
+per-tree parse settings and compiler severities, compilation options, aliased
+metadata references, and the evaluated source graph. Reconstruction rejects
+changed or missing external metadata. Snapshots are sensitive, ephemeral files:
+the CLI uses a private temporary directory, writes atomically, and removes it
+on success, findings, failure, and cancellation. Unix snapshot files are created
+with owner-only read/write permissions.
+
+Compiler conformance can be run without the later rule or performance slices:
+
+```sh
+dotnet build fixtures/CompilerSnapshot/Interop/Interop.csproj -c Release
+dotnet build fixtures/CompilerSnapshot/Generator/Generator.csproj -c Release
+dotnet restore fixtures/CompilerSnapshot/Selected.slnx
+dotnet run --project tools/DrillPress.Conformance -c Release -- \
+  fixtures/CompilerSnapshot/Selected.slnx artifacts/conformance/fixture.json
+dotnet run --file scripts/XunitConformance.cs -c Release -- \
+  ../drillpress-xunit-conformance artifacts/conformance/xunit
+```
+
+The xUnit harness pins revision `6bbefaed1d0a995bc9970800384f9e8a1b9d2331`, initializes
+its submodules, records SDK and restore output, and compares live/reconstructed
+symbol bindings, conversions, declarations, compiler diagnostics, and current
+rule responses. Keep its checkout outside this repository to avoid inheriting
+our MSBuild files. Existing checkouts must match the pin and have no tracked
+changes. Dependency locks are generated separately under each project's `obj`
+and copied into the report directory; upstream lockfiles remain unchanged.
+The same source pin, prepared checkout, and recorded dependency baseline are
+intended for subsequent full-rule conformance and performance measurements.

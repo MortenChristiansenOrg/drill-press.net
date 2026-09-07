@@ -36,6 +36,7 @@ public sealed class BuildHostTests : IntegrationTest
         await FileSystem.File.WriteAllTextAsync(sourcePath,
             "public static class Values { public static string Value => Dependency.Target.Empty; }",
             cancellationToken);
+        await RestoreAsync(projectPath);
         var snapshotPath = FileSystem.Path.Combine(directory.FullName, "snapshot.json");
         var rules = new RuleSet();
         rules.For(Code.MemberReferences.Where(new RuleCondition<MemberReference>(reference =>

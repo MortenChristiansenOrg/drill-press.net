@@ -37,7 +37,7 @@ public sealed class CliApplication
         if (!CliOptions.TryParse(args, out var options))
         {
             await standardError.WriteLineAsync(
-                "Usage: drillpress check --build-host <path> --rules <path> <project.csproj>");
+                "Usage: drillpress check --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation]");
             return CliExitCode.Failure;
         }
 
@@ -49,7 +49,7 @@ public sealed class CliApplication
                 var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
                 var buildHostResult = await _processRunner.CaptureAsync(
                     options.BuildHost,
-                    ["export", options.Target, snapshotPath],
+                    ["export", options.Target, snapshotPath, .. options.ExportArguments],
                     cancellationToken);
                 await standardError.WriteAsync(buildHostResult.StandardError);
                 if (buildHostResult.ExitCode != (int)CliExitCode.Clean)
@@ -87,49 +87,4 @@ public sealed class CliApplication
         }
     }
 
-    private sealed record CliOptions(string BuildHost, string Rules, string Target)
-    {
-        public static bool TryParse(string[] args, out CliOptions options)
-        {
-            options = null!;
-            if (args.Length < 6 || args[0] != "check")
-            {
-                return false;
-            }
-
-            string? buildHost = null;
-            string? rules = null;
-            string? target = null;
-            for (var index = 1; index < args.Length; index++)
-            {
-                switch (args[index])
-                {
-                    case "--build-host" when buildHost is null && index + 1 < args.Length:
-                        buildHost = args[++index];
-                        break;
-                    case "--rules" when rules is null && index + 1 < args.Length:
-                        rules = args[++index];
-                        break;
-                    default:
-                        if (target is not null || args[index].StartsWith('-'))
-                        {
-                            return false;
-                        }
-
-                        target = args[index];
-                        break;
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(buildHost) ||
-                string.IsNullOrWhiteSpace(rules) ||
-                string.IsNullOrWhiteSpace(target))
-            {
-                return false;
-            }
-
-            options = new CliOptions(buildHost, rules, target);
-            return true;
-        }
-    }
 }

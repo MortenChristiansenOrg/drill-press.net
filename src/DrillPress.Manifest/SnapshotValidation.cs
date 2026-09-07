@@ -37,6 +37,18 @@ public static class SnapshotValidation
         }
 
         Require(snapshot.Projects.All(project => project.ReferencedContextIds.All(contexts.Contains)), "Unknown project reference context.");
+        foreach (var project in snapshot.Projects)
+        {
+            Require(project.CompilationReferences.All(reference => contexts.Contains(reference.ContextId)), "Unknown source compilation reference.");
+            Require(project.CompilationReferences.Length == 0 || project.CompilationReferences.Select(reference => reference.ContextId).ToHashSet()
+                .SetEquals(project.ReferencedContextIds), "Compilation references disagree with the context graph.");
+            foreach (var reference in project.ExternalReferences)
+            {
+                Require(!string.IsNullOrWhiteSpace(reference.Path) && reference.Fingerprint.Length == 64 &&
+                    reference.Fingerprint.All(character => char.IsAsciiHexDigit(character)), "Invalid external metadata identity.");
+                Require(reference.Kind is 0 or 1, "Invalid metadata reference kind.");
+            }
+        }
     }
 
     internal static void ValidateEnvelope(string identifier, int version)

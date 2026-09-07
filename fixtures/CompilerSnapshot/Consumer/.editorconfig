@@ -1,0 +1,3 @@
+root = true
+[Source.cs]
+dotnet_diagnostic.CS0168.severity = error

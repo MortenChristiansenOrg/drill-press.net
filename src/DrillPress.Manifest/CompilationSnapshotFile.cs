@@ -45,7 +45,13 @@ public sealed class CompilationSnapshotFile
         cancellationToken.ThrowIfCancellationRequested();
         var destinationPath = _fileSystem.Path.GetFullPath(path);
         var temporaryPath = destinationPath + $".{Guid.NewGuid():N}.tmp";
-        var stream = _fileSystem.File.Open(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        var streamOptions = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
+        if (!OperatingSystem.IsWindows())
+        {
+            streamOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+
+        var stream = _fileSystem.File.Open(temporaryPath, streamOptions);
         try
         {
             await using (stream)

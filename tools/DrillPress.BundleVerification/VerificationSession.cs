@@ -114,6 +114,7 @@ public sealed class VerificationSession : IDisposable
               </PropertyGroup>
             </Project>
             """);
+        await BuildCommandAsync("fixture-restore.log", ["restore", project, "--nologo"]);
         var cases = new List<BundleCase>();
         foreach (var (name, expression, outcome) in new[]
                  { ("clean", "\"\"", BundleOutcome.Clean), ("violating", "Text.Empty", BundleOutcome.Findings) })
@@ -163,7 +164,7 @@ public sealed class VerificationSession : IDisposable
             ContextId = "first",
             PreprocessorSymbols = ["INCLUDED"],
             // This synthetic variant is not the source currently stored in the real fixture file.
-            Documents = [ordinary with { Text = source, DocumentId = "first-doc", IsEditable = false, Fingerprint = "" }],
+            Documents = [ordinary with { Text = source, DocumentId = "first-doc", IsEditable = false, Fingerprint = "", Options = null }],
         };
         var cases = new List<BundleCase>();
         foreach (var (name, symbols) in new[] { ("linked", new[] { "INCLUDED" }), ("inactive", Array.Empty<string>()) })

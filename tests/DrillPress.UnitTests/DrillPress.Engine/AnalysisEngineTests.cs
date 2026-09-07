@@ -149,4 +149,77 @@ public sealed class AnalysisEngineTests
         Assert.Equal(snapshot.RequestId, response.RequestId);
     }
 
+    [Fact]
+    public void Changed_external_reference_is_rejected_before_metadata_loading()
+    {
+        var path = _fileSystem.Path.GetFullPath("Changed.dll");
+        _fileSystem.AddFile(path, new MockFileData("changed"));
+        var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
+        {
+            ExternalReferences = [new MetadataReferenceSnapshot(path, new string('0', 64), [], false, 0)],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() => new AnalysisEngine(_fileSystem).Reconstruct(CompilationSnapshot.Create(project), TestContext.Current.CancellationToken));
+
+        Assert.Equal($"External reference changed: '{path}'. Export the target again.", error.Message);
+    }
+
+    [Fact]
+    public void Missing_external_reference_is_not_silently_dropped()
+    {
+        var path = _fileSystem.Path.GetFullPath("Missing.dll");
+        var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
+        {
+            ExternalReferences = [new MetadataReferenceSnapshot(path, new string('0', 64), [], false, 0)],
+        };
+
+        var error = Assert.Throws<FileNotFoundException>(() => new AnalysisEngine(_fileSystem).Reconstruct(CompilationSnapshot.Create(project), TestContext.Current.CancellationToken));
+
+        Assert.Equal(path, error.FileName);
+    }
+
+    [Fact]
+    public async Task Ambiguous_binding_does_not_substitute_a_candidate_symbol()
+    {
+        var snapshot = TestSnapshots.Create("""
+            namespace Sample;
+            class A { }
+            class B { }
+            class Target
+            {
+                public static Target Empty(A value) => null;
+                public static Target Empty(B value) => null;
+                public Target Value => Target.Empty(null);
+            }
+            """);
+
+        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public void Source_reference_cycles_are_rejected()
+    {
+        var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
+        {
+            ContextId = "self", ReferencedContextIds = ["self"],
+            CompilationReferences = [new CompilationReferenceSnapshot("self", [], false)],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() => new AnalysisEngine(_fileSystem).Reconstruct(CompilationSnapshot.Create(project), TestContext.Current.CancellationToken));
+
+        Assert.Equal("The source compilation graph contains a cycle.", error.Message);
+    }
+
+    [Fact]
+    public async Task Anonymous_type_members_do_not_require_a_metadata_type_name()
+    {
+        var snapshot = TestSnapshots.Create("class Values { object Value => new { Name = \"value\" }.Name; }");
+
+        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+    }
+
 }

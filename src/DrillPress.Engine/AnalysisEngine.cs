@@ -51,13 +51,25 @@ public sealed class AnalysisEngine
     /// <summary>Evaluates each compilation independently and associates every finding with its source membership.</summary>
     public async Task<BundleResponse> EvaluateAsync(RuleSet rules, CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
     {
-        SnapshotValidation.Validate(snapshot);
-        var references = new Dictionary<string, MetadataReference>(PathComparer);
+        var compilations = Reconstruct(snapshot, cancellationToken);
+        return await EvaluateAsync(rules, snapshot.RequestId, compilations, cancellationToken);
+    }
+
+    /// <summary>Reconstructs the evaluated source graph without requiring dependencies to emit successfully.</summary>
+    public CompilationContext[] Reconstruct(CompilationSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        new SnapshotCompiler(_fileSystem).Reconstruct(snapshot, cancellationToken);
+
+    /// <summary>Evaluates prepared live or reconstructed contexts, enabling semantic conformance comparisons.</summary>
+    public async Task<BundleResponse> EvaluateAsync(RuleSet rules, string requestId, IReadOnlyList<CompilationContext> compilations,
+        CancellationToken cancellationToken = default)
+    {
         var contexts = new List<ContextEvaluation>();
-        foreach (var project in snapshot.Projects)
+        foreach (var context in compilations)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var (compilation, syntaxTrees) = CreateCompilation(project, references, cancellationToken);
+            var project = context.Snapshot;
+            var compilation = context.Compilation;
+            var syntaxTrees = compilation.SyntaxTrees;
             var memberReferences = new List<MemberReference>();
             foreach (var (tree, document) in syntaxTrees.Zip(project.Documents))
             {
@@ -74,54 +86,7 @@ public sealed class AnalysisEngine
             contexts.Add(new ContextEvaluation(project.ContextId, true, findings));
         }
 
-        return new BundleResponse(BundleResponseProtocol.CurrentVersion, snapshot.RequestId, contexts.ToArray(), []);
-    }
-
-    private (CSharpCompilation Compilation, SyntaxTree[] SyntaxTrees) CreateCompilation(
-        ProjectSnapshot project,
-        Dictionary<string, MetadataReference> references,
-        CancellationToken cancellationToken)
-    {
-        var parseOptions = new CSharpParseOptions(
-            (LanguageVersion)project.LanguageVersion,
-            preprocessorSymbols: project.PreprocessorSymbols);
-        var syntaxTrees = project.Documents
-            .Select(document => CSharpSyntaxTree.ParseText(
-                SourceText.From(document.Text),
-                parseOptions,
-                document.Path,
-                cancellationToken: cancellationToken))
-            .ToArray<SyntaxTree>();
-        var metadataReferences = project.MetadataReferences
-            .Select(path => GetMetadataReference(path, references))
-            .Concat(project.ProjectReferences.Select(reference => MetadataReference.CreateFromImage(
-                reference.Image,
-                MetadataReferenceProperties.Assembly
-                    .WithAliases(reference.Aliases)
-                    .WithEmbedInteropTypes(reference.EmbedInteropTypes))))
-            .ToArray();
-        var compilation = CSharpCompilation.Create(
-            project.AssemblyName,
-            syntaxTrees,
-            metadataReferences,
-            new CSharpCompilationOptions((OutputKind)project.OutputKind)
-                .WithNullableContextOptions((NullableContextOptions)project.NullableContextOptions)
-                .WithConcurrentBuild(true));
-        return (compilation, syntaxTrees);
-    }
-
-    private MetadataReference GetMetadataReference(
-        string path,
-        Dictionary<string, MetadataReference> references)
-    {
-        if (!references.TryGetValue(path, out var reference))
-        {
-            using var stream = _fileSystem.File.OpenRead(path);
-            reference = MetadataReference.CreateFromStream(stream, filePath: path);
-            references.Add(path, reference);
-        }
-
-        return reference;
+        return new BundleResponse(BundleResponseProtocol.CurrentVersion, requestId, contexts.ToArray(), []);
     }
 
     private static async Task<IReadOnlyList<MemberReference>> FindMemberReferencesAsync(
@@ -159,9 +124,9 @@ public sealed class AnalysisEngine
         }
 
         var symbolInfo = semanticModel.GetSymbolInfo(expression, cancellationToken);
-        var symbol = symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault();
+        var symbol = symbolInfo.Symbol;
         if (symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol) ||
-            symbol.ContainingType is null)
+            symbol.ContainingType is null || symbol.ContainingType.IsAnonymousType)
         {
             return null;
         }
@@ -202,7 +167,4 @@ public sealed class AnalysisEngine
             : type.MetadataName;
     }
 
-    private static IEqualityComparer<string> PathComparer => OperatingSystem.IsWindows()
-        ? StringComparer.OrdinalIgnoreCase
-        : EqualityComparer<string>.Default;
 }
