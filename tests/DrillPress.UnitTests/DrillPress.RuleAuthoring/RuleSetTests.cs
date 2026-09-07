@@ -42,7 +42,10 @@ public sealed class RuleSetTests
     [Theory]
     [InlineData("", "Message")]
     [InlineData("TEST001", "")]
-    public void Forbid_rejects_blank_rule_identity_or_message(string id, string message)
+    [InlineData("TEST\n001", "Message")]
+    [InlineData("TEST001", "Message\rnext")]
+    [InlineData("TEST001", "Message\u2028next")]
+    public void Forbid_rejects_blank_or_multiline_rule_identity_or_message(string id, string message)
     {
         var rules = new RuleSet();
 

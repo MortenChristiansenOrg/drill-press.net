@@ -1,6 +1,7 @@
 using System.IO.Abstractions;
 using System.Runtime.InteropServices;
 using System.Text;
+using DrillPress.Manifest;
 
 namespace DrillPress.BundleVerification;
 
@@ -8,6 +9,7 @@ public sealed class VerificationSession : IDisposable
 {
     private readonly IFileSystem _fileSystem;
     private readonly IDirectoryInfo _fixture;
+    private BundleCase[] _contextCases = [];
 
     private VerificationSession(IFileSystem fileSystem, string root, string output, string rid)
     {
@@ -24,6 +26,8 @@ public sealed class VerificationSession : IDisposable
     public string ManagedBundle => _fileSystem.Path.Combine(OutputDirectory, "managed", "DrillPress.SampleRules.dll");
     public string NativeBundle => _fileSystem.Path.Combine(OutputDirectory, "native",
         OperatingSystem.IsWindows() ? "DrillPress.SampleRules.exe" : "DrillPress.SampleRules");
+    public byte[] PublicOutput { get; private set; } = [];
+
     public BundleCase[] Cases { get; private set; } = [];
 
     public static async Task<VerificationSession> CreateAsync(IFileSystem fileSystem, string? output = null)
@@ -123,10 +127,15 @@ public sealed class VerificationSession : IDisposable
                 """);
             var snapshot = _fileSystem.Path.Combine(_fixture.FullName, $"{name}.json");
             ProcessRunner.RequireSuccess(await ProcessRunner.RunAsync("dotnet", [BuildHost, "export", project, snapshot], RepositoryRoot));
-            var stdout = outcome == BundleOutcome.Clean ? [] : Encoding.UTF8.GetBytes(
-                string.Join(Environment.NewLine,
-                    "DP1004 Use the empty string literal \"\" instead of string.Empty.",
-                    _fileSystem.Path.GetRelativePath(RepositoryRoot, source).Replace('\\', '/'), "  4:35", ""));
+            var captured = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshot);
+            var context = captured.Projects.Single();
+            var document = context.Documents.Single(item => item.Path == source);
+            Finding[] findings = outcome == BundleOutcome.Clean ? [] :
+                [new("DP1004", "Use the empty string literal \"\" instead of string.Empty.", document.DocumentId,
+                    document.Text.IndexOf("Text.Empty", StringComparison.Ordinal), "Text.Empty".Length, null)];
+            var response = new BundleResponse(1, captured.RequestId, [new(context.ContextId, true, findings)], []);
+            var stdout = BundleResponseProtocol.Serialize(response);
+            PublicOutput = Encoding.UTF8.GetBytes(new CompactDiagnosticRenderer(_fileSystem).Render(new BundleResponseValidator().Validate(captured, response)));
             cases.Add(new BundleCase(name, ["check", snapshot], outcome, stdout, []));
         }
 
@@ -134,13 +143,48 @@ public sealed class VerificationSession : IDisposable
         await _fileSystem.File.WriteAllTextAsync(invalid,
             """{"fileIdentifier":"drillpress-compilation","formatVersion":-1,"projects":[]}""");
         cases.Add(new BundleCase("invalid", ["check", invalid], BundleOutcome.Failure, [], Encoding.UTF8.GetBytes(
-            "drillpress-rules: Compilation snapshot format -1 is not supported; expected 1." + Environment.NewLine)));
+            "drillpress-rules: Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components." + Environment.NewLine)));
         Cases = cases.ToArray();
+        await CreateContextCasesAsync();
+    }
+
+
+    private async Task CreateContextCasesAsync()
+    {
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        var baseline = await storage.ReadAsync(_fileSystem.Path.Combine(_fixture.FullName, "violating.json"));
+        var project = baseline.Projects.Single();
+        var ordinary = project.Documents.Single(document => document.Path.EndsWith("Probe.cs", StringComparison.Ordinal));
+        var source = ordinary.Text.Replace("    public static", "#if INCLUDED\n    public static", StringComparison.Ordinal)
+            .Replace(";\n}", ";\n#endif\n}", StringComparison.Ordinal)
+            .Replace(";\r\n}", ";\r\n#endif\r\n}", StringComparison.Ordinal);
+        var first = project with
+        {
+            ContextId = "first",
+            PreprocessorSymbols = ["INCLUDED"],
+            // This synthetic variant is not the source currently stored in the real fixture file.
+            Documents = [ordinary with { Text = source, DocumentId = "first-doc", IsEditable = false, Fingerprint = "" }],
+        };
+        var cases = new List<BundleCase>();
+        foreach (var (name, symbols) in new[] { ("linked", new[] { "INCLUDED" }), ("inactive", Array.Empty<string>()) })
+        {
+            var second = first with { ContextId = "second", PreprocessorSymbols = symbols, Documents = [first.Documents[0] with { DocumentId = "second-doc" }] };
+            var snapshot = CompilationSnapshot.Create(first, second) with { RequestId = name };
+            var path = _fileSystem.Path.Combine(_fixture.FullName, name + ".json");
+            await storage.WriteAsync(path, snapshot);
+            var finding = new Finding("DP1004", "Use the empty string literal \"\" instead of string.Empty.", "first-doc",
+                source.IndexOf("Text.Empty", StringComparison.Ordinal), "Text.Empty".Length, null);
+            var response = new BundleResponse(1, name,
+                [new("first", true, [finding]), new("second", true, symbols.Length == 0 ? [] : [finding with { DocumentId = "second-doc" }])], []);
+            cases.Add(new BundleCase(name, ["check", path], BundleOutcome.Findings, BundleResponseProtocol.Serialize(response), []));
+        }
+
+        _contextCases = cases.ToArray();
     }
 
     private async Task VerifyAsync()
     {
-        foreach (var @case in Cases)
+        foreach (var @case in Cases.Concat(_contextCases))
         {
             foreach (var mode in Enum.GetValues<BundleMode>())
             {
@@ -156,7 +200,8 @@ public sealed class VerificationSession : IDisposable
         var cli = _fileSystem.Path.Combine(RepositoryRoot, "src/DrillPress.Cli/bin/Release/net10.0/DrillPress.Cli.dll");
         var resultCli = await ProcessRunner.RunAsync("dotnet",
             [cli, "check", "--build-host", BuildHost, "--rules", NativeBundle, _fileSystem.Path.Combine(_fixture.FullName, "Probe.csproj")], RepositoryRoot);
-        BundleContract.Validate(Cases.Single(@case => @case.Name == "violating"), resultCli);
+        BundleContract.Validate(Cases.Single(@case => @case.Name == "violating") with { StandardOutput = PublicOutput }, resultCli);
+        await _fileSystem.File.WriteAllBytesAsync(_fileSystem.Path.Combine(OutputDirectory, "public.stdout"), PublicOutput);
         Console.WriteLine("CLI/native: complete BuildHost-to-native path matches");
     }
 }

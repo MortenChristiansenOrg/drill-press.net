@@ -23,10 +23,16 @@ public sealed class CompilationSnapshotFile
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         await using var stream = _fileSystem.File.OpenRead(path);
-        var snapshot = await JsonSerializer.DeserializeAsync(
-            stream, CompilationSnapshotJsonContext.Default.CompilationSnapshot, cancellationToken)
-            ?? throw new InvalidDataException($"Compilation snapshot '{path}' is empty.");
-        Validate(snapshot);
+        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        if (json.RootElement.ValueKind == JsonValueKind.Null)
+        {
+            throw new InvalidDataException($"Compilation snapshot '{path}' is empty.");
+        }
+
+        ValidateHeader(json.RootElement);
+        var snapshot = json.RootElement.Deserialize(CompilationSnapshotJsonContext.Default.CompilationSnapshot)
+            ?? throw new InvalidDataException("Missing compilation snapshot.");
+        SnapshotValidation.Validate(snapshot);
         return snapshot;
     }
 
@@ -35,7 +41,7 @@ public sealed class CompilationSnapshotFile
         string path, CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        Validate(snapshot);
+        SnapshotValidation.Validate(snapshot);
         cancellationToken.ThrowIfCancellationRequested();
         var destinationPath = _fileSystem.Path.GetFullPath(path);
         var temporaryPath = destinationPath + $".{Guid.NewGuid():N}.tmp";
@@ -57,23 +63,19 @@ public sealed class CompilationSnapshotFile
         }
     }
 
-    private static void Validate(CompilationSnapshot snapshot)
+    private static void ValidateHeader(JsonElement root)
     {
-        if (snapshot.FileIdentifier != CompilationSnapshot.ExpectedFileIdentifier)
+        if (root.ValueKind != JsonValueKind.Object)
         {
             throw new InvalidDataException("The input is not a Drill Press compilation snapshot.");
         }
 
-        if (snapshot.FormatVersion != CompilationSnapshot.CurrentFormatVersion)
+        if (!root.TryGetProperty("fileIdentifier", out var identifier) || !root.TryGetProperty("formatVersion", out var format) ||
+            identifier.ValueKind != JsonValueKind.String || format.ValueKind != JsonValueKind.Number || !format.TryGetInt32(out var version))
         {
-            throw new InvalidDataException(
-                $"Compilation snapshot format {snapshot.FormatVersion} is not supported; expected {CompilationSnapshot.CurrentFormatVersion}.");
+            throw new InvalidDataException("Invalid snapshot header. Use matching Drill Press components.");
         }
 
-        // JSON input can omit non-nullable constructor parameters.
-        if (snapshot.Projects is null)
-        {
-            throw new InvalidDataException("Compilation snapshot must contain a projects array.");
-        }
+        SnapshotValidation.ValidateEnvelope(identifier.GetString()!, version);
     }
 }

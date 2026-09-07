@@ -34,33 +34,47 @@ public sealed class AnalysisEngine
         CompilationSnapshot snapshot,
         CancellationToken cancellationToken = default)
     {
-        var references = new Dictionary<string, MetadataReference>(PathComparer);
-        var memberReferences = new List<MemberReference>();
+        var response = await EvaluateAsync(rules, snapshot, cancellationToken);
+        return response.Contexts.SelectMany(context => context.Findings.Select(finding =>
+        {
+            var document = snapshot.Projects.Single(project => project.ContextId == context.ContextId)
+                .Documents.Single(document => document.DocumentId == finding.DocumentId);
+            var text = SourceText.From(document.Text);
+            var position = text.Lines.GetLinePosition(finding.Start);
+            return new RuleDiagnostic(new RuleDescriptor(finding.RuleId, finding.Message),
+                new SourceLocation(document.Path, finding.Start, finding.Length, position.Line + 1, position.Character + 1));
+        })).OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
+            .ThenBy(diagnostic => diagnostic.Location.FilePath, StringComparer.Ordinal)
+            .ThenBy(diagnostic => diagnostic.Location.Start).ToArray();
+    }
 
+    /// <summary>Evaluates each compilation independently and associates every finding with its source membership.</summary>
+    public async Task<BundleResponse> EvaluateAsync(RuleSet rules, CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        SnapshotValidation.Validate(snapshot);
+        var references = new Dictionary<string, MetadataReference>(PathComparer);
+        var contexts = new List<ContextEvaluation>();
         foreach (var project in snapshot.Projects)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var (compilation, syntaxTrees) = CreateCompilation(
-                project,
-                references,
-                cancellationToken);
-
+            var (compilation, syntaxTrees) = CreateCompilation(project, references, cancellationToken);
+            var memberReferences = new List<MemberReference>();
             foreach (var (tree, document) in syntaxTrees.Zip(project.Documents))
             {
-                if (document.IsGenerated)
+                if (!document.IsGenerated)
                 {
-                    continue;
+                    memberReferences.AddRange(await FindMemberReferencesAsync(compilation, tree, document, cancellationToken));
                 }
-
-                memberReferences.AddRange(await FindMemberReferencesAsync(
-                    compilation,
-                    tree,
-                    document,
-                    cancellationToken));
             }
+
+            var documents = project.Documents.ToDictionary(document => document.Path);
+            var findings = rules.Evaluate(memberReferences).Select(diagnostic => new Finding(
+                diagnostic.Descriptor.Id, diagnostic.Descriptor.Message, documents[diagnostic.Location.FilePath].DocumentId,
+                diagnostic.Location.Start, diagnostic.Location.Length, null)).ToArray();
+            contexts.Add(new ContextEvaluation(project.ContextId, true, findings));
         }
 
-        return rules.Evaluate(memberReferences);
+        return new BundleResponse(BundleResponseProtocol.CurrentVersion, snapshot.RequestId, contexts.ToArray(), []);
     }
 
     private (CSharpCompilation Compilation, SyntaxTree[] SyntaxTrees) CreateCompilation(

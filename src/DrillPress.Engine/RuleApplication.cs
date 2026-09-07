@@ -19,7 +19,7 @@ public sealed class RuleApplication
     }
 
     /// <summary>
-    /// Executes the rule-bundle command, writes compact diagnostics, and returns the
+    /// Executes the rule-bundle command, writes the internal response, and returns the
     /// clean, findings, or failure exit code understood by the coordinator.
     /// </summary>
     public async Task<RuleExitCode> RunAsync(
@@ -40,9 +40,10 @@ public sealed class RuleApplication
         try
         {
             var snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
-            var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(rules, snapshot, cancellationToken);
-            WriteDiagnostics(diagnostics, standardOutput);
-            return diagnostics.Count == 0 ? RuleExitCode.Clean : RuleExitCode.Findings;
+            var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(rules, snapshot, cancellationToken);
+            _ = new BundleResponseValidator().Validate(snapshot, response);
+            await standardOutput.WriteAsync(System.Text.Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response)));
+            return response.Contexts.All(context => context.Findings.Length == 0) ? RuleExitCode.Clean : RuleExitCode.Findings;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -51,31 +52,4 @@ public sealed class RuleApplication
         }
     }
 
-    private void WriteDiagnostics(
-        IReadOnlyList<RuleDiagnostic> diagnostics,
-        TextWriter standardOutput)
-    {
-        foreach (var ruleGroup in diagnostics.GroupBy(diagnostic => diagnostic.Descriptor))
-        {
-            standardOutput.WriteLine($"{ruleGroup.Key.Id} {ruleGroup.Key.Message}");
-            foreach (var fileGroup in ruleGroup.GroupBy(
-                         diagnostic => DisplayPath(diagnostic.Location.FilePath)))
-            {
-                standardOutput.WriteLine(fileGroup.Key);
-                foreach (var diagnostic in fileGroup)
-                {
-                    standardOutput.WriteLine(
-                        diagnostic.Location.Column == 1
-                            ? $"  {diagnostic.Location.Line}"
-                            : $"  {diagnostic.Location.Line}:{diagnostic.Location.Column}");
-                }
-            }
-        }
-    }
-
-    private string DisplayPath(string path)
-    {
-        var relativePath = _fileSystem.Path.GetRelativePath(_fileSystem.Directory.GetCurrentDirectory(), path);
-        return relativePath.Replace(_fileSystem.Path.DirectorySeparatorChar, '/');
-    }
 }

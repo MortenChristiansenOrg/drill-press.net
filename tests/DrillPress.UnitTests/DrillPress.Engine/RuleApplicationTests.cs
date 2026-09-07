@@ -37,7 +37,7 @@ public sealed class RuleApplicationTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(RuleExitCode.Clean, exitCode);
-        Assert.Equal(string.Empty, output.ToString());
+        Assert.Equal("", new CompactDiagnosticRenderer(_fileSystem).Render(BundleResponseProtocol.Read(output.ToString(), snapshot)));
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public sealed class RuleApplicationTests
               8:35
               9:36
 
-            """,
-            output.ToString());
+            """.ReplaceLineEndings("\n"),
+            new CompactDiagnosticRenderer(_fileSystem).Render(BundleResponseProtocol.Read(output.ToString(), snapshot)));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class RuleApplicationTests
         Assert.Equal(RuleExitCode.Failure, result);
         Assert.Equal("", output.ToString());
         Assert.Equal(
-            $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 1.{Environment.NewLine}",
+            $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components.{Environment.NewLine}",
             error.ToString());
     }
 

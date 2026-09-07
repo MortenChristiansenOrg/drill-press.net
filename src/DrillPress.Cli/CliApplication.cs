@@ -1,4 +1,5 @@
 using System.IO.Abstractions;
+using DrillPress.Manifest;
 
 namespace DrillPress.Cli;
 
@@ -28,9 +29,11 @@ public sealed class CliApplication
     public async Task<CliExitCode> RunAsync(
         string[] args,
         TextWriter? standardError = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TextWriter? standardOutput = null)
     {
         standardError ??= Console.Error;
+        standardOutput ??= Console.Out;
         if (!CliOptions.TryParse(args, out var options))
         {
             await standardError.WriteLineAsync(
@@ -44,25 +47,33 @@ public sealed class CliApplication
             try
             {
                 var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
-                var buildHostExitCode = await _processRunner.RunAsync(
+                var buildHostResult = await _processRunner.CaptureAsync(
                     options.BuildHost,
                     ["export", options.Target, snapshotPath],
                     cancellationToken);
-                if (buildHostExitCode != (int)CliExitCode.Clean)
+                await standardError.WriteAsync(buildHostResult.StandardError);
+                if (buildHostResult.ExitCode != (int)CliExitCode.Clean)
                 {
                     return CliExitCode.Failure;
                 }
 
-                var ruleExitCode = await _processRunner.RunAsync(
-                    options.Rules,
-                    ["check", snapshotPath],
-                    cancellationToken);
-                return ruleExitCode switch
+                var snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
+                var ruleResult = await _processRunner.CaptureAsync(options.Rules, ["check", snapshotPath], cancellationToken);
+                await standardError.WriteAsync(ruleResult.StandardError);
+                if (ruleResult.ExitCode is not (0 or 1))
                 {
-                    (int)CliExitCode.Clean => CliExitCode.Clean,
-                    (int)CliExitCode.Findings => CliExitCode.Findings,
-                    _ => CliExitCode.Failure,
-                };
+                    return CliExitCode.Failure;
+                }
+
+                var result = BundleResponseProtocol.Read(ruleResult.StandardOutput, snapshot);
+                var expectedExit = result.Findings.Length == 0 ? CliExitCode.Clean : CliExitCode.Findings;
+                if (ruleResult.ExitCode != (int)expectedExit)
+                {
+                    throw new InvalidDataException("Bundle exit code disagrees with its response.");
+                }
+
+                await standardOutput.WriteAsync(new CompactDiagnosticRenderer(_fileSystem).Render(result));
+                return expectedExit;
             }
             finally
             {

@@ -47,7 +47,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(_fileSystem.Path.GetFullPath("Target.csproj"), loader.ProjectPath);
         Assert.Equal(
-            """{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":[]}""",
+            """{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[],"requestId":"request"}""",
             _fileSystem.File.ReadAllText("nested/output/snapshot.json"));
     }
 
