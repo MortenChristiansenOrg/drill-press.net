@@ -15,7 +15,11 @@ public sealed record CompilationSnapshot(
     public const string ExpectedFileIdentifier = "drillpress-compilation";
 
     /// <summary>Identifies the exact snapshot shape supported by this build.</summary>
-    public const int CurrentFormatVersion = 1;
+    public const int CurrentFormatVersion = 2;
+
+    /// <summary>Associates every response with this specific export.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public string RequestId { get; init; } = Guid.NewGuid().ToString("N");
 
     /// <summary>Creates a snapshot using the current envelope identifiers.</summary>
     public static CompilationSnapshot Create(params ProjectSnapshot[] projects) =>

@@ -51,3 +51,30 @@ A clean check prints nothing and exits with code `0`. Findings produce code
 `1`—including the example above. Code `2` means the check could not complete,
 such as when a project cannot be loaded. The command reports violations; it does
 not apply fixes.
+
+The CLI captures and validates a versioned internal bundle response before writing
+public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
+internal JSON protocol, not another public diagnostic format. Use matching CLI,
+BuildHost, and rule-bundle builds; snapshot format 2 binds responses to a unique
+request and preserves individual compilation and document identities.
+
+Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
+relative file path, then source span. Each rule's remediation appears once. A
+location is `line` or `line:column` (one-based physical UTF-16 coordinates); `+`
+before the line marks an agreed safe correction. Paths containing controls,
+quotes, or surrounding whitespace use JSON escaping. Clean runs emit nothing.
+
+Corrections are represented internally as complete edit batches tied to original
+byte fingerprints. All reporting contexts must agree and every affected loaded
+context must validate the complete batch, including contexts without a finding.
+Missing, inactive-source, or ambiguous-binding validation withholds the fix.
+Conflicting batches are withheld in full; independent fixes survive. Insertions
+conflict at either boundary of another edit when their order would be ambiguous.
+The renderer and future fix writer consume the same validated plan. Scope is the
+loaded project graph. Production editable-source capture arrives with target
+loading in Slice 4, and automatic writes arrive in Slice 6.
+
+Snapshots contain source and machine-local paths. Rule bundles execute trusted
+code; protocol validation is not a sandbox. Native verification retains exact
+internal response bytes and `public.stdout`; its report records public UTF-8
+bytes and a rough token estimate (bytes / 4, rounded up).

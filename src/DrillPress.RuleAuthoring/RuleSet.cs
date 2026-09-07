@@ -21,6 +21,12 @@ public sealed class RuleSet
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        if (id.Any(char.IsControl) || message.Any(char.IsControl) || id.Contains('\u2028') || id.Contains('\u2029') ||
+            message.Contains('\u2028') || message.Contains('\u2029'))
+        {
+            throw new ArgumentException("Rule identifiers and remediation messages must be single-line.");
+        }
+
         if (_rules.Any(rule => rule.Id == id))
         {
             throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");

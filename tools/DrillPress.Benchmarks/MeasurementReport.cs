@@ -34,6 +34,8 @@ public static class MeasurementReport
                 artifacts.Read(BundleMode.Managed, fileSystem.Path.Combine(session.OutputDirectory, "managed")),
                 artifacts.Read(BundleMode.Native, fileSystem.Path.Combine(session.OutputDirectory, "native")),
             },
+            PublicOutputBytes = session.PublicOutput.Length,
+            EstimatedPublicTokens = (session.PublicOutput.Length + 3) / 4,
             MemorySamples = memory,
         };
         await fileSystem.File.WriteAllTextAsync(fileSystem.Path.Combine(session.OutputDirectory, "report.json"),

@@ -6,7 +6,7 @@ namespace DrillPress.UnitTests.TestInfrastructure;
 
 internal sealed class StubSnapshotLoader(IFileSystem fileSystem) : MsBuildSnapshotLoader(fileSystem)
 {
-    public CompilationSnapshot Snapshot { get; init; } = CompilationSnapshot.Create();
+    public CompilationSnapshot Snapshot { get; init; } = (CompilationSnapshot.Create() with { RequestId = "request" });
     public Exception? Failure { get; init; }
     public string? ProjectPath { get; private set; }
 

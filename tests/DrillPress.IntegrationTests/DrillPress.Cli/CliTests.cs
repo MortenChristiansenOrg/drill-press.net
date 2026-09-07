@@ -64,13 +64,15 @@ public sealed class CliTests : IntegrationTest
     }
 
     [Fact]
-    public void Coordinator_depends_only_on_filesystem_wrappers()
+    public void Coordinator_depends_only_on_the_manifest_and_filesystem_wrappers()
     {
         var projectPath = RepositoryPath("src", "DrillPress.Cli", "DrillPress.Cli.csproj");
 
         var projectFile = FileSystem.File.ReadAllText(projectPath);
 
-        Assert.DoesNotContain("ProjectReference", projectFile);
+        Assert.Equal(["../DrillPress.Manifest/DrillPress.Manifest.csproj"],
+            System.Xml.Linq.XDocument.Parse(projectFile).Descendants("ProjectReference")
+                .Select(reference => reference.Attribute("Include")!.Value));
         Assert.Equal(
             ["TestableIO.System.IO.Abstractions.Wrappers"],
             System.Xml.Linq.XDocument.Parse(projectFile).Descendants("PackageReference")

@@ -1,5 +1,7 @@
 using System.IO.Abstractions.TestingHelpers;
 using DrillPress.Cli;
+using DrillPress.Manifest;
+using System.Text;
 using DrillPress.UnitTests.TestInfrastructure;
 using Xunit;
 
@@ -42,11 +44,12 @@ public sealed class CliApplicationTests
 
     [Theory]
     [InlineData(0, CliExitCode.Clean)]
-    [InlineData(1, CliExitCode.Findings)]
+    [InlineData(1, CliExitCode.Failure)]
     [InlineData(2, CliExitCode.Failure)]
     [InlineData(42, CliExitCode.Failure)]
     public async Task Shares_the_snapshot_with_both_tools_and_removes_it(int ruleResult, CliExitCode expected)
     {
+        var snapshot = CompilationSnapshot.Create();
         var calls = new List<(string Executable, string[] Arguments)>();
         var observedSnapshot = "";
         var handlers = new Dictionary<string, Func<IReadOnlyList<string>, Task<int>>>
@@ -58,15 +61,16 @@ public sealed class CliApplicationTests
         {
             calls.Add((executable, arguments.ToArray()));
             return handlers[executable](arguments);
-        });
-        Task<int> Export(IReadOnlyList<string> arguments)
+        }) { StandardOutput = Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(
+            new BundleResponse(1, snapshot.RequestId, [], []))) };
+        async Task<int> Export(IReadOnlyList<string> arguments)
         {
-            _fileSystem.File.WriteAllText(arguments[2], "compiler inputs");
-            return Task.FromResult(0);
+            await new CompilationSnapshotFile(_fileSystem).WriteAsync(arguments[2], snapshot);
+            return 0;
         }
         Task<int> Check(IReadOnlyList<string> arguments)
         {
-            observedSnapshot = _fileSystem.File.ReadAllText(arguments[1]);
+            observedSnapshot = arguments[1];
             return Task.FromResult(ruleResult);
         }
         var application = new CliApplication(_fileSystem, runner);
@@ -76,7 +80,7 @@ public sealed class CliApplicationTests
             TextWriter.Null, TestContext.Current.CancellationToken);
 
         Assert.Equal(expected, result);
-        Assert.Equal("compiler inputs", observedSnapshot);
+        Assert.Equal(calls[0].Arguments[2], observedSnapshot);
         Assert.Equal(["host", "rules"], calls.Select(call => call.Executable));
         var snapshotPath = calls[0].Arguments[2];
         Assert.Equal(["export", "target.csproj", snapshotPath], calls[0].Arguments);
@@ -147,4 +151,42 @@ public sealed class CliApplicationTests
         Assert.Equal($"drillpress: Cannot launch tool.{Environment.NewLine}", error.ToString());
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
     }
+    [Theory]
+    [InlineData(0, "")]
+    [InlineData(0, "loader logging")]
+    [InlineData(0, "{\"protocolVersion\":99,\"requestId\":\"request\",\"contexts\":[],\"batches\":[]}")]
+    [InlineData(0, "{\"protocolVersion\":1,\"requestId\":\"foreign\",\"contexts\":[],\"batches\":[]}")]
+    [InlineData(1, "{\"protocolVersion\":1,\"requestId\":\"request\",\"contexts\":[],\"batches\":[]}")]
+    public async Task Invalid_bundle_output_never_reaches_public_stdout(int exitCode, string response)
+    {
+        var snapshot = CompilationSnapshot.Create() with { RequestId = "request" };
+        var snapshotPath = "";
+        async Task<int> Export(IReadOnlyList<string> arguments)
+        {
+            snapshotPath = arguments[2];
+            await new CompilationSnapshotFile(_fileSystem).WriteAsync(snapshotPath, snapshot);
+            return 0;
+        }
+        var handlers = new Dictionary<string, Func<IReadOnlyList<string>, Task<int>>>
+        {
+            ["host"] = Export,
+            ["rules"] = _ => Task.FromResult(exitCode),
+        };
+        var runner = new StubChildProcessRunner((executable, arguments, _) => handlers[executable](arguments))
+        {
+            StandardOutput = response,
+        };
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+
+        var result = await new CliApplication(_fileSystem, runner).RunAsync(
+            ["check", "--build-host", "host", "--rules", "rules", "target.csproj"], stderr,
+            TestContext.Current.CancellationToken, stdout);
+
+        Assert.Equal(CliExitCode.Failure, result);
+        Assert.Equal("", stdout.ToString());
+        Assert.NotEmpty(stderr.ToString());
+        Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
+    }
+
 }

@@ -24,12 +24,12 @@ public sealed class CompilationSnapshotFileTests
     public async Task Writes_the_complete_envelope_using_the_injected_filesystem()
     {
         var storage = new CompilationSnapshotFile(_fileSystem);
-        var snapshot = CompilationSnapshot.Create();
+        var snapshot = (CompilationSnapshot.Create() with { RequestId = "request" });
 
         await storage.WriteAsync(SnapshotPath, snapshot, TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            """{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":[]}""",
+            """{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[],"requestId":"request"}""",
             _fileSystem.File.ReadAllText(SnapshotPath));
     }
 
@@ -39,10 +39,10 @@ public sealed class CompilationSnapshotFileTests
         _fileSystem.AddFile(SnapshotPath, new MockFileData("previous snapshot"));
         var storage = new CompilationSnapshotFile(_fileSystem);
 
-        await storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), TestContext.Current.CancellationToken);
+        await storage.WriteAsync(SnapshotPath, (CompilationSnapshot.Create() with { RequestId = "request" }), TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            """{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":[]}""",
+            """{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[],"requestId":"request"}""",
             _fileSystem.File.ReadAllText(SnapshotPath));
         Assert.Equal([_fileSystem.Path.GetFullPath(SnapshotPath)], _fileSystem.AllFiles);
     }
@@ -56,7 +56,7 @@ public sealed class CompilationSnapshotFileTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), cancellation.Token));
+            storage.WriteAsync(SnapshotPath, (CompilationSnapshot.Create() with { RequestId = "request" }), cancellation.Token));
 
         Assert.Equal("previous snapshot", _fileSystem.File.ReadAllText(SnapshotPath));
         Assert.Equal([_fileSystem.Path.GetFullPath(SnapshotPath)], _fileSystem.AllFiles);
@@ -71,7 +71,7 @@ public sealed class CompilationSnapshotFileTests
         var storage = new CompilationSnapshotFile(fileSystem);
 
         var exception = await Assert.ThrowsAsync<IOException>(() =>
-            storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), TestContext.Current.CancellationToken));
+            storage.WriteAsync(SnapshotPath, (CompilationSnapshot.Create() with { RequestId = "request" }), TestContext.Current.CancellationToken));
 
         Assert.Same(failure, exception);
         Assert.Equal("previous snapshot", fileSystem.File.ReadAllText(SnapshotPath));
@@ -87,7 +87,7 @@ public sealed class CompilationSnapshotFileTests
         var storage = new CompilationSnapshotFile(fileSystem);
 
         var exception = await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), TestContext.Current.CancellationToken));
+            storage.WriteAsync(SnapshotPath, (CompilationSnapshot.Create() with { RequestId = "request" }), TestContext.Current.CancellationToken));
 
         Assert.Same(failure, exception);
         Assert.Equal("previous snapshot", fileSystem.File.ReadAllText(SnapshotPath));
@@ -139,16 +139,14 @@ public sealed class CompilationSnapshotFileTests
     }
 
     [Theory]
-    [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":1}""")]
-    [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":null}""")]
+    [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":2,"requestId":"request"}""")]
+    [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":null,"requestId":"request"}""")]
     public async Task Read_rejects_missing_or_null_projects(string json)
     {
         _fileSystem.AddFile(SnapshotPath, new MockFileData(json));
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() =>
             new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
-
-        Assert.Equal("Compilation snapshot must contain a projects array.", exception.Message);
     }
 
     [Fact]
@@ -169,12 +167,42 @@ public sealed class CompilationSnapshotFileTests
     {
         _fileSystem.AddFile(SnapshotPath, new MockFileData(
             """
-            {"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[]}
+            {"fileIdentifier":"drillpress-compilation","formatVersion":99,"projects":[]}
             """));
 
         var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
             new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
 
-        Assert.Equal("Compilation snapshot format 2 is not supported; expected 1.", exception.Message);
+        Assert.Equal("Compilation snapshot format 99 is not supported; expected 2. Use matching Drill Press components.", exception.Message);
     }
+    [Fact]
+    public async Task Incompatible_header_is_rejected_before_deserializing_payload_members()
+    {
+        _fileSystem.AddFile(SnapshotPath, new MockFileData(
+            """{"fileIdentifier":"drillpress-compilation","formatVersion":-1,"projects":"not a project array"}"""));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components.", exception.Message);
+    }
+
+    [Fact]
+    public async Task Source_identity_and_context_graph_round_trip_with_response_association()
+    {
+        var fixture = new ContractFixture();
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        await storage.WriteAsync(SnapshotPath, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        var snapshot = await storage.ReadAsync(SnapshotPath, TestContext.Current.CancellationToken);
+        var result = new BundleResponseValidator().Validate(snapshot, fixture.Response);
+
+        Assert.Equal("request", snapshot.RequestId);
+        Assert.Equal(["first", "second"], snapshot.Projects.Select(project => project.ContextId));
+        Assert.Equal(["second"], snapshot.Projects[0].ReferencedContextIds);
+        Assert.Equal(["net10.0", "net9.0"], snapshot.Projects.Select(project => project.TargetFramework));
+        Assert.Equal(fixture.Document, snapshot.Projects[0].Documents[0]);
+        Assert.Equal([fixture.Edit(2, 5, "alpha", "A")], result.Edits);
+    }
+
 }
