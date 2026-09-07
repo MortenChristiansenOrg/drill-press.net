@@ -17,7 +17,9 @@ public sealed class CompactDiagnosticRendererTests
     public async Task Output_is_ordinal_escaped_LF_and_culture_independent(string culture)
     {
         var fileSystem = new MockFileSystem();
-        fileSystem.Directory.SetCurrentDirectory(fileSystem.Path.GetFullPath("."));
+        var directory = fileSystem.Path.GetFullPath("render-root");
+        fileSystem.Directory.CreateDirectory(directory);
+        fileSystem.Directory.SetCurrentDirectory(directory);
         var result = new ValidatedResult(
             [new("Z", "Replace Z.", "z", fileSystem.Path.GetFullPath("z.cs"), 20, 1, 3, 1, null),
              new("A", "Replace A.", "a", fileSystem.Path.GetFullPath(" a\"\t.cs "), 3, 1, 1, 4, "fix"),
