@@ -134,6 +134,30 @@ public sealed class TargetLoadingTests : IntegrationTest
         Assert.Equal(bytes, SourceIdentity.Encode(document));
     }
 
+
+    [Theory]
+    [InlineData("obj")]
+    [InlineData("Obj")]
+    [InlineData("OBJ")]
+    public async Task Intermediate_directory_casing_does_not_create_rule_candidates(string name)
+    {
+        var root = CreateTemporaryDirectory("drillpress-generated-folder-").FullName;
+        var generated = FileSystem.Directory.CreateDirectory(FileSystem.Path.Combine(root, name)).FullName;
+        var source = FileSystem.Path.Combine(generated, "Input.cs");
+        await FileSystem.File.WriteAllTextAsync(source, "class Input { string Value => string.Empty; }", TestContext.Current.CancellationToken);
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+
+        var result = await ExportAsync(source, output);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(output, TestContext.Current.CancellationToken);
+        var findings = await new AnalysisEngine().AnalyzeAsync(SampleRuleSet.Create(), snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        var document = Assert.Single(Assert.Single(snapshot.Projects).Documents);
+        Assert.True(document.IsGenerated);
+        Assert.False(document.IsEditable);
+        Assert.Empty(findings);
+    }
+
     private Task WriteAsync(string root, string path, string text) =>
         FileSystem.File.WriteAllTextAsync(FileSystem.Path.Combine(root, path), text, TestContext.Current.CancellationToken);
 

@@ -14,7 +14,7 @@ public sealed class ConformanceApplication(IFileSystem fileSystem, MsBuildSnapsh
     private readonly AnalysisEngine _engine = engine;
     private readonly CompilationSnapshotFile _storage = storage;
 
-    public async Task<ConformanceExitCode> RunAsync(string[] args, CancellationToken cancellationToken = default)
+    public async Task<ConformanceExitCode> RunAsync(string[] args, CancellationToken cancellationToken = default, string? displayTarget = null)
     {
         if (args is not [var target, var reportPath])
         {
@@ -37,7 +37,7 @@ public sealed class ConformanceApplication(IFileSystem fileSystem, MsBuildSnapsh
                 var liveRules = await engine.EvaluateAsync(SampleRuleSet.Create(), snapshot.RequestId, export.Contexts, cancellationToken);
                 var restoredRules = await engine.EvaluateAsync(SampleRuleSet.Create(), snapshot.RequestId, reconstructed, cancellationToken);
                 var ruleParity = BundleResponseProtocol.Serialize(liveRules).AsSpan().SequenceEqual(BundleResponseProtocol.Serialize(restoredRules));
-                var report = new { target, sdk = export.Contexts.Select(context => context.Snapshot.SdkVersion).Distinct(),
+                var report = new { target = displayTarget ?? target, sdk = export.Contexts.Select(context => context.Snapshot.SdkVersion).Distinct(),
                     snapshotBytes = _fileSystem.FileInfo.New(path).Length, ruleParity, contexts = comparisons };
                 var fullReport = _fileSystem.Path.GetFullPath(reportPath);
                 _fileSystem.Directory.CreateDirectory(_fileSystem.Path.GetDirectoryName(fullReport)!);
@@ -53,7 +53,7 @@ public sealed class ConformanceApplication(IFileSystem fileSystem, MsBuildSnapsh
         {
             var fullReport = _fileSystem.Path.GetFullPath(reportPath);
             _fileSystem.Directory.CreateDirectory(_fileSystem.Path.GetDirectoryName(fullReport)!);
-            await _fileSystem.File.WriteAllTextAsync(fullReport, JsonSerializer.Serialize(new { target, error = exception.ToString() }), cancellationToken);
+            await _fileSystem.File.WriteAllTextAsync(fullReport, JsonSerializer.Serialize(new { target = displayTarget ?? target, error = exception.ToString() }), cancellationToken);
             Console.Error.WriteLine($"Conformance: {exception.Message}");
             return ConformanceExitCode.Failure;
         }

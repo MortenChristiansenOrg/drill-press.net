@@ -47,6 +47,6 @@ public class MsBuildSnapshotLoader
             MSBuildLocator.RegisterInstance(sdk);
         }
 
-        return await new SdkSnapshotLoader(_fileSystem).LoadAsync(target, options, sdk.Version.ToString(), cancellationToken);
+        return await new SdkSnapshotLoader(_fileSystem).LoadAsync(target, options, sdk.Version.ToString(), sdk.MSBuildPath, cancellationToken);
     }
 }

@@ -19,7 +19,7 @@ try
     var target = await new PinnedXunit(fileSystem).PrepareAsync(checkout,
         fileSystem.Path.Combine(output, "preparation.json"), CancellationToken.None);
     return (int)await new ConformanceApplication(fileSystem, new MsBuildSnapshotLoader(), new AnalysisEngine(), new CompilationSnapshotFile())
-        .RunAsync([target, fileSystem.Path.Combine(output, "conformance.json")]);
+        .RunAsync([target, fileSystem.Path.Combine(output, "conformance.json")], displayTarget: "<xunit>/xunit.slnx");
 }
 catch (Exception exception)
 {

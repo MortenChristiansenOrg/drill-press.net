@@ -217,4 +217,35 @@ public sealed class CompilationSnapshotFileTests
         Assert.Equal("Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components.", exception.Message);
     }
 
+    [Theory]
+    [InlineData("compilationReferences")]
+    [InlineData("externalReferences")]
+    public async Task Null_reference_collections_are_rejected_during_deserialization(string property)
+    {
+        var snapshot = CompilationSnapshot.Create(TestSnapshots.CreateProject("Source.cs", "class Source { }"));
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        await storage.WriteAsync(SnapshotPath, snapshot, TestContext.Current.CancellationToken);
+        var json = System.Text.Json.Nodes.JsonNode.Parse(_fileSystem.File.ReadAllText(SnapshotPath))!;
+        json["projects"]![0]![property] = null;
+        _fileSystem.File.WriteAllText(SnapshotPath, json.ToJsonString());
+
+        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => storage.ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Null_metadata_fingerprint_is_rejected_during_deserialization()
+    {
+        var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
+        {
+            ExternalReferences = [new MetadataReferenceSnapshot("Reference.dll", new string('0', 64), [], false, 0)],
+        };
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        await storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(project), TestContext.Current.CancellationToken);
+        var json = System.Text.Json.Nodes.JsonNode.Parse(_fileSystem.File.ReadAllText(SnapshotPath))!;
+        json["projects"]![0]!["externalReferences"]![0]!["fingerprint"] = null;
+        _fileSystem.File.WriteAllText(SnapshotPath, json.ToJsonString());
+
+        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => storage.ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
+    }
+
 }

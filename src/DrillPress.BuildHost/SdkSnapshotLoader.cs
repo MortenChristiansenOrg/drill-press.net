@@ -18,8 +18,15 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     private readonly IFileSystem _fileSystem = fileSystem;
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public async Task<SnapshotExport> LoadAsync(string target, SnapshotLoadOptions options, string sdkVersion, CancellationToken cancellationToken)
+    public async Task<SnapshotExport> LoadAsync(string target, SnapshotLoadOptions options, string sdkVersion, string sdkPath, CancellationToken cancellationToken)
     {
+        var loadedDirectory = _fileSystem.Path.GetDirectoryName(typeof(ProjectCollection).Assembly.Location)!;
+        if (!string.Equals(_fileSystem.Path.GetFullPath(loadedDirectory), _fileSystem.Path.GetFullPath(sdkPath),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("This process already loaded a different MSBuild SDK. Export this target in a new BuildHost process.");
+        }
+
         using var workspace = MSBuildWorkspace.Create(options.Properties);
         workspace.LoadMetadataForReferencedProjects = false;
         var failures = new ConcurrentQueue<string>();
