@@ -50,7 +50,7 @@ public sealed class CompactDiagnosticRenderer
     private string DisplayPath(string path) =>
         _fileSystem.Path.GetRelativePath(_fileSystem.Directory.GetCurrentDirectory(), path).Replace('\\', '/');
 
-    private static string Escape(string path) => path.Any(char.IsControl) || path.Contains('"') || path != path.Trim()
+    private static string Escape(string path) => path.Any(char.IsControl) || path.Contains('\u2028') || path.Contains('\u2029') || path.Contains('"') || path != path.Trim()
         ? JsonEncodedText.Encode(path).ToString().Insert(0, "\"") + "\""
         : path;
 }

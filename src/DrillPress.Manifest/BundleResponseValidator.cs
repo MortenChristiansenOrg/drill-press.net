@@ -131,13 +131,19 @@ public sealed class BundleResponseValidator
         var start = 0;
         for (var index = 0; index < offset; index++)
         {
-            if (text[index] == '\r' || text[index] == '\n' && (index == 0 || text[index - 1] != '\r'))
+            if (text[index] == '\r' && index + 1 < text.Length && text[index + 1] == '\n')
+            {
+                if (index + 1 == offset)
+                {
+                    break;
+                }
+
+                index++;
+            }
+
+            if (text[index] is '\r' or '\n' or '\u0085' or '\u2028' or '\u2029')
             {
                 line++;
-                start = index + 1;
-            }
-            else if (text[index] == '\n')
-            {
                 start = index + 1;
             }
         }

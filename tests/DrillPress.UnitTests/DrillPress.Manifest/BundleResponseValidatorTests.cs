@@ -129,4 +129,25 @@ public sealed class BundleResponseValidatorTests
 
         Assert.Throws<InvalidDataException>(() => new BundleResponseValidator().Validate(snapshot, response));
     }
+    [Theory]
+    [InlineData(2, 1, 3)]
+    [InlineData(3, 2, 1)]
+    [InlineData(4, 2, 2)]
+    [InlineData(5, 3, 1)]
+    [InlineData(7, 4, 1)]
+    [InlineData(9, 5, 1)]
+    [InlineData(11, 6, 1)]
+    [InlineData(13, 7, 1)]
+    public void Physical_coordinates_preserve_CRLF_boundaries_and_CSharp_line_separators(int offset, int line, int column)
+    {
+        var project = TestSnapshots.CreateProject("Lines.cs", "a\r\nb\rc\nd\u0085e\u2028f\u2029g");
+        var snapshot = CompilationSnapshot.Create(project);
+        var response = new BundleResponse(1, snapshot.RequestId,
+            [new(project.ContextId, true, [new("R", "Replace.", project.Documents[0].DocumentId, offset, 0, null)])], []);
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal([new AggregatedFinding("R", "Replace.", "Lines.cs", "Lines.cs", offset, 0, line, column, null)], result.Findings);
+    }
+
 }
