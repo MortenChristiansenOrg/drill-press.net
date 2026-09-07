@@ -40,4 +40,14 @@ public sealed class SourceIdentityTests
 
         Assert.Throws<EncoderFallbackException>(() => SourceIdentity.Encode(source));
     }
+    [Fact]
+    public void Unsupported_encodings_have_a_consistent_validation_error()
+    {
+        var source = new DocumentSnapshot("Source.cs", "text", false) { EncodingName = "unknown-encoding" };
+
+        var exception = Assert.Throws<InvalidDataException>(() => SourceIdentity.Encode(source));
+
+        Assert.Equal("Source encoding 'unknown-encoding' is not supported.", exception.Message);
+    }
+
 }

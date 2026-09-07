@@ -70,13 +70,12 @@ public sealed class CompilationSnapshotFile
             throw new InvalidDataException("The input is not a Drill Press compilation snapshot.");
         }
 
-        var properties = root.EnumerateObject().ToArray();
-        if (properties.Length < 2 || properties[0].Name != "fileIdentifier" || properties[1].Name != "formatVersion" ||
-            properties[0].Value.ValueKind != JsonValueKind.String || !properties[1].Value.TryGetInt32(out var version))
+        if (!root.TryGetProperty("fileIdentifier", out var identifier) || !root.TryGetProperty("formatVersion", out var format) ||
+            identifier.ValueKind != JsonValueKind.String || format.ValueKind != JsonValueKind.Number || !format.TryGetInt32(out var version))
         {
             throw new InvalidDataException("Invalid snapshot header. Use matching Drill Press components.");
         }
 
-        SnapshotValidation.ValidateEnvelope(properties[0].Value.GetString()!, version);
+        SnapshotValidation.ValidateEnvelope(identifier.GetString()!, version);
     }
 }

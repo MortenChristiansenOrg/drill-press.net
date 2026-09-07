@@ -9,6 +9,16 @@ if (args is ["bytes"])
     return 2;
 }
 
+if (args is ["limited-output", var pipe])
+{
+    var stream = pipe == "stdout" ? Console.OpenStandardOutput() : Console.OpenStandardError();
+    var buffer = new byte[8192];
+    while (true)
+    {
+        await stream.WriteAsync(buffer);
+    }
+}
+
 if (args is not ["export", var readyPath, var snapshotPath])
 {
     return 2;

@@ -162,7 +162,8 @@ public sealed class VerificationSession : IDisposable
         {
             ContextId = "first",
             PreprocessorSymbols = ["INCLUDED"],
-            Documents = [ordinary with { Text = source, DocumentId = "first-doc" }],
+            // This synthetic variant is not the source currently stored in the real fixture file.
+            Documents = [ordinary with { Text = source, DocumentId = "first-doc", IsEditable = false, Fingerprint = "" }],
         };
         var cases = new List<BundleCase>();
         foreach (var (name, symbols) in new[] { ("linked", new[] { "INCLUDED" }), ("inactive", Array.Empty<string>()) })

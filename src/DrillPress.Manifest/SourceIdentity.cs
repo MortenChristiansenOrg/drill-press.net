@@ -27,9 +27,21 @@ public static class SourceIdentity
     /// <summary>Encodes captured source losslessly, preserving its BOM policy.</summary>
     public static byte[] Encode(DocumentSnapshot document)
     {
-        var encoding = Encoding.GetEncoding(document.EncodingName, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        var encoding = GetEncoding(document.EncodingName);
         var content = encoding.GetBytes(document.Text);
         return document.HasByteOrderMark ? [.. encoding.GetPreamble(), .. content] : content;
+    }
+
+    private static Encoding GetEncoding(string name)
+    {
+        try
+        {
+            return Encoding.GetEncoding(name, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            throw new InvalidDataException($"Source encoding '{name}' is not supported.", exception);
+        }
     }
 
     internal static void Validate(DocumentSnapshot document)

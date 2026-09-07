@@ -205,4 +205,16 @@ public sealed class CompilationSnapshotFileTests
         Assert.Equal([fixture.Edit(2, 5, "alpha", "A")], result.Edits);
     }
 
+    [Fact]
+    public async Task Reordered_header_still_reports_incompatibility_before_payload_deserialization()
+    {
+        _fileSystem.AddFile(SnapshotPath, new MockFileData(
+            """{"projects":"not a project array","formatVersion":-1,"fileIdentifier":"drillpress-compilation"}"""));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components.", exception.Message);
+    }
+
 }

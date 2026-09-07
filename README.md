@@ -56,7 +56,9 @@ The CLI captures and validates a versioned internal bundle response before writi
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle builds; snapshot format 2 binds responses to a unique
-request and preserves individual compilation and document identities.
+request and preserves individual compilation and document identities. Captured child
+stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
+child and fails the check before rendering diagnostics.
 
 Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
 relative file path, then source span. Each rule's remediation appears once. A
