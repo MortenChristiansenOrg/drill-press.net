@@ -1,3 +1,6 @@
+using System.IO.Abstractions;
 using DrillPress.Benchmarks;
 
-return await BenchmarkApplication.RunAsync(args);
+var fileSystem = new FileSystem();
+
+return await new BenchmarkApplication(fileSystem).RunAsync(args);

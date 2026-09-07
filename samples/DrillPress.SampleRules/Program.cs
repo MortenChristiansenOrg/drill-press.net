@@ -1,4 +1,7 @@
+using System.IO.Abstractions;
 using DrillPress.Engine;
 using DrillPress.SampleRules;
 
-return (int)await RuleApplication.RunAsync(SampleRuleSet.Create(), args);
+var fileSystem = new FileSystem();
+
+return (int)await new RuleApplication(fileSystem).RunAsync(SampleRuleSet.Create(), args);

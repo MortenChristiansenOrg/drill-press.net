@@ -1,19 +1,20 @@
 using System.Globalization;
+using System.IO.Abstractions;
 using DrillPress.BundleVerification;
 
 namespace DrillPress.Benchmarks;
 
 public static class LinuxMemoryProbe
 {
-    public static async Task<MemorySample> RunAsync(BenchmarkPlan plan, BundleMode mode, BundleCase scenario)
+    public static async Task<MemorySample> RunAsync(IFileSystem fileSystem, BenchmarkPlan plan, BundleMode mode, BundleCase scenario)
     {
         // A managed parent can inflate ru_maxrss through its pre-exec fork image.
         // GNU time forks from its small native image and reports only that child's
         // high-water mark. Its timing fields are deliberately not requested.
-        var directory = Directory.CreateTempSubdirectory("drillpress-linux-memory-");
+        var directory = fileSystem.Directory.CreateTempSubdirectory("drillpress-linux-memory-");
         try
         {
-            var peakPath = Path.Combine(directory.FullName, "peak-kib");
+            var peakPath = fileSystem.Path.Combine(directory.FullName, "peak-kib");
             string[] target = mode switch
             {
                 BundleMode.Managed => ["dotnet", plan.ManagedBundle, .. scenario.Arguments],
@@ -23,7 +24,7 @@ public static class LinuxMemoryProbe
             var output = await ProcessRunner.RunAsync("/usr/bin/time",
                 ["--quiet", "-f", "%M", "-o", peakPath, "--", .. target], plan.RepositoryRoot);
             BundleContract.Validate(scenario, output);
-            var peakBytes = checked(long.Parse(await File.ReadAllTextAsync(peakPath),
+            var peakBytes = checked(long.Parse(await fileSystem.File.ReadAllTextAsync(peakPath),
                 CultureInfo.InvariantCulture) * 1024);
             if (peakBytes <= 0)
             {

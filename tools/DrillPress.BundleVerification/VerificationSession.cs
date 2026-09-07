@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -5,10 +6,13 @@ namespace DrillPress.BundleVerification;
 
 public sealed class VerificationSession : IDisposable
 {
-    private readonly DirectoryInfo _fixture = Directory.CreateTempSubdirectory("drillpress-native-");
+    private readonly IFileSystem fileSystem;
+    private readonly IDirectoryInfo _fixture;
 
-    private VerificationSession(string root, string output, string rid)
+    private VerificationSession(IFileSystem fileSystem, string root, string output, string rid)
     {
+        this.fileSystem = fileSystem;
+        _fixture = fileSystem.Directory.CreateTempSubdirectory("drillpress-native-");
         RepositoryRoot = root;
         OutputDirectory = output;
         RuntimeIdentifier = rid;
@@ -17,15 +21,15 @@ public sealed class VerificationSession : IDisposable
     public string RepositoryRoot { get; }
     public string OutputDirectory { get; }
     public string RuntimeIdentifier { get; }
-    public string ManagedBundle => Path.Combine(OutputDirectory, "managed", "DrillPress.SampleRules.dll");
-    public string NativeBundle => Path.Combine(OutputDirectory, "native",
+    public string ManagedBundle => fileSystem.Path.Combine(OutputDirectory, "managed", "DrillPress.SampleRules.dll");
+    public string NativeBundle => fileSystem.Path.Combine(OutputDirectory, "native",
         OperatingSystem.IsWindows() ? "DrillPress.SampleRules.exe" : "DrillPress.SampleRules");
     public BundleCase[] Cases { get; private set; } = [];
 
-    public static async Task<VerificationSession> CreateAsync(string? output = null)
+    public static async Task<VerificationSession> CreateAsync(IFileSystem fileSystem, string? output = null)
     {
-        var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DrillPress.slnx")))
+        var directory = fileSystem.DirectoryInfo.New(fileSystem.Directory.GetCurrentDirectory());
+        while (directory is not null && !fileSystem.File.Exists(fileSystem.Path.Combine(directory.FullName, "DrillPress.slnx")))
         {
             directory = directory.Parent;
         }
@@ -38,14 +42,14 @@ public sealed class VerificationSession : IDisposable
         }
 
         var rid = OperatingSystem.IsWindows() ? "win-x64" : "linux-x64";
-        output = Path.GetFullPath(output ?? Path.Combine(root, "artifacts", $"native-{rid}-{Guid.NewGuid():N}"));
-        if (Directory.Exists(output) || File.Exists(output))
+        output = fileSystem.Path.GetFullPath(output ?? fileSystem.Path.Combine(root, "artifacts", $"native-{rid}-{Guid.NewGuid():N}"));
+        if (fileSystem.Directory.Exists(output) || fileSystem.File.Exists(output))
         {
             throw new IOException($"Report destination already exists: {output}");
         }
 
-        Directory.CreateDirectory(output);
-        var session = new VerificationSession(root, output, rid);
+        fileSystem.Directory.CreateDirectory(output);
+        var session = new VerificationSession(fileSystem, root, output, rid);
         try
         {
             await session.PublishAsync();
@@ -77,27 +81,27 @@ public sealed class VerificationSession : IDisposable
         const string sample = "samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj";
         await BuildCommandAsync("build.log", ["build", "DrillPress.slnx", "-c", "Release"]);
         await BuildCommandAsync("managed-publish.log",
-            ["publish", sample, "-c", "Release", "-p:PublishAot=false", "--self-contained", "false", "-o", Path.Combine(OutputDirectory, "managed")]);
+            ["publish", sample, "-c", "Release", "-p:PublishAot=false", "--self-contained", "false", "-o", fileSystem.Path.Combine(OutputDirectory, "managed")]);
         var publication = await BuildCommandAsync("publish.log",
-            ["publish", sample, "-c", "Release", "-r", RuntimeIdentifier, "-o", Path.Combine(OutputDirectory, "native")]);
+            ["publish", sample, "-c", "Release", "-r", RuntimeIdentifier, "-o", fileSystem.Path.Combine(OutputDirectory, "native")]);
         PublishWarnings.Validate(Encoding.UTF8.GetString(publication.StandardOutput) + Encoding.UTF8.GetString(publication.StandardError));
     }
 
     private async Task<ProcessOutput> BuildCommandAsync(string log, string[] arguments)
     {
         var result = await ProcessRunner.RunAsync("dotnet", arguments, RepositoryRoot, timeout: TimeSpan.FromMinutes(10));
-        await File.WriteAllBytesAsync(Path.Combine(OutputDirectory, log), [.. result.StandardOutput, .. result.StandardError]);
+        await fileSystem.File.WriteAllBytesAsync(fileSystem.Path.Combine(OutputDirectory, log), [.. result.StandardOutput, .. result.StandardError]);
         ProcessRunner.RequireSuccess(result);
         return result;
     }
 
-    private string BuildHost => Path.Combine(RepositoryRoot, "src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll");
+    private string BuildHost => fileSystem.Path.Combine(RepositoryRoot, "src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll");
 
     private async Task CreateCasesAsync()
     {
-        var project = Path.Combine(_fixture.FullName, "Probe.csproj");
-        var source = Path.Combine(_fixture.FullName, "Probe.cs");
-        await File.WriteAllTextAsync(project,
+        var project = fileSystem.Path.Combine(_fixture.FullName, "Probe.csproj");
+        var source = fileSystem.Path.Combine(_fixture.FullName, "Probe.cs");
+        await fileSystem.File.WriteAllTextAsync(project,
             """
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
@@ -110,24 +114,24 @@ public sealed class VerificationSession : IDisposable
         foreach (var (name, expression, outcome) in new[]
                  { ("clean", "\"\"", BundleOutcome.Clean), ("violating", "Text.Empty", BundleOutcome.Findings) })
         {
-            await File.WriteAllTextAsync(source, $$"""
+            await fileSystem.File.WriteAllTextAsync(source, $$"""
                 using Text = System.String;
                 public static class Probe
                 {
                     public static string Value => {{expression}};
                 }
                 """);
-            var snapshot = Path.Combine(_fixture.FullName, $"{name}.json");
+            var snapshot = fileSystem.Path.Combine(_fixture.FullName, $"{name}.json");
             ProcessRunner.RequireSuccess(await ProcessRunner.RunAsync("dotnet", [BuildHost, "export", project, snapshot], RepositoryRoot));
             var stdout = outcome == BundleOutcome.Clean ? [] : Encoding.UTF8.GetBytes(
                 string.Join(Environment.NewLine,
                     "DP1004 Use the empty string literal \"\" instead of string.Empty.",
-                    Path.GetRelativePath(RepositoryRoot, source).Replace('\\', '/'), "  4:35", ""));
+                    fileSystem.Path.GetRelativePath(RepositoryRoot, source).Replace('\\', '/'), "  4:35", ""));
             cases.Add(new BundleCase(name, ["check", snapshot], outcome, stdout, []));
         }
 
-        var invalid = Path.Combine(_fixture.FullName, "invalid.json");
-        await File.WriteAllTextAsync(invalid,
+        var invalid = fileSystem.Path.Combine(_fixture.FullName, "invalid.json");
+        await fileSystem.File.WriteAllTextAsync(invalid,
             """{"fileIdentifier":"drillpress-compilation","formatVersion":-1,"projects":[]}""");
         cases.Add(new BundleCase("invalid", ["check", invalid], BundleOutcome.Failure, [], Encoding.UTF8.GetBytes(
             "drillpress-rules: Compilation snapshot format -1 is not supported; expected 1." + Environment.NewLine)));
@@ -141,17 +145,17 @@ public sealed class VerificationSession : IDisposable
             foreach (var mode in Enum.GetValues<BundleMode>())
             {
                 var result = await ExecuteAsync(mode, @case);
-                var prefix = Path.Combine(OutputDirectory, $"{@case.Name}.{mode}");
-                await File.WriteAllBytesAsync(prefix + ".stdout", result.StandardOutput);
-                await File.WriteAllBytesAsync(prefix + ".stderr", result.StandardError);
+                var prefix = fileSystem.Path.Combine(OutputDirectory, $"{@case.Name}.{mode}");
+                await fileSystem.File.WriteAllBytesAsync(prefix + ".stdout", result.StandardOutput);
+                await fileSystem.File.WriteAllBytesAsync(prefix + ".stderr", result.StandardError);
             }
 
             Console.WriteLine($"{@case.Name}: managed/native bytes and exit code {(int)@case.Outcome} match");
         }
 
-        var cli = Path.Combine(RepositoryRoot, "src/DrillPress.Cli/bin/Release/net10.0/DrillPress.Cli.dll");
+        var cli = fileSystem.Path.Combine(RepositoryRoot, "src/DrillPress.Cli/bin/Release/net10.0/DrillPress.Cli.dll");
         var resultCli = await ProcessRunner.RunAsync("dotnet",
-            [cli, "check", "--build-host", BuildHost, "--rules", NativeBundle, Path.Combine(_fixture.FullName, "Probe.csproj")], RepositoryRoot);
+            [cli, "check", "--build-host", BuildHost, "--rules", NativeBundle, fileSystem.Path.Combine(_fixture.FullName, "Probe.csproj")], RepositoryRoot);
         BundleContract.Validate(Cases.Single(@case => @case.Name == "violating"), resultCli);
         Console.WriteLine("CLI/native: complete BuildHost-to-native path matches");
     }

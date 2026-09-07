@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using BenchmarkDotNet.Attributes;
 using DrillPress.BundleVerification;
 
@@ -18,7 +19,7 @@ public class BundleBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        plan = new BenchmarkPlanFile().Read(
+        plan = new BenchmarkPlanFile(new FileSystem()).Read(
             Environment.GetEnvironmentVariable(PlanEnvironmentVariable)
             ?? throw new InvalidOperationException("A verified benchmark plan is required."));
         scenario = plan.Cases.Single(item => item.Name == Case);

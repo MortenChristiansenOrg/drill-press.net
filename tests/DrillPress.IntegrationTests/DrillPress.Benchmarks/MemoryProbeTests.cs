@@ -16,8 +16,8 @@ public sealed class MemoryProbeTests : IntegrationTest
             Enumerable.Repeat((byte)255, 200_000).ToArray(), new byte[200_000]);
         var plan = new BenchmarkPlan(RepositoryRoot, GetOutputPath("DrillPress.TestProcess", "tests"),
             "", [scenario]);
-        var planPath = Path.Combine(directory.FullName, "plan.json");
-        await File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan), TestContext.Current.CancellationToken);
+        var planPath = FileSystem.Path.Combine(directory.FullName, "plan.json");
+        await FileSystem.File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan), TestContext.Current.CancellationToken);
 
         var output = await ProcessRunner.RunAsync("dotnet",
             [GetOutputPath("DrillPress.Benchmarks", "tools"), "--memory-worker", planPath, "Managed", "bytes"],

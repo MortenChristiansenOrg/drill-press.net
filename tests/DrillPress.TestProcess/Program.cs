@@ -1,3 +1,7 @@
+using System.IO.Abstractions;
+
+var fileSystem = new FileSystem();
+
 if (args is ["bytes"])
 {
     await Console.OpenStandardOutput().WriteAsync(Enumerable.Repeat((byte)255, 200_000).ToArray());
@@ -10,8 +14,8 @@ if (args is not ["export", var readyPath, var snapshotPath])
     return 2;
 }
 
-await File.WriteAllTextAsync(readyPath + ".snapshot", snapshotPath);
-await File.WriteAllTextAsync(readyPath + ".pending", Environment.ProcessId.ToString());
-File.Move(readyPath + ".pending", readyPath);
+await fileSystem.File.WriteAllTextAsync(readyPath + ".snapshot", snapshotPath);
+await fileSystem.File.WriteAllTextAsync(readyPath + ".pending", Environment.ProcessId.ToString());
+fileSystem.File.Move(readyPath + ".pending", readyPath);
 await Task.Delay(Timeout.InfiniteTimeSpan);
 return 0;

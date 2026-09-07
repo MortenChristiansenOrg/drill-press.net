@@ -5,10 +5,6 @@ namespace DrillPress.Benchmarks;
 
 public sealed class BenchmarkPlanFile(IFileSystem fileSystem)
 {
-    public BenchmarkPlanFile() : this(new FileSystem())
-    {
-    }
-
     public BenchmarkPlan Read(string path) =>
         JsonSerializer.Deserialize<BenchmarkPlan>(fileSystem.File.ReadAllText(path))
         ?? throw new InvalidOperationException("The benchmark plan is empty.");

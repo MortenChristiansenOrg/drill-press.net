@@ -22,7 +22,7 @@ public sealed class BundleProcessTests : IntegrationTest
     public async Task Cancellation_stops_the_child_before_returning()
     {
         var directory = CreateTemporaryDirectory("drillpress-verification-cancel-");
-        var ready = Path.Combine(directory.FullName, "ready");
+        var ready = FileSystem.Path.Combine(directory.FullName, "ready");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var run = ProcessRunner.RunAsync("dotnet",
             [GetOutputPath("DrillPress.TestProcess", "tests"), "export", ready, "snapshot"], RepositoryRoot, cancellation.Token);

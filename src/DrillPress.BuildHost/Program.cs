@@ -1,3 +1,6 @@
+using System.IO.Abstractions;
 using DrillPress.BuildHost;
 
-return (int)await BuildHostApplication.RunAsync(args);
+var fileSystem = new FileSystem();
+
+return (int)await new BuildHostApplication(fileSystem, new MsBuildSnapshotLoader(fileSystem)).RunAsync(args);

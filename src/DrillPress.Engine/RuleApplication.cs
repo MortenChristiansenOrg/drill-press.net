@@ -1,15 +1,17 @@
+using System.IO.Abstractions;
 using DrillPress.Manifest;
 
 namespace DrillPress.Engine;
 
 /// <summary>Hosts a compiled rule set behind the executable rule-bundle contract.</summary>
-public static class RuleApplication
+/// <param name="fileSystem">Supplies snapshots, metadata assemblies, and diagnostic path context.</param>
+public sealed class RuleApplication(IFileSystem fileSystem)
 {
     /// <summary>
     /// Executes the rule-bundle command, writes compact diagnostics, and returns the
     /// clean, findings, or failure exit code understood by the coordinator.
     /// </summary>
-    public static async Task<RuleExitCode> RunAsync(
+    public async Task<RuleExitCode> RunAsync(
         RuleSet rules,
         string[] args,
         TextWriter? standardOutput = null,
@@ -26,8 +28,10 @@ public static class RuleApplication
 
         try
         {
-            var snapshot = await CompilationSnapshot.ReadAsync(snapshotPath, cancellationToken);
-            return await RunAsync(rules, snapshot, standardOutput, cancellationToken);
+            var snapshot = await new CompilationSnapshotFile(fileSystem).ReadAsync(snapshotPath, cancellationToken);
+            var diagnostics = await new AnalysisEngine(fileSystem).AnalyzeAsync(rules, snapshot, cancellationToken);
+            WriteDiagnostics(diagnostics, standardOutput);
+            return diagnostics.Count == 0 ? RuleExitCode.Clean : RuleExitCode.Findings;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -36,23 +40,7 @@ public static class RuleApplication
         }
     }
 
-    /// <summary>
-    /// Evaluates a previously loaded snapshot and writes its compact diagnostics without
-    /// accessing the file system.
-    /// </summary>
-    public static async Task<RuleExitCode> RunAsync(
-        RuleSet rules,
-        CompilationSnapshot snapshot,
-        TextWriter? standardOutput = null,
-        CancellationToken cancellationToken = default)
-    {
-        standardOutput ??= Console.Out;
-        var diagnostics = await AnalysisEngine.AnalyzeAsync(rules, snapshot, cancellationToken);
-        WriteDiagnostics(diagnostics, standardOutput);
-        return diagnostics.Count == 0 ? RuleExitCode.Clean : RuleExitCode.Findings;
-    }
-
-    private static void WriteDiagnostics(
+    private void WriteDiagnostics(
         IReadOnlyList<RuleDiagnostic> diagnostics,
         TextWriter standardOutput)
     {
@@ -74,9 +62,9 @@ public static class RuleApplication
         }
     }
 
-    private static string DisplayPath(string path)
+    private string DisplayPath(string path)
     {
-        var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), path);
-        return relativePath.Replace(Path.DirectorySeparatorChar, '/');
+        var relativePath = fileSystem.Path.GetRelativePath(fileSystem.Directory.GetCurrentDirectory(), path);
+        return relativePath.Replace(fileSystem.Path.DirectorySeparatorChar, '/');
     }
 }

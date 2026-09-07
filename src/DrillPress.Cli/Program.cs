@@ -1,3 +1,6 @@
+using System.IO.Abstractions;
 using DrillPress.Cli;
 
-return (int)await CliApplication.RunAsync(args);
+var fileSystem = new FileSystem();
+
+return (int)await new CliApplication(fileSystem, new ChildProcessRunner()).RunAsync(args);

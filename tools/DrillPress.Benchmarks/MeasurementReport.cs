@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -8,9 +9,9 @@ namespace DrillPress.Benchmarks;
 
 public static class MeasurementReport
 {
-    public static async Task WriteAsync(VerificationSession session, MemorySample[] memory)
+    public static async Task WriteAsync(IFileSystem fileSystem, VerificationSession session, MemorySample[] memory)
     {
-        var artifacts = new ArtifactMeasurements();
+        var artifacts = new ArtifactMeasurements(fileSystem);
         var report = new
         {
             TimestampUtc = DateTimeOffset.UtcNow,
@@ -30,12 +31,12 @@ public static class MeasurementReport
             Size = "Dedicated publish directories excluding pdb/dbg/xml; external runtimes/system libraries excluded.",
             Artifacts = new[]
             {
-                artifacts.Read(BundleMode.Managed, Path.Combine(session.OutputDirectory, "managed")),
-                artifacts.Read(BundleMode.Native, Path.Combine(session.OutputDirectory, "native")),
+                artifacts.Read(BundleMode.Managed, fileSystem.Path.Combine(session.OutputDirectory, "managed")),
+                artifacts.Read(BundleMode.Native, fileSystem.Path.Combine(session.OutputDirectory, "native")),
             },
             MemorySamples = memory,
         };
-        await File.WriteAllTextAsync(Path.Combine(session.OutputDirectory, "report.json"),
+        await fileSystem.File.WriteAllTextAsync(fileSystem.Path.Combine(session.OutputDirectory, "report.json"),
             JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
     }
 

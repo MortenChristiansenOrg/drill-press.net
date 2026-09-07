@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using System.Text.Json;
 using DrillPress.BundleVerification;
 
@@ -5,13 +6,13 @@ namespace DrillPress.Benchmarks;
 
 public static class MemoryProbe
 {
-    public static async Task<MemorySample> RunWorkerAsync(string planPath, BundleMode mode, string caseName)
+    public static async Task<MemorySample> RunWorkerAsync(IFileSystem fileSystem, string planPath, BundleMode mode, string caseName)
     {
-        var plan = new BenchmarkPlanFile().Read(planPath);
+        var plan = new BenchmarkPlanFile(fileSystem).Read(planPath);
         var scenario = plan.Cases.Single(item => item.Name == caseName);
         if (OperatingSystem.IsLinux())
         {
-            return await LinuxMemoryProbe.RunAsync(plan, mode, scenario);
+            return await LinuxMemoryProbe.RunAsync(fileSystem, plan, mode, scenario);
         }
 
         long peakMemory = 0;

@@ -8,7 +8,7 @@ public sealed class ProcessCancellationTests : IntegrationTest
     public async Task Test_runner_cancellation_stops_the_child()
     {
         var directory = CreateTemporaryDirectory("drillpress-runner-cancellation-");
-        var readyPath = Path.Combine(directory.FullName, "ready");
+        var readyPath = FileSystem.Path.Combine(directory.FullName, "ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
@@ -25,8 +25,8 @@ public sealed class ProcessCancellationTests : IntegrationTest
     public async Task Readiness_timeout_cancels_and_awaits_the_launch_before_returning()
     {
         var directory = CreateTemporaryDirectory("drillpress-readiness-timeout-");
-        var readyPath = Path.Combine(directory.FullName, "ready");
-        var missingReadyPath = Path.Combine(directory.FullName, "never-ready");
+        var readyPath = FileSystem.Path.Combine(directory.FullName, "ready");
+        var missingReadyPath = FileSystem.Path.Combine(directory.FullName, "never-ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var run = RunProcessAsync(
@@ -44,7 +44,7 @@ public sealed class ProcessCancellationTests : IntegrationTest
     public async Task Readiness_wait_reports_a_process_that_exits_before_becoming_ready()
     {
         var directory = CreateTemporaryDirectory("drillpress-readiness-exit-");
-        var readyPath = Path.Combine(directory.FullName, "never-ready");
+        var readyPath = FileSystem.Path.Combine(directory.FullName, "never-ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var run = RunProcessAsync("dotnet", [testProcess], RepositoryRoot, cancellation.Token);

@@ -1,12 +1,39 @@
-using System.Text;
+using System.IO.Abstractions.TestingHelpers;
 using DrillPress.Manifest;
 using DrillPress.UnitTests.TestInfrastructure;
 using Xunit;
 
 namespace DrillPress.UnitTests.Manifest;
 
-public sealed class CompilationSnapshotTests
+public sealed class CompilationSnapshotFileTests
 {
+    private readonly MockFileSystem _fileSystem = new();
+    private const string SnapshotPath = "snapshot.json";
+
+    [Fact]
+    public async Task Writes_the_complete_envelope_using_the_injected_filesystem()
+    {
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        var snapshot = CompilationSnapshot.Create();
+
+        await storage.WriteAsync(SnapshotPath, snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":[]}""",
+            _fileSystem.File.ReadAllText(SnapshotPath));
+    }
+
+    [Fact]
+    public async Task Null_json_reports_the_requested_snapshot_path()
+    {
+        _fileSystem.AddFile(SnapshotPath, new MockFileData("null"));
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Compilation snapshot 'snapshot.json' is empty.", error.Message);
+    }
+
     [Fact]
     public async Task Round_trips_the_current_snapshot_format_in_memory()
     {
@@ -17,11 +44,10 @@ public sealed class CompilationSnapshotTests
             ProjectReferences = [new MetadataImageSnapshot([1, 2, 3], ["Dependency"], false)],
         };
         var expected = CompilationSnapshot.Create(expectedProject);
-        await using var stream = new MemoryStream();
-        await expected.WriteAsync(stream, cancellationToken);
-        stream.Position = 0;
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        await storage.WriteAsync(SnapshotPath, expected, cancellationToken);
 
-        var snapshot = await CompilationSnapshot.ReadAsync(stream, cancellationToken);
+        var snapshot = await storage.ReadAsync(SnapshotPath, cancellationToken);
 
         Assert.Equal(CompilationSnapshot.ExpectedFileIdentifier, snapshot.FileIdentifier);
         Assert.Equal(CompilationSnapshot.CurrentFormatVersion, snapshot.FormatVersion);
@@ -46,10 +72,10 @@ public sealed class CompilationSnapshotTests
     [InlineData("""{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":null}""")]
     public async Task Read_rejects_missing_or_null_projects(string json)
     {
-        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        _fileSystem.AddFile(SnapshotPath, new MockFileData(json));
 
         var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            CompilationSnapshot.ReadAsync(stream, TestContext.Current.CancellationToken));
+            new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
 
         Assert.Equal("Compilation snapshot must contain a projects array.", exception.Message);
     }
@@ -58,25 +84,26 @@ public sealed class CompilationSnapshotTests
     public async Task Write_rejects_an_unknown_file_identifier_in_memory()
     {
         var snapshot = new CompilationSnapshot("unknown", 1, []);
-        await using var stream = new MemoryStream();
+        _fileSystem.AddFile(SnapshotPath, new MockFileData("untouched"));
 
         var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            snapshot.WriteAsync(stream, TestContext.Current.CancellationToken));
+            new CompilationSnapshotFile(_fileSystem).WriteAsync(SnapshotPath, snapshot, TestContext.Current.CancellationToken));
 
-        Assert.Contains("not a Drill Press", exception.Message);
+        Assert.Equal("The input is not a Drill Press compilation snapshot.", exception.Message);
+        Assert.Equal("untouched", _fileSystem.File.ReadAllText(SnapshotPath));
     }
 
     [Fact]
     public async Task Read_rejects_an_unsupported_format_version_in_memory()
     {
-        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(
+        _fileSystem.AddFile(SnapshotPath, new MockFileData(
             """
             {"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[]}
             """));
 
         var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
-            CompilationSnapshot.ReadAsync(stream, TestContext.Current.CancellationToken));
+            new CompilationSnapshotFile(_fileSystem).ReadAsync(SnapshotPath, TestContext.Current.CancellationToken));
 
-        Assert.Contains("format 2 is not supported", exception.Message);
+        Assert.Equal("Compilation snapshot format 2 is not supported; expected 1.", exception.Message);
     }
 }

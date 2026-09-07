@@ -95,12 +95,19 @@ raw project inputs.
   exact finding counts are not release contracts.
 - Windows and Linux are supported and run the managed and NativeAOT integration
   paths.
-- Test application-owned file and directory policies through an injected
-  `System.IO.Abstractions.IFileSystem`, using an in-memory filesystem for unit
-  tests. Prefer existing stream-based APIs when they already isolate the logic.
+- All active file and directory access uses an injected
+  `System.IO.Abstractions.IFileSystem`, constructed at process entry points.
+  Snapshot persistence has one path-based API; analysis takes the loaded
+  snapshot and reads metadata assemblies through that same filesystem.
+  Unit tests use in-memory files, including snapshot serialization and command
+  file handling. Streams remain for compiler images and process pipes, not as
+  parallel persistence APIs introduced just for tests.
 - Keep real filesystem and process integration checks for project loading,
   external tools, cancellation, platform behavior and performance measurements.
-  An in-memory filesystem is not a substitute for those boundaries.
+  External consumers cannot see an in-memory filesystem: fake the project
+  loader/process runner alongside it for policy tests. The filesystem boundary
+  conventions in AGENTS.md apply throughout the active solution; the separate
+  historical AOT POC is unchanged.
 
 ## Repository layout
 

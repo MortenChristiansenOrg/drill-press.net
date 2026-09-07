@@ -9,6 +9,7 @@
     <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2091;IL3000</WarningsNotAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <ProjectReference Include="../../src/DrillPress.Engine/DrillPress.Engine.csproj" />
   </ItemGroup>

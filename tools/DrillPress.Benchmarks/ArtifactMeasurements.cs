@@ -5,10 +5,6 @@ namespace DrillPress.Benchmarks;
 
 public sealed class ArtifactMeasurements(IFileSystem fileSystem)
 {
-    public ArtifactMeasurements() : this(new FileSystem())
-    {
-    }
-
     public ArtifactInventory Read(BundleMode mode, string directory)
     {
         var files = fileSystem.Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
