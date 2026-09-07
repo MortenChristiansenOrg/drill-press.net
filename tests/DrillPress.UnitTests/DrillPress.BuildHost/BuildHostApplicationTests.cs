@@ -25,7 +25,7 @@ public sealed class BuildHostApplicationTests
     {
         var error = new StringWriter();
 
-        var exitCode = await new BuildHostApplication(new MockFileSystem(), new StubSnapshotLoader()).RunAsync(
+        var exitCode = await new BuildHostApplication(_fileSystem, new StubSnapshotLoader(_fileSystem)).RunAsync(
             ["export"],
             error,
             TestContext.Current.CancellationToken);
@@ -40,7 +40,7 @@ public sealed class BuildHostApplicationTests
     public async Task Export_creates_parent_directories_and_persists_the_loaded_snapshot()
     {
         _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
-        var loader = new StubSnapshotLoader();
+        var loader = new StubSnapshotLoader(_fileSystem);
         var application = new BuildHostApplication(_fileSystem, loader);
 
         await application.ExportAsync("Target.csproj", "nested/output/snapshot.json", TestContext.Current.CancellationToken);
@@ -57,7 +57,7 @@ public sealed class BuildHostApplicationTests
     public async Task Invalid_project_paths_do_not_invoke_the_external_loader(string path)
     {
         _fileSystem.AddFile("Target.txt", new MockFileData("<Project />"));
-        var loader = new StubSnapshotLoader();
+        var loader = new StubSnapshotLoader(_fileSystem);
         var application = new BuildHostApplication(_fileSystem, loader);
 
         var error = await Assert.ThrowsAsync<FileNotFoundException>(() =>
@@ -74,7 +74,7 @@ public sealed class BuildHostApplicationTests
     {
         _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
         _fileSystem.AddFile("snapshot.json", new MockFileData("untouched"));
-        var loader = new StubSnapshotLoader { Failure = new InvalidOperationException("SDK failed.") };
+        var loader = new StubSnapshotLoader(_fileSystem) { Failure = new InvalidOperationException("SDK failed.") };
         var application = new BuildHostApplication(_fileSystem, loader);
         var error = new StringWriter();
 

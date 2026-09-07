@@ -1,15 +1,16 @@
+using System.IO.Abstractions;
 using DrillPress.BuildHost;
 using DrillPress.Manifest;
 
 namespace DrillPress.UnitTests.TestInfrastructure;
 
-internal sealed class StubSnapshotLoader : ICompilationSnapshotLoader
+internal sealed class StubSnapshotLoader(IFileSystem fileSystem) : MsBuildSnapshotLoader(fileSystem)
 {
     public CompilationSnapshot Snapshot { get; init; } = CompilationSnapshot.Create();
     public Exception? Failure { get; init; }
     public string? ProjectPath { get; private set; }
 
-    public Task<CompilationSnapshot> LoadAsync(string projectPath, CancellationToken cancellationToken)
+    public override Task<CompilationSnapshot> LoadAsync(string projectPath, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ProjectPath = projectPath;

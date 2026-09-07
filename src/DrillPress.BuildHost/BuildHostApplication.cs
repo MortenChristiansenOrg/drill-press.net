@@ -8,8 +8,8 @@ namespace DrillPress.BuildHost;
 /// </summary>
 public sealed class BuildHostApplication
 {
-    private readonly IFileSystem fileSystem;
-    private readonly ICompilationSnapshotLoader snapshotLoader;
+    private readonly IFileSystem _fileSystem;
+    private readonly MsBuildSnapshotLoader _snapshotLoader;
 
     /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
     public BuildHostApplication() : this(new FileSystem())
@@ -20,10 +20,10 @@ public sealed class BuildHostApplication
     {
     }
 
-    internal BuildHostApplication(IFileSystem fileSystem, ICompilationSnapshotLoader snapshotLoader)
+    internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader)
     {
-        this.fileSystem = fileSystem;
-        this.snapshotLoader = snapshotLoader;
+        _fileSystem = fileSystem;
+        _snapshotLoader = snapshotLoader;
     }
 
     /// <summary>Executes the BuildHost command-line contract.</summary>
@@ -64,16 +64,16 @@ public sealed class BuildHostApplication
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         var fullProjectPath = ResolveProjectPath(projectPath);
-        var snapshot = await snapshotLoader.LoadAsync(fullProjectPath, cancellationToken);
+        var snapshot = await _snapshotLoader.LoadAsync(fullProjectPath, cancellationToken);
 
         await WriteSnapshotAsync(snapshot, outputPath, cancellationToken);
     }
 
     private string ResolveProjectPath(string projectPath)
     {
-        var fullProjectPath = fileSystem.Path.GetFullPath(projectPath);
-        if (!fileSystem.File.Exists(fullProjectPath) ||
-            !StringComparer.OrdinalIgnoreCase.Equals(fileSystem.Path.GetExtension(fullProjectPath), ".csproj"))
+        var fullProjectPath = _fileSystem.Path.GetFullPath(projectPath);
+        if (!_fileSystem.File.Exists(fullProjectPath) ||
+            !StringComparer.OrdinalIgnoreCase.Equals(_fileSystem.Path.GetExtension(fullProjectPath), ".csproj"))
         {
             throw new FileNotFoundException($"C# project '{projectPath}' was not found.", fullProjectPath);
         }
@@ -86,10 +86,10 @@ public sealed class BuildHostApplication
         string outputPath,
         CancellationToken cancellationToken)
     {
-        var fullOutputPath = fileSystem.Path.GetFullPath(outputPath);
-        fileSystem.Directory.CreateDirectory(
-            fileSystem.Path.GetDirectoryName(fullOutputPath)
+        var fullOutputPath = _fileSystem.Path.GetFullPath(outputPath);
+        _fileSystem.Directory.CreateDirectory(
+            _fileSystem.Path.GetDirectoryName(fullOutputPath)
             ?? throw new InvalidOperationException("The snapshot output path has no directory."));
-        await new CompilationSnapshotFile(fileSystem).WriteAsync(fullOutputPath, snapshot, cancellationToken);
+        await new CompilationSnapshotFile(_fileSystem).WriteAsync(fullOutputPath, snapshot, cancellationToken);
     }
 }

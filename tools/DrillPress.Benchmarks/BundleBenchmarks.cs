@@ -7,8 +7,8 @@ namespace DrillPress.Benchmarks;
 public class BundleBenchmarks
 {
     public const string PlanEnvironmentVariable = "DRILLPRESS_BENCHMARK_PLAN";
-    private BenchmarkPlan plan = null!;
-    private BundleCase scenario = null!;
+    private BenchmarkPlan _plan = null!;
+    private BundleCase _scenario = null!;
 
     [Params(BundleMode.Managed, BundleMode.Native)]
     public BundleMode Mode { get; set; }
@@ -19,12 +19,12 @@ public class BundleBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        plan = new BenchmarkPlanFile(new FileSystem()).Read(
+        _plan = new BenchmarkPlanFile(new FileSystem()).Read(
             Environment.GetEnvironmentVariable(PlanEnvironmentVariable)
             ?? throw new InvalidOperationException("A verified benchmark plan is required."));
-        scenario = plan.Cases.Single(item => item.Name == Case);
+        _scenario = _plan.Cases.Single(item => item.Name == Case);
     }
 
     [Benchmark]
-    public Task<ProcessOutput> Execute() => BenchmarkExecution.RunAsync(plan, Mode, scenario);
+    public Task<ProcessOutput> Execute() => BenchmarkExecution.RunAsync(_plan, Mode, _scenario);
 }

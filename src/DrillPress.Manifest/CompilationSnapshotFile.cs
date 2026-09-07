@@ -6,7 +6,7 @@ namespace DrillPress.Manifest;
 /// <summary>Persists the internal snapshot contract through the internal filesystem boundary.</summary>
 public sealed class CompilationSnapshotFile
 {
-    private readonly IFileSystem fileSystem;
+    private readonly IFileSystem _fileSystem;
 
     /// <summary>Creates snapshot storage on the local filesystem.</summary>
     public CompilationSnapshotFile() : this(new FileSystem())
@@ -15,14 +15,14 @@ public sealed class CompilationSnapshotFile
 
     internal CompilationSnapshotFile(IFileSystem fileSystem)
     {
-        this.fileSystem = fileSystem;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>Reads and validates the versioned envelope before exposing compiler inputs.</summary>
     public async Task<CompilationSnapshot> ReadAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        await using var stream = fileSystem.File.OpenRead(path);
+        await using var stream = _fileSystem.File.OpenRead(path);
         var snapshot = await JsonSerializer.DeserializeAsync(
             stream, CompilationSnapshotJsonContext.Default.CompilationSnapshot, cancellationToken)
             ?? throw new InvalidDataException($"Compilation snapshot '{path}' is empty.");
@@ -36,7 +36,7 @@ public sealed class CompilationSnapshotFile
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Validate(snapshot);
-        await using var stream = fileSystem.File.Create(path);
+        await using var stream = _fileSystem.File.Create(path);
         await JsonSerializer.SerializeAsync(
             stream, snapshot, CompilationSnapshotJsonContext.Default.CompilationSnapshot, cancellationToken);
     }

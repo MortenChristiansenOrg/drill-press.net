@@ -3,10 +3,10 @@ using System.Diagnostics;
 namespace DrillPress.Cli;
 
 /// <summary>Runs external tools with inherited console streams and stops their process tree on cancellation.</summary>
-public sealed class ChildProcessRunner : IChildProcessRunner
+public class ChildProcessRunner
 {
-    /// <inheritdoc />
-    public async Task<int> RunAsync(
+    /// <summary>Executes a managed DLL or native program and waits until it stops, including on cancellation.</summary>
+    public virtual async Task<int> RunAsync(
         string executable,
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken)

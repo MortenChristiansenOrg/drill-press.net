@@ -8,18 +8,18 @@ namespace DrillPress.Cli;
 /// </summary>
 public sealed class CliApplication
 {
-    private readonly IFileSystem fileSystem;
-    private readonly IChildProcessRunner processRunner;
+    private readonly IFileSystem _fileSystem;
+    private readonly ChildProcessRunner _processRunner;
 
     /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
     public CliApplication() : this(new FileSystem(), new ChildProcessRunner())
     {
     }
 
-    internal CliApplication(IFileSystem fileSystem, IChildProcessRunner processRunner)
+    internal CliApplication(IFileSystem fileSystem, ChildProcessRunner processRunner)
     {
-        this.fileSystem = fileSystem;
-        this.processRunner = processRunner;
+        _fileSystem = fileSystem;
+        _processRunner = processRunner;
     }
 
     /// <summary>
@@ -40,11 +40,11 @@ public sealed class CliApplication
 
         try
         {
-            var temporaryDirectory = fileSystem.Directory.CreateTempSubdirectory("drillpress-");
+            var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
-                var snapshotPath = fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
-                var buildHostExitCode = await processRunner.RunAsync(
+                var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
+                var buildHostExitCode = await _processRunner.RunAsync(
                     options.BuildHost,
                     ["export", options.Target, snapshotPath],
                     cancellationToken);
@@ -53,7 +53,7 @@ public sealed class CliApplication
                     return CliExitCode.Failure;
                 }
 
-                var ruleExitCode = await processRunner.RunAsync(
+                var ruleExitCode = await _processRunner.RunAsync(
                     options.Rules,
                     ["check", snapshotPath],
                     cancellationToken);

@@ -6,7 +6,7 @@ namespace DrillPress.Engine;
 /// <summary>Hosts a compiled rule set behind the executable rule-bundle contract.</summary>
 public sealed class RuleApplication
 {
-    private readonly IFileSystem fileSystem;
+    private readonly IFileSystem _fileSystem;
 
     /// <summary>Creates a rule-bundle host for local compilation snapshots.</summary>
     public RuleApplication() : this(new FileSystem())
@@ -15,7 +15,7 @@ public sealed class RuleApplication
 
     internal RuleApplication(IFileSystem fileSystem)
     {
-        this.fileSystem = fileSystem;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>
@@ -39,8 +39,8 @@ public sealed class RuleApplication
 
         try
         {
-            var snapshot = await new CompilationSnapshotFile(fileSystem).ReadAsync(snapshotPath, cancellationToken);
-            var diagnostics = await new AnalysisEngine(fileSystem).AnalyzeAsync(rules, snapshot, cancellationToken);
+            var snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
+            var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(rules, snapshot, cancellationToken);
             WriteDiagnostics(diagnostics, standardOutput);
             return diagnostics.Count == 0 ? RuleExitCode.Clean : RuleExitCode.Findings;
         }
@@ -75,7 +75,7 @@ public sealed class RuleApplication
 
     private string DisplayPath(string path)
     {
-        var relativePath = fileSystem.Path.GetRelativePath(fileSystem.Directory.GetCurrentDirectory(), path);
-        return relativePath.Replace(fileSystem.Path.DirectorySeparatorChar, '/');
+        var relativePath = _fileSystem.Path.GetRelativePath(_fileSystem.Directory.GetCurrentDirectory(), path);
+        return relativePath.Replace(_fileSystem.Path.DirectorySeparatorChar, '/');
     }
 }

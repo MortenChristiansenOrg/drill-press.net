@@ -10,9 +10,9 @@ using Microsoft.CodeAnalysis.MSBuild;
 namespace DrillPress.BuildHost;
 
 /// <summary>Loads compiler inputs through the installed SDK; projects must exist on the OS filesystem.</summary>
-public sealed class MsBuildSnapshotLoader : ICompilationSnapshotLoader
+public class MsBuildSnapshotLoader
 {
-    private readonly IFileSystem fileSystem;
+    private readonly IFileSystem _fileSystem;
 
     /// <summary>Creates an SDK loader for local C# projects.</summary>
     public MsBuildSnapshotLoader() : this(new FileSystem())
@@ -21,11 +21,11 @@ public sealed class MsBuildSnapshotLoader : ICompilationSnapshotLoader
 
     internal MsBuildSnapshotLoader(IFileSystem fileSystem)
     {
-        this.fileSystem = fileSystem;
+        _fileSystem = fileSystem;
     }
 
-    /// <inheritdoc />
-    public async Task<CompilationSnapshot> LoadAsync(
+    /// <summary>Exports effective compiler inputs from an absolute C# project path through the installed SDK.</summary>
+    public virtual async Task<CompilationSnapshot> LoadAsync(
         string projectPath,
         CancellationToken cancellationToken)
     {
@@ -108,14 +108,14 @@ public sealed class MsBuildSnapshotLoader : ICompilationSnapshotLoader
         var ordinaryDocumentPaths = project.Documents
             .Select(document => document.FilePath)
             .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(path => fileSystem.Path.GetFullPath(path!))
+            .Select(path => _fileSystem.Path.GetFullPath(path!))
             .ToHashSet(PathComparer);
         var documents = compilation.SyntaxTrees
             .Select((tree, index) =>
             {
                 var path = string.IsNullOrWhiteSpace(tree.FilePath)
                     ? $"drillpress-generated://{project.Name}/{index:D6}.g.cs"
-                    : fileSystem.Path.GetFullPath(tree.FilePath);
+                    : _fileSystem.Path.GetFullPath(tree.FilePath);
                 return new DocumentSnapshot(
                     path,
                     tree.GetText(cancellationToken).ToString(),
@@ -132,8 +132,8 @@ public sealed class MsBuildSnapshotLoader : ICompilationSnapshotLoader
         return compilation.References
             .OfType<PortableExecutableReference>()
             .Select(reference => reference.FilePath)
-            .Where(path => !string.IsNullOrWhiteSpace(path) && fileSystem.File.Exists(path))
-            .Select(path => fileSystem.Path.GetFullPath(path!))
+            .Where(path => !string.IsNullOrWhiteSpace(path) && _fileSystem.File.Exists(path))
+            .Select(path => _fileSystem.Path.GetFullPath(path!))
             .Distinct(PathComparer)
             .OrderBy(path => path)
             .ToArray();

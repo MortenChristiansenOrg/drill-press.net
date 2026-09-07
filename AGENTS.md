@@ -30,6 +30,10 @@ might require opt-in flags for more detailed information, etc.
   appear in the act group.
 - Assert complete output values, using raw string literals for multiline text.
 - Keep package versions centralized and current.
+- Prefix non-constant fields with `_`.
+- Do not create interfaces with only a single non-test implementation. Instead
+  of using interfaces to support test doubles, create fake implementations by
+  subclassing production classes and override virtual members.
 
 # Filesystem boundaries
 

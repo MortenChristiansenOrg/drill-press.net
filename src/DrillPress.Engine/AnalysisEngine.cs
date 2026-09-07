@@ -13,7 +13,7 @@ namespace DrillPress.Engine;
 /// </summary>
 public sealed class AnalysisEngine
 {
-    private readonly IFileSystem fileSystem;
+    private readonly IFileSystem _fileSystem;
 
     /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
     public AnalysisEngine() : this(new FileSystem())
@@ -22,7 +22,7 @@ public sealed class AnalysisEngine
 
     internal AnalysisEngine(IFileSystem fileSystem)
     {
-        this.fileSystem = fileSystem;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
@@ -102,7 +102,7 @@ public sealed class AnalysisEngine
     {
         if (!references.TryGetValue(path, out var reference))
         {
-            using var stream = fileSystem.File.OpenRead(path);
+            using var stream = _fileSystem.File.OpenRead(path);
             reference = MetadataReference.CreateFromStream(stream, filePath: path);
             references.Add(path, reference);
         }

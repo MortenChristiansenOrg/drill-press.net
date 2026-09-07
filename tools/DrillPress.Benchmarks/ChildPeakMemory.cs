@@ -21,7 +21,7 @@ public static class ChildPeakMemory
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         }
 
-        var bytes = checked((long)counters.PeakWorkingSetSize);
+        var bytes = checked((long)counters._peakWorkingSetSize);
         return bytes > 0 ? bytes : throw new InvalidOperationException("Child peak memory was unavailable.");
     }
 
@@ -33,8 +33,8 @@ public static class ChildPeakMemory
     [StructLayout(LayoutKind.Sequential)]
     private struct ProcessMemoryCounters
     {
-        public uint Size, PageFaultCount;
-        public nuint PeakWorkingSetSize, WorkingSetSize, QuotaPeakPagedPoolUsage, QuotaPagedPoolUsage;
-        public nuint QuotaPeakNonPagedPoolUsage, QuotaNonPagedPoolUsage, PagefileUsage, PeakPagefileUsage;
+        public uint _size, _pageFaultCount;
+        public nuint _peakWorkingSetSize, _workingSetSize, _quotaPeakPagedPoolUsage, _quotaPagedPoolUsage;
+        public nuint _quotaPeakNonPagedPoolUsage, _quotaNonPagedPoolUsage, _pagefileUsage, _peakPagefileUsage;
     }
 }
