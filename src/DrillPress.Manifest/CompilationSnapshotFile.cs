@@ -30,15 +30,31 @@ public sealed class CompilationSnapshotFile
         return snapshot;
     }
 
-    /// <summary>Validates before opening the destination, then writes the current JSON contract.</summary>
+    /// <summary>Writes the current JSON contract to a sibling file before replacing the destination.</summary>
     public async Task WriteAsync(
         string path, CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Validate(snapshot);
-        await using var stream = _fileSystem.File.Create(path);
-        await JsonSerializer.SerializeAsync(
-            stream, snapshot, CompilationSnapshotJsonContext.Default.CompilationSnapshot, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var destinationPath = _fileSystem.Path.GetFullPath(path);
+        var temporaryPath = destinationPath + $".{Guid.NewGuid():N}.tmp";
+        var stream = _fileSystem.File.Open(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        try
+        {
+            await using (stream)
+            {
+                await JsonSerializer.SerializeAsync(
+                    stream, snapshot, CompilationSnapshotJsonContext.Default.CompilationSnapshot, cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            _fileSystem.File.Move(temporaryPath, destinationPath, overwrite: true);
+        }
+        finally
+        {
+            _fileSystem.File.Delete(temporaryPath);
+        }
     }
 
     private static void Validate(CompilationSnapshot snapshot)

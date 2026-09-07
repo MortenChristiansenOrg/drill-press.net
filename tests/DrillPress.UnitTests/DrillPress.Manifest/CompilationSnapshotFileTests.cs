@@ -34,6 +34,67 @@ public sealed class CompilationSnapshotFileTests
     }
 
     [Fact]
+    public async Task Replaces_an_existing_snapshot_without_leaving_temporary_files()
+    {
+        _fileSystem.AddFile(SnapshotPath, new MockFileData("previous snapshot"));
+        var storage = new CompilationSnapshotFile(_fileSystem);
+
+        await storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """{"fileIdentifier":"drillpress-compilation","formatVersion":1,"projects":[]}""",
+            _fileSystem.File.ReadAllText(SnapshotPath));
+        Assert.Equal([_fileSystem.Path.GetFullPath(SnapshotPath)], _fileSystem.AllFiles);
+    }
+
+    [Fact]
+    public async Task Already_cancelled_write_preserves_the_existing_snapshot()
+    {
+        _fileSystem.AddFile(SnapshotPath, new MockFileData("previous snapshot"));
+        var storage = new CompilationSnapshotFile(_fileSystem);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), cancellation.Token));
+
+        Assert.Equal("previous snapshot", _fileSystem.File.ReadAllText(SnapshotPath));
+        Assert.Equal([_fileSystem.Path.GetFullPath(SnapshotPath)], _fileSystem.AllFiles);
+    }
+
+    [Fact]
+    public async Task Failed_write_preserves_the_existing_snapshot_and_removes_the_partial_file()
+    {
+        var failure = new IOException("Simulated write failure.");
+        var fileSystem = new SnapshotWriteFailureFileSystem(failure);
+        fileSystem.AddFile(SnapshotPath, new MockFileData("previous snapshot"));
+        var storage = new CompilationSnapshotFile(fileSystem);
+
+        var exception = await Assert.ThrowsAsync<IOException>(() =>
+            storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, exception);
+        Assert.Equal("previous snapshot", fileSystem.File.ReadAllText(SnapshotPath));
+        Assert.Equal([fileSystem.Path.GetFullPath(SnapshotPath)], fileSystem.AllFiles);
+    }
+
+    [Fact]
+    public async Task Cancelled_write_preserves_the_existing_snapshot_and_removes_the_partial_file()
+    {
+        var failure = new OperationCanceledException();
+        var fileSystem = new SnapshotWriteFailureFileSystem(failure);
+        fileSystem.AddFile(SnapshotPath, new MockFileData("previous snapshot"));
+        var storage = new CompilationSnapshotFile(fileSystem);
+
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            storage.WriteAsync(SnapshotPath, CompilationSnapshot.Create(), TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, exception);
+        Assert.Equal("previous snapshot", fileSystem.File.ReadAllText(SnapshotPath));
+        Assert.Equal([fileSystem.Path.GetFullPath(SnapshotPath)], fileSystem.AllFiles);
+    }
+
+    [Fact]
     public async Task Null_json_reports_the_requested_snapshot_path()
     {
         _fileSystem.AddFile(SnapshotPath, new MockFileData("null"));
