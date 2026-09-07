@@ -122,4 +122,31 @@ public sealed class AnalysisEngineTests
 
         Assert.Empty(diagnostics);
     }
+    [Fact]
+    public async Task Conditional_linked_source_is_evaluated_independently_in_every_context()
+    {
+        const string source = """
+            namespace Sample;
+            public class Target { public static Target Empty => null; }
+            public class Values
+            {
+            #if INCLUDED
+                public Target Value => Target.Empty;
+            #endif
+            }
+            """;
+        var first = TestSnapshots.CreateProject("Shared.cs", source) with { ContextId = "first", PreprocessorSymbols = ["INCLUDED"] };
+        var second = TestSnapshots.CreateProject("Shared.cs", source) with { ContextId = "second", PreprocessorSymbols = [] };
+        var snapshot = CompilationSnapshot.Create(first, second);
+
+        var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
+            RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["first", "second"], response.Contexts.Select(context => context.ContextId));
+        Assert.Equal([true, true], response.Contexts.Select(context => context.IsComplete));
+        Assert.Equal([1, 0], response.Contexts.Select(context => context.Findings.Length));
+        Assert.Equal(first.Documents[0].DocumentId, response.Contexts[0].Findings[0].DocumentId);
+        Assert.Equal(snapshot.RequestId, response.RequestId);
+    }
+
 }

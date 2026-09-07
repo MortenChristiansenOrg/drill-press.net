@@ -118,10 +118,12 @@ public sealed class BundleResponseValidatorTests
         Assert.Throws<InvalidDataException>(() => new BundleResponseValidator().Validate(_fixture.Snapshot, response));
     }
 
-    [Fact]
-    public void An_edit_in_a_different_generated_document_is_rejected()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void An_edit_in_a_different_noneditable_document_is_rejected(bool isGenerated)
     {
-        var generated = new DocumentSnapshot("Generated.cs", "alpha", true) { DocumentId = "generated" };
+        var generated = new DocumentSnapshot("Generated.cs", "alpha", isGenerated) { DocumentId = "generated" };
         var snapshot = _fixture.Snapshot with { Projects = [_fixture.Snapshot.Projects[0] with { Documents = [_fixture.Document, generated] }, _fixture.Snapshot.Projects[1]] };
         var response = _fixture.Response with { Batches = [_fixture.Response.Batches[0] with { Edits = [new("Generated.cs", "", 0, 5, "alpha", "A")] }] };
 

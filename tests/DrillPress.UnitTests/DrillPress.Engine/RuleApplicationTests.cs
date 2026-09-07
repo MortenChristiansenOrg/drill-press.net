@@ -79,7 +79,7 @@ public sealed class RuleApplicationTests
               8:35
               9:36
 
-            """,
+            """.ReplaceLineEndings("\n"),
             new CompactDiagnosticRenderer(_fileSystem).Render(BundleResponseProtocol.Read(output.ToString(), snapshot)));
     }
 

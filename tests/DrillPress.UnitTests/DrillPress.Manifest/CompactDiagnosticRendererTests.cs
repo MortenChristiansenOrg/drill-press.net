@@ -19,9 +19,9 @@ public sealed class CompactDiagnosticRendererTests
         var fileSystem = new MockFileSystem();
         fileSystem.Directory.SetCurrentDirectory(fileSystem.Path.GetFullPath("."));
         var result = new ValidatedResult(
-            [new("Z", "Replace Z.", "z", "z.cs", 20, 1, 3, 1, null),
-             new("A", "Replace A.", "a", " a\"\t.cs ", 3, 1, 1, 4, "fix"),
-             new("A", "Replace A.", "a", " a\"\t.cs ", 0, 1, 1, 1, null)], [], []);
+            [new("Z", "Replace Z.", "z", fileSystem.Path.GetFullPath("z.cs"), 20, 1, 3, 1, null),
+             new("A", "Replace A.", "a", fileSystem.Path.GetFullPath(" a\"\t.cs "), 3, 1, 1, 4, "fix"),
+             new("A", "Replace A.", "a", fileSystem.Path.GetFullPath(" a\"\t.cs "), 0, 1, 1, 1, null)], [], []);
         var renderer = new CompactDiagnosticRenderer(fileSystem);
 
         var output = await Task.Run(() =>
@@ -39,7 +39,7 @@ public sealed class CompactDiagnosticRendererTests
             z.cs
               3
 
-            """), output);
+            """.ReplaceLineEndings("\n")), output);
     }
 
     [Fact]

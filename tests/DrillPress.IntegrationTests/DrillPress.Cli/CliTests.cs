@@ -18,7 +18,7 @@ public sealed class CliTests : IntegrationTest
             Sample Solution/src/WidgetLibrary/Contracts.cs
               10:29
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.StandardOutput);
         Assert.Empty(FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*"));
     }
@@ -37,7 +37,7 @@ public sealed class CliTests : IntegrationTest
                 <Nullable>enable</Nullable>
               </PropertyGroup>
             </Project>
-            """,
+            """.ReplaceLineEndings("\n"),
             TestContext.Current.CancellationToken);
         await FileSystem.File.WriteAllTextAsync(
             FileSystem.Path.Combine(projectDirectory.FullName, "Clean.cs"),
