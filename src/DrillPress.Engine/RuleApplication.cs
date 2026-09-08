@@ -31,18 +31,39 @@ public sealed class RuleApplication
     {
         standardOutput ??= Console.Out;
         standardError ??= Console.Error;
-        if (args is not ["check", var snapshotPath])
+        if (args.Length < 2 || args[0] != "check" || args.Skip(2).Any(argument => argument is not ("--profile" or "--no-optimization")))
         {
-            await standardError.WriteLineAsync("Usage: <rule-bundle> check <snapshot>");
+            await standardError.WriteLineAsync("Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]");
             return RuleExitCode.Failure;
         }
 
+        var profile = new PipelineProfile(args.Skip(2).Contains("--profile"), standardError, "rules");
+        using var total = profile.Measure("total");
         try
         {
-            var snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
-            var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(rules, snapshot, cancellationToken);
-            _ = new BundleResponseValidator().Validate(snapshot, response);
-            await standardOutput.WriteAsync(System.Text.Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response)));
+            CompilationSnapshot snapshot;
+            using (profile.Measure("snapshot.loading"))
+            {
+                snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(args[1], cancellationToken);
+            }
+
+            var options = new AnalysisOptions { EnableOptimizations = !args.Skip(2).Contains("--no-optimization"), Profile = profile };
+            var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(rules, snapshot, options, cancellationToken);
+            ValidatedResult plan;
+            using (profile.Measure("aggregation"))
+            {
+                plan = new BundleResponseValidator().Validate(snapshot, response);
+            }
+
+            profile.Count("contexts", snapshot.Projects.Length);
+            profile.Count("context.findings", response.Contexts.Sum(context => context.Findings.Length));
+            profile.Count("actionable.locations", plan.Findings.Length);
+            profile.Count("common.safe.batches", plan.Batches.Length);
+            profile.Count("common.safe.edits", plan.Edits.Length);
+            using (profile.Measure("response.serialization"))
+            {
+                await standardOutput.WriteAsync(System.Text.Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response)));
+            }
             return response.Contexts.All(context => context.Findings.Length == 0) ? RuleExitCode.Clean : RuleExitCode.Findings;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

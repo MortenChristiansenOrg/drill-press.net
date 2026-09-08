@@ -32,7 +32,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(BuildHostExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation]{Environment.NewLine}",
+            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]{Environment.NewLine}",
             error.ToString());
     }
 

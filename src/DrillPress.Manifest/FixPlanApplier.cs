@@ -24,8 +24,10 @@ public sealed class FixPlanApplier
     /// Concurrent writers must be stopped: verification and replacement cannot form a cross-process transaction.
     /// Earlier successful replacements are retained on failure; unused temporary files are removed.
     /// </summary>
-    public async Task<FixApplicationResult> ApplyAsync(CompilationSnapshot snapshot, string response, CancellationToken cancellationToken = default)
+    public async Task<FixApplicationResult> ApplyAsync(CompilationSnapshot snapshot, string response, CancellationToken cancellationToken = default, PipelineProfile? profile = null)
     {
+        profile ??= new PipelineProfile(false, TextWriter.Null, "fix");
+        using var preparation = profile.Measure("fix.preparation");
         var prepared = new List<PreparedSourceFile>();
         var changed = new List<string>();
         string[] targets = [];
@@ -56,6 +58,9 @@ public sealed class FixPlanApplier
                 await _replacer.PrepareAsync(file, cancellationToken);
             }
 
+            preparation.Dispose();
+            profile.Count("fix.prepared.files", prepared.Count);
+            using var commit = profile.Measure("fix.commit");
             committing = true;
             foreach (var file in prepared)
             {
@@ -73,6 +78,8 @@ public sealed class FixPlanApplier
             result = new(outcome, changed.ToArray(), current, targets.Except(changed).Where(path => path != current).ToArray(), exception.Message);
         }
 
+        preparation.Dispose();
+        profile.Count("fix.changed.files", changed.Count);
         return Cleanup(prepared, result);
     }
 

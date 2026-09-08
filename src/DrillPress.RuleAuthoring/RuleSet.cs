@@ -15,8 +15,15 @@ public sealed class RuleSet
     public IReadOnlyList<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
         solution.CancellationToken.ThrowIfCancellationRequested();
-        return _rules
-            .SelectMany(rule => rule.Evaluate(solution))
+        var diagnostics = new List<RuleDiagnostic>();
+        foreach (var rule in _rules)
+        {
+            using var measurement = solution.Options.Profile.Measure("rule." + rule.Id);
+            diagnostics.AddRange(rule.Evaluate(solution));
+        }
+
+        solution.WriteProfileCounters();
+        return diagnostics
             .OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.FilePath, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.Start)

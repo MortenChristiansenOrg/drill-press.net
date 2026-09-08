@@ -116,7 +116,7 @@ public sealed class RuleApplicationTests
 
         Assert.Equal(RuleExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: <rule-bundle> check <snapshot>{Environment.NewLine}",
+            $"Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]{Environment.NewLine}",
             error.ToString());
     }
 }

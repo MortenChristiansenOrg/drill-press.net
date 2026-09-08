@@ -36,14 +36,16 @@ public sealed class BuildHostApplication
         if (args.Length < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
-                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation]");
+                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]");
             return BuildHostExitCode.Failure;
         }
 
+        var profile = new PipelineProfile(args.Skip(3).Contains("--profile"), standardError, "build-host");
+        using var total = profile.Measure("total");
         try
         {
             var options = ParseOptions(args[3..]);
-            await ExportAsync(args[1], args[2], options, cancellationToken);
+            await ExportAsync(args[1], args[2], options, profile, cancellationToken);
             return BuildHostExitCode.Success;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -69,11 +71,30 @@ public sealed class BuildHostApplication
     public async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options,
         CancellationToken cancellationToken = default)
     {
+        await ExportAsync(target, outputPath, options, new PipelineProfile(false, TextWriter.Null, "build-host"), cancellationToken);
+    }
+
+    private async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options, PipelineProfile profile, CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        var resolved = new TargetResolver(_fileSystem).Resolve(target);
-        var snapshot = await _snapshotLoader.LoadAsync(resolved, options, cancellationToken);
-        await WriteSnapshotAsync(snapshot, outputPath, cancellationToken);
+        CompilationSnapshot snapshot;
+        using (profile.Measure("loading"))
+        {
+            var resolved = new TargetResolver(_fileSystem).Resolve(target);
+            snapshot = await _snapshotLoader.LoadAsync(resolved, options, cancellationToken);
+        }
+
+        using (profile.Measure("snapshot.serialization"))
+        {
+            await WriteSnapshotAsync(snapshot, outputPath, cancellationToken);
+        }
+
+        if (profile.Enabled)
+        {
+            profile.Count("snapshot.bytes", _fileSystem.FileInfo.New(_fileSystem.Path.GetFullPath(outputPath)).Length);
+            profile.Count("contexts", snapshot.Projects.Length);
+        }
     }
 
     private static SnapshotLoadOptions ParseOptions(string[] args)
@@ -86,13 +107,17 @@ public sealed class BuildHostApplication
             {
                 validate = true;
             }
+            else if (args[index] == "--profile")
+            {
+                continue;
+            }
             else if (args[index] == "--property" && ++index < args.Length && args[index].IndexOf('=') is > 0 and var separator)
             {
                 properties[args[index][..separator]] = args[index][(separator + 1)..];
             }
             else
             {
-                throw new ArgumentException("Expected --property Name=Value or --validate-compilation.");
+                throw new ArgumentException("Expected --property Name=Value, --validate-compilation, or --profile.");
             }
         }
 

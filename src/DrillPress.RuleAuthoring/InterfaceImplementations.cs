@@ -8,6 +8,9 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
 {
     private readonly Dictionary<string, IReadOnlyList<INamedTypeSymbol>> _definitions = [];
     private readonly CompilationViews _views = new(solution);
+    private long _definitionComparisons;
+
+    internal void WriteProfileCounters() => solution.Options.Profile.Count("interface.definition.comparisons", _definitionComparisons);
 
     /// <summary>Tests whether any compatible view of this interface has exactly one non-test implementation.</summary>
     public bool HasExactlyOne(CodeDeclaration declaration)
@@ -35,6 +38,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
 
             foreach (var type in Definitions(project))
             {
+                _definitionComparisons++;
                 if (type.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, target)))
                 {
                     implementations.Add(project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type));
