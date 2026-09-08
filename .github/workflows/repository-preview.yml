@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/repository-preview.yml'
       - 'src/**'
+      - 'tests/**'
       - 'tools/**'
       - 'samples/**'
       - 'fixtures/**'

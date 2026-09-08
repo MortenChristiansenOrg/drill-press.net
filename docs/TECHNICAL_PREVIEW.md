@@ -188,7 +188,14 @@ dotnet run --file scripts/XunitConformance.cs -c Release --no-cache -- ../drillp
 
 CI retains both platforms' raw diagnostics, snapshots, profiles, dependency
 locks, identities, and conformance/performance reports as `repository-preview-*`
-artifacts for 90 days. Download a run's artifacts from
+artifacts for 90 days. This workflow accepts no custom target or repository
+inputs: its snapshots come only from this public repository's sample/compiler
+fixtures and the fixed public xUnit revision, including their disposable copies.
+Those public-fixture snapshots are retained intentionally so compiler inputs can
+be inspected alongside the comparison results. This upload policy does not apply
+to reports from private targets run outside the workflow.
+
+Download a run's artifacts from
 [repository workflow runs](https://github.com/MortenChristiansenOrg/drill-press.net/actions/workflows/repository-preview.yml)
 for longer retention. Measurements compare complete signatures across managed,
 native, exhaustive, optimized, and disposable fix/recheck runs on the same
