@@ -10,7 +10,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
 {
     private readonly IFileSystem _fileSystem = fileSystem;
 
-    private const string Source = """
+    private static readonly string _source = """
         using System;
         using System.Linq;
         using Xunit;
@@ -28,7 +28,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
                 Assert.Single(values);
             }
         }
-        """;
+        """.ReplaceLineEndings("\n");
 
     public async Task<BundleCase> CreateAsync(string buildHost)
     {
@@ -52,7 +52,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
                 new XElement("Reference", new XAttribute("Include", name),
                     new XElement("HintPath", _fileSystem.Path.Combine(referenceDirectory, name + ".dll"))))));
         await _fileSystem.File.WriteAllTextAsync(projectPath, project.ToString());
-        await _fileSystem.File.WriteAllTextAsync(_fileSystem.Path.Combine(directory, "Coverage.cs"), Source);
+        await _fileSystem.File.WriteAllTextAsync(_fileSystem.Path.Combine(directory, "Coverage.cs"), _source);
         return projectPath;
     }
 
@@ -65,7 +65,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
         Finding[] findings =
         [
             new("DP1001", "Keep at most two empty lines in a test.", document.DocumentId,
-                Source.IndexOf("\n\n        Assert.Single", StringComparison.Ordinal) + 1, 0, null),
+                _source.IndexOf("\n\n        Assert.Single", StringComparison.Ordinal) + 1, 0, null),
             Find("DP1002", "Move assertions after the final empty line.", "Assert.NotNull(values)", document),
             Find("DP1003", "Remove interfaces with exactly one concrete non-test implementation.", "IContract", document),
             Find("DP1004", "Use the empty string literal \"\" instead of string.Empty.", "string.Empty", document) with { BatchId = literal.Id },
@@ -75,11 +75,11 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
     }
 
     private static Finding Find(string id, string message, string text, DocumentSnapshot document) =>
-        new(id, message, document.DocumentId, Source.IndexOf(text, StringComparison.Ordinal), text.Length, null);
+        new(id, message, document.DocumentId, _source.IndexOf(text, StringComparison.Ordinal), text.Length, null);
 
     private static FixBatch ExpectedFix(DocumentSnapshot document, string original, string replacement, string contextId)
     {
-        var edit = new SourceEdit(document.FileIdentity, document.Fingerprint, Source.IndexOf(original, StringComparison.Ordinal), original.Length, original, replacement);
+        var edit = new SourceEdit(document.FileIdentity, document.Fingerprint, _source.IndexOf(original, StringComparison.Ordinal), original.Length, original, replacement);
         var signature = $"{edit.FileIdentity.Length}:{edit.FileIdentity}{edit.Fingerprint}:{edit.Start}:{edit.Length}:{edit.Replacement.Length}:{edit.Replacement}";
         var id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(signature)));
         return new(id, [edit], [new(contextId, true)]);

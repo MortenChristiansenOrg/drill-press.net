@@ -84,7 +84,8 @@ public sealed class BuildHostTests : IntegrationTest
         Assert.Contains(project.Documents, document =>
             document.Path.EndsWith("Contracts.cs") && !document.IsGenerated);
         Assert.Equal(["DP1003", "DP1004", "DP1005"], diagnostics.Select(diagnostic => diagnostic.Descriptor.Id));
-        Assert.Equal(new SourceLocation(project.Documents.Single(document => document.Path.EndsWith("Contracts.cs")).Path, 50, 12, 3, 18), diagnostics[0].Location);
+        var contracts = project.Documents.Single(document => document.Path.EndsWith("Contracts.cs"));
+        Assert.Equal(new SourceLocation(contracts.Path, contracts.Text.IndexOf("IWidgetStore", StringComparison.Ordinal), 12, 3, 18), diagnostics[0].Location);
         var diagnostic = diagnostics[1];
         Assert.EndsWith("Contracts.cs", diagnostic.Location.FilePath);
         Assert.Equal(10, diagnostic.Location.Line);
