@@ -1,0 +1,66 @@
+name: Repository preview evidence
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/repository-preview.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'samples/**'
+      - 'fixtures/**'
+      - 'Sample Solution/**'
+      - 'scripts/XunitConformance.cs'
+      - 'Directory.*'
+      - 'global.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-4vcpu-ubuntu-2404
+            rid: linux-x64
+          - os: blacksmith-4vcpu-windows-2025
+            rid: win-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+      DOTNET_CLI_UI_LANGUAGE: en-US
+      VSLANG: 1033
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install Linux native prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev time
+      - name: Compare live and reconstructed pinned repository semantics
+        run: dotnet run --file scripts/XunitConformance.cs -c Release --no-cache -- "${{ runner.temp }}/drillpress-xunit" "artifacts/preview-${{ matrix.rid }}/conformance"
+      - name: Measure managed and native check and disposable fix workloads
+        run: dotnet run --file scripts/XunitConformance.cs -c Release --no-cache -- "${{ runner.temp }}/drillpress-xunit" "artifacts/preview-${{ matrix.rid }}/performance" --performance 1
+      - name: Retain repository diagnostics, profiles, and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-preview-${{ matrix.rid }}
+          retention-days: 90
+          path: |
+            artifacts/preview-${{ matrix.rid }}/**
+            !artifacts/preview-${{ matrix.rid }}/performance/managed/**
+            !artifacts/preview-${{ matrix.rid }}/performance/native/**
+          if-no-files-found: warn

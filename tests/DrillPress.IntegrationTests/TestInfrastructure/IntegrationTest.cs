@@ -162,5 +162,38 @@ public abstract class IntegrationTest : IDisposable
             ?? throw new InvalidOperationException("Could not locate the repository root.");
     }
 
+    protected async Task<CliResult> RunCliAsync(string target, params string[] options)
+    {
+        var temporaryRoot = CreateTemporaryDirectory("drillpress-cli-test-");
+        var cli = GetOutputPath("DrillPress.Cli");
+        var buildHost = GetOutputPath("DrillPress.BuildHost");
+        var rules = GetOutputPath("DrillPress.SampleRules", "samples");
+        var environment = new Dictionary<string, string>
+        {
+            ["TMPDIR"] = temporaryRoot.FullName,
+            ["TMP"] = temporaryRoot.FullName,
+            ["TEMP"] = temporaryRoot.FullName,
+        };
+        var cancellationToken = Xunit.TestContext.Current.CancellationToken;
+        var result = await RunProcessAsync(
+            "dotnet",
+            [cli, "check", "--build-host", buildHost, "--rules", rules, target, .. options],
+            RepositoryRoot,
+            cancellationToken,
+            environment);
+
+        return new CliResult(
+            result.ExitCode,
+            result.StandardOutput,
+            result.StandardError,
+            temporaryRoot.FullName);
+    }
+
+    protected sealed record CliResult(
+        int ExitCode,
+        string StandardOutput,
+        string StandardError,
+        string TemporaryRoot);
+
     protected sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 }

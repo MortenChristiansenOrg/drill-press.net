@@ -215,6 +215,8 @@ public sealed class VerificationSession : IDisposable
         BundleContract.Validate(Cases.Single(@case => @case.Name == "violating") with { StandardOutput = PublicOutput }, resultCli);
         await _fileSystem.File.WriteAllBytesAsync(_fileSystem.Path.Combine(OutputDirectory, "public.stdout"), PublicOutput);
         Console.WriteLine("CLI/native: complete BuildHost-to-native path matches");
+        await new TargetCoverageCase(_fileSystem, RepositoryRoot, _fixture.FullName, OutputDirectory)
+            .VerifyAsync(cli, BuildHost, ManagedBundle, NativeBundle, PublicOutput);
         var coverage = await new RuleCoverageCase(_fileSystem, RepositoryRoot, _fileSystem.Path.Combine(_fixture.FullName, "Coverage"))
             .CreateAsync(BuildHost);
         foreach (var mode in Enum.GetValues<BundleMode>())

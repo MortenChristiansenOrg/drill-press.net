@@ -4,14 +4,18 @@ Drill Press checks C# projects for coding-convention violations. It is designed
 for AI coding assistants: compact results identify the rule, file, and location
 to change, without pages of repeated messages.
 
-## Early development
+## Technical preview
 
-Drill Press is an experimental .NET lint-rule engine, not yet a finished tool.
+Drill Press is an experimental .NET lint-rule engine.
 Commands and APIs may change. The sample bundle includes five rules covering
 xUnit test structure, interface implementations, empty strings, and ordinal
 comparers. Eligible string/comparer corrections are marked with `+`. Use `fix`
 in place of `check` to apply them and report only remaining findings. Read
 [the write and recovery policy](docs/FIXING.md) before applying changes.
+
+Start with the [Windows and Linux fresh-checkout guide](docs/TECHNICAL_PREVIEW.md)
+for Release builds, managed/native execution, all target shapes, and the
+[preview acceptance gates](docs/PREVIEW_ACCEPTANCE.md).
 
 ## Install from source
 
@@ -53,7 +57,8 @@ Sample Solution/src/WidgetLibrary/WidgetService.cs
   7:43
 ```
 
-This points to a violation on line 10, column 29. To check your own C# project,
+The `+10:29` location offers a safe correction on line 10, column 29.
+To check your own C# project,
 replace the final argument with the path to its `.csproj` file.
 
 A clean check prints nothing and exits with code `0`. Findings produce code
@@ -128,7 +133,9 @@ metadata references, and the evaluated source graph. Reconstruction rejects
 changed or missing external metadata. Snapshots are sensitive, ephemeral files:
 the CLI uses a private temporary directory, writes atomically, and removes it
 on success, findings, failure, and cancellation. Unix snapshot files are created
-with owner-only read/write permissions.
+with owner-only read/write permissions. On Windows the CLI protects its
+temporary directory with inheritable access restricted to the current user
+before starting a child process.
 
 Run compiler conformance independently of performance measurements:
 

@@ -16,7 +16,7 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture) { OnRecheck = cancellation.Cancel };
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier);
+        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
         var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
 
         var exception = await Assert.ThrowsAsync<OperationCanceledException>(() => cli.RunAsync(_arguments, error, cancellation.Token, output));
@@ -35,7 +35,7 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture);
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier);
+        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
 
         var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
 
@@ -58,7 +58,7 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture) { FailRegeneration = export, FailRecheck = check };
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier);
+        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
         var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
 
         var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
@@ -77,7 +77,7 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture) { WithholdFixes = true };
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier);
+        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
 
         var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
 
@@ -104,7 +104,7 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture);
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier);
+        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
         var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
 
         var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
