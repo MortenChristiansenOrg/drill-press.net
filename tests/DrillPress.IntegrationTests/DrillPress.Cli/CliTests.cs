@@ -87,36 +87,5 @@ public sealed class CliTests : IntegrationTest
                 .Select(reference => reference.Attribute("Include")!.Value));
     }
 
-    private async Task<CliResult> RunCliAsync(string target)
-    {
-        var temporaryRoot = CreateTemporaryDirectory("drillpress-cli-test-");
-        var cli = GetOutputPath("DrillPress.Cli");
-        var buildHost = GetOutputPath("DrillPress.BuildHost");
-        var rules = GetOutputPath("DrillPress.SampleRules", "samples");
-        var environment = new Dictionary<string, string>
-        {
-            ["TMPDIR"] = temporaryRoot.FullName,
-            ["TMP"] = temporaryRoot.FullName,
-            ["TEMP"] = temporaryRoot.FullName,
-        };
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var result = await RunProcessAsync(
-            "dotnet",
-            [cli, "check", "--build-host", buildHost, "--rules", rules, target],
-            RepositoryRoot,
-            cancellationToken,
-            environment);
 
-        return new CliResult(
-            result.ExitCode,
-            result.StandardOutput,
-            result.StandardError,
-            temporaryRoot.FullName);
-    }
-
-    private sealed record CliResult(
-        int ExitCode,
-        string StandardOutput,
-        string StandardError,
-        string TemporaryRoot);
 }

@@ -9,24 +9,39 @@ namespace DrillPress.Cli;
 /// </summary>
 public sealed class CliApplication
 {
+    private const string Usage = "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]";
+    private const string Help = """
+        drillpress check|fix --build-host <path> --rules <path> <target> [options]
+        check reports findings; fix applies common-safe edits and reports the recheck.
+        Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
+        --build-host: matching BuildHost DLL; --rules: compiled rule DLL or native executable.
+        --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
+        --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
+        --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
+        Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
+        """;
+
     private readonly IFileSystem _fileSystem;
     private readonly ChildProcessRunner _processRunner;
     private readonly FixPlanApplier _fixes;
+    private readonly SnapshotDirectoryPermissions _permissions;
 
     /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
     public CliApplication() : this(new FileSystem(), new ChildProcessRunner())
     {
     }
 
-    internal CliApplication(IFileSystem fileSystem, ChildProcessRunner processRunner, FixPlanApplier? fixes = null)
+    internal CliApplication(IFileSystem fileSystem, ChildProcessRunner processRunner, FixPlanApplier? fixes = null,
+        SnapshotDirectoryPermissions? permissions = null)
     {
         _fileSystem = fileSystem;
         _processRunner = processRunner;
         _fixes = fixes ?? new FixPlanApplier(fileSystem, new FileIdentityProbe());
+        _permissions = permissions ?? new SnapshotDirectoryPermissions(fileSystem);
     }
 
     /// <summary>
-    /// Executes a public check or single-pass fix command and returns its typed process outcome.
+    /// Executes a public check or single-pass fix command, or prints help, and returns its typed process outcome.
     /// </summary>
     public async Task<CliExitCode> RunAsync(
         string[] args,
@@ -36,10 +51,15 @@ public sealed class CliApplication
     {
         standardError ??= Console.Error;
         standardOutput ??= Console.Out;
+        if (args is ["--help"] or ["check", "--help"] or ["fix", "--help"])
+        {
+            await standardOutput.WriteAsync(Help.ReplaceLineEndings("\n") + "\n");
+            return CliExitCode.Clean;
+        }
+
         if (!CliOptions.TryParse(args, out var options))
         {
-            await standardError.WriteLineAsync(
-                "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]");
+            await standardError.WriteLineAsync(Usage);
             return CliExitCode.Failure;
         }
 
@@ -50,6 +70,7 @@ public sealed class CliApplication
             var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
+                _permissions.Restrict(temporaryDirectory.FullName);
                 var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
                 var evaluation = await EvaluateAsync(options, snapshotPath, standardError, profile, cancellationToken);
                 if (options.Command == CliCommand.Fix && evaluation.Result.Edits.Length > 0)
