@@ -1,6 +1,6 @@
 namespace DrillPress.Cli;
 
-internal sealed record CliOptions(CliCommand Command, string BuildHost, string Rules, string Target, string[] ExportArguments)
+internal sealed record CliOptions(CliCommand Command, string BuildHost, string Rules, string Target, string[] ExportArguments, bool Profile, bool EnableOptimizations)
 {
     public static bool TryParse(string[] args, out CliOptions options)
     {
@@ -14,6 +14,8 @@ internal sealed record CliOptions(CliCommand Command, string BuildHost, string R
         string? rules = null;
         string? target = null;
         var exportArguments = new List<string>();
+        var profile = false;
+        var optimize = true;
         for (var index = 1; index < args.Length; index++)
         {
             switch (args[index])
@@ -27,6 +29,13 @@ internal sealed record CliOptions(CliCommand Command, string BuildHost, string R
                 case "--property" when index + 1 < args.Length && args[index + 1].IndexOf('=') > 0:
                     exportArguments.Add(args[index]);
                     exportArguments.Add(args[++index]);
+                    break;
+                case "--profile":
+                    profile = true;
+                    exportArguments.Add(args[index]);
+                    break;
+                case "--no-optimization":
+                    optimize = false;
                     break;
                 case "--validate-compilation":
                     exportArguments.Add(args[index]);
@@ -49,7 +58,7 @@ internal sealed record CliOptions(CliCommand Command, string BuildHost, string R
             return false;
         }
 
-        options = new CliOptions(args[0] == "fix" ? CliCommand.Fix : CliCommand.Check, buildHost, rules, target, exportArguments.ToArray());
+        options = new CliOptions(args[0] == "fix" ? CliCommand.Fix : CliCommand.Check, buildHost, rules, target, exportArguments.ToArray(), profile, optimize);
         return true;
     }
 }

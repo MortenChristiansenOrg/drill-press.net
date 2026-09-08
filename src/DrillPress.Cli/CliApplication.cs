@@ -39,20 +39,22 @@ public sealed class CliApplication
         if (!CliOptions.TryParse(args, out var options))
         {
             await standardError.WriteLineAsync(
-                "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation]");
+                "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]");
             return CliExitCode.Failure;
         }
 
+        var profile = new PipelineProfile(options.Profile, standardError, "cli");
+        using var total = profile.Measure("total");
         try
         {
             var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
                 var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
-                var evaluation = await EvaluateAsync(options, snapshotPath, standardError, cancellationToken);
+                var evaluation = await EvaluateAsync(options, snapshotPath, standardError, profile, cancellationToken);
                 if (options.Command == CliCommand.Fix && evaluation.Result.Edits.Length > 0)
                 {
-                    var application = await _fixes.ApplyAsync(evaluation.Snapshot, evaluation.Response, cancellationToken);
+                    var application = await _fixes.ApplyAsync(evaluation.Snapshot, evaluation.Response, cancellationToken, profile);
                     if (application.Outcome != FixApplicationOutcome.Completed)
                     {
                         await WriteRecoveryAsync(standardError, application);
@@ -63,7 +65,7 @@ public sealed class CliApplication
                     {
                         try
                         {
-                            evaluation = await EvaluateAsync(options, snapshotPath, standardError, cancellationToken);
+                            evaluation = await EvaluateAsync(options, snapshotPath, standardError, profile, cancellationToken);
                         }
                         catch (OperationCanceledException)
                         {
@@ -79,7 +81,15 @@ public sealed class CliApplication
                     }
                 }
 
-                await standardOutput.WriteAsync(new CompactDiagnosticRenderer(_fileSystem).Render(evaluation.Result));
+                using (profile.Measure("rendering"))
+                {
+                    var text = new CompactDiagnosticRenderer(_fileSystem).Render(evaluation.Result);
+                    if (profile.Enabled)
+                    {
+                        profile.Count("public.bytes", System.Text.Encoding.UTF8.GetByteCount(text));
+                    }
+                    await standardOutput.WriteAsync(text);
+                }
                 return evaluation.Result.Findings.Length == 0 ? CliExitCode.Clean : CliExitCode.Findings;
             }
             finally
@@ -94,18 +104,34 @@ public sealed class CliApplication
         }
     }
 
-    private async Task<RuleEvaluation> EvaluateAsync(CliOptions options, string snapshotPath, TextWriter error, CancellationToken cancellationToken)
+    private async Task<RuleEvaluation> EvaluateAsync(CliOptions options, string snapshotPath, TextWriter error, PipelineProfile profile, CancellationToken cancellationToken)
     {
-        var export = await _processRunner.CaptureAsync(options.BuildHost,
-            ["export", options.Target, snapshotPath, .. options.ExportArguments], cancellationToken);
+        ChildProcessResult export;
+        using (profile.Measure("build-host"))
+        {
+            export = await _processRunner.CaptureAsync(options.BuildHost,
+                ["export", options.Target, snapshotPath, .. options.ExportArguments], cancellationToken);
+        }
         await error.WriteAsync(export.StandardError);
         if (export.ExitCode != 0)
         {
             throw new IOException($"BuildHost exited {export.ExitCode}.");
         }
 
-        var snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
-        var check = await _processRunner.CaptureAsync(options.Rules, ["check", snapshotPath], cancellationToken);
+        CompilationSnapshot snapshot;
+        using (profile.Measure("snapshot.loading"))
+        {
+            snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
+        }
+
+        var ruleArguments = new List<string> { "check", snapshotPath };
+        if (options.Profile) ruleArguments.Add("--profile");
+        if (!options.EnableOptimizations) ruleArguments.Add("--no-optimization");
+        ChildProcessResult check;
+        using (profile.Measure("rules"))
+        {
+            check = await _processRunner.CaptureAsync(options.Rules, ruleArguments, cancellationToken);
+        }
         await error.WriteAsync(check.StandardError);
         if (check.ExitCode is not (0 or 1))
         {

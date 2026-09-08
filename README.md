@@ -130,7 +130,7 @@ the CLI uses a private temporary directory, writes atomically, and removes it
 on success, findings, failure, and cancellation. Unix snapshot files are created
 with owner-only read/write permissions.
 
-Compiler conformance can be run without the later rule or performance slices:
+Run compiler conformance independently of performance measurements:
 
 ```sh
 dotnet build fixtures/CompilerSnapshot/Interop/Interop.csproj -c Release
@@ -149,8 +149,11 @@ rule responses. Keep its checkout outside this repository to avoid inheriting
 our MSBuild files. Existing checkouts must match the pin and have no tracked
 changes. Dependency locks are generated separately under each project's `obj`
 and copied into the report directory; upstream lockfiles remain unchanged.
-The same source pin, prepared checkout, and recorded dependency baseline are
-intended for subsequent full-rule conformance and performance measurements.
+Add `--performance 2` to the xUnit harness command and choose a new report
+directory to measure managed/native and exhaustive/optimized execution, including
+disposable fix/recheck workloads. See [profiling and reproducible measurements](docs/PROFILING.md)
+for the full command, report contents, and measurement scopes. `--profile` also
+reports phases on stderr during ordinary CLI checks and fixes.
 
 See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
 rules, semantic type identities, and the exact automatic-fix contracts.

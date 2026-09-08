@@ -8,6 +8,20 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
 {
     private readonly Dictionary<string, IReadOnlyList<INamedTypeSymbol>> _definitions = [];
     private readonly CompilationViews _views = new(solution);
+    private long _definitionComparisons;
+    private readonly Dictionary<string, Dictionary<ISymbol, HashSet<string>>> _indexes = [];
+    private long _indexEntries;
+    private long _indexLookups;
+
+    internal void WriteProfileCounters()
+    {
+        solution.Options.Profile.Count("interface.definition.comparisons", _definitionComparisons);
+        if (solution.Options.EnableOptimizations)
+        {
+            solution.Options.Profile.Count("interface.index.entries", _indexEntries);
+            solution.Options.Profile.Count("interface.index.lookups", _indexLookups);
+        }
+    }
 
     /// <summary>Tests whether any compatible view of this interface has exactly one non-test implementation.</summary>
     public bool HasExactlyOne(CodeDeclaration declaration)
@@ -33,8 +47,20 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                 continue;
             }
 
+            if (solution.Options.EnableOptimizations)
+            {
+                _indexLookups++;
+                if (Index(project).TryGetValue(target, out var matches))
+                {
+                    implementations.UnionWith(matches);
+                }
+
+                continue;
+            }
+
             foreach (var type in Definitions(project))
             {
+                _definitionComparisons++;
                 if (type.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, target)))
                 {
                     implementations.Add(project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type));
@@ -43,6 +69,37 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
         }
 
         return implementations.Count;
+    }
+
+    private Dictionary<ISymbol, HashSet<string>> Index(AnalysisProject project)
+    {
+        if (_indexes.TryGetValue(project.Snapshot.ContextId, out var index))
+        {
+            return index;
+        }
+
+        index = new(SymbolEqualityComparer.Default);
+        foreach (var type in Definitions(project))
+        {
+            solution.CancellationToken.ThrowIfCancellationRequested();
+            var identity = project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type);
+            foreach (var contract in type.AllInterfaces)
+            {
+                if (!index.TryGetValue(contract.OriginalDefinition, out var implementations))
+                {
+                    implementations = [];
+                    index.Add(contract.OriginalDefinition, implementations);
+                }
+
+                if (implementations.Add(identity))
+                {
+                    _indexEntries++;
+                }
+            }
+        }
+
+        _indexes.Add(project.Snapshot.ContextId, index);
+        return index;
     }
 
     private static IAssemblySymbol? ResolveAssembly(AnalysisProject project, AnalysisProject owner)
@@ -70,8 +127,8 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
         if (!_definitions.TryGetValue(project.Snapshot.ContextId, out var definitions))
         {
             var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-            definitions = project.Sources.SelectMany(source => source.Tree.GetRoot().DescendantNodes()
-                .OfType<TypeDeclarationSyntax>().Select(syntax => source.Model.GetDeclaredSymbol(syntax)))
+            definitions = project.Sources.SelectMany(source => source.Tree.GetRoot(source.Project.CancellationToken).DescendantNodes()
+                .OfType<TypeDeclarationSyntax>().Select(syntax => source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken)))
                 .OfType<INamedTypeSymbol>().Where(type => type.TypeKind is TypeKind.Class or TypeKind.Struct && !type.IsAbstract && seen.Add(type))
                 .ToArray();
             _definitions.Add(project.Snapshot.ContextId, definitions);

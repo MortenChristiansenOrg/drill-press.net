@@ -32,7 +32,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(BuildHostExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation]{Environment.NewLine}",
+            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]{Environment.NewLine}",
             error.ToString());
     }
 
@@ -128,6 +128,26 @@ public sealed class BuildHostApplicationTests
         Assert.Equal("", error.ToString());
         Assert.Equal(new Dictionary<string, string> { ["Mode"] = "last" }, loader.Options!.Properties);
         Assert.True(loader.Options.ValidateCompilation);
+    }
+
+    [Fact]
+    public async Task Unavailable_profile_file_length_does_not_fail_a_completed_export()
+    {
+        var fileSystem = new FileLengthFailureFileSystem();
+        fileSystem.AddFile("Target.csproj", new("<Project />"));
+        var loader = new StubSnapshotLoader(fileSystem);
+        var application = new BuildHostApplication(fileSystem, loader, new StubProcessProfileProbe());
+        using var error = new StringWriter();
+
+        var result = await application.RunAsync(["export", "Target.csproj", "snapshot.json", "--profile"],
+            error, TestContext.Current.CancellationToken);
+
+        Assert.Equal(BuildHostExitCode.Success, result);
+        Assert.Equal("""{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[],"requestId":"request"}""",
+            fileSystem.File.ReadAllText("snapshot.json"));
+        Assert.Equal(["loading", "snapshot.serialization"], error.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => System.Text.Json.JsonSerializer.Deserialize(line["drillpress-profile ".Length..],
+                CompilationSnapshotJsonContext.Default.ProfileEvent)!.Phase));
     }
 
 }

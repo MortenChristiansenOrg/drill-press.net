@@ -10,6 +10,7 @@ public sealed class BuildHostApplication
 {
     private readonly IFileSystem _fileSystem;
     private readonly MsBuildSnapshotLoader _snapshotLoader;
+    private readonly ProcessProfileProbe _profileProbe;
 
     /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
     public BuildHostApplication() : this(new FileSystem())
@@ -21,9 +22,13 @@ public sealed class BuildHostApplication
     }
 
     internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader)
+        : this(fileSystem, snapshotLoader, new ProcessProfileProbe()) { }
+
+    internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader, ProcessProfileProbe profileProbe)
     {
         _fileSystem = fileSystem;
         _snapshotLoader = snapshotLoader;
+        _profileProbe = profileProbe;
     }
 
     /// <summary>Executes the BuildHost command-line contract.</summary>
@@ -36,14 +41,16 @@ public sealed class BuildHostApplication
         if (args.Length < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
-                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation]");
+                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]");
             return BuildHostExitCode.Failure;
         }
 
+        var profile = new PipelineProfile(args.Skip(3).Contains("--profile"), standardError, "build-host", _profileProbe);
+        using var total = profile.Measure("total");
         try
         {
             var options = ParseOptions(args[3..]);
-            await ExportAsync(args[1], args[2], options, cancellationToken);
+            await ExportAsync(args[1], args[2], options, profile, cancellationToken);
             return BuildHostExitCode.Success;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -69,11 +76,37 @@ public sealed class BuildHostApplication
     public async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options,
         CancellationToken cancellationToken = default)
     {
+        await ExportAsync(target, outputPath, options, new PipelineProfile(false, TextWriter.Null, "build-host", _profileProbe), cancellationToken);
+    }
+
+    private async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options, PipelineProfile profile, CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        var resolved = new TargetResolver(_fileSystem).Resolve(target);
-        var snapshot = await _snapshotLoader.LoadAsync(resolved, options, cancellationToken);
-        await WriteSnapshotAsync(snapshot, outputPath, cancellationToken);
+        CompilationSnapshot snapshot;
+        using (profile.Measure("loading"))
+        {
+            var resolved = new TargetResolver(_fileSystem).Resolve(target);
+            snapshot = await _snapshotLoader.LoadAsync(resolved, options, cancellationToken);
+        }
+
+        using (profile.Measure("snapshot.serialization"))
+        {
+            await WriteSnapshotAsync(snapshot, outputPath, cancellationToken);
+        }
+
+        if (profile.Enabled)
+        {
+            try
+            {
+                profile.Count("snapshot.bytes", _fileSystem.FileInfo.New(_fileSystem.Path.GetFullPath(outputPath)).Length);
+                profile.Count("contexts", snapshot.Projects.Length);
+            }
+            catch (Exception exception)
+            {
+                profile.Fail(exception);
+            }
+        }
     }
 
     private static SnapshotLoadOptions ParseOptions(string[] args)
@@ -86,13 +119,17 @@ public sealed class BuildHostApplication
             {
                 validate = true;
             }
+            else if (args[index] == "--profile")
+            {
+                continue;
+            }
             else if (args[index] == "--property" && ++index < args.Length && args[index].IndexOf('=') is > 0 and var separator)
             {
                 properties[args[index][..separator]] = args[index][(separator + 1)..];
             }
             else
             {
-                throw new ArgumentException("Expected --property Name=Value or --validate-compilation.");
+                throw new ArgumentException("Expected --property Name=Value, --validate-compilation, or --profile.");
             }
         }
 

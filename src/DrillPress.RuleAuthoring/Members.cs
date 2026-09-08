@@ -14,6 +14,6 @@ public static class Members
             (reference.Symbol?.ContainingType is { } symbol ? declaringType.Matches(symbol) :
                 reference.ContainingType.MetadataName == declaringType.MetadataName &&
                 (declaringType.AssemblyName is null || reference.ContainingType.AssemblyName == declaringType.AssemblyName) &&
-                (declaringType.TypeArguments.Length == 0 || reference.ContainingType.TypeArguments == declaringType.TypeArguments)));
+                (declaringType.TypeArguments.Length == 0 || reference.ContainingType.TypeArguments == declaringType.TypeArguments)), new HashSet<string> { memberName });
     }
 }

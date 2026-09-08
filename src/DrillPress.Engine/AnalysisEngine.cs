@@ -46,10 +46,19 @@ public sealed class AnalysisEngine
     }
 
     /// <summary>Evaluates each compilation independently and associates every finding with its source membership.</summary>
-    public async Task<BundleResponse> EvaluateAsync(RuleSet rules, CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
+    public Task<BundleResponse> EvaluateAsync(RuleSet rules, CompilationSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        EvaluateAsync(rules, snapshot, new AnalysisOptions(), cancellationToken);
+
+    /// <summary>Evaluates a snapshot with explicit execution strategy and phase measurements.</summary>
+    public async Task<BundleResponse> EvaluateAsync(RuleSet rules, CompilationSnapshot snapshot, AnalysisOptions options, CancellationToken cancellationToken = default)
     {
-        var compilations = Reconstruct(snapshot, cancellationToken);
-        return await EvaluateAsync(rules, snapshot.RequestId, compilations, cancellationToken);
+        CompilationContext[] compilations;
+        using (options.Profile.Measure("reconstruction"))
+        {
+            compilations = Reconstruct(snapshot, cancellationToken);
+        }
+
+        return await EvaluateAsync(rules, snapshot.RequestId, compilations, options, cancellationToken);
     }
 
     /// <summary>Reconstructs the evaluated source graph without requiring dependencies to emit successfully.</summary>
@@ -58,11 +67,21 @@ public sealed class AnalysisEngine
 
     /// <summary>Evaluates prepared live or reconstructed contexts, enabling semantic conformance comparisons.</summary>
     public Task<BundleResponse> EvaluateAsync(RuleSet rules, string requestId, IReadOnlyList<CompilationContext> compilations,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => EvaluateAsync(rules, requestId, compilations, new AnalysisOptions(), cancellationToken);
+
+    /// <summary>Evaluates prepared contexts with the same options used for snapshot-based execution.</summary>
+    public Task<BundleResponse> EvaluateAsync(RuleSet rules, string requestId, IReadOnlyList<CompilationContext> compilations,
+        AnalysisOptions options, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var solution = new AnalysisSolution(compilations.Select(context => new AnalysisProject(context.Snapshot, context.Compilation, cancellationToken)).ToArray(), cancellationToken);
+        AnalysisSolution solution;
+        using (options.Profile.Measure("preparation"))
+        {
+            solution = new AnalysisSolution(compilations.Select(context => new AnalysisProject(context.Snapshot, context.Compilation, cancellationToken)).ToArray(), options, cancellationToken);
+        }
+
         var diagnostics = rules.Evaluate(solution);
+        using var validation = options.Profile.Measure("fix.validation");
         return Task.FromResult(new RuleResponseBuilder().Build(requestId, solution, diagnostics, cancellationToken));
     }
 }

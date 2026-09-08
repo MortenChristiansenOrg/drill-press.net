@@ -45,7 +45,7 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
     private async Task MeasureAsync(VerificationSession session)
     {
         var startup = new BundleCase("startup", [], BundleOutcome.Failure, [],
-            Encoding.UTF8.GetBytes("Usage: <rule-bundle> check <snapshot>" + Environment.NewLine));
+            Encoding.UTF8.GetBytes("Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]" + Environment.NewLine));
         var plan = new BenchmarkPlan(session.RepositoryRoot, session.ManagedBundle,
             session.NativeBundle, [startup, .. session.Cases]);
         var planPath = fileSystem.Path.Combine(session.OutputDirectory, "benchmark-plan.json");
