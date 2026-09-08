@@ -38,7 +38,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation]{Environment.NewLine}",
             error.ToString());
     }
 

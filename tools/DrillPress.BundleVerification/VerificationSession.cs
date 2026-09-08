@@ -224,5 +224,8 @@ public sealed class VerificationSession : IDisposable
         }
 
         Console.WriteLine("All five rules and both proposed fixes: managed/native contract matches");
+        await new FixVerificationCase(_fileSystem, RepositoryRoot, _fileSystem.Path.Combine(_fixture.FullName, "FixTargets"), OutputDirectory)
+            .VerifyAsync(cli, BuildHost, ManagedBundle, NativeBundle);
+        Console.WriteLine("CLI fix/recheck: both safe fixes preserve exact source bytes with managed/native bundles");
     }
 }
