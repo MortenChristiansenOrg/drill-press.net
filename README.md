@@ -9,8 +9,9 @@ to change, without pages of repeated messages.
 Drill Press is an experimental .NET lint-rule engine, not yet a finished tool.
 Commands and APIs may change. The sample bundle includes five rules covering
 xUnit test structure, interface implementations, empty strings, and ordinal
-comparers. Eligible string/comparer corrections are marked with `+`; applying
-those corrections is the next implementation slice.
+comparers. Eligible string/comparer corrections are marked with `+`. Use `fix`
+in place of `check` to apply them and report only remaining findings. Read
+[the write and recovery policy](docs/FIXING.md) before applying changes.
 
 ## Install from source
 
