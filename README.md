@@ -7,9 +7,10 @@ to change, without pages of repeated messages.
 ## Early development
 
 Drill Press is an experimental .NET lint-rule engine, not yet a finished tool.
-Commands and APIs may change. The current sample includes one rule: prefer the
-empty string literal `""` over `string.Empty`. Automatic fixes and a broader rule
-set are not available yet.
+Commands and APIs may change. The sample bundle includes five rules covering
+xUnit test structure, interface implementations, empty strings, and ordinal
+comparers. Eligible string/comparer corrections are marked with `+`; applying
+those corrections is the next implementation slice.
 
 ## Install from source
 
@@ -40,9 +41,15 @@ from the build above.
 Expected output:
 
 ```text
+DP1003 Remove interfaces with exactly one concrete non-test implementation.
+Sample Solution/src/WidgetLibrary/Contracts.cs
+  3:18
 DP1004 Use the empty string literal "" instead of string.Empty.
 Sample Solution/src/WidgetLibrary/Contracts.cs
-  10:29
+  +10:29
+DP1005 Avoid passing StringComparer.Ordinal.
+Sample Solution/src/WidgetLibrary/WidgetService.cs
+  7:43
 ```
 
 This points to a violation on line 10, column 29. To check your own C# project,
@@ -143,3 +150,6 @@ changes. Dependency locks are generated separately under each project's `obj`
 and copied into the report directory; upstream lockfiles remain unchanged.
 The same source pin, prepared checkout, and recorded dependency baseline are
 intended for subsequent full-rule conformance and performance measurements.
+
+See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
+rules, semantic type identities, and the exact automatic-fix contracts.

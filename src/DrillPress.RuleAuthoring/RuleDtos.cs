@@ -20,7 +20,17 @@ public sealed record SourceLocation(
 public sealed record MemberReference(
     CodeType ContainingType,
     string MemberName,
-    SourceLocation Location);
+    SourceLocation Location) : ICodeElement
+{
+    /// <summary>Semantic context, absent for manually supplied candidates.</summary>
+    public AnalysisSource? Source { get; init; }
+
+    /// <summary>The complete bound expression when discovered from a compilation.</summary>
+    public Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax? Syntax { get; init; }
+
+    /// <summary>The resolved member; candidate symbols from ambiguous binding are excluded.</summary>
+    public Microsoft.CodeAnalysis.ISymbol? Symbol { get; init; }
+}
 
 /// <summary>Defines the stable identifier and remediation text presented for a rule.</summary>
 /// <param name="Id">The stable rule identifier.</param>
@@ -30,4 +40,17 @@ public sealed record RuleDescriptor(string Id, string Message);
 /// <summary>Associates a rule violation with its physical source location.</summary>
 /// <param name="Descriptor">The rule that produced the violation.</param>
 /// <param name="Location">The violating source expression.</param>
-public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Location);
+public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Location)
+{
+    /// <summary>Document membership used for context-specific aggregation.</summary>
+    public AnalysisSource? Source { get; init; }
+
+    /// <summary>An optional complete correction and its cross-context proof.</summary>
+    public FixProposal? Fix { get; init; }
+}
+
+
+/// <summary>A resolved xUnit assertion in a test's immediate body.</summary>
+/// <param name="MemberName">The resolved assertion API name.</param>
+/// <param name="Location">The complete invocation span.</param>
+public sealed record TestAssertion(string MemberName, SourceLocation Location);

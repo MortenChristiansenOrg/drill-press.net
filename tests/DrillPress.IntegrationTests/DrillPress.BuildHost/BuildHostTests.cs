@@ -39,8 +39,7 @@ public sealed class BuildHostTests : IntegrationTest
         await RestoreAsync(projectPath);
         var snapshotPath = FileSystem.Path.Combine(directory.FullName, "snapshot.json");
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences.Where(new RuleCondition<MemberReference>(reference =>
-                reference.ContainingType == CodeType.Named("Dependency.Target") && reference.MemberName == "Empty")))
+        rules.For(Code.MemberReferences.Where(Members.Are(CodeType.Named("Dependency.Target"), "Empty")))
             .Forbid("TEST001", "Do not use Dependency.Target.Empty.");
 
         var result = await RunProcessAsync(
@@ -84,8 +83,10 @@ public sealed class BuildHostTests : IntegrationTest
         Assert.Equal(SampleProjectPath, project.ProjectPath);
         Assert.Contains(project.Documents, document =>
             document.Path.EndsWith("Contracts.cs") && !document.IsGenerated);
-        var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("DP1004", diagnostic.Descriptor.Id);
+        Assert.Equal(["DP1003", "DP1004", "DP1005"], diagnostics.Select(diagnostic => diagnostic.Descriptor.Id));
+        var contracts = project.Documents.Single(document => document.Path.EndsWith("Contracts.cs"));
+        Assert.Equal(new SourceLocation(contracts.Path, contracts.Text.IndexOf("IWidgetStore", StringComparison.Ordinal), 12, 3, 18), diagnostics[0].Location);
+        var diagnostic = diagnostics[1];
         Assert.EndsWith("Contracts.cs", diagnostic.Location.FilePath);
         Assert.Equal(10, diagnostic.Location.Line);
         Assert.Equal(29, diagnostic.Location.Column);

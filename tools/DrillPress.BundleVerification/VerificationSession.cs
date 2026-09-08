@@ -112,6 +112,7 @@ public sealed class VerificationSession : IDisposable
                 <TargetFramework>net10.0</TargetFramework>
                 <LangVersion>14.0</LangVersion>
               </PropertyGroup>
+              <ItemGroup><Compile Remove="Coverage/**/*.cs" /></ItemGroup>
             </Project>
             """);
         await BuildCommandAsync("fixture-restore.log", ["restore", project, "--nologo"]);
@@ -134,7 +135,17 @@ public sealed class VerificationSession : IDisposable
             Finding[] findings = outcome == BundleOutcome.Clean ? [] :
                 [new("DP1004", "Use the empty string literal \"\" instead of string.Empty.", document.DocumentId,
                     document.Text.IndexOf("Text.Empty", StringComparison.Ordinal), "Text.Empty".Length, null)];
-            var response = new BundleResponse(1, captured.RequestId, [new(context.ContextId, true, findings)], []);
+            FixBatch[] batches = [];
+            if (findings.Length > 0)
+            {
+                var edit = new SourceEdit(document.FileIdentity, document.Fingerprint, findings[0].Start, "Text.Empty".Length, "Text.Empty", "\"\"");
+                var signature = $"{edit.FileIdentity.Length}:{edit.FileIdentity}{edit.Fingerprint}:{edit.Start}:{edit.Length}:{edit.Replacement.Length}:{edit.Replacement}";
+                var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(signature)));
+                batches = [new FixBatch(id, [edit], [new FixValidation(context.ContextId, true)])];
+                findings = [findings[0] with { BatchId = id }];
+            }
+
+            var response = new BundleResponse(1, captured.RequestId, [new(context.ContextId, true, findings)], batches);
             var stdout = BundleResponseProtocol.Serialize(response);
             PublicOutput = Encoding.UTF8.GetBytes(new CompactDiagnosticRenderer(_fileSystem).Render(new BundleResponseValidator().Validate(captured, response)));
             cases.Add(new BundleCase(name, ["check", snapshot], outcome, stdout, []));
@@ -204,5 +215,14 @@ public sealed class VerificationSession : IDisposable
         BundleContract.Validate(Cases.Single(@case => @case.Name == "violating") with { StandardOutput = PublicOutput }, resultCli);
         await _fileSystem.File.WriteAllBytesAsync(_fileSystem.Path.Combine(OutputDirectory, "public.stdout"), PublicOutput);
         Console.WriteLine("CLI/native: complete BuildHost-to-native path matches");
+        var coverage = await new RuleCoverageCase(_fileSystem, RepositoryRoot, _fileSystem.Path.Combine(_fixture.FullName, "Coverage"))
+            .CreateAsync(BuildHost);
+        foreach (var mode in Enum.GetValues<BundleMode>())
+        {
+            var result = await ExecuteAsync(mode, coverage);
+            await _fileSystem.File.WriteAllBytesAsync(_fileSystem.Path.Combine(OutputDirectory, $"all-rules.{mode}.stdout"), result.StandardOutput);
+        }
+
+        Console.WriteLine("All five rules and both proposed fixes: managed/native contract matches");
     }
 }

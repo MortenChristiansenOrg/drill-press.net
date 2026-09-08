@@ -1,8 +1,5 @@
 using System.IO.Abstractions;
 using DrillPress.Manifest;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress.Engine;
@@ -60,111 +57,12 @@ public sealed class AnalysisEngine
         new SnapshotCompiler(_fileSystem).Reconstruct(snapshot, cancellationToken);
 
     /// <summary>Evaluates prepared live or reconstructed contexts, enabling semantic conformance comparisons.</summary>
-    public async Task<BundleResponse> EvaluateAsync(RuleSet rules, string requestId, IReadOnlyList<CompilationContext> compilations,
+    public Task<BundleResponse> EvaluateAsync(RuleSet rules, string requestId, IReadOnlyList<CompilationContext> compilations,
         CancellationToken cancellationToken = default)
     {
-        var contexts = new List<ContextEvaluation>();
-        foreach (var context in compilations)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var project = context.Snapshot;
-            var compilation = context.Compilation;
-            var syntaxTrees = compilation.SyntaxTrees;
-            var memberReferences = new List<MemberReference>();
-            foreach (var (tree, document) in syntaxTrees.Zip(project.Documents))
-            {
-                if (!document.IsGenerated)
-                {
-                    memberReferences.AddRange(await FindMemberReferencesAsync(compilation, tree, document, cancellationToken));
-                }
-            }
-
-            var documents = project.Documents.ToDictionary(document => document.Path);
-            var findings = rules.Evaluate(memberReferences).Select(diagnostic => new Finding(
-                diagnostic.Descriptor.Id, diagnostic.Descriptor.Message, documents[diagnostic.Location.FilePath].DocumentId,
-                diagnostic.Location.Start, diagnostic.Location.Length, null)).ToArray();
-            contexts.Add(new ContextEvaluation(project.ContextId, true, findings));
-        }
-
-        return new BundleResponse(BundleResponseProtocol.CurrentVersion, requestId, contexts.ToArray(), []);
+        cancellationToken.ThrowIfCancellationRequested();
+        var solution = new AnalysisSolution(compilations.Select(context => new AnalysisProject(context.Snapshot, context.Compilation, cancellationToken)).ToArray(), cancellationToken);
+        var diagnostics = rules.Evaluate(solution);
+        return Task.FromResult(new RuleResponseBuilder().Build(requestId, solution, diagnostics, cancellationToken));
     }
-
-    private static async Task<IReadOnlyList<MemberReference>> FindMemberReferencesAsync(
-        CSharpCompilation compilation,
-        SyntaxTree tree,
-        DocumentSnapshot document,
-        CancellationToken cancellationToken)
-    {
-        var semanticModel = compilation.GetSemanticModel(tree);
-        var root = await tree.GetRootAsync(cancellationToken);
-        return root.DescendantNodes()
-            .OfType<SimpleNameSyntax>()
-            .Select(name => CreateMemberReference(
-                semanticModel,
-                tree,
-                document.Path,
-                name,
-                cancellationToken))
-            .Where(reference => reference is not null)
-            .Select(reference => reference!)
-            .ToArray();
-    }
-
-    private static MemberReference? CreateMemberReference(
-        SemanticModel semanticModel,
-        SyntaxTree tree,
-        string documentPath,
-        SimpleNameSyntax name,
-        CancellationToken cancellationToken)
-    {
-        var expression = GetCompleteMemberReference(name);
-        if (expression is null)
-        {
-            return null;
-        }
-
-        var symbolInfo = semanticModel.GetSymbolInfo(expression, cancellationToken);
-        var symbol = symbolInfo.Symbol;
-        if (symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol) ||
-            symbol.ContainingType is null || symbol.ContainingType.IsAnonymousType)
-        {
-            return null;
-        }
-
-        var lineSpan = tree.GetLineSpan(expression.Span, cancellationToken).StartLinePosition;
-        return new MemberReference(
-            CodeType.Named(GetMetadataName(symbol.ContainingType)),
-            symbol.Name,
-            new SourceLocation(
-                documentPath,
-                expression.Span.Start,
-                expression.Span.Length,
-                lineSpan.Line + 1,
-                lineSpan.Character + 1));
-    }
-
-    private static ExpressionSyntax? GetCompleteMemberReference(SimpleNameSyntax name)
-    {
-        if (name.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == name)
-        {
-            return memberAccess;
-        }
-
-        return name is IdentifierNameSyntax && name.Parent is not (QualifiedNameSyntax or AliasQualifiedNameSyntax)
-            ? name
-            : null;
-    }
-
-    private static string GetMetadataName(INamedTypeSymbol type)
-    {
-        if (type.ContainingType is not null)
-        {
-            return $"{GetMetadataName(type.ContainingType)}+{type.MetadataName}";
-        }
-
-        return type.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
-            ? $"{containingNamespace.ToDisplayString()}.{type.MetadataName}"
-            : type.MetadataName;
-    }
-
 }

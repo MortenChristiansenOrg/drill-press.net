@@ -53,6 +53,18 @@ public sealed class RuleSetTests
             rules.For(Code.MemberReferences).Forbid(id, message));
     }
 
+    [Fact]
+    public void Cancelled_analysis_stops_even_when_no_candidates_exist()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var solution = new AnalysisSolution([], cancellation.Token);
+        var rules = new RuleSet();
+        rules.For(Code.MemberReferences).Forbid("TEST001", "Stop evaluation.");
+
+        Assert.Throws<OperationCanceledException>(() => rules.Evaluate(solution));
+    }
+
     private static (string Id, string Path, int Start) Describe(RuleDiagnostic diagnostic) =>
         (diagnostic.Descriptor.Id, diagnostic.Location.FilePath, diagnostic.Location.Start);
 }

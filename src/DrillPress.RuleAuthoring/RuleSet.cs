@@ -3,22 +3,29 @@ namespace DrillPress;
 /// <summary>Collects compiled rule declarations and evaluates them against discovered candidates.</summary>
 public sealed class RuleSet
 {
-    private readonly List<ICompiledRule> _rules = [];
+    private readonly List<CompiledRule> _rules = [];
 
     /// <summary>Begins a rule declaration over candidates selected by <paramref name="query"/>.</summary>
     public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
 
     /// <summary>Evaluates every registered rule and returns diagnostics in deterministic order.</summary>
-    public IReadOnlyList<RuleDiagnostic> Evaluate(IReadOnlyList<MemberReference> memberReferences) =>
-        _rules
-            .SelectMany(rule => rule.Evaluate(memberReferences))
-            .OrderBy(diagnostic => diagnostic.Descriptor.Id)
-            .ThenBy(diagnostic => diagnostic.Location.FilePath)
+    public IReadOnlyList<RuleDiagnostic> Evaluate(IReadOnlyList<MemberReference> memberReferences) => Evaluate(new AnalysisSolution(memberReferences));
+
+    /// <summary>Evaluates all registered rules over one shared source graph.</summary>
+    public IReadOnlyList<RuleDiagnostic> Evaluate(AnalysisSolution solution)
+    {
+        solution.CancellationToken.ThrowIfCancellationRequested();
+        return _rules
+            .SelectMany(rule => rule.Evaluate(solution))
+            .OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
+            .ThenBy(diagnostic => diagnostic.Location.FilePath, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.Start)
             .ToArray();
+    }
 
-    internal void Add<T>(CodeQuery<T> query, string id, string message)
+    internal void Add<T>(CodeQuery<T> query, RuleDescriptor descriptor, Func<T, SourceLocation>? location, Func<T, FixProposal?>? fix)
     {
+        var (id, message) = descriptor;
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
         if (id.Any(char.IsControl) || message.Any(char.IsControl) || id.Contains('\u2028') || id.Contains('\u2029') ||
@@ -32,25 +39,7 @@ public sealed class RuleSet
             throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");
         }
 
-        _rules.Add(new CompiledRule<T>(query, new RuleDescriptor(id, message)));
+        _rules.Add(new CandidateRule<T>(query, descriptor, location, fix));
     }
 
-    private interface ICompiledRule
-    {
-        string Id { get; }
-
-        IEnumerable<RuleDiagnostic> Evaluate(IReadOnlyList<MemberReference> memberReferences);
-    }
-
-    private sealed class CompiledRule<T>(CodeQuery<T> query, RuleDescriptor descriptor) : ICompiledRule
-    {
-        public string Id => descriptor.Id;
-
-        public IEnumerable<RuleDiagnostic> Evaluate(IReadOnlyList<MemberReference> memberReferences) =>
-            query.Evaluate(memberReferences)
-                .Select(candidate => candidate is MemberReference reference
-                    ? new RuleDiagnostic(descriptor, reference.Location)
-                    : throw new InvalidOperationException(
-                        $"Candidate type '{typeof(T)}' does not expose a source location."));
-    }
 }

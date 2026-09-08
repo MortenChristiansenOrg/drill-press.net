@@ -1,0 +1,790 @@
+{
+  "target": "\u003Cxunit\u003E/xunit.slnx",
+  "sdk": [
+    "10.0.111"
+  ],
+  "snapshotBytes": 51541158,
+  "ruleParity": true,
+  "rules": [
+    {
+      "id": "DP1001",
+      "findings": 666,
+      "fixable": 0
+    },
+    {
+      "id": "DP1002",
+      "findings": 802,
+      "fixable": 0
+    },
+    {
+      "id": "DP1003",
+      "findings": 31,
+      "fixable": 0
+    },
+    {
+      "id": "DP1004",
+      "findings": 494,
+      "fixable": 268
+    },
+    {
+      "id": "DP1005",
+      "findings": 27,
+      "fixable": 0
+    }
+  ],
+  "proposedBatches": 46,
+  "contexts": [
+    {
+      "Project": "xunit.v1.tests",
+      "Framework": "net45",
+      "Probes": 20340,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v2.tests",
+      "Framework": "net452",
+      "Probes": 44376,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.acceptance.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 13110,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 65439,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.aot",
+      "Framework": "net9.0",
+      "Probes": 22357,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-off(net472)",
+      "Framework": "net472",
+      "Probes": 23237,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-off(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 23819,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-off(netstandard2.0)",
+      "Framework": "netstandard2.0",
+      "Probes": 23237,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-on(net10.0)",
+      "Framework": "net10.0",
+      "Probes": 24470,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-on(net472)",
+      "Framework": "net472",
+      "Probes": 24032,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-on(net48)",
+      "Framework": "net48",
+      "Probes": 24032,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-on(net481)",
+      "Framework": "net481",
+      "Probes": 24032,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.all-on(netstandard2.1)",
+      "Framework": "netstandard2.1",
+      "Probes": 23900,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.aot.nullable-mixed",
+      "Framework": "net9.0",
+      "Probes": 21630,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.nullable-mixed(net472)",
+      "Framework": "net472",
+      "Probes": 23402,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.nullable-mixed(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 23819,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.nullable-mixed(netstandard2.0)",
+      "Framework": "netstandard2.0",
+      "Probes": 23402,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.nullable",
+      "Framework": "netstandard2.0",
+      "Probes": 24002,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.tests(net472)",
+      "Framework": "net472",
+      "Probes": 72482,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 77100,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 72482,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 77100,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 24628,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.assert(netstandard2.0)",
+      "Framework": "netstandard2.0",
+      "Probes": 24256,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 11628,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common.aot",
+      "Framework": "net9.0",
+      "Probes": 12021,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common.tests(net472)",
+      "Framework": "net472",
+      "Probes": 20312,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 20203,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 20312,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 20203,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.common",
+      "Framework": "netstandard2.0",
+      "Probes": 19264,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.aot.generators.tests",
+      "Framework": "net9.0",
+      "Probes": 2609,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.aot.generators",
+      "Framework": "netstandard2.0",
+      "Probes": 15549,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 51076,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.aot",
+      "Framework": "net9.0",
+      "Probes": 48973,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.tests(net472)",
+      "Framework": "net472",
+      "Probes": 80165,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 79975,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 80165,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 79975,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.core",
+      "Framework": "netstandard2.0",
+      "Probes": 53934,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.generatorutility",
+      "Framework": "netstandard2.0",
+      "Probes": 10322,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.msbuildtasks(net472)",
+      "Framework": "net472",
+      "Probes": 1089,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.msbuildtasks(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 925,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 16034,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2.aot",
+      "Framework": "net9.0",
+      "Probes": 6744,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2.tests(net472)",
+      "Framework": "net472",
+      "Probes": 18659,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 17729,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 18659,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 17729,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2(net472)",
+      "Framework": "net472",
+      "Probes": 7035,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.mtp-v2(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 6694,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.aot.generators.tests",
+      "Framework": "net9.0",
+      "Probes": 1426,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.aot.generators",
+      "Framework": "netstandard2.0",
+      "Probes": 12396,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 41453,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.aot",
+      "Framework": "net9.0",
+      "Probes": 51965,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.tests(net472)",
+      "Framework": "net472",
+      "Probes": 45376,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 44674,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 45376,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 44674,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.common",
+      "Framework": "netstandard2.0",
+      "Probes": 52719,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.aot.tests",
+      "Framework": "net10.0",
+      "Probes": 11196,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.aot",
+      "Framework": "net10.0",
+      "Probes": 2642,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.tests",
+      "Framework": "net472",
+      "Probes": 13970,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.x86.tests",
+      "Framework": "net472",
+      "Probes": 13970,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.x86(net472)",
+      "Framework": "net472",
+      "Probes": 2936,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.x86(net48)",
+      "Framework": "net48",
+      "Probes": 2936,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console.x86(net481)",
+      "Framework": "net481",
+      "Probes": 2936,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console(net10.0)",
+      "Framework": "net10.0",
+      "Probes": 2596,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console(net472)",
+      "Framework": "net472",
+      "Probes": 2936,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console(net48)",
+      "Framework": "net48",
+      "Probes": 2936,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.console(net481)",
+      "Framework": "net481",
+      "Probes": 2936,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 10690,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console.aot",
+      "Framework": "net9.0",
+      "Probes": 3747,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console.tests(net472)",
+      "Framework": "net472",
+      "Probes": 13344,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 12414,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 13344,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 12414,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console(net472)",
+      "Framework": "net472",
+      "Probes": 4155,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.inproc.console(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 3744,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.msbuild.tests(net472)",
+      "Framework": "net472",
+      "Probes": 11898,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.msbuild.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 10968,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.msbuild.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 11898,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.msbuild.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 10968,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.msbuild(net472)",
+      "Framework": "net472",
+      "Probes": 3089,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.msbuild(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 2761,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility.aot.tests",
+      "Framework": "net9.0",
+      "Probes": 16054,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility.aot",
+      "Framework": "net9.0",
+      "Probes": 7126,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility.tests(net472)",
+      "Framework": "net472",
+      "Probes": 35465,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 23398,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility.x86.tests(net472)",
+      "Framework": "net472",
+      "Probes": 35465,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility.x86.tests(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 23398,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility(net472)",
+      "Framework": "net472",
+      "Probes": 19721,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.runner.utility(net8.0)",
+      "Framework": "net8.0",
+      "Probes": 13788,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    },
+    {
+      "Project": "xunit.v3.templates",
+      "Framework": "netstandard2.0",
+      "Probes": 359,
+      "Equal": true,
+      "Missing": [],
+      "Unexpected": []
+    }
+  ]
+}

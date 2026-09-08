@@ -14,9 +14,15 @@ public sealed class CliTests : IntegrationTest
         Assert.Equal(string.Empty, result.StandardError);
         Assert.Equal(
             """
+            DP1003 Remove interfaces with exactly one concrete non-test implementation.
+            Sample Solution/src/WidgetLibrary/Contracts.cs
+              3:18
             DP1004 Use the empty string literal "" instead of string.Empty.
             Sample Solution/src/WidgetLibrary/Contracts.cs
-              10:29
+              +10:29
+            DP1005 Avoid passing StringComparer.Ordinal.
+            Sample Solution/src/WidgetLibrary/WidgetService.cs
+              7:43
 
             """.ReplaceLineEndings("\n"),
             result.StandardOutput);
