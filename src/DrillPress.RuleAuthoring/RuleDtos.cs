@@ -64,3 +64,8 @@ public sealed record AnalysisOptions
     /// <summary>Receives phase measurements; omitted profiles are silent.</summary>
     public DrillPress.Manifest.PipelineProfile Profile { get; init; } = new(false, TextWriter.Null, "rules");
 }
+
+internal readonly record struct MemberSyntaxCandidate(
+    AnalysisSource Source,
+    Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax Syntax,
+    string Name);

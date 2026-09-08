@@ -3,11 +3,16 @@ namespace DrillPress;
 /// <summary>Selects analysis candidates and composes reusable filtering conditions.</summary>
 public sealed class CodeQuery<T>
 {
-    private readonly Func<AnalysisSolution, IEnumerable<T>> _select;
+    private readonly Func<AnalysisSolution, IReadOnlySet<string>?, IEnumerable<T>> _select;
     private readonly RuleCondition<T>? _condition;
 
     internal CodeQuery(
         Func<AnalysisSolution, IEnumerable<T>> select,
+        RuleCondition<T>? condition = null)
+        : this((solution, _) => select(solution), condition) { }
+
+    internal CodeQuery(
+        Func<AnalysisSolution, IReadOnlySet<string>?, IEnumerable<T>> select,
         RuleCondition<T>? condition = null)
     {
         _select = select;
@@ -20,15 +25,14 @@ public sealed class CodeQuery<T>
             _select,
             _condition is null
                 ? condition
-                : new RuleCondition<T>(candidate =>
-                    _condition.Evaluate(candidate) && condition.Evaluate(candidate)));
+                : _condition.And(condition));
 
     /// <summary>Excludes candidates satisfying an explicit exception.</summary>
     public CodeQuery<T> ExceptWhen(RuleCondition<T> condition) => Where(condition.Not());
 
     internal IEnumerable<T> Evaluate(AnalysisSolution solution)
     {
-        var candidates = _select(solution);
+        var candidates = _select(solution, _condition?.MemberNames);
         return _condition is null ? candidates : candidates.Where(_condition.Evaluate);
     }
 }

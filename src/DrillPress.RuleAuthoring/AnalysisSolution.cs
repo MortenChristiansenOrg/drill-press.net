@@ -10,6 +10,8 @@ public sealed class AnalysisSolution
     private readonly Lazy<IReadOnlyList<CodeMethod>> _methods;
     private readonly Lazy<IReadOnlyList<CodeDeclaration>> _types;
     private long _memberBindings;
+    private readonly Lazy<MemberCandidateIndex> _memberCandidates;
+    private readonly bool _providedReferences;
 
     /// <summary>Creates an analysis over separately evaluated project contexts.</summary>
     public AnalysisSolution(IReadOnlyList<AnalysisProject> projects, CancellationToken cancellationToken = default)
@@ -22,14 +24,23 @@ public sealed class AnalysisSolution
         CancellationToken = cancellationToken;
         Projects = projects.ToArray();
         Implementations = new(this);
-        _references = new(() => OrdinarySources.SelectMany(DiscoverReferences).ToArray());
+        _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
+        _references = new(() => Options.EnableOptimizations
+            ? _memberCandidates.Value.Select(null).ToArray()
+            : OrdinarySources.SelectMany(DiscoverReferences).ToArray());
         _methods = new(() => OrdinarySources.SelectMany(source => source.Tree.GetRoot(source.Project.CancellationToken).DescendantNodes()
             .OfType<MethodDeclarationSyntax>().Select(syntax => new CodeMethod(source, syntax))).ToArray());
         _types = new(DiscoverTypes);
     }
 
-    internal AnalysisSolution(IReadOnlyList<MemberReference> references) : this(Array.Empty<AnalysisProject>()) =>
+    internal AnalysisSolution(IReadOnlyList<MemberReference> references) : this(Array.Empty<AnalysisProject>())
+    {
+        _providedReferences = true;
         _references = new(() => references);
+    }
+
+    internal IEnumerable<MemberReference> SelectMemberReferences(IReadOnlySet<string>? names) =>
+        _providedReferences || !Options.EnableOptimizations ? MemberReferences : _memberCandidates.Value.Select(names);
 
     /// <summary>Stops evaluation and discovery within this analysis.</summary>
     public CancellationToken CancellationToken { get; }
@@ -54,7 +65,7 @@ public sealed class AnalysisSolution
 
     internal void WriteProfileCounters()
     {
-        Options.Profile.Count("member.symbol.bindings", _memberBindings);
+        Options.Profile.Count("member.symbol.bindings", _memberBindings + (_memberCandidates.IsValueCreated ? _memberCandidates.Value.Bindings : 0));
         Implementations.WriteProfileCounters();
     }
 

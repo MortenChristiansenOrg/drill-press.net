@@ -6,7 +6,7 @@ namespace DrillPress;
 public static class Code
 {
     /// <summary>Selects resolved member expressions.</summary>
-    public static CodeQuery<MemberReference> MemberReferences { get; } = new(solution => solution.MemberReferences);
+    public static CodeQuery<MemberReference> MemberReferences { get; } = new((solution, names) => solution.SelectMemberReferences(names));
 
     /// <summary>Selects ordinary source methods.</summary>
     public static CodeQuery<CodeMethod> Methods { get; } = new(solution => solution.Methods);
