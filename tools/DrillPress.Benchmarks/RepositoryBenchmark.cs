@@ -68,7 +68,15 @@ public sealed class RepositoryBenchmark(IFileSystem fileSystem)
         }
         catch (Exception exception)
         {
-            await WriteAsync(At("report.json"), new { complete = false, error = exception.ToString(), runs = _runs, operations = measurements.Operations }, CancellationToken.None);
+            try
+            {
+                await WriteAsync(At("report.json"), new { complete = false, error = exception.ToString(), runs = _runs, operations = measurements.Operations }, CancellationToken.None);
+            }
+            catch (Exception reportException)
+            {
+                throw new AggregateException("The benchmark and its failure-report write both failed.", exception, reportException);
+            }
+
             throw;
         }
 
