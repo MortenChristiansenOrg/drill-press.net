@@ -56,7 +56,9 @@ After any successful writes, BuildHost regenerates the same target with the
 same options and the rules run once more. Only the remaining compact diagnostics
 reach stdout. If regeneration or recheck fails, changed files remain in place,
 the CLI reports that verification failed, emits no stale diagnostics, and
-exits 2. If no changes survive, the initial completed analysis supplies the
+exits 2. Cancellation during verification lists the changed files and reaches
+the CLI cancellation handler, which reports cancellation and exits 2. If no
+changes survive, the initial completed analysis supplies the
 output without another export. There is no automatic iteration loop.
 
 Exit 0 means a completed clean check, 1 means remaining findings, and 2 means an

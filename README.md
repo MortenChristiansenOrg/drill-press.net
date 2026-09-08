@@ -58,8 +58,8 @@ replace the final argument with the path to its `.csproj` file.
 
 A clean check prints nothing and exits with code `0`. Findings produce code
 `1`—including the example above. Code `2` means the check could not complete,
-such as when a project cannot be loaded. The command reports violations; it does
-not apply fixes.
+such as when a project cannot be loaded. `check` reports violations without
+applying fixes.
 
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
@@ -81,9 +81,9 @@ context must validate the complete batch, including contexts without a finding.
 Missing, inactive-source, or ambiguous-binding validation withholds the fix.
 Conflicting batches are withheld in full; independent fixes survive. Insertions
 conflict at either boundary of another edit when their order would be ambiguous.
-The renderer and future fix writer consume the same validated plan. Scope is the
-loaded project graph. BuildHost captures editable source identities; automatic
-writes arrive in Slice 6.
+The renderer and fix writer consume the same validated plan. Scope is the
+loaded project graph. `fix` applies retained edits and reports only remaining
+findings after rechecking; see the [write and recovery workflow](docs/FIXING.md).
 
 Snapshots contain source and machine-local paths. Rule bundles execute trusted
 code; protocol validation is not a sandbox. Native verification retains exact

@@ -9,6 +9,26 @@ public sealed class CliFixTests
     private static readonly string[] _arguments = ["fix", "--build-host", "host", "--rules", "rules", "target.csproj", "--property", "Configuration=Release", "--validate-compilation"];
 
     [Fact]
+    public async Task Cancelled_recheck_reports_retained_writes_and_propagates_after_cleanup()
+    {
+        var fixture = new FixFixture();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var runner = new FixProcessRunner(fixture) { OnRecheck = cancellation.Cancel };
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier);
+        var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
+
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() => cli.RunAsync(_arguments, error, cancellation.Token, output));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal("", output.ToString());
+        Assert.Equal($"  changed: {paths[0]}{Environment.NewLine}  changed: {paths[1]}{Environment.NewLine}", error.ToString());
+        Assert.Equal(["😀é\r\nbeta\ngamma\r", "😀é\r\nbeta\ngamma\r"], fixture.Texts());
+        Assert.Empty(fixture.TemporaryFiles());
+    }
+
+    [Fact]
     public async Task Writes_once_and_exports_the_same_target_options_again_before_rendering_remaining_findings()
     {
         var fixture = new FixFixture();

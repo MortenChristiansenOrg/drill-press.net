@@ -65,6 +65,11 @@ public sealed class CliApplication
                         {
                             evaluation = await EvaluateAsync(options, snapshotPath, standardError, cancellationToken);
                         }
+                        catch (OperationCanceledException)
+                        {
+                            await WritePathsAsync(standardError, "changed", application.Changed);
+                            throw;
+                        }
                         catch (Exception exception)
                         {
                             await standardError.WriteLineAsync($"drillpress: Files changed but verification failed: {exception.Message}");

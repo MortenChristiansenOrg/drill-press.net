@@ -13,6 +13,7 @@ internal sealed class FixProcessRunner(FixFixture fixture) : ChildProcessRunner
     public bool FailRegeneration { get; set; }
     public bool FailRecheck { get; set; }
     public bool WithholdFixes { get; set; }
+    public Action? OnRecheck { get; set; }
 
     public override async Task<ChildProcessResult> CaptureAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
@@ -36,6 +37,8 @@ internal sealed class FixProcessRunner(FixFixture fixture) : ChildProcessRunner
             return new(0, "", "");
         }
 
+        if (_exports == 2) OnRecheck?.Invoke();
+        cancellationToken.ThrowIfCancellationRequested();
         if (_exports == 2 && FailRecheck) return new(2, "stale text must not escape", "recheck failed\n");
         var response = _exports == 1 ? _fixture.Response : new BundleResponse(1, _snapshot.RequestId,
             _snapshot.Projects.Select(project => new ContextEvaluation(project.ContextId, true, [])).ToArray(), []);
