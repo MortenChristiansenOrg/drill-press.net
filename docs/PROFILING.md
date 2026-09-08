@@ -35,6 +35,8 @@ Profiling is best effort: a failed process probe or output sink disables further
 measurements without interrupting diagnostics, source replacement, or cleanup.
 Library callers can inspect `PipelineProfile.Failure`. Measurement harnesses must
 reject incomplete profiles rather than treating missing phases as zero cost.
+The repository harness also rejects a process total exceeding its paired outer
+Stopwatch interval.
 
 ## Reproduce the pinned repository comparison
 

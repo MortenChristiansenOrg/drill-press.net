@@ -7,6 +7,11 @@ output were saved before optimizing queries, using instrumentation commit
 matched all three hashes exactly against the same 51,541,158-byte snapshot.
 Bundle hashes identify the measured artifacts; the optimized source was still
 uncommitted. These are single observations on one machine, not release gates.
+The raw GNU elapsed values are inconsistent with their paired inner Stopwatch
+totals and are explicitly excluded from comparisons. The cause is unresolved;
+they remain in the JSON for audit, not as valid outer intervals. The table uses
+Stopwatch profile values. The current harness measures outer intervals with
+Stopwatch too and rejects totals that exceed their enclosing interval.
 
 | Measurement | Exhaustive managed | Optimized managed |
 | --- | ---: | ---: |

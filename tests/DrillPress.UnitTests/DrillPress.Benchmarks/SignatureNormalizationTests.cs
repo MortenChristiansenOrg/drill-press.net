@@ -113,6 +113,24 @@ public sealed class SignatureNormalizationTests
         Assert.Throws<InvalidDataException>(() => new SignatureNormalization(fileSystem, snapshot, root));
     }
 
+    [Fact]
+    public void Plan_can_normalize_fix_associations_without_a_prior_response_call()
+    {
+        var fileSystem = new MockFileSystem();
+        var root = fileSystem.Path.GetFullPath("root");
+        var input = Create(root, "a");
+        var edit = input.Response.Batches[0].Edits[0];
+        var plan = new ValidatedResult([new("R", "message /first/unchanged", edit.FileIdentity,
+            edit.FileIdentity, 0, 5, 1, 1, "a-batch")], input.Response.Batches, [edit]);
+        var normalization = new SignatureNormalization(fileSystem, input.Snapshot, root);
+
+        var actual = normalization.Plan(plan);
+
+        Assert.Equal(actual.Batches[0].Id, actual.Findings[0].BatchId);
+        Assert.Equal(actual.Batches[0].Edits, actual.Edits);
+        Assert.Equal("literal /first/unchanged", actual.Edits[0].Replacement);
+    }
+
     private static CompilationSnapshot WithGenerated(CompilationSnapshot snapshot, string id)
     {
         var path = "drillpress-generated://" + id + "/000001/Generator.g.cs";

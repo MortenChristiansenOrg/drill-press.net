@@ -79,14 +79,18 @@ public sealed class SignatureNormalization
         };
     }
 
-    public ValidatedResult Plan(ValidatedResult plan) => plan with
+    public ValidatedResult Plan(ValidatedResult plan)
     {
-        Findings = plan.Findings.Select(finding => finding with
+        var batches = plan.Batches.Select(Batch).OrderBy(batch => batch.Id).ToArray();
+        return plan with
         {
-            FileIdentity = _files[finding.FileIdentity], Path = Path(finding.Path), BatchId = BatchId(finding.BatchId),
-        }).ToArray(),
-        Batches = plan.Batches.Select(Batch).OrderBy(batch => batch.Id).ToArray(), Edits = plan.Edits.Select(Edit).ToArray(),
-    };
+            Findings = plan.Findings.Select(finding => finding with
+            {
+                FileIdentity = _files[finding.FileIdentity], Path = Path(finding.Path), BatchId = BatchId(finding.BatchId),
+            }).ToArray(),
+            Batches = batches, Edits = plan.Edits.Select(Edit).ToArray(),
+        };
+    }
 
     public static string Hash<T>(T value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
 

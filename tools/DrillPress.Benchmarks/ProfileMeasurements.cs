@@ -9,6 +9,18 @@ public sealed class ProfileMeasurements(IFileSystem fileSystem)
     private readonly IFileSystem _fileSystem = fileSystem;
     private const string Prefix = "drillpress-profile ";
 
+    public ProfileEvent[] Read(string path, double outerWallMilliseconds, params string[] requiredComponents)
+    {
+        var events = Read(path, requiredComponents);
+        if (!double.IsFinite(outerWallMilliseconds) || outerWallMilliseconds < 0 ||
+            events.Any(entry => entry.Phase == "total" && entry.WallMilliseconds > outerWallMilliseconds))
+        {
+            throw new InvalidDataException("A process profile total exceeds its matching outer Stopwatch interval.");
+        }
+
+        return events;
+    }
+
     public ProfileEvent[] Read(string path, params string[] requiredComponents)
     {
         var events = _fileSystem.File.ReadLines(path).Where(line => line.StartsWith(Prefix, StringComparison.Ordinal))

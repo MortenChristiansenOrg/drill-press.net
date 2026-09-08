@@ -37,4 +37,18 @@ public sealed class DisposableRepositoryTests
         Assert.Equal("packed", fileSystem.File.ReadAllText(gitObject));
         Assert.Equal(FileAttributes.ReadOnly, fileSystem.File.GetAttributes(gitObject));
     }
+    [Fact]
+    public void Repeated_disposal_leaves_the_original_repository_available()
+    {
+        var fileSystem = new MockFileSystem();
+        var root = fileSystem.Path.GetFullPath("checkout");
+        fileSystem.AddFile(fileSystem.Path.Combine(root, "Input.cs"), new("original"));
+        var copy = new DisposableRepository(fileSystem, root, CancellationToken.None);
+
+        copy.Dispose();
+        copy.Dispose();
+
+        Assert.False(fileSystem.Directory.Exists(copy.Root));
+        Assert.Equal("original", fileSystem.File.ReadAllText(fileSystem.Path.Combine(root, "Input.cs")));
+    }
 }

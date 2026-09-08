@@ -39,7 +39,7 @@ public sealed class CliApplication
         if (!CliOptions.TryParse(args, out var options))
         {
             await standardError.WriteLineAsync(
-                "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile]");
+                "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]");
             return CliExitCode.Failure;
         }
 

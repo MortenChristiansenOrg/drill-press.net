@@ -33,4 +33,15 @@ public sealed class ProfileMeasurementsTests
 
         Assert.Throws<InvalidDataException>(() => measurements.Read("profile", "rules"));
     }
+    [Fact]
+    public void Rejects_an_inner_total_that_exceeds_the_paired_outer_stopwatch_interval()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("profile", new("""
+            drillpress-profile {"component":"rules","phase":"total","processId":1,"wallMilliseconds":12,"userCpuMilliseconds":8,"systemCpuMilliseconds":2,"processPeakWorkingSetBytes":1024,"count":null}
+            """));
+        var measurements = new ProfileMeasurements(fileSystem);
+
+        Assert.Throws<InvalidDataException>(() => measurements.Read("profile", 10, "rules"));
+    }
 }

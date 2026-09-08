@@ -712,5 +712,9 @@
       "zh-Hant/Microsoft.CodeAnalysis.CSharp.resources.dll": "DB3E642E4057A6F9FD8F10C18D3AF158FEE2FBDAA5E593DB0C00F441F0E4BCD7",
       "zh-Hant/Microsoft.CodeAnalysis.resources.dll": "DA5183E34FCB9F1051EB6113125C7D4B740E903E41F3DE7653C54F3F8119511D"
     }
+  },
+  "gnuTimeElapsedValidity": {
+    "usableForComparison": false,
+    "reason": "The raw GNU elapsed values are shorter than the matching inner Stopwatch totals. These were paired invocations, not separate trials; the clock inconsistency is unresolved. Retain raw elapsed only for audit, exclude it from performance comparisons. CPU/RSS and full correctness signatures remain recorded. The repository harness now uses an outer Stopwatch and rejects a process total exceeding that interval."
   }
 }

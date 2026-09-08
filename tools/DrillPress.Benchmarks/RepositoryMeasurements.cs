@@ -29,7 +29,7 @@ public sealed class RepositoryMeasurements(IFileSystem fileSystem, string reposi
 
         if (profileComponents.Length > 0)
         {
-            _operations[^1] = new(name, execution, _profiles.Read(execution.StandardErrorPath, profileComponents));
+            _operations[^1] = new(name, execution, _profiles.Read(execution.StandardErrorPath, execution.Measurement.WallMilliseconds, profileComponents));
             await SaveAsync();
         }
 

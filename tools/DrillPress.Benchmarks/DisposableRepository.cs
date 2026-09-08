@@ -15,9 +15,17 @@ public sealed class DisposableRepository : IDisposable
         {
             Copy(fileSystem.DirectoryInfo.New(source), _directory, cancellationToken);
         }
-        catch
+        catch (Exception copyError)
         {
-            Dispose();
+            try
+            {
+                Dispose();
+            }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException("Repository copy and cleanup failed.", copyError, cleanupError);
+            }
+
             throw;
         }
     }
@@ -26,6 +34,12 @@ public sealed class DisposableRepository : IDisposable
 
     public void Dispose()
     {
+        _directory.Refresh();
+        if (!_directory.Exists)
+        {
+            return;
+        }
+
         ClearReadOnly(_directory);
         _directory.Delete(true);
     }
@@ -34,7 +48,12 @@ public sealed class DisposableRepository : IDisposable
     {
         foreach (var entry in directory.EnumerateFileSystemInfos())
         {
-            if (entry is IDirectoryInfo child && (entry.Attributes & FileAttributes.ReparsePoint) == 0)
+            if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                continue;
+            }
+
+            if (entry is IDirectoryInfo child)
             {
                 ClearReadOnly(child);
             }

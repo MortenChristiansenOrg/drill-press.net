@@ -10,6 +10,7 @@ public sealed class BuildHostApplication
 {
     private readonly IFileSystem _fileSystem;
     private readonly MsBuildSnapshotLoader _snapshotLoader;
+    private readonly ProcessProfileProbe _profileProbe;
 
     /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
     public BuildHostApplication() : this(new FileSystem())
@@ -21,9 +22,13 @@ public sealed class BuildHostApplication
     }
 
     internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader)
+        : this(fileSystem, snapshotLoader, new ProcessProfileProbe()) { }
+
+    internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader, ProcessProfileProbe profileProbe)
     {
         _fileSystem = fileSystem;
         _snapshotLoader = snapshotLoader;
+        _profileProbe = profileProbe;
     }
 
     /// <summary>Executes the BuildHost command-line contract.</summary>
@@ -40,7 +45,7 @@ public sealed class BuildHostApplication
             return BuildHostExitCode.Failure;
         }
 
-        var profile = new PipelineProfile(args.Skip(3).Contains("--profile"), standardError, "build-host");
+        var profile = new PipelineProfile(args.Skip(3).Contains("--profile"), standardError, "build-host", _profileProbe);
         using var total = profile.Measure("total");
         try
         {
@@ -71,7 +76,7 @@ public sealed class BuildHostApplication
     public async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options,
         CancellationToken cancellationToken = default)
     {
-        await ExportAsync(target, outputPath, options, new PipelineProfile(false, TextWriter.Null, "build-host"), cancellationToken);
+        await ExportAsync(target, outputPath, options, new PipelineProfile(false, TextWriter.Null, "build-host", _profileProbe), cancellationToken);
     }
 
     private async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options, PipelineProfile profile, CancellationToken cancellationToken)
@@ -92,8 +97,15 @@ public sealed class BuildHostApplication
 
         if (profile.Enabled)
         {
-            profile.Count("snapshot.bytes", _fileSystem.FileInfo.New(_fileSystem.Path.GetFullPath(outputPath)).Length);
-            profile.Count("contexts", snapshot.Projects.Length);
+            try
+            {
+                profile.Count("snapshot.bytes", _fileSystem.FileInfo.New(_fileSystem.Path.GetFullPath(outputPath)).Length);
+                profile.Count("contexts", snapshot.Projects.Length);
+            }
+            catch (Exception exception)
+            {
+                profile.Fail(exception);
+            }
         }
     }
 
