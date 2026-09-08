@@ -17,15 +17,17 @@ public sealed class SourceFilePolicy
         _probe = probe;
     }
 
-    /// <summary>Inspects every distinct ordinary source membership, withholding all paths that alias each other.</summary>
+    /// <summary>Inspects ordinary sources and generated paths present on disk, withholding all loaded aliases.</summary>
     public IReadOnlyDictionary<string, SourceFileState> Inspect(CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         var states = new Dictionary<string, SourceFileState>();
-        foreach (var document in snapshot.Projects.SelectMany(project => project.Documents).Where(document => !document.IsGenerated)
+        foreach (var document in snapshot.Projects.SelectMany(project => project.Documents)
+            .Where(document => !document.IsGenerated || _fileSystem.File.Exists(document.Path))
             .DistinctBy(document => document.FileIdentity))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            states.Add(document.FileIdentity, Inspect(document.Path));
+            var state = Inspect(document.Path);
+            states.Add(document.FileIdentity, state with { IsEditable = state.IsEditable && !document.IsGenerated });
         }
 
         var aliases = states.Where(pair => pair.Value.Identity is not null).GroupBy(pair => pair.Value.Identity!.Key)
