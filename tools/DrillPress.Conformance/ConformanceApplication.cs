@@ -38,7 +38,10 @@ public sealed class ConformanceApplication(IFileSystem fileSystem, MsBuildSnapsh
                 var restoredRules = await engine.EvaluateAsync(SampleRuleSet.Create(), snapshot.RequestId, reconstructed, cancellationToken);
                 var ruleParity = BundleResponseProtocol.Serialize(liveRules).AsSpan().SequenceEqual(BundleResponseProtocol.Serialize(restoredRules));
                 var report = new { target = displayTarget ?? target, sdk = export.Contexts.Select(context => context.Snapshot.SdkVersion).Distinct(),
-                    snapshotBytes = _fileSystem.FileInfo.New(path).Length, ruleParity, contexts = comparisons };
+                    snapshotBytes = _fileSystem.FileInfo.New(path).Length, ruleParity,
+                    rules = liveRules.Contexts.SelectMany(context => context.Findings).GroupBy(finding => finding.RuleId)
+                        .OrderBy(group => group.Key).Select(group => new { id = group.Key, findings = group.Count(), fixable = group.Count(finding => finding.BatchId is not null) }),
+                    proposedBatches = liveRules.Batches.Length, contexts = comparisons };
                 var fullReport = _fileSystem.Path.GetFullPath(reportPath);
                 _fileSystem.Directory.CreateDirectory(_fileSystem.Path.GetDirectoryName(fullReport)!);
                 await _fileSystem.File.WriteAllTextAsync(fullReport, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);

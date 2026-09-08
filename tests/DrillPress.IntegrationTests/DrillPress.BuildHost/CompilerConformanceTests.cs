@@ -95,9 +95,9 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture) : Integrat
         Assert.Equal("""
             DP1004 Use the empty string literal "" instead of string.Empty.
             fixtures/CompilerSnapshot/Consumer/Source.cs
-              11:28
+              +11:28
             fixtures/CompilerSnapshot/Linked.cs
-              5:35
+              +5:35
 
             """.ReplaceLineEndings("\n"), result.StandardOutput);
     }

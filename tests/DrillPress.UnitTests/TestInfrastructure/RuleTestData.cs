@@ -15,8 +15,7 @@ internal static class RuleTestData
     {
         var rules = new RuleSet();
         var targetType = CodeType.Named("Sample.Target");
-        rules.For(Code.MemberReferences.Where(new RuleCondition<MemberReference>(reference =>
-                reference.ContainingType == targetType && reference.MemberName == "Empty")))
+        rules.For(Code.MemberReferences.Where(Members.Are(targetType, "Empty")))
             .Forbid("TEST001", "Do not use Target.Empty.");
         return rules;
     }

@@ -1,18 +1,19 @@
 namespace DrillPress;
 
-/// <summary>Provides semantic conditions for member-reference queries.</summary>
+/// <summary>Semantic conditions that match declarations, including aliases and qualified access.</summary>
 public static class Members
 {
-    /// <summary>
-    /// Matches references to <paramref name="memberName"/> declared by
-    /// <typeparamref name="TDeclaringType"/> rather than matching source spelling.
-    /// </summary>
-    public static RuleCondition<MemberReference> Are<TDeclaringType>(string memberName)
+    /// <summary>Matches the member on a statically referenced declaring type.</summary>
+    public static RuleCondition<MemberReference> Are<TDeclaringType>(string memberName) => Are(CodeType.Of<TDeclaringType>(), memberName);
+
+    /// <summary>Matches a named target type, optionally qualified by assembly identity.</summary>
+    public static RuleCondition<MemberReference> Are(CodeType declaringType, string memberName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(memberName);
-        var declaringType = CodeType.Of<TDeclaringType>();
-        return new RuleCondition<MemberReference>(reference =>
-            reference.ContainingType == declaringType &&
-            reference.MemberName == memberName);
+        return new(reference => reference.MemberName == memberName &&
+            (reference.Symbol?.ContainingType is { } symbol ? declaringType.Matches(symbol) :
+                reference.ContainingType.MetadataName == declaringType.MetadataName &&
+                (declaringType.AssemblyName is null || reference.ContainingType.AssemblyName == declaringType.AssemblyName) &&
+                (declaringType.TypeArguments.Length == 0 || reference.ContainingType.TypeArguments == declaringType.TypeArguments)));
     }
 }

@@ -1,37 +1,100 @@
+using Microsoft.CodeAnalysis;
+
 namespace DrillPress;
 
-/// <summary>
-/// Identifies a CLR type by its namespace-qualified metadata name so compiled rules can
-/// match Roslyn symbols without referencing the analyzed project.
-/// </summary>
-/// <param name="MetadataName">The namespace-qualified metadata name.</param>
+/// <summary>A metadata identity with optional assembly qualification and exact constructed arguments.</summary>
+/// <param name="MetadataName">Namespace-qualified metadata name, using + for nested types.</param>
 public readonly record struct CodeType(string MetadataName)
 {
-    /// <summary>Creates an identity from a compile-time checked runtime type.</summary>
-    public static CodeType Of<T>() => new(GetMetadataName(typeof(T)));
+    private bool AllowFrameworkFacades { get; init; }
 
-    /// <summary>Creates an identity for a type that the rule project cannot reference directly.</summary>
-    /// <param name="metadataName">The namespace-qualified metadata name.</param>
-    public static CodeType Named(string metadataName)
+    /// <summary>Optional assembly simple name or full display identity; null permits any declaring assembly.</summary>
+    public string? AssemblyName { get; init; }
+
+    /// <summary>Canonical constructed argument identity; empty selects the generic definition.</summary>
+    public string TypeArguments { get; init; } = "";
+
+    /// <summary>Captures a statically referenced type, including its constructed generic arguments.</summary>
+    public static CodeType Of<T>() => FromRuntime(typeof(T));
+
+    /// <summary>Names a target type without referencing its assembly from the rule project.</summary>
+    public static CodeType Named(string metadataName, string? assemblyName = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(metadataName);
-        return new CodeType(metadataName);
+        if (assemblyName is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(assemblyName);
+        }
+
+        return new(metadataName) { AssemblyName = assemblyName };
     }
 
-    private static string GetMetadataName(Type type)
+    /// <summary>Matches semantic identity, allowing the standard framework reference-assembly facades.</summary>
+    public bool Matches(INamedTypeSymbol symbol)
     {
-        if (type.IsConstructedGenericType)
-        {
-            type = type.GetGenericTypeDefinition();
-        }
+        var actual = FromSymbol(symbol);
+        return MetadataName == actual.MetadataName &&
+            (TypeArguments.Length == 0 || TypeArguments == actual.TypeArguments) &&
+            (AssemblyName is null || AssemblyName == actual.AssemblyName || AssemblyName == symbol.ContainingAssembly.Identity.ToString() ||
+                AllowFrameworkFacades && IsFrameworkSymbol(symbol));
+    }
 
-        if (type.DeclaringType is not null)
-        {
-            return $"{GetMetadataName(type.DeclaringType)}+{type.Name}";
-        }
+    internal static CodeType FromSymbol(INamedTypeSymbol symbol) => new(MetadataNameOf(symbol))
+    {
+        AssemblyName = symbol.ContainingAssembly.Identity.Name,
+        TypeArguments = symbol.IsGenericType && !SymbolEqualityComparer.Default.Equals(symbol, symbol.OriginalDefinition)
+            ? string.Join(",", AllTypeArguments(symbol).Select(SymbolArgument)) : "",
+    };
 
-        return string.IsNullOrEmpty(type.Namespace)
-            ? type.Name
-            : $"{type.Namespace}.{type.Name}";
+    internal static string MetadataNameOf(INamedTypeSymbol symbol) => symbol.ContainingType is { } parent
+        ? $"{MetadataNameOf(parent)}+{symbol.MetadataName}"
+        : symbol.ContainingNamespace.IsGlobalNamespace ? symbol.MetadataName
+        : $"{symbol.ContainingNamespace.ToDisplayString()}.{symbol.MetadataName}";
+
+    internal static bool IsFrameworkSymbol(INamedTypeSymbol symbol)
+    {
+        var token = Convert.ToHexString(symbol.ContainingAssembly.Identity.PublicKeyToken.AsSpan());
+        return IsFrameworkAssembly(symbol.ContainingAssembly.Name) && token is
+            "B03F5F7F11D50A3A" or "B77A5C561934E089" or "7CEC85D7BEA7798E";
+    }
+
+    private static bool IsFrameworkAssembly(string name) => name is "mscorlib" or "netstandard" ||
+        name.StartsWith("System.", StringComparison.Ordinal) || name == "System";
+
+    private static string SymbolArgument(ITypeSymbol symbol) => symbol switch
+    {
+        INamedTypeSymbol named => MetadataNameOf(named) + "@" + (IsFrameworkSymbol(named) ? "framework" : named.ContainingAssembly.Identity.Name) + (named.IsGenericType
+            ? "[" + string.Join(",", AllTypeArguments(named).Select(SymbolArgument)) + "]" : ""),
+        IArrayTypeSymbol array => SymbolArgument(array.ElementType) + "[" + new string(',', array.Rank - 1) + "]",
+        _ => symbol.ToDisplayString(),
+    };
+
+    private static CodeType FromRuntime(Type type) => new(RuntimeName(type))
+    {
+        AssemblyName = type.Assembly.GetName().Name,
+        AllowFrameworkFacades = RuntimeAssembly(type) == "framework",
+        TypeArguments = type.IsConstructedGenericType ? string.Join(",", type.GenericTypeArguments.Select(RuntimeArgument)) : "",
+    };
+
+    private static string RuntimeArgument(Type type) => type.IsArray
+        ? RuntimeArgument(type.GetElementType()!) + "[" + new string(',', type.GetArrayRank() - 1) + "]"
+        : RuntimeName(type) + "@" + RuntimeAssembly(type) + (type.IsConstructedGenericType
+            ? "[" + string.Join(",", type.GenericTypeArguments.Select(RuntimeArgument)) + "]" : "");
+
+    private static IEnumerable<ITypeSymbol> AllTypeArguments(INamedTypeSymbol type) =>
+        (type.ContainingType is { } parent ? AllTypeArguments(parent) : []).Concat(type.TypeArguments);
+
+    private static string RuntimeAssembly(Type type)
+    {
+        var assembly = type.Assembly.GetName();
+        var token = Convert.ToHexString(assembly.GetPublicKeyToken() ?? []);
+        return assembly.Name is { } name && IsFrameworkAssembly(name) && token is
+            "B03F5F7F11D50A3A" or "B77A5C561934E089" or "7CEC85D7BEA7798E" ? "framework" : assembly.Name ?? "";
+    }
+
+    private static string RuntimeName(Type type)
+    {
+        var definition = type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : type;
+        return definition.FullName ?? definition.Name;
     }
 }

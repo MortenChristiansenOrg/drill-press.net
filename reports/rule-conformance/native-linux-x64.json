@@ -1,0 +1,20 @@
+{
+  "platform": "linux-x64",
+  "sdk": "10.0.111",
+  "case": "all-rules",
+  "managedNativeByteParity": true,
+  "responseBytes": 1943,
+  "responseSha256": "66D331BA3A7346BEAE231AABC04932873CA08FE8EDC5DEC61FFDFCAA13314A60",
+  "findings": [
+    "DP1001",
+    "DP1002",
+    "DP1003",
+    "DP1004",
+    "DP1005"
+  ],
+  "proposedBatches": 2,
+  "replacements": [
+    "\"\"",
+    "()"
+  ]
+}
