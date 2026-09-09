@@ -6,14 +6,4 @@ public sealed class WidgetService
     {
         return values.Contains(candidate, StringComparer.Ordinal);
     }
-
-    public string CurrentStamp()
-    {
-        return DateTime.Now.ToString("O");
-    }
-
-    public void WaitForStorage()
-    {
-        System.Threading.Thread.Sleep(10);
-    }
 }

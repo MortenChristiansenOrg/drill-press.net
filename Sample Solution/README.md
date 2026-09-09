@@ -1,9 +1,9 @@
 # Sample target solution
 
-This intentionally imperfect .NET 10/C# 14 solution exercises the AOT proof of
-concept in `../AOT POC`.
+This intentionally imperfect .NET 10/C# 14 solution exercises Drill Press with
+the rule bundle in `../samples/DrillPress.SampleRules`.
 
-It contains violations for all seven sample rules. `IWidgetStore` has one
+It contains violations for all five sample rules. `IWidgetStore` has one
 production implementation and one test-only implementation, demonstrating that
 the solution-wide DP1003 rule excludes test projects. `IWidgetFormatter` has two
 production implementations and is the non-violation control case.

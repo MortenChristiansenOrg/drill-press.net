@@ -11,6 +11,7 @@ might require opt-in flags for more detailed information, etc.
 
 # Code conventions
 
+- Clean up related obsolete code, documentation, and generated artifacts before completing a PR.
 - Keep DTO-only records together; give each type with behavior its own file. Use
   descriptive domain names and typed enums for process outcomes.
 - Document every public API under `src` with useful XML comments; omit comments
