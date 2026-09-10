@@ -7,7 +7,8 @@ namespace DrillPress.Conformance;
 
 public sealed class PinnedXunit(IFileSystem fileSystem)
 {
-    public const string Revision = "6bbefaed1d0a995bc9970800384f9e8a1b9d2331";
+    // Includes SourceLink 10.0.112, avoiding the vulnerable Microsoft.Build.Tasks.Git 10.0.105 dependency.
+    public const string Revision = "e10d47b2a123f880c209d07b5c4e0d44810ab4ac";
     private readonly IFileSystem _fileSystem = fileSystem;
 
     public async Task<string> PrepareAsync(string directory, string reportPath, CancellationToken cancellationToken)
