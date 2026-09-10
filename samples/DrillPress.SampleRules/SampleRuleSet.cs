@@ -7,6 +7,7 @@ public static class SampleRuleSet
     public static RuleSet Create()
     {
         var rules = new RuleSet();
+        ShowcaseRules.Register(rules);
         var tests = XunitTests.Methods;
         rules.For(tests).Require(new(method => method.Body.EmptyLines.Count <= 2), "DP1001",
             "Keep at most two empty lines in a test.", method => method.Body.EmptyLines[2]);

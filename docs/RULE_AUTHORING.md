@@ -4,7 +4,16 @@ A rule bundle constructs a `RuleSet` in ordinary C# and passes it to
 `RuleApplication`. Rules are compiled into the managed or NativeAOT executable;
 there is no runtime source compiler, assembly scan, or rule discovery.
 
+For custom roots, cached facts, operations/flow, project requirements, baselines
+and consumer fixtures, see the [composable SDK guide](SDK_CAPABILITIES.md).
+The five preview rules below remain available alongside the configured codec
+showcase in the sample bundle.
+
 ```csharp
+using DrillPress;
+using DrillPress.Fixes;
+using DrillPress.Testing;
+
 var rules = new RuleSet();
 var tests = XunitTests.Methods;
 
@@ -27,7 +36,8 @@ compiler semantics and implementation counts but never reportable candidates.
 `Where` returns a reusable selection. `RuleCondition<T>.And`, `.Or`, `.Not`, and
 `.ExceptWhen` compose Boolean predicates with short-circuit evaluation.
 `query.ExceptWhen(condition)` excludes exceptions. Predicates should be pure:
-the engine can share discovery and evaluate a selection more than once.
+each query instance is materialized once per analysis. Derived queries share
+custom-root discovery; different conditions remain independent selections.
 
 ```csharp
 var shortName = new RuleCondition<CodeMethod>(method => method.Symbol?.Name.Length < 3);

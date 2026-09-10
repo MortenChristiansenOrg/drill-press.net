@@ -7,9 +7,9 @@ to change, without pages of repeated messages.
 ## Technical preview
 
 Drill Press is an experimental .NET lint-rule engine.
-Commands and APIs may change. The sample bundle includes five rules covering
+Commands and APIs may change. The sample bundle includes five general preview rules covering
 xUnit test structure, interface implementations, empty strings, and ordinal
-comparers. Eligible string/comparer corrections are marked with `+`. Use `fix`
+comparers, plus configured codec examples. Eligible corrections are marked with `+`. Use `fix`
 in place of `check` to apply them and report only remaining findings. Read
 [the write and recovery policy](docs/FIXING.md) before applying changes.
 
@@ -122,7 +122,8 @@ independent of nearby project settings.
 Fast export permits ordinary compiler errors. `--validate-compilation` explicitly
 enumerates compiler errors and rejects an invalid target. Generator exceptions,
 missing inputs, incomplete project graphs, and load failures fail both modes.
-Rules see only resolved symbols. Source project references remain compilation
+Semantic selections do not guess unresolved symbols; syntax queries retain erroneous code.
+Source project references remain compilation
 references, so an erroneous dependency need not emit an assembly. Generated
 source participates in binding but is excluded from reportable candidates and
 edits. Explicit evaluated `IsTestProject` values take precedence over inference.
@@ -164,3 +165,11 @@ reports phases on stderr during ordinary CLI checks and fixes.
 
 See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
 rules, semantic type identities, and the exact automatic-fix contracts.
+
+The [composable SDK guide](docs/SDK_CAPABILITIES.md) covers custom query roots,
+source and operation analysis, shared facts, project relationships, accepted
+source baselines, safe edit construction, and the consumer test kit. The
+[codec example](samples/CodecExamples/README.md) exercises the expanded API with
+independent architecture and source policies. Authoring types now live in
+responsibility-specific namespaces such as `DrillPress.Analysis`,
+`DrillPress.Semantics`, and `DrillPress.Fixes`.

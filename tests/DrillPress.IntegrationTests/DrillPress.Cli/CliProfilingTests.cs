@@ -27,6 +27,8 @@ public sealed class CliProfilingTests : IntegrationTest
         Assert.Equal([
             "cli.build-host", "build-host.loading", "build-host.snapshot.serialization", "build-host.snapshot.bytes", "build-host.contexts", "build-host.total",
             "cli.snapshot.loading", "cli.rules", "rules.snapshot.loading", "rules.reconstruction", "rules.preparation",
+            "rules.rule.SDK2001", "rules.rule.SDK2002", "rules.rule.SDK2003", "rules.rule.SDK2004", "rules.rule.SDK2005", "rules.rule.SDK2006",
+            "rules.rule.SDK2007", "rules.rule.SDK2008", "rules.rule.SDK2011", "rules.rule.SDK2012", "rules.rule.SDK2009", "rules.rule.SDK2010",
             "rules.rule.DP1001", "rules.rule.DP1002", "rules.rule.DP1003", "rules.rule.DP1004", "rules.rule.DP1005",
             "rules.member.symbol.bindings", "rules.interface.definition.comparisons", "rules.fix.validation", "rules.aggregation",
             "rules.contexts", "rules.context.findings", "rules.actionable.locations", "rules.common.safe.batches", "rules.common.safe.edits",

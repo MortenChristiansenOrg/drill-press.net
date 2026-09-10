@@ -113,6 +113,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             CompilationReferences = edges.ToArray(), ReferencedContextIds = edges.Select(edge => edge.ContextId).ToArray(),
             TargetFramework = metadata.TargetFramework, IsTestProject = metadata.IsTestProject,
             Properties = metadata.Properties, SdkVersion = sdkVersion,
+            Packages = metadata.Packages, SourceRoots = metadata.SourceRoots,
         };
         return new CompilationContext(snapshot, compilation);
     }
@@ -161,7 +162,30 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             assets = _fileSystem.Path.GetFullPath(assets, _fileSystem.Path.GetDirectoryName(project.FilePath!)!);
         }
 
-        return new EvaluatedMetadata(framework, isTest, properties, assets);
+        foreach (var property in evaluated.AllEvaluatedProperties)
+        {
+            // Only project policy facts: do not serialize arbitrary environment variables or secrets.
+            if (property.Name is "RootNamespace" or "AssemblyName" or "Nullable" or "OutputType" or "IsPackable" or "LangVersion")
+            {
+                properties[property.Name] = property.EvaluatedValue;
+            }
+        }
+
+        var central = evaluated.GetItems("PackageVersion").GroupBy(item => item.EvaluatedInclude, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last().GetMetadataValue("Version"), StringComparer.OrdinalIgnoreCase);
+        var packages = evaluated.GetItems("PackageReference").Select(item =>
+        {
+            var version = item.GetMetadataValue("VersionOverride");
+            if (version.Length == 0)
+            {
+                version = item.GetMetadataValue("Version");
+            }
+
+            return new PackageReferenceSnapshot(item.EvaluatedInclude,
+                version.Length > 0 ? version : central.GetValueOrDefault(item.EvaluatedInclude, ""));
+        }).OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase).ToArray();
+        var roots = evaluated.GetItems("SourceRoot").Select(item => item.EvaluatedInclude).Distinct().Order().ToArray();
+        return new EvaluatedMetadata(framework, isTest, properties, assets, packages, roots);
     }
 
     private static GeneratedCompilation RunGenerators(Project project, CSharpCompilation compilation, CancellationToken cancellationToken)
@@ -219,6 +243,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         }
     }
 
-    private sealed record EvaluatedMetadata(string TargetFramework, bool IsTestProject, Dictionary<string, string> Properties, string AssetsPath);
+    private sealed record EvaluatedMetadata(string TargetFramework, bool IsTestProject, Dictionary<string, string> Properties,
+        string AssetsPath, PackageReferenceSnapshot[] Packages, string[] SourceRoots);
     private sealed record GeneratedCompilation(CSharpCompilation Compilation, HashSet<SyntaxTree> Trees);
 }

@@ -46,6 +46,8 @@ public sealed class SignatureNormalization
         {
             ContextId = _contexts[project.ContextId], ProjectPath = Path(project.ProjectPath),
             Properties = Sort(project.Properties),
+            SourceRoots = project.SourceRoots.Select(Path).Order().ToArray(),
+            Packages = project.Packages.OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase).ThenBy(package => package.Version).ToArray(),
             CompilerOptions = project.CompilerOptions with { SpecificDiagnosticOptions = Sort(project.CompilerOptions.SpecificDiagnosticOptions) },
             ReferencedContextIds = project.ReferencedContextIds.Select(id => _contexts[id]).ToArray(),
             CompilationReferences = project.CompilationReferences.Select(reference => reference with { ContextId = _contexts[reference.ContextId] }).ToArray(),
