@@ -23,6 +23,7 @@ public sealed class ProjectFactsTests : IntegrationTest
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><RootNamespace>Example.Contract</RootNamespace></PropertyGroup>
               <ItemGroup><PackageReference Include="Microsoft.NET.StringTools" /></ItemGroup>
+              <ItemGroup><SourceRoot Include="$(MSBuildProjectDirectory)/z/;$(MSBuildProjectDirectory)/ä/;$(MSBuildProjectDirectory)/a/" /></ItemGroup>
             </Project>
             """);
         FileSystem.File.WriteAllText(FileSystem.Path.Combine(root, "Source.cs"), "public class Example { }");
@@ -37,5 +38,8 @@ public sealed class ProjectFactsTests : IntegrationTest
         Assert.Equal([new PackageReferenceSnapshot("Microsoft.NET.StringTools", version)], project.Packages);
         Assert.Equal("Example.Contract", project.Properties["RootNamespace"]);
         Assert.Equal("enable", project.Properties["Nullable"]);
+        Assert.Equal([root.Replace('\\', '/') + "/a/", root.Replace('\\', '/') + "/z/", root.Replace('\\', '/') + "/ä/"],
+            project.SourceRoots.Select(path => path.Replace('\\', '/')).Where(path => path.StartsWith(root.Replace('\\', '/') + "/", StringComparison.Ordinal)));
+        Assert.Equal(project.SourceRoots.Order(StringComparer.Ordinal), project.SourceRoots);
     }
 }

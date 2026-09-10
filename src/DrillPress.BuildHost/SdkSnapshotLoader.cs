@@ -183,8 +183,9 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
 
             return new PackageReferenceSnapshot(item.EvaluatedInclude,
                 version.Length > 0 ? version : central.GetValueOrDefault(item.EvaluatedInclude, ""));
-        }).OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase).ToArray();
-        var roots = evaluated.GetItems("SourceRoot").Select(item => item.EvaluatedInclude).Distinct().Order().ToArray();
+        }).OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(package => package.Id, StringComparer.Ordinal).ThenBy(package => package.Version, StringComparer.Ordinal).ToArray();
+        var roots = evaluated.GetItems("SourceRoot").Select(item => item.EvaluatedInclude).Distinct().Order(StringComparer.Ordinal).ToArray();
         return new EvaluatedMetadata(framework, isTest, properties, assets, packages, roots);
     }
 

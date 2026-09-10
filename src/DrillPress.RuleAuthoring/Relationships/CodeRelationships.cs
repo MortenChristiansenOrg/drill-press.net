@@ -53,6 +53,7 @@ public sealed class CodeRelationships
         ? _calls.Value.Values.SelectMany(calls => calls).Where(call => Key(call.Target) == key).ToArray() : [];
 
     /// <summary>Reports whether a bound source call path reaches the configured API. False does not prove absence of indirect runtime calls.</summary>
+    /// <remarks>Nested functions are not attributed to their enclosing method. Direct local-function calls are followed, but delegate dispatch into lambda bodies is not inferred.</remarks>
     public bool Reaches(IMethodSymbol method, CodeMember target)
     {
         var pending = new Stack<IMethodSymbol>();
@@ -111,7 +112,9 @@ public sealed class CodeRelationships
 
     private static DeclarationKey? Key(IMethodSymbol method)
     {
-        var reference = (method.ReducedFrom ?? method).OriginalDefinition.DeclaringSyntaxReferences.FirstOrDefault();
+        var definition = (method.ReducedFrom ?? method).OriginalDefinition;
+        definition = definition.PartialDefinitionPart ?? definition;
+        var reference = definition.DeclaringSyntaxReferences.FirstOrDefault();
         return reference is null ? null : new(reference.SyntaxTree, reference.Span.Start);
     }
 

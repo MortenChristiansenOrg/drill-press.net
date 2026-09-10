@@ -20,9 +20,17 @@ public static class SymbolQueries
         node.Source.Model.GetSymbolInfo(node.Syntax, node.Source.Project.CancellationToken).Symbol is { } symbol
             ? new[] { new CodeSymbol(node.Source, node.Syntax, symbol) } : []);
 
-    /// <summary>Selects references to a symbol using compiler identity or a shared source declaration. Metadata symbols rely on compiler identity.</summary>
-    public static CodeQuery<CodeSymbol> ReferencesTo(ISymbol target) => References.Where(reference =>
-        SymbolEqualityComparer.Default.Equals(reference.Symbol.OriginalDefinition, target.OriginalDefinition) ||
-        reference.Symbol.OriginalDefinition.DeclaringSyntaxReferences.Any(left => target.OriginalDefinition.DeclaringSyntaxReferences
-            .Any(right => left.SyntaxTree == right.SyntaxTree && left.Span == right.Span)));
+    /// <summary>Selects references using compiler identity or a loaded source-file identity and declaration span shared across compilations. Metadata symbols rely on compiler identity.</summary>
+    public static CodeQuery<CodeSymbol> ReferencesTo(ISymbol target) => CodeQuery<CodeSymbol>.Create(solution =>
+    {
+        var files = solution.Projects.SelectMany(project => project.Sources).DistinctBy(source => source.Tree)
+            .ToDictionary(source => source.Tree, source => source.Document.FileIdentity);
+        var declarations = target.OriginalDefinition.DeclaringSyntaxReferences
+            .Where(reference => files.ContainsKey(reference.SyntaxTree))
+            .Select(reference => (File: files[reference.SyntaxTree], reference.Span)).ToHashSet();
+        return References.In(solution).Where(reference =>
+            SymbolEqualityComparer.Default.Equals(reference.Symbol.OriginalDefinition, target.OriginalDefinition) ||
+            reference.Symbol.OriginalDefinition.DeclaringSyntaxReferences.Any(declaration =>
+                files.TryGetValue(declaration.SyntaxTree, out var file) && declarations.Contains((file, declaration.Span))));
+    });
 }

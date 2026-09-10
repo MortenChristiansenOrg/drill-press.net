@@ -2,12 +2,58 @@ using DrillPress.IntegrationTests.TestInfrastructure;
 using DrillPress.Queries;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
 public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Fact]
+    public async Task Inactive_region_edits_are_rejected_even_when_the_consumer_accepts_them()
+    {
+        var workspace = fixture.Workspace();
+        var input = new TestSource("A.cs", """
+            #if NEVER
+            class Inactive { }
+            #endif
+            class Active { }
+            """);
+        var project = workspace.AddProject("Library", [input]);
+        var source = project.Sources.Single();
+        var proposal = SourceChanges.Propose([SourceChanges.Replace(source,
+            new TextSpan(input.Text.IndexOf("Inactive", StringComparison.Ordinal), "Inactive".Length), "Changed")], _ => true);
+        var rules = new RuleSet();
+        rules.For(Sources.Files).Forbid("EDIT", "Update the declaration.", fix: _ => proposal);
+
+        var safe = proposal.IsSafeIn(project);
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.False(safe);
+        Assert.Equal([new TestFinding("EDIT", "A.cs", 1, 1, "", false)], result.Findings);
+        Assert.Equal(input.Text, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task Generated_source_edits_are_rejected_when_proposed_from_an_ordinary_file()
+    {
+        var workspace = fixture.Workspace();
+        var generated = new TestSource("Generated.cs", "class Generated { int Value => 1; }", true);
+        var project = workspace.AddProject("Library", [new("A.cs", "class A { }"), generated]);
+        var source = project.Sources.Single(source => source.Document.IsGenerated);
+        var proposal = SourceChanges.Propose([SourceChanges.Replace(source,
+            new TextSpan(generated.Text.IndexOf('1'), 1), "2")], _ => true);
+        var rules = new RuleSet();
+        rules.For(Sources.Files).Forbid("EDIT", "Update the generated constant.", fix: _ => proposal);
+
+        var safe = proposal.IsSafeIn(project);
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.False(safe);
+        Assert.Equal([new TestFinding("EDIT", "A.cs", 1, 1, "", false)], result.Findings);
+        Assert.Equal(generated.Text, result.FixedText("Generated.cs"));
+    }
+
     [Fact]
     public async Task Modifier_removal_preserves_comments_and_physical_lines()
     {

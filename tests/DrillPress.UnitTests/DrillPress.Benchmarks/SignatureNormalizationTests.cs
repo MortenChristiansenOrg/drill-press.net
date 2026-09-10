@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Abstractions.TestingHelpers;
 using DrillPress.Benchmarks;
 using DrillPress.Manifest;
@@ -7,6 +8,38 @@ namespace DrillPress.UnitTests.DrillPress.Benchmarks;
 
 public sealed class SignatureNormalizationTests
 {
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("da-DK")]
+    public async Task Source_roots_and_package_order_are_ordinal_and_independent_of_input_order(string culture)
+    {
+        var fileSystem = new MockFileSystem();
+        var root = fileSystem.Path.GetFullPath("root");
+        var input = Create(root, "a");
+        var snapshot = input.Snapshot with { Projects = [input.Snapshot.Projects[0] with
+        {
+            SourceRoots = ["z", "ä", "a"],
+            Packages = [new("example", "1.0"), new("Example", "1.0-ä"), new("Example", "1.0-z")],
+        }] };
+        var reversed = snapshot with { Projects = [snapshot.Projects[0] with
+        {
+            SourceRoots = snapshot.Projects[0].SourceRoots.Reverse().ToArray(),
+            Packages = snapshot.Projects[0].Packages.Reverse().ToArray(),
+        }] };
+
+        var results = await Task.Run(() =>
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+            var normalization = new SignatureNormalization(fileSystem, snapshot, root);
+            return (First: normalization.Snapshot(snapshot), Second: normalization.Snapshot(reversed));
+        }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["a", "z", "ä"], results.First.Projects[0].SourceRoots);
+        Assert.Equal([new PackageReferenceSnapshot("Example", "1.0-z"), new("Example", "1.0-ä"), new("example", "1.0")],
+            results.First.Projects[0].Packages);
+        Assert.Equal(SignatureNormalization.Hash(results.First), SignatureNormalization.Hash(results.Second));
+    }
+
     [Fact]
     public void Different_roots_and_run_ids_preserve_complete_signatures()
     {

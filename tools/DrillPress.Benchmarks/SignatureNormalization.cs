@@ -22,7 +22,7 @@ public sealed class SignatureNormalization
         _contexts = snapshot.Projects.ToDictionary(project => project.ContextId, project => Hash(new
         {
             Path = Path(project.ProjectPath), project.TargetFramework,
-            Properties = project.Properties.OrderBy(pair => pair.Key).ToArray(),
+            Properties = project.Properties.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray(),
         }));
         _paths = snapshot.Projects.SelectMany(project => project.Documents.Select(document =>
             (document.Path, Normalized: DocumentPath(project, document)))).Distinct()
@@ -46,8 +46,9 @@ public sealed class SignatureNormalization
         {
             ContextId = _contexts[project.ContextId], ProjectPath = Path(project.ProjectPath),
             Properties = Sort(project.Properties),
-            SourceRoots = project.SourceRoots.Select(Path).Order().ToArray(),
-            Packages = project.Packages.OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase).ThenBy(package => package.Version).ToArray(),
+            SourceRoots = project.SourceRoots.Select(Path).Order(StringComparer.Ordinal).ToArray(),
+            Packages = project.Packages.OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(package => package.Id, StringComparer.Ordinal).ThenBy(package => package.Version, StringComparer.Ordinal).ToArray(),
             CompilerOptions = project.CompilerOptions with { SpecificDiagnosticOptions = Sort(project.CompilerOptions.SpecificDiagnosticOptions) },
             ReferencedContextIds = project.ReferencedContextIds.Select(id => _contexts[id]).ToArray(),
             CompilationReferences = project.CompilationReferences.Select(reference => reference with { ContextId = _contexts[reference.ContextId] }).ToArray(),

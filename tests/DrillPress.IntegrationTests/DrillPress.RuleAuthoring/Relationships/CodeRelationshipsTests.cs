@@ -1,11 +1,54 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
 using DrillPress.Projects;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Relationships;
 
 public sealed class CodeRelationshipsTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Partial_method_parts_share_callers_and_outgoing_paths(bool generatedImplementation)
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", "partial class A { void Start() => Pause(); partial void Pause(); }"),
+            new("B.cs", "partial class A { partial void Pause() => System.Threading.Thread.Sleep(1); }", generatedImplementation)]);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var graph = CodeRelationships.In(solution);
+        var start = solution.Methods.Single(method => method.Name == "Start").Symbol!;
+        var parts = solution.Projects.Single().Sources.SelectMany(source => source.Tree.GetRoot().DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(syntax => syntax.Identifier.ValueText == "Pause")
+            .Select(syntax => source.Model.GetDeclaredSymbol(syntax)!)).ToArray();
+
+        var reaches = graph.Reaches(start, new(CodeType.Named("System.Threading.Thread"), "Sleep"));
+        var outgoing = parts.Select(part => string.Join(",", graph.CallsFrom(part).Select(call => call.Operation.Syntax.ToString()))).ToArray();
+        var callers = parts.Select(part => string.Join(",", graph.CallersOf(part).Select(call => call.Operation.Syntax.ToString()))).ToArray();
+
+        Assert.True(reaches);
+        Assert.Equal(["System.Threading.Thread.Sleep(1)", "System.Threading.Thread.Sleep(1)"], outgoing);
+        Assert.Equal(["Pause()", "Pause()"], callers);
+    }
+
+    [Fact]
+    public void Delegate_invocations_do_not_infer_paths_into_lambda_bodies()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", "class A { void M() { System.Action pause = () => System.Threading.Thread.Sleep(1); pause(); } }")]);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var graph = CodeRelationships.In(solution);
+        var method = solution.Methods.Single().Symbol!;
+
+        var reaches = graph.Reaches(method, new(CodeType.Named("System.Threading.Thread"), "Sleep"));
+        var calls = graph.CallsFrom(method);
+
+        Assert.False(reaches);
+        Assert.Equal(["pause()"], calls.Select(call => call.Operation.Syntax.ToString()));
+    }
+
     [Fact]
     public void Invocation_paths_follow_generated_implementations_without_reporting_them()
     {
