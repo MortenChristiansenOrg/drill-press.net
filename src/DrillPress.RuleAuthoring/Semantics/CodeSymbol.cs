@@ -3,7 +3,8 @@ using Microsoft.CodeAnalysis;
 namespace DrillPress.Semantics;
 
 /// <summary>A resolved source declaration or reference, including declarations beyond ordinary methods and named types.</summary>
-public sealed class CodeSymbol(AnalysisSource source, SyntaxNode syntax, ISymbol symbol) : ICodeElement
+public sealed class CodeSymbol(AnalysisSource source, SyntaxNode syntax, ISymbol symbol)
+    : ICodeElement
 {
     /// <summary>The original compilation and document membership.</summary>
     public AnalysisSource Source { get; } = source;

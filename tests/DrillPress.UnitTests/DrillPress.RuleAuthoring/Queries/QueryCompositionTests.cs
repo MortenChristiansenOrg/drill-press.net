@@ -9,7 +9,11 @@ public sealed class QueryCompositionTests
     public void Derived_queries_share_discovery_and_keep_solution_lifetimes_separate()
     {
         var discoveries = 0;
-        var root = CodeQuery<int>.Create(_ => { discoveries++; return [1, 2, 3]; });
+        var root = CodeQuery<int>.Create(_ =>
+        {
+            discoveries++;
+            return [1, 2, 3];
+        });
         var small = root.Where(value => value <= 2);
         var large = root.Where(value => value >= 2);
         var first = new AnalysisSolution([]);
@@ -29,8 +33,19 @@ public sealed class QueryCompositionTests
     {
         var expected = CodeQuery<string>.Create(_ => ["Json", "Xml"]);
         var actual = CodeQuery<string>.Create(_ => ["JSON"]);
-        var missing = expected.WithoutMatching(actual, item => item, item => item, StringComparer.OrdinalIgnoreCase);
-        var joined = expected.Join(actual, item => item, item => item, (left, right) => left + ":" + right, StringComparer.OrdinalIgnoreCase);
+        var missing = expected.WithoutMatching(
+            actual,
+            item => item,
+            item => item,
+            StringComparer.OrdinalIgnoreCase
+        );
+        var joined = expected.Join(
+            actual,
+            item => item,
+            item => item,
+            (left, right) => left + ":" + right,
+            StringComparer.OrdinalIgnoreCase
+        );
         var solution = new AnalysisSolution([]);
 
         var missingResult = missing.In(solution);

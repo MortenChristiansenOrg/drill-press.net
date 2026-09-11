@@ -21,7 +21,11 @@ public sealed class CodeFile(AnalysisSource source) : ICodeElement
     public SourceLocation Location => Source.Locate(new(0, 0));
 
     /// <summary>Enumerates syntax in this document, including its root and structured trivia.</summary>
-    public IEnumerable<CodeNode<TSyntax>> Nodes<TSyntax>() where TSyntax : SyntaxNode =>
-        Source.Tree.GetRoot(Source.Project.CancellationToken).DescendantNodesAndSelf(descendIntoTrivia: true)
-            .OfType<TSyntax>().Select(syntax => new CodeNode<TSyntax>(Source, syntax));
+    public IEnumerable<CodeNode<TSyntax>> Nodes<TSyntax>()
+        where TSyntax : SyntaxNode =>
+        Source
+            .Tree.GetRoot(Source.Project.CancellationToken)
+            .DescendantNodesAndSelf(descendIntoTrivia: true)
+            .OfType<TSyntax>()
+            .Select(syntax => new CodeNode<TSyntax>(Source, syntax));
 }

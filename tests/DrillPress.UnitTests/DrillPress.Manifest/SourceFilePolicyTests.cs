@@ -12,15 +12,32 @@ public sealed class SourceFilePolicyTests
         var fixture = new FixFixture();
         fixture.Probe.Overrides[fixture.Paths[1]] = new(fixture.Paths[0], 1, true);
         var project = fixture.Snapshot.Projects[0];
-        var snapshot = fixture.Snapshot with { Projects = [project with
+        var snapshot = fixture.Snapshot with
         {
-            Documents = [project.Documents[0], project.Documents[1] with { IsGenerated = true, IsEditable = false }],
-        }] };
+            Projects =
+            [
+                project with
+                {
+                    Documents =
+                    [
+                        project.Documents[0],
+                        project.Documents[1] with
+                        {
+                            IsGenerated = true,
+                            IsEditable = false,
+                        },
+                    ],
+                },
+            ],
+        };
         var policy = new SourceFilePolicy(fixture.FileSystem, fixture.Probe);
 
         var result = policy.Restrict(snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal([false, false], result.Projects[0].Documents.Select(document => document.IsEditable));
+        Assert.Equal(
+            [false, false],
+            result.Projects[0].Documents.Select(document => document.IsEditable)
+        );
     }
 
     [Fact]
@@ -32,8 +49,14 @@ public sealed class SourceFilePolicyTests
 
         var result = policy.Restrict(fixture.Snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal([false, false], result.Projects[0].Documents.Select(document => document.IsEditable));
-        Assert.Equal(fixture.Documents.Select(document => document.FileIdentity), result.Projects[0].Documents.Select(document => document.FileIdentity));
+        Assert.Equal(
+            [false, false],
+            result.Projects[0].Documents.Select(document => document.IsEditable)
+        );
+        Assert.Equal(
+            fixture.Documents.Select(document => document.FileIdentity),
+            result.Projects[0].Documents.Select(document => document.FileIdentity)
+        );
     }
 
     [Theory]
@@ -48,7 +71,10 @@ public sealed class SourceFilePolicyTests
 
         var result = policy.Restrict(fixture.Snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal([false, true], result.Projects[0].Documents.Select(document => document.IsEditable));
+        Assert.Equal(
+            [false, true],
+            result.Projects[0].Documents.Select(document => document.IsEditable)
+        );
     }
 
     [Fact]
@@ -60,7 +86,10 @@ public sealed class SourceFilePolicyTests
 
         var result = policy.Restrict(fixture.Snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal([false, false], result.Projects[0].Documents.Select(document => document.IsEditable));
+        Assert.Equal(
+            [false, false],
+            result.Projects[0].Documents.Select(document => document.IsEditable)
+        );
     }
 
     [Fact]
@@ -72,7 +101,13 @@ public sealed class SourceFilePolicyTests
 
         var result = policy.Restrict(fixture.Snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal([false, true], result.Projects[0].Documents.Select(document => document.IsEditable));
-        Assert.Equal(fixture.Documents.Select(document => document.Text), result.Projects[0].Documents.Select(document => document.Text));
+        Assert.Equal(
+            [false, true],
+            result.Projects[0].Documents.Select(document => document.IsEditable)
+        );
+        Assert.Equal(
+            fixture.Documents.Select(document => document.Text),
+            result.Projects[0].Documents.Select(document => document.Text)
+        );
     }
 }

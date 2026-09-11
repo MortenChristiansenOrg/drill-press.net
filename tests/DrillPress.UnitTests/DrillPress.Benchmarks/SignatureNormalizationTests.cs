@@ -11,33 +11,67 @@ public sealed class SignatureNormalizationTests
     [Theory]
     [InlineData("en-US")]
     [InlineData("da-DK")]
-    public async Task Source_roots_and_package_order_are_ordinal_and_independent_of_input_order(string culture)
+    public async Task Source_roots_and_package_order_are_ordinal_and_independent_of_input_order(
+        string culture
+    )
     {
         var fileSystem = new MockFileSystem();
         var root = fileSystem.Path.GetFullPath("root");
         var input = Create(root, "a");
-        var snapshot = input.Snapshot with { Projects = [input.Snapshot.Projects[0] with
+        var snapshot = input.Snapshot with
         {
-            SourceRoots = ["z", "ä", "a"],
-            Packages = [new("example", "1.0"), new("Example", "1.0-ä"), new("Example", "1.0-z")],
-        }] };
-        var reversed = snapshot with { Projects = [snapshot.Projects[0] with
+            Projects =
+            [
+                input.Snapshot.Projects[0] with
+                {
+                    SourceRoots = ["z", "ä", "a"],
+                    Packages =
+                    [
+                        new("example", "1.0"),
+                        new("Example", "1.0-ä"),
+                        new("Example", "1.0-z"),
+                    ],
+                },
+            ],
+        };
+        var reversed = snapshot with
         {
-            SourceRoots = snapshot.Projects[0].SourceRoots.Reverse().ToArray(),
-            Packages = snapshot.Projects[0].Packages.Reverse().ToArray(),
-        }] };
+            Projects =
+            [
+                snapshot.Projects[0] with
+                {
+                    SourceRoots = snapshot.Projects[0].SourceRoots.Reverse().ToArray(),
+                    Packages = snapshot.Projects[0].Packages.Reverse().ToArray(),
+                },
+            ],
+        };
 
-        var results = await Task.Run(() =>
-        {
-            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
-            var normalization = new SignatureNormalization(fileSystem, snapshot, root);
-            return (First: normalization.Snapshot(snapshot), Second: normalization.Snapshot(reversed));
-        }, TestContext.Current.CancellationToken);
+        var results = await Task.Run(
+            () =>
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+                var normalization = new SignatureNormalization(fileSystem, snapshot, root);
+                return (
+                    First: normalization.Snapshot(snapshot),
+                    Second: normalization.Snapshot(reversed)
+                );
+            },
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(["a", "z", "ä"], results.First.Projects[0].SourceRoots);
-        Assert.Equal([new PackageReferenceSnapshot("Example", "1.0-z"), new("Example", "1.0-ä"), new("example", "1.0")],
-            results.First.Projects[0].Packages);
-        Assert.Equal(SignatureNormalization.Hash(results.First), SignatureNormalization.Hash(results.Second));
+        Assert.Equal(
+            [
+                new PackageReferenceSnapshot("Example", "1.0-z"),
+                new("Example", "1.0-ä"),
+                new("example", "1.0"),
+            ],
+            results.First.Projects[0].Packages
+        );
+        Assert.Equal(
+            SignatureNormalization.Hash(results.First),
+            SignatureNormalization.Hash(results.Second)
+        );
     }
 
     [Fact]
@@ -46,14 +80,25 @@ public sealed class SignatureNormalizationTests
         var fileSystem = new MockFileSystem();
         var first = Create(fileSystem.Path.GetFullPath("first"), "a");
         var second = Create(fileSystem.Path.GetFullPath("second"), "b");
-        var left = new SignatureNormalization(fileSystem, first.Snapshot, fileSystem.Path.GetFullPath("first"));
-        var right = new SignatureNormalization(fileSystem, second.Snapshot, fileSystem.Path.GetFullPath("second"));
+        var left = new SignatureNormalization(
+            fileSystem,
+            first.Snapshot,
+            fileSystem.Path.GetFullPath("first")
+        );
+        var right = new SignatureNormalization(
+            fileSystem,
+            second.Snapshot,
+            fileSystem.Path.GetFullPath("second")
+        );
 
         var expected = left.Response(first.Response);
         var actual = right.Response(second.Response);
 
         Assert.Equal(SignatureNormalization.Hash(expected), SignatureNormalization.Hash(actual));
-        Assert.Equal(SignatureNormalization.Hash(left.Snapshot(first.Snapshot)), SignatureNormalization.Hash(right.Snapshot(second.Snapshot)));
+        Assert.Equal(
+            SignatureNormalization.Hash(left.Snapshot(first.Snapshot)),
+            SignatureNormalization.Hash(right.Snapshot(second.Snapshot))
+        );
         Assert.Equal("literal /first/unchanged", actual.Batches[0].Edits[0].Replacement);
         Assert.Equal("message /first/unchanged", actual.Contexts[0].Findings[0].Message);
     }
@@ -63,15 +108,29 @@ public sealed class SignatureNormalizationTests
     {
         var fileSystem = new MockFileSystem();
         var input = Create(fileSystem.Path.GetFullPath("first"), "a");
-        var changed = input.Response with { Batches = [input.Response.Batches[0] with { Validations = [new("a", false)] }] };
-        var left = new SignatureNormalization(fileSystem, input.Snapshot, fileSystem.Path.GetFullPath("first"));
-        var right = new SignatureNormalization(fileSystem, input.Snapshot, fileSystem.Path.GetFullPath("first"));
+        var changed = input.Response with
+        {
+            Batches = [input.Response.Batches[0] with { Validations = [new("a", false)] }],
+        };
+        var left = new SignatureNormalization(
+            fileSystem,
+            input.Snapshot,
+            fileSystem.Path.GetFullPath("first")
+        );
+        var right = new SignatureNormalization(
+            fileSystem,
+            input.Snapshot,
+            fileSystem.Path.GetFullPath("first")
+        );
 
         var expected = left.Response(input.Response);
         var actual = right.Response(changed);
 
         Assert.NotEqual(SignatureNormalization.Hash(expected), SignatureNormalization.Hash(actual));
-        Assert.NotEqual(expected.Contexts[0].Findings[0].BatchId, actual.Contexts[0].Findings[0].BatchId);
+        Assert.NotEqual(
+            expected.Contexts[0].Findings[0].BatchId,
+            actual.Contexts[0].Findings[0].BatchId
+        );
         Assert.False(actual.Batches[0].Validations[0].IsSafe);
     }
 
@@ -81,8 +140,21 @@ public sealed class SignatureNormalizationTests
         var fileSystem = new MockFileSystem();
         var input = Create(fileSystem.Path.GetFullPath("first"), "a");
         var project = input.Snapshot.Projects[0];
-        var changed = input.Snapshot with { Projects = [project with { Documents = [project.Documents[0] with { IsEditable = false }] }] };
-        var normalization = new SignatureNormalization(fileSystem, input.Snapshot, fileSystem.Path.GetFullPath("first"));
+        var changed = input.Snapshot with
+        {
+            Projects =
+            [
+                project with
+                {
+                    Documents = [project.Documents[0] with { IsEditable = false }],
+                },
+            ],
+        };
+        var normalization = new SignatureNormalization(
+            fileSystem,
+            input.Snapshot,
+            fileSystem.Path.GetFullPath("first")
+        );
 
         var expected = normalization.Snapshot(input.Snapshot);
         var actual = normalization.Snapshot(changed);
@@ -98,14 +170,25 @@ public sealed class SignatureNormalizationTests
         var second = Create(fileSystem.Path.GetFullPath("second"), "b");
         var left = WithGenerated(first.Snapshot, "a");
         var right = WithGenerated(second.Snapshot, "b");
-        var leftNormalization = new SignatureNormalization(fileSystem, left, fileSystem.Path.GetFullPath("first"));
-        var rightNormalization = new SignatureNormalization(fileSystem, right, fileSystem.Path.GetFullPath("second"));
+        var leftNormalization = new SignatureNormalization(
+            fileSystem,
+            left,
+            fileSystem.Path.GetFullPath("first")
+        );
+        var rightNormalization = new SignatureNormalization(
+            fileSystem,
+            right,
+            fileSystem.Path.GetFullPath("second")
+        );
 
         var expected = leftNormalization.Snapshot(left);
         var actual = rightNormalization.Snapshot(right);
 
         Assert.Equal(SignatureNormalization.Hash(expected), SignatureNormalization.Hash(actual));
-        Assert.Equal("generated drillpress-generated://a/source", actual.Projects[0].Documents[1].Text);
+        Assert.Equal(
+            "generated drillpress-generated://a/source",
+            actual.Projects[0].Documents[1].Text
+        );
     }
 
     [Fact]
@@ -114,21 +197,46 @@ public sealed class SignatureNormalizationTests
         var fileSystem = new MockFileSystem();
         var input = Create(fileSystem.Path.GetFullPath("root"), "a");
         var project = input.Snapshot.Projects[0];
-        var first = input.Snapshot with { Projects = [project with { CompilerOptions = project.CompilerOptions with
+        var first = input.Snapshot with
         {
-            SpecificDiagnosticOptions = new() { ["CS1702"] = 5, ["CS1701"] = 1 },
-        } }] };
-        var second = input.Snapshot with { Projects = [project with { CompilerOptions = project.CompilerOptions with
+            Projects =
+            [
+                project with
+                {
+                    CompilerOptions = project.CompilerOptions with
+                    {
+                        SpecificDiagnosticOptions = new() { ["CS1702"] = 5, ["CS1701"] = 1 },
+                    },
+                },
+            ],
+        };
+        var second = input.Snapshot with
         {
-            SpecificDiagnosticOptions = new() { ["CS1701"] = 1, ["CS1702"] = 5 },
-        } }] };
-        var normalization = new SignatureNormalization(fileSystem, input.Snapshot, fileSystem.Path.GetFullPath("root"));
+            Projects =
+            [
+                project with
+                {
+                    CompilerOptions = project.CompilerOptions with
+                    {
+                        SpecificDiagnosticOptions = new() { ["CS1701"] = 1, ["CS1702"] = 5 },
+                    },
+                },
+            ],
+        };
+        var normalization = new SignatureNormalization(
+            fileSystem,
+            input.Snapshot,
+            fileSystem.Path.GetFullPath("root")
+        );
 
         var expected = normalization.Snapshot(first);
         var actual = normalization.Snapshot(second);
 
         Assert.Equal(SignatureNormalization.Hash(expected), SignatureNormalization.Hash(actual));
-        Assert.Equal([new KeyValuePair<string, int>("CS1701", 1), new("CS1702", 5)], actual.Projects[0].CompilerOptions.SpecificDiagnosticOptions);
+        Assert.Equal(
+            [new KeyValuePair<string, int>("CS1701", 1), new("CS1702", 5)],
+            actual.Projects[0].CompilerOptions.SpecificDiagnosticOptions
+        );
     }
 
     [Fact]
@@ -138,12 +246,22 @@ public sealed class SignatureNormalizationTests
         var root = fileSystem.Path.GetFullPath("root");
         var input = Create(root, "a");
         var project = input.Snapshot.Projects[0];
-        var snapshot = input.Snapshot with { Projects = [project, project with
+        var snapshot = input.Snapshot with
         {
-            ContextId = "b", Documents = [project.Documents[0] with { DocumentId = "b-doc" }],
-        }] };
+            Projects =
+            [
+                project,
+                project with
+                {
+                    ContextId = "b",
+                    Documents = [project.Documents[0] with { DocumentId = "b-doc" }],
+                },
+            ],
+        };
 
-        Assert.Throws<InvalidDataException>(() => new SignatureNormalization(fileSystem, snapshot, root));
+        Assert.Throws<InvalidDataException>(() =>
+            new SignatureNormalization(fileSystem, snapshot, root)
+        );
     }
 
     [Fact]
@@ -153,8 +271,23 @@ public sealed class SignatureNormalizationTests
         var root = fileSystem.Path.GetFullPath("root");
         var input = Create(root, "a");
         var edit = input.Response.Batches[0].Edits[0];
-        var plan = new ValidatedResult([new("R", "message /first/unchanged", edit.FileIdentity,
-            edit.FileIdentity, 0, 5, 1, 1, "a-batch")], input.Response.Batches, [edit]);
+        var plan = new ValidatedResult(
+            [
+                new(
+                    "R",
+                    "message /first/unchanged",
+                    edit.FileIdentity,
+                    edit.FileIdentity,
+                    0,
+                    5,
+                    1,
+                    1,
+                    "a-batch"
+                ),
+            ],
+            input.Response.Batches,
+            [edit]
+        );
         var normalization = new SignatureNormalization(fileSystem, input.Snapshot, root);
 
         var actual = normalization.Plan(plan);
@@ -167,18 +300,72 @@ public sealed class SignatureNormalizationTests
     private static CompilationSnapshot WithGenerated(CompilationSnapshot snapshot, string id)
     {
         var path = "drillpress-generated://" + id + "/000001/Generator.g.cs";
-        var generated = new DocumentSnapshot(path, "generated drillpress-generated://a/source", true) { DocumentId = id + "-generated" };
-        return snapshot with { Projects = [snapshot.Projects[0] with { Documents = [.. snapshot.Projects[0].Documents, generated] }] };
+        var generated = new DocumentSnapshot(
+            path,
+            "generated drillpress-generated://a/source",
+            true
+        )
+        {
+            DocumentId = id + "-generated",
+        };
+        return snapshot with
+        {
+            Projects =
+            [
+                snapshot.Projects[0] with
+                {
+                    Documents = [.. snapshot.Projects[0].Documents, generated],
+                },
+            ],
+        };
     }
 
-    private static (CompilationSnapshot Snapshot, BundleResponse Response) Create(string root, string id)
+    private static (CompilationSnapshot Snapshot, BundleResponse Response) Create(
+        string root,
+        string id
+    )
     {
         var path = System.IO.Path.Combine(root, "Shared.cs");
-        var document = new DocumentSnapshot(path, "alpha", false) { DocumentId = id + "-doc", FileIdentity = path, IsEditable = true, Fingerprint = "hash" };
-        var project = new ProjectSnapshot("P", "P", System.IO.Path.Combine(root, "P.csproj"), 14, 2, 0, [], [document], []) { ContextId = id };
+        var document = new DocumentSnapshot(path, "alpha", false)
+        {
+            DocumentId = id + "-doc",
+            FileIdentity = path,
+            IsEditable = true,
+            Fingerprint = "hash",
+        };
+        var project = new ProjectSnapshot(
+            "P",
+            "P",
+            System.IO.Path.Combine(root, "P.csproj"),
+            14,
+            2,
+            0,
+            [],
+            [document],
+            []
+        )
+        {
+            ContextId = id,
+        };
         var snapshot = CompilationSnapshot.Create(project) with { RequestId = id };
-        var response = new BundleResponse(1, id, [new(id, true, [new("R", "message /first/unchanged", document.DocumentId, 0, 5, id + "-batch")])],
-            [new(id + "-batch", [new(path, "hash", 0, 5, "alpha", "literal /first/unchanged")], [new(id, true)])]);
+        var response = new BundleResponse(
+            1,
+            id,
+            [
+                new(
+                    id,
+                    true,
+                    [new("R", "message /first/unchanged", document.DocumentId, 0, 5, id + "-batch")]
+                ),
+            ],
+            [
+                new(
+                    id + "-batch",
+                    [new(path, "hash", 0, 5, "alpha", "literal /first/unchanged")],
+                    [new(id, true)]
+                ),
+            ]
+        );
         return (snapshot, response);
     }
 }

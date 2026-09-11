@@ -1,1 +1,3 @@
-<Solution><Project Path="Consumer/Consumer.csproj" /></Solution>
+<Solution>
+  <Project Path="Consumer/Consumer.csproj" />
+</Solution>

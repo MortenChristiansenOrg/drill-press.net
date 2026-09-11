@@ -1,5 +1,5 @@
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress.Analysis;
@@ -14,7 +14,9 @@ public sealed class CodeMethod : ICodeElement
     {
         Source = source;
         Syntax = syntax;
-        _symbol = new(() => source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken));
+        _symbol = new(() =>
+            source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken)
+        );
         _body = new(() => new TestBody(this));
     }
 
@@ -34,7 +36,8 @@ public sealed class CodeMethod : ICodeElement
     public bool IsAsync => Symbol?.IsAsync == true;
 
     /// <summary>Tests semantic attributes; unresolved declarations do not match.</summary>
-    public bool HasAttribute(CodeType attribute) => Symbol is { } symbol && Symbols.HasAttribute(symbol, attribute);
+    public bool HasAttribute(CodeType attribute) =>
+        Symbol is { } symbol && Symbols.HasAttribute(symbol, attribute);
 
     /// <summary>The method identifier's physical span.</summary>
     public SourceLocation Location => Source.Locate(Syntax.Identifier.Span);

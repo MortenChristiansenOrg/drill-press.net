@@ -7,7 +7,8 @@ public sealed class RuleCondition<T>
     private readonly Func<T, bool> _predicate;
 
     /// <summary>Creates a condition without restricting candidate discovery.</summary>
-    public RuleCondition(Func<T, bool> predicate) : this(predicate, null) { }
+    public RuleCondition(Func<T, bool> predicate)
+        : this(predicate, null) { }
 
     internal RuleCondition(Func<T, bool> predicate, IReadOnlySet<string>? memberNames)
     {
@@ -18,15 +19,22 @@ public sealed class RuleCondition<T>
     internal IReadOnlySet<string>? MemberNames { get; }
 
     /// <summary>Requires both conditions and intersects their known candidate names.</summary>
-    public RuleCondition<T> And(RuleCondition<T> other) => new(
-        candidate => Evaluate(candidate) && other.Evaluate(candidate),
-        MemberNames is null ? other.MemberNames : other.MemberNames is null ? MemberNames :
-            MemberNames.Intersect(other.MemberNames).ToHashSet());
+    public RuleCondition<T> And(RuleCondition<T> other) =>
+        new(
+            candidate => Evaluate(candidate) && other.Evaluate(candidate),
+            MemberNames is null ? other.MemberNames
+                : other.MemberNames is null ? MemberNames
+                : MemberNames.Intersect(other.MemberNames).ToHashSet()
+        );
 
     /// <summary>Accepts either condition; an unrestricted alternative keeps discovery unrestricted.</summary>
-    public RuleCondition<T> Or(RuleCondition<T> other) => new(
-        candidate => Evaluate(candidate) || other.Evaluate(candidate),
-        MemberNames is null || other.MemberNames is null ? null : MemberNames.Union(other.MemberNames).ToHashSet());
+    public RuleCondition<T> Or(RuleCondition<T> other) =>
+        new(
+            candidate => Evaluate(candidate) || other.Evaluate(candidate),
+            MemberNames is null || other.MemberNames is null
+                ? null
+                : MemberNames.Union(other.MemberNames).ToHashSet()
+        );
 
     /// <summary>Inverts this condition without restricting candidate discovery.</summary>
     public RuleCondition<T> Not() => new(candidate => !Evaluate(candidate));

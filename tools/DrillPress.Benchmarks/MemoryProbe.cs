@@ -6,7 +6,12 @@ namespace DrillPress.Benchmarks;
 
 public static class MemoryProbe
 {
-    public static async Task<MemorySample> RunWorkerAsync(IFileSystem fileSystem, string planPath, BundleMode mode, string caseName)
+    public static async Task<MemorySample> RunWorkerAsync(
+        IFileSystem fileSystem,
+        string planPath,
+        BundleMode mode,
+        string caseName
+    )
     {
         var plan = new BenchmarkPlanFile(fileSystem).Read(planPath);
         var scenario = plan.Cases.Single(item => item.Name == caseName);
@@ -17,7 +22,11 @@ public static class MemoryProbe
 
         long peakMemory = 0;
         var output = await BenchmarkExecution.RunAsync(
-            plan, mode, scenario, process => peakMemory = ChildPeakMemory.Read(process));
+            plan,
+            mode,
+            scenario,
+            process => peakMemory = ChildPeakMemory.Read(process)
+        );
         return new MemorySample(mode, caseName, peakMemory, output);
     }
 
@@ -29,16 +38,31 @@ public static class MemoryProbe
             foreach (var mode in Enum.GetValues<BundleMode>())
             {
                 // No build here: the prebuilt worker launches exactly one target.
-                var result = await ProcessRunner.RunAsync("dotnet",
-                    [typeof(MemoryProbe).Assembly.Location, "--memory-worker", planPath, mode.ToString(), scenario.Name],
-                    plan.RepositoryRoot);
+                var result = await ProcessRunner.RunAsync(
+                    "dotnet",
+                    [
+                        typeof(MemoryProbe).Assembly.Location,
+                        "--memory-worker",
+                        planPath,
+                        mode.ToString(),
+                        scenario.Name,
+                    ],
+                    plan.RepositoryRoot
+                );
                 ProcessRunner.RequireSuccess(result);
-                var sample = JsonSerializer.Deserialize<MemorySample>(result.StandardOutput)
+                var sample =
+                    JsonSerializer.Deserialize<MemorySample>(result.StandardOutput)
                     ?? throw new InvalidOperationException("The memory worker returned no sample.");
                 BundleContract.Validate(scenario, sample.Output);
-                if (sample.Mode != mode || sample.Case != scenario.Name || sample.PeakMemoryBytes <= 0)
+                if (
+                    sample.Mode != mode
+                    || sample.Case != scenario.Name
+                    || sample.PeakMemoryBytes <= 0
+                )
                 {
-                    throw new InvalidOperationException("The memory worker returned an invalid sample.");
+                    throw new InvalidOperationException(
+                        "The memory worker returned an invalid sample."
+                    );
                 }
 
                 samples.Add(sample);

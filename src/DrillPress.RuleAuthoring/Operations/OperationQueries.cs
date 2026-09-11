@@ -9,32 +9,55 @@ namespace DrillPress.Operations;
 public static class OperationQueries
 {
     /// <summary>Every operation in ordinary source, including implicit conversions and nested functions.</summary>
-    public static CodeQuery<CodeOperation<IOperation>> All { get; } = Sources.Files.SelectMany(Discover);
+    public static CodeQuery<CodeOperation<IOperation>> All { get; } =
+        Sources.Files.SelectMany(Discover);
 
     /// <summary>Resolved invocation operations, with parameter mapping and call-site semantics.</summary>
-    public static CodeQuery<CodeInvocation> Invocations { get; } = Of<IInvocationOperation>()
-        .Select(candidate => new CodeInvocation(candidate.Source, candidate.Operation));
+    public static CodeQuery<CodeInvocation> Invocations { get; } =
+        Of<IInvocationOperation>()
+            .Select(candidate => new CodeInvocation(candidate.Source, candidate.Operation));
 
     /// <summary>Selects a compiler operation kind without requiring consumers to traverse syntax or cast nodes.</summary>
-    public static CodeQuery<CodeOperation<T>> Of<T>() where T : IOperation => TypedRoot<T>.Query;
+    public static CodeQuery<CodeOperation<T>> Of<T>()
+        where T : IOperation => TypedRoot<T>.Query;
 
     /// <summary>Discovers operations only in a selected file scope, avoiding binding unrelated projects.</summary>
-    public static CodeQuery<CodeOperation<IOperation>> InFiles(CodeQuery<CodeFile> files) => files.SelectMany(Discover);
+    public static CodeQuery<CodeOperation<IOperation>> InFiles(CodeQuery<CodeFile> files) =>
+        files.SelectMany(Discover);
 
     /// <summary>Discovers bound calls only within selected files.</summary>
-    public static CodeQuery<CodeInvocation> InvocationsIn(CodeQuery<CodeFile> files) => InFiles(files)
-        .Where(candidate => candidate.Operation is IInvocationOperation)
-        .Select(candidate => new CodeInvocation(candidate.Source, (IInvocationOperation)candidate.Operation));
+    public static CodeQuery<CodeInvocation> InvocationsIn(CodeQuery<CodeFile> files) =>
+        InFiles(files)
+            .Where(candidate => candidate.Operation is IInvocationOperation)
+            .Select(candidate => new CodeInvocation(
+                candidate.Source,
+                (IInvocationOperation)candidate.Operation
+            ));
 
     private static IEnumerable<CodeOperation<IOperation>> Discover(CodeFile file)
     {
         var seen = new HashSet<IOperation>(ReferenceEqualityComparer.Instance);
-        foreach (var syntax in file.Source.Tree.GetRoot(file.Source.Project.CancellationToken).DescendantNodes()
-            .Where(node => node is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax or EqualsValueClauseSyntax or
-                GlobalStatementSyntax or ArrowExpressionClauseSyntax or AttributeSyntax or ConstructorInitializerSyntax))
+        foreach (
+            var syntax in file
+                .Source.Tree.GetRoot(file.Source.Project.CancellationToken)
+                .DescendantNodes()
+                .Where(node =>
+                    node
+                        is BaseMethodDeclarationSyntax
+                            or AccessorDeclarationSyntax
+                            or EqualsValueClauseSyntax
+                            or GlobalStatementSyntax
+                            or ArrowExpressionClauseSyntax
+                            or AttributeSyntax
+                            or ConstructorInitializerSyntax
+                )
+        )
         {
             file.Source.Project.CancellationToken.ThrowIfCancellationRequested();
-            var operation = file.Source.Model.GetOperation(syntax, file.Source.Project.CancellationToken);
+            var operation = file.Source.Model.GetOperation(
+                syntax,
+                file.Source.Project.CancellationToken
+            );
             if (operation is null)
             {
                 continue;
@@ -64,10 +87,12 @@ public static class OperationQueries
         }
     }
 
-    private static class TypedRoot<T> where T : IOperation
+    private static class TypedRoot<T>
+        where T : IOperation
     {
-        internal static readonly CodeQuery<CodeOperation<T>> Query = All
-            .Where(new(candidate => candidate.Operation is T))
+        internal static readonly CodeQuery<CodeOperation<T>> Query = All.Where(
+                new(candidate => candidate.Operation is T)
+            )
             .Select(candidate => new CodeOperation<T>(candidate.Source, (T)candidate.Operation));
     }
 }

@@ -207,3 +207,20 @@ thirteen independent policies covering the capability groups above. The
 [runnable target](../samples/CodecExamples/README.md) demonstrates useful findings
 and an eligible correction. Consumer tests exercise the remaining policies with
 focused snippets, including packages and accepted source baselines.
+
+`ShowcaseRules` is the policy list: named predicates and selections express intent,
+while the [CodecPolicies helpers](../samples/DrillPress.SampleRules/CodecPolicies)
+contain the implementation. Change `CodecSources` for project/file scope and
+declaration conventions, `CodecBehavior` for calls and flow analysis, and
+`CodecExamples` for counterpart matching, repeated examples, and format inventories.
+These helpers compose the existing SDK; they are sample-specific vocabulary, not
+another rule engine or a new public SDK API. For example:
+
+```csharp
+rules.For(code.Calls.Where(CodecBehavior.WritesToConsole))
+    .Require(CodecBehavior.IsInTracingAdapter,
+        "SDK2002", "Keep console output in the Tracing adapter.");
+
+rules.For(code.TextCodecs.WithoutMatching(examples.RoundTrips, examples.IsRoundTripExampleFor))
+    .Forbid("SDK2004", "Provide a named round-trip example for each text codec.");
+```

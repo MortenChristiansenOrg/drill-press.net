@@ -13,9 +13,12 @@ public partial class FileIdentityProbe
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         try
         {
-            return OperatingSystem.IsWindows() ? ReadWindows(path) : OperatingSystem.IsLinux() ? ReadLinux(path) : null;
+            return OperatingSystem.IsWindows() ? ReadWindows(path)
+                : OperatingSystem.IsLinux() ? ReadLinux(path)
+                : null;
         }
-        catch (Exception exception) when (exception is EntryPointNotFoundException or DllNotFoundException)
+        catch (Exception exception)
+            when (exception is EntryPointNotFoundException or DllNotFoundException)
         {
             return null;
         }
@@ -36,34 +39,80 @@ public partial class FileIdentityProbe
             return null;
         }
 
-        var key = Convert.ToHexString(data.Slice(136, 8)) + ":" + Convert.ToHexString(data.Slice(32, 8));
-        return new(key, BinaryPrimitives.ReadUInt32LittleEndian(data[16..]),
-            (BinaryPrimitives.ReadUInt16LittleEndian(data[28..]) & 0xF000) == 0x8000);
+        var key =
+            Convert.ToHexString(data.Slice(136, 8)) + ":" + Convert.ToHexString(data.Slice(32, 8));
+        return new(
+            key,
+            BinaryPrimitives.ReadUInt32LittleEndian(data[16..]),
+            (BinaryPrimitives.ReadUInt16LittleEndian(data[28..]) & 0xF000) == 0x8000
+        );
     }
 
     private static unsafe PhysicalFileIdentity? ReadWindows(string path)
     {
-        var extended = path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path : path.StartsWith(@"\\", StringComparison.Ordinal)
-            ? @"\\?\UNC\" + path[2..] : @"\\?\" + path;
+        var extended =
+            path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path
+            : path.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + path[2..]
+            : @"\\?\" + path;
         using var handle = OpenFile(extended, 0, 7, 0, 3, 0, 0);
         byte* identity = stackalloc byte[24];
         byte* standard = stackalloc byte[24];
-        if (handle.IsInvalid || GetInformation(handle, 18, identity, 24) == 0 || GetInformation(handle, 1, standard, 24) == 0)
+        if (
+            handle.IsInvalid
+            || GetInformation(handle, 18, identity, 24) == 0
+            || GetInformation(handle, 1, standard, 24) == 0
+        )
         {
             return null;
         }
 
         var data = new ReadOnlySpan<byte>(standard, 24);
-        return new(Convert.ToHexString(new ReadOnlySpan<byte>(identity, 24)),
-            BinaryPrimitives.ReadUInt32LittleEndian(data[16..]), data[21] == 0 && data[20] == 0);
+        return new(
+            Convert.ToHexString(new ReadOnlySpan<byte>(identity, 24)),
+            BinaryPrimitives.ReadUInt32LittleEndian(data[16..]),
+            data[21] == 0 && data[20] == 0
+        );
     }
 
-    [LibraryImport("libc", EntryPoint = "statx", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
-    private static unsafe partial int Statx(int directory, string path, int flags, uint mask, byte* buffer);
+    [LibraryImport(
+        "libc",
+        EntryPoint = "statx",
+        StringMarshalling = StringMarshalling.Utf8,
+        SetLastError = true
+    )]
+    private static unsafe partial int Statx(
+        int directory,
+        string path,
+        int flags,
+        uint mask,
+        byte* buffer
+    );
 
-    [LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
-    private static partial SafeFileHandle OpenFile(string path, uint access, uint share, nint security, uint creation, uint flags, nint template);
+    [LibraryImport(
+        "kernel32.dll",
+        EntryPoint = "CreateFileW",
+        StringMarshalling = StringMarshalling.Utf16,
+        SetLastError = true
+    )]
+    private static partial SafeFileHandle OpenFile(
+        string path,
+        uint access,
+        uint share,
+        nint security,
+        uint creation,
+        uint flags,
+        nint template
+    );
 
-    [LibraryImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx", SetLastError = true)]
-    private static unsafe partial int GetInformation(SafeFileHandle handle, int informationClass, byte* information, uint size);
+    [LibraryImport(
+        "kernel32.dll",
+        EntryPoint = "GetFileInformationByHandleEx",
+        SetLastError = true
+    )]
+    private static unsafe partial int GetInformation(
+        SafeFileHandle handle,
+        int informationClass,
+        byte* information,
+        uint size
+    );
 }

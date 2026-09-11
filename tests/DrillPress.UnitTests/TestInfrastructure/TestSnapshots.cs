@@ -9,13 +9,14 @@ internal static class TestSnapshots
     public static CompilationSnapshot Create(
         string source,
         string sourcePath = "Test.cs",
-        bool isGenerated = false) =>
-        CompilationSnapshot.Create(CreateProject(sourcePath, source, isGenerated));
+        bool isGenerated = false
+    ) => CompilationSnapshot.Create(CreateProject(sourcePath, source, isGenerated));
 
     public static ProjectSnapshot CreateProject(
         string sourcePath,
         string source,
-        bool isGenerated = false) =>
+        bool isGenerated = false
+    ) =>
         new(
             "TestProject",
             "TestProject",
@@ -25,5 +26,6 @@ internal static class TestSnapshots
             (int)NullableContextOptions.Enable,
             [],
             [new DocumentSnapshot(sourcePath, source, isGenerated)],
-            []);
+            []
+        );
 }

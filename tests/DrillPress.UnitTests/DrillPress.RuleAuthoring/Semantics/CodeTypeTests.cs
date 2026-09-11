@@ -19,7 +19,8 @@ public sealed class CodeTypeTests
 
         Assert.Equal(
             "DrillPress.UnitTests.RuleAuthoring.Semantics.CodeTypeTests+Nesting+Contained",
-            type.MetadataName);
+            type.MetadataName
+        );
     }
 
     [Fact]

@@ -11,16 +11,15 @@ public abstract class IntegrationTest : IDisposable
     private readonly List<IDirectoryInfo> _temporaryDirectories = [];
     private readonly List<Process> _testProcesses = [];
 
-    private static string BuildConfiguration { get; } = typeof(IntegrationTest).Assembly
-        .GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
+    private static string BuildConfiguration { get; } =
+        typeof(IntegrationTest)
+            .Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!
+            .Configuration;
 
     protected static string RepositoryRoot { get; } = FindRepositoryRoot();
 
-    protected static string SampleProjectPath { get; } = RepositoryPath(
-        "Sample Solution",
-        "src",
-        "WidgetLibrary",
-        "WidgetLibrary.csproj");
+    protected static string SampleProjectPath { get; } =
+        RepositoryPath("Sample Solution", "src", "WidgetLibrary", "WidgetLibrary.csproj");
 
     public void Dispose()
     {
@@ -45,7 +44,12 @@ public abstract class IntegrationTest : IDisposable
 
     protected async Task RestoreAsync(string target)
     {
-        var result = await RunProcessAsync("dotnet", ["restore", target, "--nologo"], RepositoryRoot, Xunit.TestContext.Current.CancellationToken);
+        var result = await RunProcessAsync(
+            "dotnet",
+            ["restore", target, "--nologo"],
+            RepositoryRoot,
+            Xunit.TestContext.Current.CancellationToken
+        );
         Xunit.Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
     }
 
@@ -60,14 +64,22 @@ public abstract class IntegrationTest : IDisposable
         FileSystem.Path.Combine(RepositoryRoot, FileSystem.Path.Combine(segments));
 
     protected static string GetOutputPath(string projectName, string projectDirectory = "src") =>
-        RepositoryPath(projectDirectory, projectName, "bin", BuildConfiguration, "net10.0", $"{projectName}.dll");
+        RepositoryPath(
+            projectDirectory,
+            projectName,
+            "bin",
+            BuildConfiguration,
+            "net10.0",
+            $"{projectName}.dll"
+        );
 
     protected static async Task<ProcessResult> RunProcessAsync(
         string fileName,
         IReadOnlyList<string> arguments,
         string workingDirectory,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         var startInfo = new ProcessStartInfo(fileName)
@@ -90,7 +102,8 @@ public abstract class IntegrationTest : IDisposable
             }
         }
 
-        using var process = Process.Start(startInfo)
+        using var process =
+            Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{fileName}'.");
         var standardOutput = process.StandardOutput.ReadToEndAsync();
         var standardError = process.StandardError.ReadToEndAsync();
@@ -113,7 +126,8 @@ public abstract class IntegrationTest : IDisposable
         string readyPath,
         Task launch,
         CancellationTokenSource cancellation,
-        TimeSpan? readinessTimeout = null)
+        TimeSpan? readinessTimeout = null
+    )
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
         timeout.CancelAfter(readinessTimeout ?? TimeSpan.FromSeconds(30));
@@ -124,13 +138,17 @@ public abstract class IntegrationTest : IDisposable
                 if (launch.IsCompleted)
                 {
                     await launch;
-                    throw new InvalidOperationException("The test process exited before reporting readiness.");
+                    throw new InvalidOperationException(
+                        "The test process exited before reporting readiness."
+                    );
                 }
 
                 await Task.Delay(20, timeout.Token);
             }
 
-            var process = Process.GetProcessById(int.Parse(await FileSystem.File.ReadAllTextAsync(readyPath, timeout.Token)));
+            var process = Process.GetProcessById(
+                int.Parse(await FileSystem.File.ReadAllTextAsync(readyPath, timeout.Token))
+            );
             _testProcesses.Add(process);
             return process;
         }
@@ -153,7 +171,12 @@ public abstract class IntegrationTest : IDisposable
     private static string FindRepositoryRoot()
     {
         var directory = FileSystem.DirectoryInfo.New(AppContext.BaseDirectory);
-        while (directory is not null && !FileSystem.File.Exists(FileSystem.Path.Combine(directory.FullName, "DrillPress.slnx")))
+        while (
+            directory is not null
+            && !FileSystem.File.Exists(
+                FileSystem.Path.Combine(directory.FullName, "DrillPress.slnx")
+            )
+        )
         {
             directory = directory.Parent;
         }
@@ -180,20 +203,27 @@ public abstract class IntegrationTest : IDisposable
             [cli, "check", "--build-host", buildHost, "--rules", rules, target, .. options],
             RepositoryRoot,
             cancellationToken,
-            environment);
+            environment
+        );
 
         return new CliResult(
             result.ExitCode,
             result.StandardOutput,
             result.StandardError,
-            temporaryRoot.FullName);
+            temporaryRoot.FullName
+        );
     }
 
     protected sealed record CliResult(
         int ExitCode,
         string StandardOutput,
         string StandardError,
-        string TemporaryRoot);
+        string TemporaryRoot
+    );
 
-    protected sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
+    protected sealed record ProcessResult(
+        int ExitCode,
+        string StandardOutput,
+        string StandardError
+    );
 }

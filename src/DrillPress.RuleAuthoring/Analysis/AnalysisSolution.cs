@@ -14,7 +14,8 @@ public sealed class AnalysisSolution
     private readonly bool _providedReferences;
     private readonly Dictionary<object, Lazy<object>> _facts = [];
 
-    internal T Cached<T>(object key, Func<T> create) where T : notnull
+    internal T Cached<T>(object key, Func<T> create)
+        where T : notnull
     {
         Lazy<object> value;
         lock (_facts)
@@ -31,33 +32,54 @@ public sealed class AnalysisSolution
     }
 
     /// <summary>Creates an analysis over separately evaluated project contexts.</summary>
-    public AnalysisSolution(IReadOnlyList<AnalysisProject> projects, CancellationToken cancellationToken = default)
+    public AnalysisSolution(
+        IReadOnlyList<AnalysisProject> projects,
+        CancellationToken cancellationToken = default
+    )
         : this(projects, new AnalysisOptions(), cancellationToken) { }
 
     /// <summary>Creates an analysis with explicit execution and profiling options.</summary>
-    public AnalysisSolution(IReadOnlyList<AnalysisProject> projects, AnalysisOptions options, CancellationToken cancellationToken = default)
+    public AnalysisSolution(
+        IReadOnlyList<AnalysisProject> projects,
+        AnalysisOptions options,
+        CancellationToken cancellationToken = default
+    )
     {
         Options = options;
         CancellationToken = cancellationToken;
         Projects = projects.ToArray();
         Implementations = new(this);
         _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
-        _references = new(() => Options.EnableOptimizations
-            ? _memberCandidates.Value.Select(null).ToArray()
-            : OrdinarySources.SelectMany(DiscoverReferences).ToArray());
-        _methods = new(() => OrdinarySources.SelectMany(source => source.Tree.GetRoot(source.Project.CancellationToken).DescendantNodes()
-            .OfType<MethodDeclarationSyntax>().Select(syntax => new CodeMethod(source, syntax))).ToArray());
+        _references = new(() =>
+            Options.EnableOptimizations
+                ? _memberCandidates.Value.Select(null).ToArray()
+                : OrdinarySources.SelectMany(DiscoverReferences).ToArray()
+        );
+        _methods = new(() =>
+            OrdinarySources
+                .SelectMany(source =>
+                    source
+                        .Tree.GetRoot(source.Project.CancellationToken)
+                        .DescendantNodes()
+                        .OfType<MethodDeclarationSyntax>()
+                        .Select(syntax => new CodeMethod(source, syntax))
+                )
+                .ToArray()
+        );
         _types = new(DiscoverTypes);
     }
 
-    internal AnalysisSolution(IReadOnlyList<MemberReference> references) : this(Array.Empty<AnalysisProject>())
+    internal AnalysisSolution(IReadOnlyList<MemberReference> references)
+        : this(Array.Empty<AnalysisProject>())
     {
         _providedReferences = true;
         _references = new(() => references);
     }
 
     internal IEnumerable<MemberReference> SelectMemberReferences(IReadOnlySet<string>? names) =>
-        _providedReferences || !Options.EnableOptimizations ? MemberReferences : _memberCandidates.Value.Select(names);
+        _providedReferences || !Options.EnableOptimizations
+            ? MemberReferences
+            : _memberCandidates.Value.Select(names);
 
     /// <summary>Stops evaluation and discovery within this analysis.</summary>
     public CancellationToken CancellationToken { get; }
@@ -82,12 +104,18 @@ public sealed class AnalysisSolution
 
     internal void WriteProfileCounters()
     {
-        Options.Profile.Count("member.symbol.bindings", _memberBindings + (_memberCandidates.IsValueCreated ? _memberCandidates.Value.Bindings : 0));
+        Options.Profile.Count(
+            "member.symbol.bindings",
+            _memberBindings
+                + (_memberCandidates.IsValueCreated ? _memberCandidates.Value.Bindings : 0)
+        );
         Implementations.WriteProfileCounters();
     }
 
-    private IEnumerable<AnalysisSource> OrdinarySources => Projects.SelectMany(project => project.Sources)
-        .Where(source => !source.Document.IsGenerated);
+    private IEnumerable<AnalysisSource> OrdinarySources =>
+        Projects
+            .SelectMany(project => project.Sources)
+            .Where(source => !source.Document.IsGenerated);
 
     private IReadOnlyList<CodeDeclaration> DiscoverTypes()
     {
@@ -96,13 +124,27 @@ public sealed class AnalysisSolution
         {
             CancellationToken.ThrowIfCancellationRequested();
             var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-            foreach (var source in project.Sources.Where(source => !source.Document.IsGenerated)
-                .OrderBy(source => source.Document.Path, StringComparer.Ordinal))
+            foreach (
+                var source in project
+                    .Sources.Where(source => !source.Document.IsGenerated)
+                    .OrderBy(source => source.Document.Path, StringComparer.Ordinal)
+            )
             {
-                foreach (var syntax in source.Tree.GetRoot(source.Project.CancellationToken).DescendantNodes().OfType<MemberDeclarationSyntax>()
-                    .Where(node => node is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax))
+                foreach (
+                    var syntax in source
+                        .Tree.GetRoot(source.Project.CancellationToken)
+                        .DescendantNodes()
+                        .OfType<MemberDeclarationSyntax>()
+                        .Where(node =>
+                            node is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax
+                        )
+                )
                 {
-                    if (source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken) is INamedTypeSymbol symbol && seen.Add(symbol))
+                    if (
+                        source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken)
+                            is INamedTypeSymbol symbol
+                        && seen.Add(symbol)
+                    )
                     {
                         result.Add(new CodeDeclaration(this, source, syntax, symbol));
                     }
@@ -115,22 +157,37 @@ public sealed class AnalysisSolution
 
     private IEnumerable<MemberReference> DiscoverReferences(AnalysisSource source)
     {
-        foreach (var name in source.Tree.GetRoot(source.Project.CancellationToken).DescendantNodes().OfType<SimpleNameSyntax>())
+        foreach (
+            var name in source
+                .Tree.GetRoot(source.Project.CancellationToken)
+                .DescendantNodes()
+                .OfType<SimpleNameSyntax>()
+        )
         {
             source.Project.CancellationToken.ThrowIfCancellationRequested();
-            ExpressionSyntax? expression = name.Parent is MemberAccessExpressionSyntax access && access.Name == name
-                ? access : name is IdentifierNameSyntax && name.Parent is not (QualifiedNameSyntax or AliasQualifiedNameSyntax)
-                    ? name : null;
+            ExpressionSyntax? expression =
+                name.Parent is MemberAccessExpressionSyntax access && access.Name == name ? access
+                : name is IdentifierNameSyntax
+                && name.Parent is not (QualifiedNameSyntax or AliasQualifiedNameSyntax)
+                    ? name
+                : null;
             if (expression is null)
             {
                 continue;
             }
 
             _memberBindings++;
-            if (source.Model.GetSymbolInfo(expression, source.Project.CancellationToken).Symbol is
-                (IFieldSymbol or IPropertySymbol or IMethodSymbol) and { ContainingType: { IsAnonymousType: false } type } symbol)
+            if (
+                source.Model.GetSymbolInfo(expression, source.Project.CancellationToken).Symbol
+                is (IFieldSymbol or IPropertySymbol or IMethodSymbol)
+                    and { ContainingType: { IsAnonymousType: false } type } symbol
+            )
             {
-                yield return new MemberReference(CodeType.FromSymbol(type), symbol.Name, source.Locate(expression.Span))
+                yield return new MemberReference(
+                    CodeType.FromSymbol(type),
+                    symbol.Name,
+                    source.Locate(expression.Span)
+                )
                 {
                     Source = source,
                     Syntax = expression,

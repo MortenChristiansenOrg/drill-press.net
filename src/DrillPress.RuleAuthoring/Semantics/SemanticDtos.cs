@@ -7,7 +7,8 @@ namespace DrillPress.Semantics;
 public sealed record MemberReference(
     CodeType ContainingType,
     string MemberName,
-    SourceLocation Location) : ICodeElement
+    SourceLocation Location
+) : ICodeElement
 {
     /// <summary>Semantic context, absent for manually supplied candidates.</summary>
     public AnalysisSource? Source { get; init; }

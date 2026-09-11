@@ -8,9 +8,17 @@ public sealed class CodeQueryTests
     [Fact]
     public void Where_composes_all_conditions()
     {
-        var query = Code.MemberReferences
-            .Where(new RuleCondition<MemberReference>(reference => reference.MemberName.StartsWith('E')))
-            .Where(new RuleCondition<MemberReference>(reference => reference.Location.FilePath == "Included.cs"));
+        var query = Code
+            .MemberReferences.Where(
+                new RuleCondition<MemberReference>(reference =>
+                    reference.MemberName.StartsWith('E')
+                )
+            )
+            .Where(
+                new RuleCondition<MemberReference>(reference =>
+                    reference.Location.FilePath == "Included.cs"
+                )
+            );
         var references = new[]
         {
             RuleTestData.Reference<string>("Empty", "Included.cs"),

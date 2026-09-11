@@ -8,7 +8,11 @@ public sealed class CodeMember
     private readonly CodeType[]? _parameters;
 
     /// <summary>Names a method on its declaring type, optionally selecting exact parameter types.</summary>
-    public CodeMember(CodeType declaringType, string name, IReadOnlyList<CodeType>? parameters = null)
+    public CodeMember(
+        CodeType declaringType,
+        string name,
+        IReadOnlyList<CodeType>? parameters = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         DeclaringType = declaringType;
@@ -26,8 +30,14 @@ public sealed class CodeMember
     public bool Matches(IMethodSymbol method)
     {
         method = method.ReducedFrom ?? method;
-        return method.Name == Name && DeclaringType.Matches(method.ContainingType) &&
-            (_parameters is null || method.Parameters.Length == _parameters.Length &&
-                method.Parameters.Zip(_parameters).All(pair => pair.Second.Matches(pair.First.Type)));
+        return method.Name == Name
+            && DeclaringType.Matches(method.ContainingType)
+            && (
+                _parameters is null
+                || method.Parameters.Length == _parameters.Length
+                    && method
+                        .Parameters.Zip(_parameters)
+                        .All(pair => pair.Second.Matches(pair.First.Type))
+            );
     }
 }

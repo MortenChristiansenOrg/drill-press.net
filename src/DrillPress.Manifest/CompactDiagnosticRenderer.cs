@@ -11,7 +11,8 @@ public sealed class CompactDiagnosticRenderer
     private readonly IFileSystem _fileSystem;
 
     /// <summary>Resolves display paths relative to the local invocation directory.</summary>
-    public CompactDiagnosticRenderer() : this(new FileSystem()) { }
+    public CompactDiagnosticRenderer()
+        : this(new FileSystem()) { }
 
     internal CompactDiagnosticRenderer(IFileSystem fileSystem) => _fileSystem = fileSystem;
 
@@ -19,13 +20,23 @@ public sealed class CompactDiagnosticRenderer
     public string Render(ValidatedResult result)
     {
         var output = new StringBuilder();
-        foreach (var rule in result.Findings.GroupBy(finding => finding.RuleId).OrderBy(group => group.Key, StringComparer.Ordinal))
+        foreach (
+            var rule in result
+                .Findings.GroupBy(finding => finding.RuleId)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+        )
         {
             output.Append(rule.Key).Append(' ').Append(rule.First().Message).Append('\n');
-            foreach (var file in rule.GroupBy(finding => DisplayPath(finding.Path)).OrderBy(group => group.Key, StringComparer.Ordinal))
+            foreach (
+                var file in rule.GroupBy(finding => DisplayPath(finding.Path))
+                    .OrderBy(group => group.Key, StringComparer.Ordinal)
+            )
             {
                 output.Append(Escape(file.Key)).Append('\n');
-                foreach (var finding in file.OrderBy(finding => finding.Start).ThenBy(finding => finding.Length))
+                foreach (
+                    var finding in file.OrderBy(finding => finding.Start)
+                        .ThenBy(finding => finding.Length)
+                )
                 {
                     output.Append("  ");
                     if (finding.BatchId is not null)
@@ -36,7 +47,9 @@ public sealed class CompactDiagnosticRenderer
                     output.Append(finding.Line.ToString(CultureInfo.InvariantCulture));
                     if (finding.Column != 1)
                     {
-                        output.Append(':').Append(finding.Column.ToString(CultureInfo.InvariantCulture));
+                        output
+                            .Append(':')
+                            .Append(finding.Column.ToString(CultureInfo.InvariantCulture));
                     }
 
                     output.Append('\n');
@@ -51,14 +64,25 @@ public sealed class CompactDiagnosticRenderer
     {
         var currentDirectory = _fileSystem.Directory.GetCurrentDirectory();
         var directory = _fileSystem.Path.GetDirectoryName(path);
-        var relativeDirectory = _fileSystem.Path.GetRelativePath(currentDirectory,
-            string.IsNullOrEmpty(directory) ? currentDirectory : directory);
+        var relativeDirectory = _fileSystem.Path.GetRelativePath(
+            currentDirectory,
+            string.IsNullOrEmpty(directory) ? currentDirectory : directory
+        );
         var fileName = _fileSystem.Path.GetFileName(path);
-        var displayPath = relativeDirectory == "." ? fileName : _fileSystem.Path.Combine(relativeDirectory, fileName);
+        var displayPath =
+            relativeDirectory == "."
+                ? fileName
+                : _fileSystem.Path.Combine(relativeDirectory, fileName);
         return displayPath.Replace(_fileSystem.Path.DirectorySeparatorChar, '/');
     }
 
-    private static string Escape(string path) => path.Any(char.IsControl) || path.Contains('\u2028') || path.Contains('\u2029') || path.Contains('\\') || path.Contains('"') || path != path.Trim()
-        ? JsonEncodedText.Encode(path).ToString().Insert(0, "\"") + "\""
-        : path;
+    private static string Escape(string path) =>
+        path.Any(char.IsControl)
+        || path.Contains('\u2028')
+        || path.Contains('\u2029')
+        || path.Contains('\\')
+        || path.Contains('"')
+        || path != path.Trim()
+            ? JsonEncodedText.Encode(path).ToString().Insert(0, "\"") + "\""
+            : path;
 }

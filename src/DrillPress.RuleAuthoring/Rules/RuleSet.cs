@@ -9,7 +9,9 @@ public sealed class RuleSet
     public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
 
     /// <summary>Evaluates every registered rule and returns diagnostics in deterministic order.</summary>
-    public IReadOnlyList<RuleDiagnostic> Evaluate(IReadOnlyList<MemberReference> memberReferences) => Evaluate(new AnalysisSolution(memberReferences));
+    public IReadOnlyList<RuleDiagnostic> Evaluate(
+        IReadOnlyList<MemberReference> memberReferences
+    ) => Evaluate(new AnalysisSolution(memberReferences));
 
     /// <summary>Evaluates all registered rules over one shared source graph.</summary>
     public IReadOnlyList<RuleDiagnostic> Evaluate(AnalysisSolution solution)
@@ -30,15 +32,28 @@ public sealed class RuleSet
             .ToArray();
     }
 
-    internal void Add<T>(CodeQuery<T> query, RuleDescriptor descriptor, Func<T, SourceLocation>? location, Func<T, FixProposal?>? fix)
+    internal void Add<T>(
+        CodeQuery<T> query,
+        RuleDescriptor descriptor,
+        Func<T, SourceLocation>? location,
+        Func<T, FixProposal?>? fix
+    )
     {
         var (id, message) = descriptor;
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        if (id.Any(char.IsControl) || message.Any(char.IsControl) || id.Contains('\u2028') || id.Contains('\u2029') ||
-            message.Contains('\u2028') || message.Contains('\u2029'))
+        if (
+            id.Any(char.IsControl)
+            || message.Any(char.IsControl)
+            || id.Contains('\u2028')
+            || id.Contains('\u2029')
+            || message.Contains('\u2028')
+            || message.Contains('\u2029')
+        )
         {
-            throw new ArgumentException("Rule identifiers and remediation messages must be single-line.");
+            throw new ArgumentException(
+                "Rule identifiers and remediation messages must be single-line."
+            );
         }
 
         if (_rules.Any(rule => rule.Id == id))
@@ -48,5 +63,4 @@ public sealed class RuleSet
 
         _rules.Add(new CandidateRule<T>(query, descriptor, location, fix));
     }
-
 }

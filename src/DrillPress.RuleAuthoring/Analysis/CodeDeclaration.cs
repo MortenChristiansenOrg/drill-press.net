@@ -6,18 +6,28 @@ namespace DrillPress.Analysis;
 /// <summary>One distinct named type definition, with a deterministic ordinary-source declaration.</summary>
 public sealed class CodeDeclaration : ICodeElement
 {
-    internal CodeDeclaration(AnalysisSolution solution, AnalysisSource source, MemberDeclarationSyntax syntax, INamedTypeSymbol symbol)
+    internal CodeDeclaration(
+        AnalysisSolution solution,
+        AnalysisSource source,
+        MemberDeclarationSyntax syntax,
+        INamedTypeSymbol symbol
+    )
     {
         Solution = solution;
         Source = source;
         Syntax = syntax;
         Symbol = symbol;
-        Location = source.Locate(syntax switch
-        {
-            BaseTypeDeclarationSyntax type => type.Identifier.Span,
-            DelegateDeclarationSyntax declaration => declaration.Identifier.Span,
-            _ => throw new ArgumentException("A type candidate requires a named type declaration.", nameof(syntax)),
-        });
+        Location = source.Locate(
+            syntax switch
+            {
+                BaseTypeDeclarationSyntax type => type.Identifier.Span,
+                DelegateDeclarationSyntax declaration => declaration.Identifier.Span,
+                _ => throw new ArgumentException(
+                    "A type candidate requires a named type declaration.",
+                    nameof(syntax)
+                ),
+            }
+        );
     }
 
     /// <summary>The shared graph used by cross-project conditions.</summary>
@@ -36,7 +46,10 @@ public sealed class CodeDeclaration : ICodeElement
     public string Name => Symbol.Name;
 
     /// <summary>The declared namespace, or an empty string for the global namespace.</summary>
-    public string Namespace => Symbol.ContainingNamespace.IsGlobalNamespace ? "" : Symbol.ContainingNamespace.ToDisplayString();
+    public string Namespace =>
+        Symbol.ContainingNamespace.IsGlobalNamespace
+            ? ""
+            : Symbol.ContainingNamespace.ToDisplayString();
 
     /// <summary>Tests all inherited and constructed interfaces by semantic identity.</summary>
     public bool Implements(CodeType contract) => Symbols.Implements(Symbol, contract);

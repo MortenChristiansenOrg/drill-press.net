@@ -11,10 +11,22 @@ public static partial class PublishWarnings
     private static readonly HashSet<(string Code, string Origin)> _known =
     [
         ("IL3000", "Microsoft.CodeAnalysis.CommonCompiler.GetAssemblyLocation(Type)"),
-        ("IL2091", "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.GetPooledCreateValueCallback<TKey,TArg,TValue>(Func`3<TKey,TArg,TValue>,TArg,ConditionalWeakTable`2.CreateValueCallback<!!0,!!2>&)"),
-        ("IL2091", "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.CreateValueCallbackWithBoundArgument`3"),
-        ("IL2091", "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.CreateValueCallbackWithBoundArgument`3.CreateValueCallbackWithBoundArgument`3()"),
-        ("IL2091", "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.CreateValueCallbackWithBoundArgument`3.Bind()"),
+        (
+            "IL2091",
+            "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.GetPooledCreateValueCallback<TKey,TArg,TValue>(Func`3<TKey,TArg,TValue>,TArg,ConditionalWeakTable`2.CreateValueCallback<!!0,!!2>&)"
+        ),
+        (
+            "IL2091",
+            "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.CreateValueCallbackWithBoundArgument`3"
+        ),
+        (
+            "IL2091",
+            "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.CreateValueCallbackWithBoundArgument`3.CreateValueCallbackWithBoundArgument`3()"
+        ),
+        (
+            "IL2091",
+            "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.CreateValueCallbackWithBoundArgument`3.Bind()"
+        ),
         ("IL2091", "Roslyn.Utilities.RoslynLazyInitializer.EnsureInitialized<T>(!!0&)"),
     ];
 
@@ -25,7 +37,9 @@ public static partial class PublishWarnings
             var origin = match.Groups[2].Value.Split(": ", 2)[0];
             if (!_known.Contains((match.Groups[1].Value, origin)))
             {
-                throw new InvalidOperationException($"Unexplained publication warning: {match.Value}");
+                throw new InvalidOperationException(
+                    $"Unexplained publication warning: {match.Value}"
+                );
             }
         }
     }

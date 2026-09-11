@@ -1,5 +1,5 @@
-using System.Text.RegularExpressions;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace DrillPress.Configuration;
 
@@ -25,11 +25,21 @@ public sealed class PathPattern
             }
             else
             {
-                expression.Append(pattern[index] switch { '*' => "[^/]*", '?' => "[^/]", var character => Regex.Escape(character.ToString()) });
+                expression.Append(
+                    pattern[index] switch
+                    {
+                        '*' => "[^/]*",
+                        '?' => "[^/]",
+                        var character => Regex.Escape(character.ToString()),
+                    }
+                );
             }
         }
-        _pattern = new("\\A" + expression + "\\z", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
-            TimeSpan.FromSeconds(1));
+        _pattern = new(
+            "\\A" + expression + "\\z",
+            RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+            TimeSpan.FromSeconds(1)
+        );
     }
 
     /// <summary>Matches the entire normalized path. Supply an explicitly relative path for repository-relative policies.</summary>

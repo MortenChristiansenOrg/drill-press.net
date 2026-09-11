@@ -9,6 +9,9 @@ public sealed class BenchmarkPlanFile(IFileSystem fileSystem)
         JsonSerializer.Deserialize<BenchmarkPlan>(fileSystem.File.ReadAllText(path))
         ?? throw new InvalidOperationException("The benchmark plan is empty.");
 
-    public Task WriteAsync(string path, BenchmarkPlan plan, CancellationToken cancellationToken = default) =>
-        fileSystem.File.WriteAllTextAsync(path, JsonSerializer.Serialize(plan), cancellationToken);
+    public Task WriteAsync(
+        string path,
+        BenchmarkPlan plan,
+        CancellationToken cancellationToken = default
+    ) => fileSystem.File.WriteAllTextAsync(path, JsonSerializer.Serialize(plan), cancellationToken);
 }

@@ -13,4 +13,11 @@ public sealed record TestSource(string Path, string Text, bool Generated = false
 /// <param name="Column">One-based UTF-16 column.</param>
 /// <param name="Text">Exact reported source span.</param>
 /// <param name="HasFix">Whether the full proposal survived context and conflict validation.</param>
-public sealed record TestFinding(string Rule, string Path, int Line, int Column, string Text, bool HasFix);
+public sealed record TestFinding(
+    string Rule,
+    string Path,
+    int Line,
+    int Column,
+    string Text,
+    bool HasFix
+);

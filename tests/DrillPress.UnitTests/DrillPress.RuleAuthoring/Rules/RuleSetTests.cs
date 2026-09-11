@@ -24,7 +24,8 @@ public sealed class RuleSetTests
             diagnostic => Assert.Equal(("A001", "A.cs", 10), Describe(diagnostic)),
             diagnostic => Assert.Equal(("A001", "B.cs", 20), Describe(diagnostic)),
             diagnostic => Assert.Equal(("Z002", "A.cs", 10), Describe(diagnostic)),
-            diagnostic => Assert.Equal(("Z002", "B.cs", 20), Describe(diagnostic)));
+            diagnostic => Assert.Equal(("Z002", "B.cs", 20), Describe(diagnostic))
+        );
     }
 
     [Fact]
@@ -34,7 +35,8 @@ public sealed class RuleSetTests
         rules.For(Code.MemberReferences).Forbid("TEST001", "First message.");
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            rules.For(Code.MemberReferences).Forbid("TEST001", "Second message."));
+            rules.For(Code.MemberReferences).Forbid("TEST001", "Second message.")
+        );
 
         Assert.Contains("registered more than once", exception.Message);
     }
@@ -45,12 +47,16 @@ public sealed class RuleSetTests
     [InlineData("TEST\n001", "Message")]
     [InlineData("TEST001", "Message\rnext")]
     [InlineData("TEST001", "Message\u2028next")]
-    public void Forbid_rejects_blank_or_multiline_rule_identity_or_message(string id, string message)
+    public void Forbid_rejects_blank_or_multiline_rule_identity_or_message(
+        string id,
+        string message
+    )
     {
         var rules = new RuleSet();
 
         Assert.Throws<ArgumentException>(() =>
-            rules.For(Code.MemberReferences).Forbid(id, message));
+            rules.For(Code.MemberReferences).Forbid(id, message)
+        );
     }
 
     [Fact]

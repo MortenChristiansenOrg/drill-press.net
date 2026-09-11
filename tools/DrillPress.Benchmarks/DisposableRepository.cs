@@ -7,7 +7,11 @@ public sealed class DisposableRepository : IDisposable
     private readonly IFileSystem _fileSystem;
     private readonly IDirectoryInfo _directory;
 
-    public DisposableRepository(IFileSystem fileSystem, string source, CancellationToken cancellationToken)
+    public DisposableRepository(
+        IFileSystem fileSystem,
+        string source,
+        CancellationToken cancellationToken
+    )
     {
         _fileSystem = fileSystem;
         _directory = fileSystem.Directory.CreateTempSubdirectory("drillpress-performance-");
@@ -23,7 +27,11 @@ public sealed class DisposableRepository : IDisposable
             }
             catch (Exception cleanupError)
             {
-                throw new AggregateException("Repository copy and cleanup failed.", copyError, cleanupError);
+                throw new AggregateException(
+                    "Repository copy and cleanup failed.",
+                    copyError,
+                    cleanupError
+                );
             }
 
             throw;
@@ -65,14 +73,20 @@ public sealed class DisposableRepository : IDisposable
         }
     }
 
-    private void Copy(IDirectoryInfo source, IDirectoryInfo destination, CancellationToken cancellationToken)
+    private void Copy(
+        IDirectoryInfo source,
+        IDirectoryInfo destination,
+        CancellationToken cancellationToken
+    )
     {
         foreach (var entry in source.EnumerateFileSystemInfos())
         {
             cancellationToken.ThrowIfCancellationRequested();
             if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                throw new IOException($"Cannot reproduce linked benchmark input safely: {entry.FullName}");
+                throw new IOException(
+                    $"Cannot reproduce linked benchmark input safely: {entry.FullName}"
+                );
             }
 
             var target = _fileSystem.Path.Combine(destination.FullName, entry.Name);

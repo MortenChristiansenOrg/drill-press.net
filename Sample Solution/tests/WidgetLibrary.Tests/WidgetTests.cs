@@ -5,6 +5,7 @@ namespace Sample.WidgetLibrary.Tests;
 
 public sealed class WidgetTests
 {
+    // csharpier-ignore - Blank-line and assertion positions exercise DP1001 and DP1002.
     [Fact]
     public void Store_returns_empty_value()
     {
@@ -17,6 +18,7 @@ public sealed class WidgetTests
         Assert.True(result.Length == 0);
     }
 
+    // csharpier-ignore - This is the valid two-blank-line case for the test-layout rules.
     [Theory]
     public void Formatting_is_stable()
     {
@@ -27,6 +29,7 @@ public sealed class WidgetTests
         Assert.Equal("hello", result);
     }
 
+    // csharpier-ignore - Assert.Throws before the final blank line is an allowed act statement.
     [Fact]
     public void Invalid_input_throws()
     {

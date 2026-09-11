@@ -6,6 +6,9 @@ namespace DrillPress.Fixes;
 public static class BindingProof
 {
     /// <summary>Checks rewritten expression ancestors for unchanged symbols, types and conversions, withholding errors, expression trees and nameof. The caller must separately prove behavior.</summary>
-    public static bool PreservesEnclosingExpressions(AnalysisSource source, SyntaxNode replaced, string replacement) =>
-        ContextualRewrite.PreservesBinding(source, replaced, replacement);
+    public static bool PreservesEnclosingExpressions(
+        AnalysisSource source,
+        SyntaxNode replaced,
+        string replacement
+    ) => ContextualRewrite.PreservesBinding(source, replaced, replacement);
 }

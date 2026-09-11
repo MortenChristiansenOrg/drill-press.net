@@ -13,10 +13,20 @@ public sealed class RuleTestResult
     {
         _snapshot = snapshot;
         _result = result;
-        var files = snapshot.Projects.SelectMany(project => project.Documents).GroupBy(document => document.FileIdentity)
+        var files = snapshot
+            .Projects.SelectMany(project => project.Documents)
+            .GroupBy(document => document.FileIdentity)
             .ToDictionary(group => group.Key, group => group.First());
-        Findings = result.Findings.Select(finding => new TestFinding(finding.RuleId, finding.Path, finding.Line, finding.Column,
-            files[finding.FileIdentity].Text.Substring(finding.Start, finding.Length), finding.BatchId is not null)).ToArray();
+        Findings = result
+            .Findings.Select(finding => new TestFinding(
+                finding.RuleId,
+                finding.Path,
+                finding.Line,
+                finding.Column,
+                files[finding.FileIdentity].Text.Substring(finding.Start, finding.Length),
+                finding.BatchId is not null
+            ))
+            .ToArray();
     }
 
     /// <summary>Physical findings after agreement across contexts, including withheld fixes.</summary>
@@ -25,8 +35,16 @@ public sealed class RuleTestResult
     /// <summary>Applies only the validated plan to captured text. No OS files are written.</summary>
     public string FixedText(string path)
     {
-        var document = _snapshot.Projects.SelectMany(project => project.Documents).First(document => document.Path == path);
-        return SourceText.From(document.Text).WithChanges(_result.Edits.Where(edit => edit.FileIdentity == document.FileIdentity)
-            .Select(edit => new TextChange(new(edit.Start, edit.Length), edit.Replacement))).ToString();
+        var document = _snapshot
+            .Projects.SelectMany(project => project.Documents)
+            .First(document => document.Path == path);
+        return SourceText
+            .From(document.Text)
+            .WithChanges(
+                _result
+                    .Edits.Where(edit => edit.FileIdentity == document.FileIdentity)
+                    .Select(edit => new TextChange(new(edit.Start, edit.Length), edit.Replacement))
+            )
+            .ToString();
     }
 }

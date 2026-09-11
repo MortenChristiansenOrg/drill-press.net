@@ -9,7 +9,9 @@ public sealed class SdkFixture
     public SdkFixture()
     {
         var workspace = new RuleTestWorkspace();
-        _references = workspace.AddProject("References", [new("References.cs", "class ReferenceAnchor { }")]).Compilation.References.ToArray();
+        _references = workspace
+            .AddProject("References", [new("References.cs", "class ReferenceAnchor { }")])
+            .Compilation.References.ToArray();
     }
 
     public RuleTestWorkspace Workspace() => new(_references);

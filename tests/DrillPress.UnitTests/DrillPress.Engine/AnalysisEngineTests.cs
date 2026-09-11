@@ -45,19 +45,35 @@ public sealed class AnalysisEngineTests
             }
             namespace Sample { public sealed class Target { public static Target Empty => null; } }
             """;
-        var compilation = CSharpCompilation.Create("Dependency",
-            [CSharpSyntaxTree.ParseText(metadataSource, cancellationToken: TestContext.Current.CancellationToken)],
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var compilation = CSharpCompilation.Create(
+            "Dependency",
+            [
+                CSharpSyntaxTree.ParseText(
+                    metadataSource,
+                    cancellationToken: TestContext.Current.CancellationToken
+                ),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        );
         using var image = new MemoryStream();
-        var emission = compilation.Emit(image, cancellationToken: TestContext.Current.CancellationToken);
+        var emission = compilation.Emit(
+            image,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
         var assemblyPath = _fileSystem.Path.GetFullPath("Dependency.dll");
         _fileSystem.AddFile(assemblyPath, new MockFileData(image.ToArray()));
         const string source = "class Values { Sample.Target Value => Sample.Target.Empty; }";
-        var project = TestSnapshots.CreateProject("Values.cs", source) with { MetadataReferences = [assemblyPath] };
+        var project = TestSnapshots.CreateProject("Values.cs", source) with
+        {
+            MetadataReferences = [assemblyPath],
+        };
         var snapshot = CompilationSnapshot.Create(project);
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
-            RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.True(emission.Success, string.Join(Environment.NewLine, emission.Diagnostics));
         var diagnostic = Assert.Single(diagnostics);
@@ -87,14 +103,18 @@ public sealed class AnalysisEngineTests
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
             RuleTestData.TargetEmptyRuleSet(),
             snapshot,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
 
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("TEST001", diagnostic.Descriptor.Id);
         Assert.Equal("Values.cs", diagnostic.Location.FilePath);
         Assert.Equal(10, diagnostic.Location.Line);
         Assert.Equal(39, diagnostic.Location.Column);
-        Assert.Equal("Target.Empty", source.Substring(diagnostic.Location.Start, diagnostic.Location.Length));
+        Assert.Equal(
+            "Target.Empty",
+            source.Substring(diagnostic.Location.Start, diagnostic.Location.Length)
+        );
     }
 
     [Fact]
@@ -113,15 +133,18 @@ public sealed class AnalysisEngineTests
             }
             """,
             "Generated.g.cs",
-            isGenerated: true);
+            isGenerated: true
+        );
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
             RuleTestData.TargetEmptyRuleSet(),
             snapshot,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Empty(diagnostics);
     }
+
     [Fact]
     public async Task Conditional_linked_source_is_evaluated_independently_in_every_context()
     {
@@ -135,12 +158,23 @@ public sealed class AnalysisEngineTests
             #endif
             }
             """;
-        var first = TestSnapshots.CreateProject("Shared.cs", source) with { ContextId = "first", PreprocessorSymbols = ["INCLUDED"] };
-        var second = TestSnapshots.CreateProject("Shared.cs", source) with { ContextId = "second", PreprocessorSymbols = [] };
+        var first = TestSnapshots.CreateProject("Shared.cs", source) with
+        {
+            ContextId = "first",
+            PreprocessorSymbols = ["INCLUDED"],
+        };
+        var second = TestSnapshots.CreateProject("Shared.cs", source) with
+        {
+            ContextId = "second",
+            PreprocessorSymbols = [],
+        };
         var snapshot = CompilationSnapshot.Create(first, second);
 
         var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
-            RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(["first", "second"], response.Contexts.Select(context => context.ContextId));
         Assert.Equal([true, true], response.Contexts.Select(context => context.IsComplete));
@@ -156,12 +190,23 @@ public sealed class AnalysisEngineTests
         _fileSystem.AddFile(path, new MockFileData("changed"));
         var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
         {
-            ExternalReferences = [new MetadataReferenceSnapshot(path, new string('0', 64), [], false, 0)],
+            ExternalReferences =
+            [
+                new MetadataReferenceSnapshot(path, new string('0', 64), [], false, 0),
+            ],
         };
 
-        var error = Assert.Throws<InvalidDataException>(() => new AnalysisEngine(_fileSystem).Reconstruct(CompilationSnapshot.Create(project), TestContext.Current.CancellationToken));
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new AnalysisEngine(_fileSystem).Reconstruct(
+                CompilationSnapshot.Create(project),
+                TestContext.Current.CancellationToken
+            )
+        );
 
-        Assert.Equal($"External reference changed: '{path}'. Export the target again.", error.Message);
+        Assert.Equal(
+            $"External reference changed: '{path}'. Export the target again.",
+            error.Message
+        );
     }
 
     [Fact]
@@ -170,10 +215,18 @@ public sealed class AnalysisEngineTests
         var path = _fileSystem.Path.GetFullPath("Missing.dll");
         var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
         {
-            ExternalReferences = [new MetadataReferenceSnapshot(path, new string('0', 64), [], false, 0)],
+            ExternalReferences =
+            [
+                new MetadataReferenceSnapshot(path, new string('0', 64), [], false, 0),
+            ],
         };
 
-        var error = Assert.Throws<FileNotFoundException>(() => new AnalysisEngine(_fileSystem).Reconstruct(CompilationSnapshot.Create(project), TestContext.Current.CancellationToken));
+        var error = Assert.Throws<FileNotFoundException>(() =>
+            new AnalysisEngine(_fileSystem).Reconstruct(
+                CompilationSnapshot.Create(project),
+                TestContext.Current.CancellationToken
+            )
+        );
 
         Assert.Equal(path, error.FileName);
     }
@@ -181,7 +234,8 @@ public sealed class AnalysisEngineTests
     [Fact]
     public async Task Ambiguous_binding_does_not_substitute_a_candidate_symbol()
     {
-        var snapshot = TestSnapshots.Create("""
+        var snapshot = TestSnapshots.Create(
+            """
             namespace Sample;
             class A { }
             class B { }
@@ -191,9 +245,14 @@ public sealed class AnalysisEngineTests
                 public static Target Empty(B value) => null;
                 public Target Value => Target.Empty(null);
             }
-            """);
+            """
+        );
 
-        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Empty(diagnostics);
     }
@@ -203,11 +262,17 @@ public sealed class AnalysisEngineTests
     {
         var project = TestSnapshots.CreateProject("Source.cs", "class Source { }") with
         {
-            ContextId = "self", ReferencedContextIds = ["self"],
+            ContextId = "self",
+            ReferencedContextIds = ["self"],
             CompilationReferences = [new CompilationReferenceSnapshot("self", [], false)],
         };
 
-        var error = Assert.Throws<InvalidDataException>(() => new AnalysisEngine(_fileSystem).Reconstruct(CompilationSnapshot.Create(project), TestContext.Current.CancellationToken));
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new AnalysisEngine(_fileSystem).Reconstruct(
+                CompilationSnapshot.Create(project),
+                TestContext.Current.CancellationToken
+            )
+        );
 
         Assert.Equal("The source compilation graph contains a cycle.", error.Message);
     }
@@ -215,11 +280,16 @@ public sealed class AnalysisEngineTests
     [Fact]
     public async Task Anonymous_type_members_do_not_require_a_metadata_type_name()
     {
-        var snapshot = TestSnapshots.Create("class Values { object Value => new { Name = \"value\" }.Name; }");
+        var snapshot = TestSnapshots.Create(
+            "class Values { object Value => new { Name = \"value\" }.Name; }"
+        );
 
-        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(RuleTestData.TargetEmptyRuleSet(), snapshot, TestContext.Current.CancellationToken);
+        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Empty(diagnostics);
     }
-
 }

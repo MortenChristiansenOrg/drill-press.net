@@ -6,12 +6,7 @@ namespace DrillPress;
 /// <param name="Length">The span length in characters.</param>
 /// <param name="Line">The one-based source line.</param>
 /// <param name="Column">The one-based source column.</param>
-public sealed record SourceLocation(
-    string FilePath,
-    int Start,
-    int Length,
-    int Line,
-    int Column);
+public sealed record SourceLocation(string FilePath, int Start, int Length, int Line, int Column);
 
 /// <summary>Defines the stable identifier and remediation text presented for a rule.</summary>
 /// <param name="Id">The stable rule identifier.</param>

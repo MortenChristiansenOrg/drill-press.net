@@ -5,7 +5,8 @@ using Microsoft.CodeAnalysis.Operations;
 namespace DrillPress.Operations;
 
 /// <summary>A bound call site with overload identity and compiler-mapped arguments.</summary>
-public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation operation) : ICodeElement
+public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation operation)
+    : ICodeElement
 {
     /// <summary>The call's original source context.</summary>
     public AnalysisSource Source { get; } = source;

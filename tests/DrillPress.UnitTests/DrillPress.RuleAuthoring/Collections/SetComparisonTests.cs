@@ -11,7 +11,11 @@ public sealed class SetComparisonTests
         var expected = new[] { "json", "JSON", "xml" };
         var actual = new[] { "Json", "csv" };
 
-        var comparison = new SetComparison<string>(expected, actual, StringComparer.OrdinalIgnoreCase);
+        var comparison = new SetComparison<string>(
+            expected,
+            actual,
+            StringComparer.OrdinalIgnoreCase
+        );
 
         Assert.Equal<string>(["xml"], comparison.Missing);
         Assert.Equal<string>(["csv"], comparison.Unexpected);

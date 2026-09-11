@@ -27,7 +27,9 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
     public bool HasExactlyOne(CodeDeclaration declaration)
     {
         solution.CancellationToken.ThrowIfCancellationRequested();
-        return _views.For(declaration.Source.Project).Any(view => CountInView(view, declaration) == 1);
+        return _views
+            .For(declaration.Source.Project)
+            .Any(view => CountInView(view, declaration) == 1);
     }
 
     private int CountInView(AnalysisProject[] projects, CodeDeclaration declaration)
@@ -41,7 +43,9 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
             }
 
             var assembly = ResolveAssembly(project, declaration.Source.Project);
-            var target = assembly?.GetTypeByMetadataName(CodeType.MetadataNameOf(declaration.Symbol));
+            var target = assembly?.GetTypeByMetadataName(
+                CodeType.MetadataNameOf(declaration.Symbol)
+            );
             if (target is null)
             {
                 continue;
@@ -61,9 +65,15 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
             foreach (var type in Definitions(project))
             {
                 _definitionComparisons++;
-                if (type.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, target)))
+                if (
+                    type.AllInterfaces.Any(contract =>
+                        SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, target)
+                    )
+                )
                 {
-                    implementations.Add(project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type));
+                    implementations.Add(
+                        project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type)
+                    );
                 }
             }
         }
@@ -118,8 +128,9 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
             }
         }
 
-        return project.Compilation.SourceModule.ReferencedAssemblySymbols.SingleOrDefault(assembly =>
-            assembly.Identity.Equals(owner.Compilation.Assembly.Identity));
+        return project.Compilation.SourceModule.ReferencedAssemblySymbols.SingleOrDefault(
+            assembly => assembly.Identity.Equals(owner.Compilation.Assembly.Identity)
+        );
     }
 
     private IReadOnlyList<INamedTypeSymbol> Definitions(AnalysisProject project)
@@ -127,14 +138,26 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
         if (!_definitions.TryGetValue(project.Snapshot.ContextId, out var definitions))
         {
             var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-            definitions = project.Sources.SelectMany(source => source.Tree.GetRoot(source.Project.CancellationToken).DescendantNodes()
-                .OfType<TypeDeclarationSyntax>().Select(syntax => source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken)))
-                .OfType<INamedTypeSymbol>().Where(type => type.TypeKind is TypeKind.Class or TypeKind.Struct && !type.IsAbstract && seen.Add(type))
+            definitions = project
+                .Sources.SelectMany(source =>
+                    source
+                        .Tree.GetRoot(source.Project.CancellationToken)
+                        .DescendantNodes()
+                        .OfType<TypeDeclarationSyntax>()
+                        .Select(syntax =>
+                            source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken)
+                        )
+                )
+                .OfType<INamedTypeSymbol>()
+                .Where(type =>
+                    type.TypeKind is TypeKind.Class or TypeKind.Struct
+                    && !type.IsAbstract
+                    && seen.Add(type)
+                )
                 .ToArray();
             _definitions.Add(project.Snapshot.ContextId, definitions);
         }
 
         return definitions;
     }
-
 }

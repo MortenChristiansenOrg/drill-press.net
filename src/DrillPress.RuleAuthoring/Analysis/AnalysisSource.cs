@@ -33,6 +33,12 @@ public sealed class AnalysisSource
     public SourceLocation Locate(TextSpan span)
     {
         var position = Tree.GetText().Lines.GetLinePosition(span.Start);
-        return new(Document.Path, span.Start, span.Length, position.Line + 1, position.Character + 1);
+        return new(
+            Document.Path,
+            span.Start,
+            span.Length,
+            position.Line + 1,
+            position.Character + 1
+        );
     }
 }

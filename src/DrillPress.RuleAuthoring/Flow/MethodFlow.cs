@@ -16,14 +16,23 @@ public sealed class MethodFlow
     public MethodFlow(CodeMethod method)
     {
         _method = method;
-        _graph = new(() => method.Source.Model.GetOperation(method.Syntax, method.Source.Project.CancellationToken) is IMethodBodyOperation body
-            ? ControlFlowGraph.Create(body, method.Source.Project.CancellationToken) : null);
-        _data = new(() => method.Syntax.Body is { } block ? method.Source.Model.AnalyzeDataFlow(block) :
-            method.Syntax.ExpressionBody is { Expression: { } expression } ? method.Source.Model.AnalyzeDataFlow(expression) : null);
+        _graph = new(() =>
+            method.Source.Model.GetOperation(method.Syntax, method.Source.Project.CancellationToken)
+                is IMethodBodyOperation body
+                ? ControlFlowGraph.Create(body, method.Source.Project.CancellationToken)
+                : null
+        );
+        _data = new(() =>
+            method.Syntax.Body is { } block ? method.Source.Model.AnalyzeDataFlow(block)
+            : method.Syntax.ExpressionBody is { Expression: { } expression }
+                ? method.Source.Model.AnalyzeDataFlow(expression)
+            : null
+        );
     }
 
     /// <summary>Returns the same method analysis for repeated rules within one solution.</summary>
-    public static MethodFlow For(AnalysisSolution solution, CodeMethod method) => solution.Cached(method, () => new MethodFlow(method));
+    public static MethodFlow For(AnalysisSolution solution, CodeMethod method) =>
+        solution.Cached(method, () => new MethodFlow(method));
 
     /// <summary>The compiler CFG, or null for a declaration without a supported executable body.</summary>
     public ControlFlowGraph? Graph => _graph.Value;
@@ -32,6 +41,8 @@ public sealed class MethodFlow
     public DataFlowAnalysis? Data => _data.Value;
 
     /// <summary>The compiler's nullable state at an expression; None means analysis has no answer.</summary>
-    public NullableFlowState NullState(ExpressionSyntax expression) => _method.Source.Model
-        .GetTypeInfo(expression, _method.Source.Project.CancellationToken).Nullability.FlowState;
+    public NullableFlowState NullState(ExpressionSyntax expression) =>
+        _method
+            .Source.Model.GetTypeInfo(expression, _method.Source.Project.CancellationToken)
+            .Nullability.FlowState;
 }

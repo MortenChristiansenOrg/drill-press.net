@@ -19,7 +19,8 @@ public sealed record ProjectSnapshot(
     int NullableContextOptions,
     string[] PreprocessorSymbols,
     DocumentSnapshot[] Documents,
-    string[] MetadataReferences)
+    string[] MetadataReferences
+)
 {
     /// <summary>Identifies this evaluated project, target framework, and effective property set.</summary>
     [System.Text.Json.Serialization.JsonRequired]

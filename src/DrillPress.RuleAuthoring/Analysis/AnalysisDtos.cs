@@ -7,5 +7,6 @@ public sealed record AnalysisOptions
     public bool EnableOptimizations { get; init; } = true;
 
     /// <summary>Receives phase measurements; omitted profiles are silent.</summary>
-    public DrillPress.Manifest.PipelineProfile Profile { get; init; } = new(false, TextWriter.Null, "rules");
+    public DrillPress.Manifest.PipelineProfile Profile { get; init; } =
+        new(false, TextWriter.Null, "rules");
 }

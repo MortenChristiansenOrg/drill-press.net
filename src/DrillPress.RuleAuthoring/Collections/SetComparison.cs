@@ -4,7 +4,11 @@ namespace DrillPress.Collections;
 public sealed class SetComparison<T>
 {
     /// <summary>Compares an expected inventory with an actual inventory, retaining first-occurrence order.</summary>
-    public SetComparison(IEnumerable<T> expected, IEnumerable<T> actual, IEqualityComparer<T>? comparer = null)
+    public SetComparison(
+        IEnumerable<T> expected,
+        IEnumerable<T> actual,
+        IEqualityComparer<T>? comparer = null
+    )
     {
         var wanted = expected.ToHashSet(comparer);
         var found = actual.ToHashSet(comparer);

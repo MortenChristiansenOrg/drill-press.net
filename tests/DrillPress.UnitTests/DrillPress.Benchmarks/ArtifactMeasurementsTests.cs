@@ -12,12 +12,30 @@ public sealed class ArtifactMeasurementsTests
     {
         var fileSystem = new MockFileSystem();
         var directory = fileSystem.Path.GetFullPath("publish");
-        fileSystem.AddFile(fileSystem.Path.Combine(directory, "nested", "dependency.dll"), new MockFileData(new byte[] { 4, 5 }));
-        fileSystem.AddFile(fileSystem.Path.Combine(directory, "bundle"), new MockFileData(new byte[] { 1, 2, 3 }));
-        fileSystem.AddFile(fileSystem.Path.Combine(directory, "empty.dll"), new MockFileData(Array.Empty<byte>()));
-        fileSystem.AddFile(fileSystem.Path.Combine(directory, "bundle.PDB"), new MockFileData("debug"));
-        fileSystem.AddFile(fileSystem.Path.Combine(directory, "nested", "bundle.dbg"), new MockFileData("debug"));
-        fileSystem.AddFile(fileSystem.Path.Combine(directory, "bundle.Xml"), new MockFileData("docs"));
+        fileSystem.AddFile(
+            fileSystem.Path.Combine(directory, "nested", "dependency.dll"),
+            new MockFileData(new byte[] { 4, 5 })
+        );
+        fileSystem.AddFile(
+            fileSystem.Path.Combine(directory, "bundle"),
+            new MockFileData(new byte[] { 1, 2, 3 })
+        );
+        fileSystem.AddFile(
+            fileSystem.Path.Combine(directory, "empty.dll"),
+            new MockFileData(Array.Empty<byte>())
+        );
+        fileSystem.AddFile(
+            fileSystem.Path.Combine(directory, "bundle.PDB"),
+            new MockFileData("debug")
+        );
+        fileSystem.AddFile(
+            fileSystem.Path.Combine(directory, "nested", "bundle.dbg"),
+            new MockFileData("debug")
+        );
+        fileSystem.AddFile(
+            fileSystem.Path.Combine(directory, "bundle.Xml"),
+            new MockFileData("docs")
+        );
         var measurements = new ArtifactMeasurements(fileSystem);
 
         var inventory = measurements.Read(BundleMode.Native, directory);
@@ -25,8 +43,13 @@ public sealed class ArtifactMeasurementsTests
         Assert.Equal(BundleMode.Native, inventory.Mode);
         Assert.Equal(5, inventory.Bytes);
         Assert.Equal(
-            [new ArtifactFile("bundle", 3), new ArtifactFile("empty.dll", 0), new ArtifactFile("nested/dependency.dll", 2)],
-            inventory.Files);
+            [
+                new ArtifactFile("bundle", 3),
+                new ArtifactFile("empty.dll", 0),
+                new ArtifactFile("nested/dependency.dll", 2),
+            ],
+            inventory.Files
+        );
     }
 
     [Fact]
@@ -51,6 +74,8 @@ public sealed class ArtifactMeasurementsTests
         var directory = fileSystem.Path.GetFullPath("missing");
         var measurements = new ArtifactMeasurements(fileSystem);
 
-        Assert.Throws<DirectoryNotFoundException>(() => measurements.Read(BundleMode.Native, directory));
+        Assert.Throws<DirectoryNotFoundException>(() =>
+            measurements.Read(BundleMode.Native, directory)
+        );
     }
 }
