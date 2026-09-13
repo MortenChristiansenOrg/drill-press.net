@@ -14,8 +14,9 @@ upgrading, check the release's compatibility notes and rebuild your rule bundles
 ## Install packages
 
 The managed tool requires a .NET 10 SDK and bundles its matching BuildHost.
-Use the version available from your package feed; `0.0.1` is the initial alpha
-version. From your consuming repository:
+The commands below apply after `0.0.1` is published to nuget.org. Before
+publication, follow the [local artifact instructions](docs/DISTRIBUTION.md#build-and-validate-distribution-artifacts).
+From your consuming repository:
 
 ```sh
 dotnet new tool-manifest -o .config

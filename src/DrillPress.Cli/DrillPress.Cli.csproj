@@ -26,7 +26,7 @@
       Projects="../DrillPress.BuildHost/DrillPress.BuildHost.csproj"
       Targets="Publish"
       Properties="Configuration=$(Configuration);PublishDir=$(_BuildHostPublishDirectory);UseAppHost=false;SelfContained=false"
-      RemoveProperties="RuntimeIdentifier;PublishAot;PublishSingleFile;PublishTrimmed"
+      RemoveProperties="RuntimeIdentifier;PublishAot;PublishSingleFile;PublishTrimmed;PublishReadyToRun"
     />
     <ItemGroup>
       <_PackagedBuildHost Include="$(_BuildHostPublishDirectory)**/*" />
