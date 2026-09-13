@@ -24,9 +24,14 @@ public sealed class RuleApplicationTests
     public async Task Returns_clean_without_output_for_a_compliant_snapshot()
     {
         var snapshot = TestSnapshots.Create(
-            "namespace Sample; public sealed class Target { public static Target Value => null; }");
+            "namespace Sample; public sealed class Target { public static Target Value => null; }"
+        );
         const string path = "snapshot.json";
-        await new CompilationSnapshotFile(_fileSystem).WriteAsync(path, snapshot, TestContext.Current.CancellationToken);
+        await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+            path,
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
         var output = new StringWriter();
 
         var exitCode = await new RuleApplication(_fileSystem).RunAsync(
@@ -34,10 +39,16 @@ public sealed class RuleApplicationTests
             ["check", path],
             output,
             TextWriter.Null,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(RuleExitCode.Clean, exitCode);
-        Assert.Equal("", new CompactDiagnosticRenderer(_fileSystem).Render(BundleResponseProtocol.Read(output.ToString(), snapshot)));
+        Assert.Equal(
+            "",
+            new CompactDiagnosticRenderer(_fileSystem).Render(
+                BundleResponseProtocol.Read(output.ToString(), snapshot)
+            )
+        );
     }
 
     [Fact]
@@ -59,9 +70,14 @@ public sealed class RuleApplicationTests
                 public static Target Second => Target.Empty;
             }
             """,
-            _fileSystem.Path.Combine(directory, "Violations.cs"));
+            _fileSystem.Path.Combine(directory, "Violations.cs")
+        );
         const string path = "snapshot.json";
-        await new CompilationSnapshotFile(_fileSystem).WriteAsync(path, snapshot, TestContext.Current.CancellationToken);
+        await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+            path,
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
         var output = new StringWriter();
 
         var exitCode = await new RuleApplication(_fileSystem).RunAsync(
@@ -69,7 +85,8 @@ public sealed class RuleApplicationTests
             ["check", path],
             output,
             TextWriter.Null,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(RuleExitCode.Findings, exitCode);
         Assert.Equal(
@@ -80,26 +97,38 @@ public sealed class RuleApplicationTests
               9:36
 
             """.ReplaceLineEndings("\n"),
-            new CompactDiagnosticRenderer(_fileSystem).Render(BundleResponseProtocol.Read(output.ToString(), snapshot)));
+            new CompactDiagnosticRenderer(_fileSystem).Render(
+                BundleResponseProtocol.Read(output.ToString(), snapshot)
+            )
+        );
     }
 
     [Fact]
     public async Task Invalid_snapshot_files_report_failure_without_diagnostics()
     {
-        _fileSystem.AddFile("snapshot.json", new MockFileData(
-            """{"fileIdentifier":"drillpress-compilation","formatVersion":-1,"projects":[]}"""));
+        _fileSystem.AddFile(
+            "snapshot.json",
+            new MockFileData(
+                """{"fileIdentifier":"drillpress-compilation","formatVersion":-1,"projects":[]}"""
+            )
+        );
         var output = new StringWriter();
         var error = new StringWriter();
 
         var result = await new RuleApplication(_fileSystem).RunAsync(
-            RuleTestData.TargetEmptyRuleSet(), ["check", "snapshot.json"],
-            output, error, TestContext.Current.CancellationToken);
+            RuleTestData.TargetEmptyRuleSet(),
+            ["check", "snapshot.json"],
+            output,
+            error,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(RuleExitCode.Failure, result);
         Assert.Equal("", output.ToString());
         Assert.Equal(
             $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components.{Environment.NewLine}",
-            error.ToString());
+            error.ToString()
+        );
     }
 
     [Fact]
@@ -112,11 +141,13 @@ public sealed class RuleApplicationTests
             ["check"],
             TextWriter.Null,
             error,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(RuleExitCode.Failure, exitCode);
         Assert.Equal(
             $"Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]{Environment.NewLine}",
-            error.ToString());
+            error.ToString()
+        );
     }
 }

@@ -7,7 +7,12 @@ namespace DrillPress.Manifest;
 public static class SourceIdentity
 {
     /// <summary>Captures original bytes only when decoding exactly reproduces the compiler text.</summary>
-    public static DocumentSnapshot Capture(DocumentSnapshot document, byte[] bytes, string encodingName, bool hasByteOrderMark)
+    public static DocumentSnapshot Capture(
+        DocumentSnapshot document,
+        byte[] bytes,
+        string encodingName,
+        bool hasByteOrderMark
+    )
     {
         var captured = document with
         {
@@ -36,20 +41,34 @@ public static class SourceIdentity
     {
         try
         {
-            return Encoding.GetEncoding(name, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+            return Encoding.GetEncoding(
+                name,
+                EncoderFallback.ExceptionFallback,
+                DecoderFallback.ExceptionFallback
+            );
         }
         catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
         {
-            throw new InvalidDataException($"Source encoding '{name}' is not supported.", exception);
+            throw new InvalidDataException(
+                $"Source encoding '{name}' is not supported.",
+                exception
+            );
         }
     }
 
     internal static void Validate(DocumentSnapshot document)
     {
-        if (document.IsEditable && (document.IsGenerated ||
-            document.Fingerprint != Convert.ToHexString(SHA256.HashData(Encode(document)))))
+        if (
+            document.IsEditable
+            && (
+                document.IsGenerated
+                || document.Fingerprint != Convert.ToHexString(SHA256.HashData(Encode(document)))
+            )
+        )
         {
-            throw new InvalidDataException("Editable source identity does not match captured text and bytes.");
+            throw new InvalidDataException(
+                "Editable source identity does not match captured text and bytes."
+            );
         }
     }
 }

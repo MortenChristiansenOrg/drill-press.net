@@ -6,10 +6,10 @@ using System.Text.RegularExpressions;
 using DrillPress.Engine;
 using DrillPress.Manifest;
 using Microsoft.Build.Evaluation;
-using Project = Microsoft.CodeAnalysis.Project;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
+using Project = Microsoft.CodeAnalysis.Project;
 
 namespace DrillPress.BuildHost;
 
@@ -18,13 +18,30 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     private readonly IFileSystem _fileSystem = fileSystem;
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public async Task<SnapshotExport> LoadAsync(string target, SnapshotLoadOptions options, string sdkVersion, string sdkPath, CancellationToken cancellationToken)
+    public async Task<SnapshotExport> LoadAsync(
+        string target,
+        SnapshotLoadOptions options,
+        string sdkVersion,
+        string sdkPath,
+        CancellationToken cancellationToken
+    )
     {
-        var loadedDirectory = _fileSystem.Path.GetDirectoryName(typeof(ProjectCollection).Assembly.Location)!;
-        if (!string.Equals(_fileSystem.Path.GetFullPath(loadedDirectory), _fileSystem.Path.GetFullPath(sdkPath),
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+        var loadedDirectory = _fileSystem.Path.GetDirectoryName(
+            typeof(ProjectCollection).Assembly.Location
+        )!;
+        if (
+            !string.Equals(
+                _fileSystem.Path.GetFullPath(loadedDirectory),
+                _fileSystem.Path.GetFullPath(sdkPath),
+                OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal
+            )
+        )
         {
-            throw new InvalidOperationException("This process already loaded a different MSBuild SDK. Export this target in a new BuildHost process.");
+            throw new InvalidOperationException(
+                "This process already loaded a different MSBuild SDK. Export this target in a new BuildHost process."
+            );
         }
 
         using var workspace = MSBuildWorkspace.Create(options.Properties);
@@ -37,7 +54,11 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 failures.Enqueue(args.Diagnostic.Message);
             }
         });
-        if (_fileSystem.Path.GetExtension(target).Equals(".csproj", StringComparison.OrdinalIgnoreCase))
+        if (
+            _fileSystem
+                .Path.GetExtension(target)
+                .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
+        )
         {
             await workspace.OpenProjectAsync(target, cancellationToken: cancellationToken);
         }
@@ -55,37 +76,72 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         }
 
         var results = new Dictionary<ProjectId, CompilationContext>();
-        foreach (var id in solution.GetProjectDependencyGraph().GetTopologicallySortedProjects(cancellationToken))
+        foreach (
+            var id in solution
+                .GetProjectDependencyGraph()
+                .GetTopologicallySortedProjects(cancellationToken)
+        )
         {
             var project = solution.GetProject(id)!;
             var liveProject = original.GetProject(id)!;
             if (project.Language != LanguageNames.CSharp)
             {
-                throw new InvalidOperationException($"Project '{project.Name}' is not C#; its source context cannot be captured.");
+                throw new InvalidOperationException(
+                    $"Project '{project.Name}' is not C#; its source context cannot be captured."
+                );
             }
 
-            results.Add(id, await CaptureProjectAsync(project, liveProject, solution, results, options, sdkVersion, failures, cancellationToken));
+            results.Add(
+                id,
+                await CaptureProjectAsync(
+                    project,
+                    liveProject,
+                    solution,
+                    results,
+                    options,
+                    sdkVersion,
+                    failures,
+                    cancellationToken
+                )
+            );
         }
 
-        var contexts = results.Values.OrderBy(context => context.Snapshot.ProjectPath, StringComparer.Ordinal)
-            .ThenBy(context => context.Snapshot.TargetFramework, StringComparer.Ordinal).ToArray();
-        var envelope = CompilationSnapshot.Create(contexts.Select(context => context.Snapshot).ToArray());
+        var contexts = results
+            .Values.OrderBy(context => context.Snapshot.ProjectPath, StringComparer.Ordinal)
+            .ThenBy(context => context.Snapshot.TargetFramework, StringComparer.Ordinal)
+            .ToArray();
+        var envelope = CompilationSnapshot.Create(
+            contexts.Select(context => context.Snapshot).ToArray()
+        );
         SnapshotValidation.Validate(envelope);
         return new SnapshotExport(envelope, contexts);
     }
 
-    private async Task<CompilationContext> CaptureProjectAsync(Project project, Project liveProject, Solution solution,
-        Dictionary<ProjectId, CompilationContext> completed, SnapshotLoadOptions options, string sdkVersion,
-        ConcurrentQueue<string> failures, CancellationToken cancellationToken)
+    private async Task<CompilationContext> CaptureProjectAsync(
+        Project project,
+        Project liveProject,
+        Solution solution,
+        Dictionary<ProjectId, CompilationContext> completed,
+        SnapshotLoadOptions options,
+        string sdkVersion,
+        ConcurrentQueue<string> failures,
+        CancellationToken cancellationToken
+    )
     {
         var metadata = EvaluateMetadata(project, options);
         if (!_fileSystem.File.Exists(metadata.AssetsPath))
         {
-            throw new FileNotFoundException($"Restore assets are missing for '{project.FilePath}'. Run dotnet restore for the target first.", metadata.AssetsPath);
+            throw new FileNotFoundException(
+                $"Restore assets are missing for '{project.FilePath}'. Run dotnet restore for the target first.",
+                metadata.AssetsPath
+            );
         }
-    
-        var compilation = await project.GetCompilationAsync(cancellationToken) as CSharpCompilation
-            ?? throw new InvalidOperationException($"Could not load C# compilation '{project.Name}'.");
+
+        var compilation =
+            await project.GetCompilationAsync(cancellationToken) as CSharpCompilation
+            ?? throw new InvalidOperationException(
+                $"Could not load C# compilation '{project.Name}'."
+            );
         var edges = new List<CompilationReferenceSnapshot>();
         foreach (var reference in project.ProjectReferences)
         {
@@ -93,41 +149,83 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             {
                 throw new InvalidDataException($"Incomplete project graph for '{project.Name}'.");
             }
-    
-            var originalDependency = await solution.GetProject(reference.ProjectId)!.GetCompilationAsync(cancellationToken);
-            var oldReference = compilation.References.OfType<CompilationReference>().SingleOrDefault(item => ReferenceEquals(item.Compilation, originalDependency))
-                ?? throw new InvalidDataException($"Missing source compilation edge for '{project.Name}'.");
-            compilation = compilation.ReplaceReference(oldReference,
-                dependency.Compilation.ToMetadataReference(reference.Aliases, reference.EmbedInteropTypes));
-            edges.Add(new CompilationReferenceSnapshot(dependency.Snapshot.ContextId, reference.Aliases.ToArray(), reference.EmbedInteropTypes));
+
+            var originalDependency = await solution
+                .GetProject(reference.ProjectId)!
+                .GetCompilationAsync(cancellationToken);
+            var oldReference =
+                compilation
+                    .References.OfType<CompilationReference>()
+                    .SingleOrDefault(item => ReferenceEquals(item.Compilation, originalDependency))
+                ?? throw new InvalidDataException(
+                    $"Missing source compilation edge for '{project.Name}'."
+                );
+            compilation = compilation.ReplaceReference(
+                oldReference,
+                dependency.Compilation.ToMetadataReference(
+                    reference.Aliases,
+                    reference.EmbedInteropTypes
+                )
+            );
+            edges.Add(
+                new CompilationReferenceSnapshot(
+                    dependency.Snapshot.ContextId,
+                    reference.Aliases.ToArray(),
+                    reference.EmbedInteropTypes
+                )
+            );
         }
-    
+
         var generated = RunGenerators(liveProject, compilation, cancellationToken);
         compilation = generated.Compilation;
         ThrowLoadFailures(failures);
         CompilationValidation.Validate(compilation, options.ValidateCompilation, cancellationToken);
         var diagnosticIds = await GetDiagnosticIdsAsync(liveProject, cancellationToken);
-        var snapshot = new CompilerCapture(_fileSystem).Capture(project.Name, project.FilePath!, project.Id.Id.ToString("N"),
-            compilation, generated.Trees, diagnosticIds, cancellationToken) with
+        var snapshot = new CompilerCapture(_fileSystem).Capture(
+            project.Name,
+            project.FilePath!,
+            project.Id.Id.ToString("N"),
+            compilation,
+            generated.Trees,
+            diagnosticIds,
+            cancellationToken
+        ) with
         {
-            CompilationReferences = edges.ToArray(), ReferencedContextIds = edges.Select(edge => edge.ContextId).ToArray(),
-            TargetFramework = metadata.TargetFramework, IsTestProject = metadata.IsTestProject,
-            Properties = metadata.Properties, SdkVersion = sdkVersion,
+            CompilationReferences = edges.ToArray(),
+            ReferencedContextIds = edges.Select(edge => edge.ContextId).ToArray(),
+            TargetFramework = metadata.TargetFramework,
+            IsTestProject = metadata.IsTestProject,
+            Properties = metadata.Properties,
+            SdkVersion = sdkVersion,
+            Packages = metadata.Packages,
+            SourceRoots = metadata.SourceRoots,
         };
         return new CompilationContext(snapshot, compilation);
     }
 
     private EvaluatedMetadata EvaluateMetadata(Project project, SnapshotLoadOptions options)
     {
-        var properties = new Dictionary<string, string>(options.Properties, StringComparer.OrdinalIgnoreCase);
+        var properties = new Dictionary<string, string>(
+            options.Properties,
+            StringComparer.OrdinalIgnoreCase
+        );
         using var collection = new ProjectCollection(properties);
         var evaluated = collection.LoadProject(project.FilePath!);
         var global = project.AnalyzerOptions.AnalyzerConfigOptionsProvider.GlobalOptions;
         global.TryGetValue("build_property.TargetFramework", out var framework);
-        if (string.IsNullOrEmpty(framework) && project.Name.LastIndexOf('(') is >= 0 and var start && project.Name.EndsWith(')'))
+        if (
+            string.IsNullOrEmpty(framework)
+            && project.Name.LastIndexOf('(') is >= 0 and var start
+            && project.Name.EndsWith(')')
+        )
         {
             var suffix = project.Name[(start + 1)..^1];
-            if (evaluated.GetPropertyValue("TargetFrameworks").Split(';', StringSplitOptions.RemoveEmptyEntries).Contains(suffix))
+            if (
+                evaluated
+                    .GetPropertyValue("TargetFrameworks")
+                    .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                    .Contains(suffix)
+            )
             {
                 framework = suffix;
             }
@@ -141,10 +239,14 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
 
         framework = evaluated.GetPropertyValue("TargetFramework");
         var test = evaluated.GetProperty("IsTestProject");
-        var isTest = test is not null && test.EvaluatedValue.Length > 0
-            ? test.EvaluatedValue.Equals("true", StringComparison.OrdinalIgnoreCase)
-            : project.Name.Contains("test", StringComparison.OrdinalIgnoreCase) ||
-                project.MetadataReferences.Any(reference => reference.Display?.Contains("xunit", StringComparison.OrdinalIgnoreCase) == true);
+        var isTest =
+            test is not null && test.EvaluatedValue.Length > 0
+                ? test.EvaluatedValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                : project.Name.Contains("test", StringComparison.OrdinalIgnoreCase)
+                    || project.MetadataReferences.Any(reference =>
+                        reference.Display?.Contains("xunit", StringComparison.OrdinalIgnoreCase)
+                        == true
+                    );
         properties["TargetFramework"] = framework;
         if (test is not null)
         {
@@ -154,28 +256,99 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         var assets = evaluated.GetPropertyValue("ProjectAssetsFile");
         if (string.IsNullOrEmpty(assets))
         {
-            assets = _fileSystem.Path.Combine(_fileSystem.Path.GetDirectoryName(project.FilePath!)!, "obj", "project.assets.json");
+            assets = _fileSystem.Path.Combine(
+                _fileSystem.Path.GetDirectoryName(project.FilePath!)!,
+                "obj",
+                "project.assets.json"
+            );
         }
         else
         {
-            assets = _fileSystem.Path.GetFullPath(assets, _fileSystem.Path.GetDirectoryName(project.FilePath!)!);
+            assets = _fileSystem.Path.GetFullPath(
+                assets,
+                _fileSystem.Path.GetDirectoryName(project.FilePath!)!
+            );
         }
 
-        return new EvaluatedMetadata(framework, isTest, properties, assets);
+        foreach (var property in evaluated.AllEvaluatedProperties)
+        {
+            // Only project policy facts: do not serialize arbitrary environment variables or secrets.
+            if (
+                property.Name
+                is "RootNamespace"
+                    or "AssemblyName"
+                    or "Nullable"
+                    or "OutputType"
+                    or "IsPackable"
+                    or "LangVersion"
+            )
+            {
+                properties[property.Name] = property.EvaluatedValue;
+            }
+        }
+
+        var central = evaluated
+            .GetItems("PackageVersion")
+            .GroupBy(item => item.EvaluatedInclude, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Last().GetMetadataValue("Version"),
+                StringComparer.OrdinalIgnoreCase
+            );
+        var packages = evaluated
+            .GetItems("PackageReference")
+            .Select(item =>
+            {
+                var version = item.GetMetadataValue("VersionOverride");
+                if (version.Length == 0)
+                {
+                    version = item.GetMetadataValue("Version");
+                }
+
+                return new PackageReferenceSnapshot(
+                    item.EvaluatedInclude,
+                    version.Length > 0
+                        ? version
+                        : central.GetValueOrDefault(item.EvaluatedInclude, "")
+                );
+            })
+            .OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(package => package.Id, StringComparer.Ordinal)
+            .ThenBy(package => package.Version, StringComparer.Ordinal)
+            .ToArray();
+        var roots = evaluated
+            .GetItems("SourceRoot")
+            .Select(item => item.EvaluatedInclude)
+            .Distinct()
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return new EvaluatedMetadata(framework, isTest, properties, assets, packages, roots);
     }
 
-    private static GeneratedCompilation RunGenerators(Project project, CSharpCompilation compilation, CancellationToken cancellationToken)
+    private static GeneratedCompilation RunGenerators(
+        Project project,
+        CSharpCompilation compilation,
+        CancellationToken cancellationToken
+    )
     {
         var loadFailures = new List<string>();
-        foreach (var reference in project.AnalyzerReferences.OfType<Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference>())
+        foreach (
+            var reference in project.AnalyzerReferences.OfType<Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference>()
+        )
         {
             reference.AnalyzerLoadFailed += (_, args) => loadFailures.Add(args.Message);
         }
 
-        var generators = project.AnalyzerReferences.SelectMany(reference => reference.GetGenerators(LanguageNames.CSharp)).ToArray();
+        var generators = project
+            .AnalyzerReferences.SelectMany(reference =>
+                reference.GetGenerators(LanguageNames.CSharp)
+            )
+            .ToArray();
         if (loadFailures.Count > 0)
         {
-            throw new InvalidOperationException($"Analyzer loading failed in '{project.Name}': {string.Join("; ", loadFailures)}");
+            throw new InvalidOperationException(
+                $"Analyzer loading failed in '{project.Name}': {string.Join("; ", loadFailures)}"
+            );
         }
 
         if (generators.Length == 0)
@@ -183,26 +356,52 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             return new GeneratedCompilation(compilation, []);
         }
 
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, project.AnalyzerOptions.AdditionalFiles,
-            (CSharpParseOptions)project.ParseOptions!, project.AnalyzerOptions.AnalyzerConfigOptionsProvider);
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var generatedCompilation, out var diagnostics, cancellationToken);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators,
+            project.AnalyzerOptions.AdditionalFiles,
+            (CSharpParseOptions)project.ParseOptions!,
+            project.AnalyzerOptions.AnalyzerConfigOptionsProvider
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var generatedCompilation,
+            out var diagnostics,
+            cancellationToken
+        );
         var results = driver.GetRunResult();
         var failure = results.Results.FirstOrDefault(result => result.Exception is not null);
-        if (failure.Exception is not null || diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+        if (
+            failure.Exception is not null
+            || diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+        )
         {
-            throw new InvalidOperationException($"Source generation failed in '{project.Name}': {failure.Exception?.Message ?? string.Join("; ", diagnostics)}");
+            throw new InvalidOperationException(
+                $"Source generation failed in '{project.Name}': {failure.Exception?.Message ?? string.Join("; ", diagnostics)}"
+            );
         }
 
-        return new GeneratedCompilation((CSharpCompilation)generatedCompilation, results.GeneratedTrees.ToHashSet());
+        return new GeneratedCompilation(
+            (CSharpCompilation)generatedCompilation,
+            results.GeneratedTrees.ToHashSet()
+        );
     }
 
-    private static async Task<string[]> GetDiagnosticIdsAsync(Project project, CancellationToken cancellationToken)
+    private static async Task<string[]> GetDiagnosticIdsAsync(
+        Project project,
+        CancellationToken cancellationToken
+    )
     {
         var ids = new HashSet<string>(project.CompilationOptions!.SpecificDiagnosticOptions.Keys);
         foreach (var document in project.AnalyzerConfigDocuments)
         {
             var text = await document.GetTextAsync(cancellationToken);
-            foreach (Match match in Regex.Matches(text.ToString(), @"dotnet_diagnostic\.(CS\d+)\.severity", RegexOptions.CultureInvariant))
+            foreach (
+                Match match in Regex.Matches(
+                    text.ToString(),
+                    @"dotnet_diagnostic\.(CS\d+)\.severity",
+                    RegexOptions.CultureInvariant
+                )
+            )
             {
                 ids.Add(match.Groups[1].Value);
             }
@@ -215,10 +414,23 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     {
         if (!failures.IsEmpty)
         {
-            throw new InvalidOperationException($"MSBuild loading failed: {string.Join("; ", failures)}. Ensure the target SDK is installed and run dotnet restore first.");
+            throw new InvalidOperationException(
+                $"MSBuild loading failed: {string.Join("; ", failures)}. Ensure the target SDK is installed and run dotnet restore first."
+            );
         }
     }
 
-    private sealed record EvaluatedMetadata(string TargetFramework, bool IsTestProject, Dictionary<string, string> Properties, string AssetsPath);
-    private sealed record GeneratedCompilation(CSharpCompilation Compilation, HashSet<SyntaxTree> Trees);
+    private sealed record EvaluatedMetadata(
+        string TargetFramework,
+        bool IsTestProject,
+        Dictionary<string, string> Properties,
+        string AssetsPath,
+        PackageReferenceSnapshot[] Packages,
+        string[] SourceRoots
+    );
+
+    private sealed record GeneratedCompilation(
+        CSharpCompilation Compilation,
+        HashSet<SyntaxTree> Trees
+    );
 }

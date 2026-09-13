@@ -13,18 +13,20 @@ public sealed class BuildHostApplication
     private readonly ProcessProfileProbe _profileProbe;
 
     /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
-    public BuildHostApplication() : this(new FileSystem())
-    {
-    }
+    public BuildHostApplication()
+        : this(new FileSystem()) { }
 
-    private BuildHostApplication(IFileSystem fileSystem) : this(fileSystem, new MsBuildSnapshotLoader(fileSystem))
-    {
-    }
+    private BuildHostApplication(IFileSystem fileSystem)
+        : this(fileSystem, new MsBuildSnapshotLoader(fileSystem)) { }
 
     internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader)
         : this(fileSystem, snapshotLoader, new ProcessProfileProbe()) { }
 
-    internal BuildHostApplication(IFileSystem fileSystem, MsBuildSnapshotLoader snapshotLoader, ProcessProfileProbe profileProbe)
+    internal BuildHostApplication(
+        IFileSystem fileSystem,
+        MsBuildSnapshotLoader snapshotLoader,
+        ProcessProfileProbe profileProbe
+    )
     {
         _fileSystem = fileSystem;
         _snapshotLoader = snapshotLoader;
@@ -35,17 +37,24 @@ public sealed class BuildHostApplication
     public async Task<BuildHostExitCode> RunAsync(
         string[] args,
         TextWriter? standardError = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         standardError ??= Console.Error;
         if (args.Length < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
-                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]");
+                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]"
+            );
             return BuildHostExitCode.Failure;
         }
 
-        var profile = new PipelineProfile(args.Skip(3).Contains("--profile"), standardError, "build-host", _profileProbe);
+        var profile = new PipelineProfile(
+            args.Skip(3).Contains("--profile"),
+            standardError,
+            "build-host",
+            _profileProbe
+        );
         using var total = profile.Measure("total");
         try
         {
@@ -67,19 +76,36 @@ public sealed class BuildHostApplication
     public async Task ExportAsync(
         string projectPath,
         string outputPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         await ExportAsync(projectPath, outputPath, new SnapshotLoadOptions(), cancellationToken);
     }
 
     /// <summary>Exports a resolved solution, project, directory, or loose-source target with explicit evaluation options.</summary>
-    public async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options,
-        CancellationToken cancellationToken = default)
+    public async Task ExportAsync(
+        string target,
+        string outputPath,
+        SnapshotLoadOptions options,
+        CancellationToken cancellationToken = default
+    )
     {
-        await ExportAsync(target, outputPath, options, new PipelineProfile(false, TextWriter.Null, "build-host", _profileProbe), cancellationToken);
+        await ExportAsync(
+            target,
+            outputPath,
+            options,
+            new PipelineProfile(false, TextWriter.Null, "build-host", _profileProbe),
+            cancellationToken
+        );
     }
 
-    private async Task ExportAsync(string target, string outputPath, SnapshotLoadOptions options, PipelineProfile profile, CancellationToken cancellationToken)
+    private async Task ExportAsync(
+        string target,
+        string outputPath,
+        SnapshotLoadOptions options,
+        PipelineProfile profile,
+        CancellationToken cancellationToken
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
@@ -99,7 +125,10 @@ public sealed class BuildHostApplication
         {
             try
             {
-                profile.Count("snapshot.bytes", _fileSystem.FileInfo.New(_fileSystem.Path.GetFullPath(outputPath)).Length);
+                profile.Count(
+                    "snapshot.bytes",
+                    _fileSystem.FileInfo.New(_fileSystem.Path.GetFullPath(outputPath)).Length
+                );
                 profile.Count("contexts", snapshot.Projects.Length);
             }
             catch (Exception exception)
@@ -123,13 +152,19 @@ public sealed class BuildHostApplication
             {
                 continue;
             }
-            else if (args[index] == "--property" && ++index < args.Length && args[index].IndexOf('=') is > 0 and var separator)
+            else if (
+                args[index] == "--property"
+                && ++index < args.Length
+                && args[index].IndexOf('=') is > 0 and var separator
+            )
             {
                 properties[args[index][..separator]] = args[index][(separator + 1)..];
             }
             else
             {
-                throw new ArgumentException("Expected --property Name=Value, --validate-compilation, or --profile.");
+                throw new ArgumentException(
+                    "Expected --property Name=Value, --validate-compilation, or --profile."
+                );
             }
         }
 
@@ -139,12 +174,18 @@ public sealed class BuildHostApplication
     private async Task WriteSnapshotAsync(
         CompilationSnapshot snapshot,
         string outputPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var fullOutputPath = _fileSystem.Path.GetFullPath(outputPath);
         _fileSystem.Directory.CreateDirectory(
             _fileSystem.Path.GetDirectoryName(fullOutputPath)
-            ?? throw new InvalidOperationException("The snapshot output path has no directory."));
-        await new CompilationSnapshotFile(_fileSystem).WriteAsync(fullOutputPath, snapshot, cancellationToken);
+                ?? throw new InvalidOperationException("The snapshot output path has no directory.")
+        );
+        await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+            fullOutputPath,
+            snapshot,
+            cancellationToken
+        );
     }
 }

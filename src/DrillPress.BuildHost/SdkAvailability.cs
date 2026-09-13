@@ -12,10 +12,15 @@ internal static class SdkAvailability
         probeToken.ThrowIfCancellationRequested();
         var start = new ProcessStartInfo("dotnet")
         {
-            WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
+            WorkingDirectory = directory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
         };
         start.ArgumentList.Add("--version");
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the .NET SDK resolver.");
+        using var process =
+            Process.Start(start)
+            ?? throw new InvalidOperationException("Could not start the .NET SDK resolver.");
         var stdout = process.StandardOutput.ReadToEndAsync(probeToken);
         var stderr = process.StandardError.ReadToEndAsync(probeToken);
         try
@@ -32,7 +37,10 @@ internal static class SdkAvailability
                     process.Kill(true);
                 }
             }
-            catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception && process.HasExited)
+            catch (Exception exception)
+                when (exception is InvalidOperationException or System.ComponentModel.Win32Exception
+                    && process.HasExited
+                )
             {
                 // The SDK process exited between the observation and termination.
             }
@@ -49,7 +57,9 @@ internal static class SdkAvailability
 
             if (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
             {
-                throw new TimeoutException($"SDK discovery timed out after 30 seconds for '{directory}'.");
+                throw new TimeoutException(
+                    $"SDK discovery timed out after 30 seconds for '{directory}'."
+                );
             }
 
             throw;
@@ -57,7 +67,9 @@ internal static class SdkAvailability
 
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"No compatible .NET SDK was found for '{directory}'. Install the SDK required by its global.json.");
+            throw new InvalidOperationException(
+                $"No compatible .NET SDK was found for '{directory}'. Install the SDK required by its global.json."
+            );
         }
     }
 }

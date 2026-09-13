@@ -1,12 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
-    <IsTestProject>true</IsTestProject><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow><Nullable>annotations</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Nullable>annotations</Nullable>
     <DefineConstants>$(DefineConstants);FIXTURE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Interop" HintPath="../Interop/bin/Release/net9.0/Interop.dll" Aliases="interop" EmbedInteropTypes="true" />
+    <Reference
+      Include="Interop"
+      HintPath="../Interop/bin/Release/net9.0/Interop.dll"
+      Aliases="interop"
+      EmbedInteropTypes="true"
+    />
     <ProjectReference Include="../Dependency/Dependency.csproj" Aliases="dep" />
     <Analyzer Include="../Generator/bin/Release/netstandard2.0/Generator.dll" />
     <CompilerVisibleProperty Include="FailGenerator" />

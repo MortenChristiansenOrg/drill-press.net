@@ -19,7 +19,11 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
             if (args is ["--memory-worker", var planPath, var mode, var caseName])
             {
                 var sample = await MemoryProbe.RunWorkerAsync(
-                    fileSystem, planPath, Enum.Parse<BundleMode>(mode), caseName);
+                    fileSystem,
+                    planPath,
+                    Enum.Parse<BundleMode>(mode),
+                    caseName
+                );
                 Console.WriteLine(JsonSerializer.Serialize(sample));
                 return 0;
             }
@@ -28,7 +32,9 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
             {
                 [] => null,
                 ["--output", var path] when !string.IsNullOrWhiteSpace(path) => path,
-                _ => throw new ArgumentException("Usage: NativeBundles.cs [--output <new-directory>]"),
+                _ => throw new ArgumentException(
+                    "Usage: NativeBundles.cs [--output <new-directory>]"
+                ),
             };
             using var session = await VerificationSession.CreateAsync(fileSystem, output);
             await MeasureAsync(session);
@@ -44,28 +50,51 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
 
     private async Task MeasureAsync(VerificationSession session)
     {
-        var startup = new BundleCase("startup", [], BundleOutcome.Failure, [],
-            Encoding.UTF8.GetBytes("Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]" + Environment.NewLine));
-        var plan = new BenchmarkPlan(session.RepositoryRoot, session.ManagedBundle,
-            session.NativeBundle, [startup, .. session.Cases]);
+        var startup = new BundleCase(
+            "startup",
+            [],
+            BundleOutcome.Failure,
+            [],
+            Encoding.UTF8.GetBytes(
+                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]"
+                    + Environment.NewLine
+            )
+        );
+        var plan = new BenchmarkPlan(
+            session.RepositoryRoot,
+            session.ManagedBundle,
+            session.NativeBundle,
+            [startup, .. session.Cases]
+        );
         var planPath = fileSystem.Path.Combine(session.OutputDirectory, "benchmark-plan.json");
         await new BenchmarkPlanFile(fileSystem).WriteAsync(planPath, plan);
         var memory = await MemoryProbe.CollectAsync(plan, planPath);
         await MeasurementReport.WriteAsync(fileSystem, session, memory);
 
-        var job = Job.Default.WithId("BundleProcess")
+        var job = Job
+            .Default.WithId("BundleProcess")
             .WithStrategy(RunStrategy.Monitoring)
-            .WithLaunchCount(1).WithWarmupCount(1).WithIterationCount(5)
-            .WithInvocationCount(1).WithUnrollFactor(1)
+            .WithLaunchCount(1)
+            .WithWarmupCount(1)
+            .WithIterationCount(5)
+            .WithInvocationCount(1)
+            .WithUnrollFactor(1)
             .WithEnvironmentVariable(BundleBenchmarks.PlanEnvironmentVariable, planPath);
-        var config = ManualConfig.Create(DefaultConfig.Instance)
-            .AddJob(job).AddExporter(JsonExporter.Full)
+        var config = ManualConfig
+            .Create(DefaultConfig.Instance)
+            .AddJob(job)
+            .AddExporter(JsonExporter.Full)
             .WithArtifactsPath(fileSystem.Path.Combine(session.OutputDirectory, "BenchmarkDotNet"));
         var summary = BenchmarkRunner.Run<BundleBenchmarks>(config);
-        if (summary.HasCriticalValidationErrors || summary.Reports.Length != 8 ||
-            summary.Reports.Any(report => !report.Success || report.ResultStatistics is null))
+        if (
+            summary.HasCriticalValidationErrors
+            || summary.Reports.Length != 8
+            || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)
+        )
         {
-            throw new InvalidOperationException("BenchmarkDotNet did not complete all eight bundle benchmarks.");
+            throw new InvalidOperationException(
+                "BenchmarkDotNet did not complete all eight bundle benchmarks."
+            );
         }
     }
 }

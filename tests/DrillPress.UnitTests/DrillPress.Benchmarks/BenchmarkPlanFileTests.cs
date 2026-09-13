@@ -8,8 +8,7 @@ namespace DrillPress.UnitTests.DrillPress.Benchmarks;
 
 public sealed class BenchmarkPlanFileTests
 {
-    private const string SerializedPlan =
-        """
+    private const string SerializedPlan = """
         {"RepositoryRoot":"repo","ManagedBundle":"managed.dll","NativeBundle":"native","Cases":[{"Name":"probe","Arguments":["check","snapshot"],"Outcome":1,"StandardOutput":"AP8=","StandardError":"DQo="}]}
         """;
 
@@ -26,8 +25,20 @@ public sealed class BenchmarkPlanFileTests
     [Fact]
     public async Task Writes_the_complete_plan_and_binary_contract()
     {
-        var plan = new BenchmarkPlan("repo", "managed.dll", "native",
-            [new BundleCase("probe", ["check", "snapshot"], BundleOutcome.Findings, [0, 255], [13, 10])]);
+        var plan = new BenchmarkPlan(
+            "repo",
+            "managed.dll",
+            "native",
+            [
+                new BundleCase(
+                    "probe",
+                    ["check", "snapshot"],
+                    BundleOutcome.Findings,
+                    [0, 255],
+                    [13, 10]
+                ),
+            ]
+        );
 
         await _storage.WriteAsync(_path, plan, TestContext.Current.CancellationToken);
 

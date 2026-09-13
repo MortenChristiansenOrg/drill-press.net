@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Share expensive work and compare the things that matter. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Facts, comparisons, and baselines · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html" aria-current="page">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Deeper analysis / 08</p>
+<h1>Facts, comparisons, and baselines</h1>
+<p class="lead">Share expensive work and compare the things that matter.</p>
+
+<p>When several rules need the same calculated information, give it a name and compute it once. When a policy compares two inventories or an accepted version of source, make the comparison explicit.</p>
+<h2 id="custom">Create a custom query</h2>
+<div class="codeblock"><div class="codehead"><span>Choose one reportable file per production project</span></div><pre tabindex="0" data-check="program" id="example-24"><code>using DrillPress;
+using DrillPress.Queries;
+
+var files = Sources.Files.Where(file =&gt; !file.Source.Project.IsTestProject);
+var firstFilePerProject = CodeQuery&lt;CodeFile&gt;.Create(solution =&gt;
+    files.In(solution)
+        .GroupBy(file =&gt; file.Source.Project)
+        .Select(group =&gt; group.OrderBy(file =&gt; file.Path).First()));
+
+var rules = new RuleSet();
+rules.For(firstFilePerProject).Require(
+    file =&gt; file.Source.Project.Properties.TryGetValue(&quot;Nullable&quot;, out var value)
+        &amp;&amp; value == &quot;enable&quot;,
+    &quot;TEAM015&quot;, &quot;Enable nullable reference types for this project.&quot;);</code></pre></div>
+<p><code>Create</code> takes a function from <code>AnalysisSolution</code> to candidates. <code>In(solution)</code> reads an existing query. Reuse these instances and keep selection functions pure. For long custom loops, observe <code>solution.CancellationToken</code>. Missing captured properties are not the same as a complete MSBuild evaluation; choose conservative policy behavior.</p>
+<h2 id="facts">Cache reusable facts</h2>
+<div class="codeblock"><div class="codehead"><span>Share an inventory of public type names</span></div><pre tabindex="0" data-check="program" id="example-25"><code>using DrillPress;
+using DrillPress.Facts;
+using Microsoft.CodeAnalysis;
+
+var publicTypes = Code.Types.Where(type =&gt;
+    type.Symbol.DeclaredAccessibility == Accessibility.Public);
+var names = new AnalysisFact&lt;IReadOnlyDictionary&lt;string, int&gt;&gt;(solution =&gt;
+    publicTypes.In(solution)
+        .GroupBy(type =&gt; type.Name)
+        .ToDictionary(group =&gt; group.Key, group =&gt; group.Count()));
+
+var repeatedNames = names.SelectMany(counts =&gt;
+    counts.Where(pair =&gt; pair.Value &gt; 1).Select(pair =&gt; pair.Key));
+
+var repeatedTypes = publicTypes.Join(
+    repeatedNames, type =&gt; type.Name, name =&gt; name, (type, _) =&gt; type);</code></pre></div>
+<p><code>AnalysisFact&lt;T&gt;.In(solution)</code> computes once per fact instance per analysis. <code>SelectMany</code> turns part of its value into a query. Values should be treated as immutable.</p>
+<p><code>ProjectFact&lt;T&gt;</code> instead takes a function of <code>AnalysisProject</code>. Read it with <code>In(solution, project)</code>; the project must belong to that solution. Alternative frameworks do not share values. Fact dependencies may read other facts, but cycles fail, and computation failures remain cached for that analysis. None of these caches persist across runs.</p>
+<h2 id="sets">Compare inventories and repeated syntax</h2>
+<div class="codeblock"><div class="codehead"><span>Understand missing and unexpected items</span></div><pre tabindex="0" data-check="program" id="example-26"><code>using DrillPress.Collections;
+
+var formats = new SetComparison&lt;string&gt;(
+    expected: [&quot;json&quot;, &quot;xml&quot;],
+    actual: [&quot;json&quot;, &quot;yaml&quot;]);
+
+Console.WriteLine(string.Join(&quot;, &quot;, formats.Missing));    // xml
+Console.WriteLine(string.Join(&quot;, &quot;, formats.Unexpected)); // yaml
+Console.WriteLine(formats.AreEqual);                      // False</code></pre></div>
+<p><code>SetComparison&lt;T&gt;</code> compares membership, not occurrence counts. It supports a custom equality comparer. Duplicate inputs do not change the result.</p>
+<p><code>DuplicateSyntax.In(query, minimumTokens)</code> reports every occurrence of an exact repeated token shape within a compilation context. It ignores comments and whitespace but preserves identifier spelling and literal text. A repeated shape does not prove equivalent behavior or justify an automatic extraction.</p>
+<h2 id="anchors">Anchor calculated results</h2>
+<div class="codeblock"><div class="codehead"><span>Keep a custom value attached to the type that owns it</span></div><pre tabindex="0" data-check="program" id="example-27"><code>using DrillPress;
+
+var documentedTypes = Code.Types.Select(type =&gt; new
+{
+    Type = type,
+    Summary = type.Symbol.GetDocumentationCommentXml()
+});
+var undocumented = documentedTypes
+    .Where(item =&gt; string.IsNullOrWhiteSpace(item.Summary))
+    .At(item =&gt; item.Type);
+
+var rules = new RuleSet();
+rules.For(undocumented).Forbid(&quot;TEAM016&quot;, &quot;Document this type's purpose.&quot;);</code></pre></div>
+<p><code>At</code> produces a <code>LocatedCandidate&lt;T&gt;</code>: your calculated <code>Value</code> plus the existing anchor’s <code>Location</code> and <code>Source</code>. This also works for joined tuples and missing-counterpart checks.</p>
+<h2 id="baseline">Compare with accepted source</h2>
+<div class="codeblock"><div class="codehead"><span>Create a change-aware rule factory</span></div><pre tabindex="0" data-check="program" id="example-28"><code>using DrillPress;
+using DrillPress.Baselines;
+using DrillPress.Configuration;
+
+static RuleSet CreateRules(SourceBaseline accepted)
+{
+    var rules = new RuleSet();
+    var legacyFiles = new PathPattern(&quot;**/Legacy/**/*.cs&quot;);
+
+    rules.For(accepted.ChangedFiles.Where(file =&gt;
+            accepted.ChangeOf(file) == SourceChange.Added
+            &amp;&amp; legacyFiles.Matches(file.Path)))
+        .Forbid(&quot;TEAM017&quot;, &quot;Add new implementations outside the legacy layer.&quot;);
+
+    return rules;
+}</code></pre></div>
+<p>Create the baseline with <code>new SourceBaseline(acceptedAnalysis)</code> before analyzing the new source. <code>ChangeOf(file)</code> returns <code>Added</code>, <code>Modified</code>, or <code>Unchanged</code>; <code>ChangedFiles</code> selects additions and modifications.</p>
+<p><code>ChangeOf(project, symbol)</code> compares declaration text, including partial declarations. <code>PreviousAccessibility(project, symbol)</code> returns the old compiler accessibility, or null when no matching declaration was captured. Renames and changed signatures count as additions; this is not a rename detector. There is no removed-file candidate.</p>
+<div class="note"><strong>A baseline is explicit input</strong><p>The SDK does not fetch Git history, load a baseline from the CLI, or infer an accepted commit. Supply an accepted analysis yourself and use stable project paths, framework labels, and evaluation properties. <a href="testing.html#baselines">Test the comparison</a> with two workspaces.</p></div>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="relationships.html"><small>← PREVIOUS</small>Projects and relationships</a>
+<a href="fixes.html"><small>NEXT →</small>Offer safe fixes</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#custom">Create a custom query</a><a href="#facts">Cache reusable facts</a><a href="#sets">Compare inventories and repeated syntax</a><a href="#anchors">Anchor calculated results</a><a href="#baseline">Compare with accepted source</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

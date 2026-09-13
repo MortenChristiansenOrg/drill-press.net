@@ -1,7 +1,7 @@
 using System.IO.Abstractions.TestingHelpers;
+using System.Text;
 using DrillPress.Cli;
 using DrillPress.Manifest;
-using System.Text;
 using DrillPress.UnitTests.TestInfrastructure;
 using Xunit;
 
@@ -25,23 +25,33 @@ public sealed class CliApplicationTests
     [InlineData("--help")]
     [InlineData("check", "--help")]
     [InlineData("fix", "--help")]
-    public async Task Help_describes_the_primary_workflow_without_starting_tools(params string[] arguments)
+    public async Task Help_describes_the_primary_workflow_without_starting_tools(
+        params string[] arguments
+    )
     {
         var output = new StringWriter();
         var error = new StringWriter();
         var directories = _fileSystem.AllDirectories.ToArray();
-        var runner = new StubChildProcessRunner((_, _, _) => throw new InvalidOperationException("Unexpected process."));
+        var runner = new StubChildProcessRunner(
+            (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+        );
         var permissions = new StubSnapshotDirectoryPermissions(_fileSystem)
         {
             OnRestrict = _ => throw new InvalidOperationException("Unexpected snapshot directory."),
         };
         var application = new CliApplication(_fileSystem, runner, permissions: permissions);
 
-        var result = await application.RunAsync(arguments, error, TestContext.Current.CancellationToken, output);
+        var result = await application.RunAsync(
+            arguments,
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal("", error.ToString());
-        Assert.Equal("""
+        Assert.Equal(
+            """
             drillpress check|fix --build-host <path> --rules <path> <target> [options]
             check reports findings; fix applies common-safe edits and reports the recheck.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
@@ -51,7 +61,9 @@ public sealed class CliApplicationTests
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
 
-            """.ReplaceLineEndings("\n"), output.ToString());
+            """.ReplaceLineEndings("\n"),
+            output.ToString()
+        );
         Assert.Equal(directories, _fileSystem.AllDirectories);
         Assert.Empty(_fileSystem.AllFiles);
     }
@@ -63,11 +75,13 @@ public sealed class CliApplicationTests
         var error = new StringWriter();
         var directory = "";
         var calls = new List<string>();
-        var runner = new StubChildProcessRunner((executable, _, _) =>
-        {
-            calls.Add(executable);
-            return Task.FromResult(2);
-        });
+        var runner = new StubChildProcessRunner(
+            (executable, _, _) =>
+            {
+                calls.Add(executable);
+                return Task.FromResult(2);
+            }
+        );
         var permissions = new StubSnapshotDirectoryPermissions(_fileSystem)
         {
             OnRestrict = path =>
@@ -80,11 +94,17 @@ public sealed class CliApplicationTests
 
         var result = await application.RunAsync(
             ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
-            error, TestContext.Current.CancellationToken, output);
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
 
         Assert.Equal(CliExitCode.Failure, result);
         Assert.Equal("", output.ToString());
-        Assert.Equal($"drillpress: Cannot restrict snapshot access.{Environment.NewLine}", error.ToString());
+        Assert.Equal(
+            $"drillpress: Cannot restrict snapshot access.{Environment.NewLine}",
+            error.ToString()
+        );
         Assert.Empty(calls);
         Assert.False(_fileSystem.Directory.Exists(directory));
     }
@@ -93,21 +113,32 @@ public sealed class CliApplicationTests
     [InlineData()]
     [InlineData("check")]
     [InlineData("check", "--build-host", "host", "--rules", "rules")]
-    [InlineData("check", "--build-host", "host", "--build-host", "other", "--rules", "rules", "target")]
+    [InlineData(
+        "check",
+        "--build-host",
+        "host",
+        "--build-host",
+        "other",
+        "--rules",
+        "rules",
+        "target"
+    )]
     public async Task Run_returns_failure_and_usage_for_invalid_arguments(params string[] arguments)
     {
         var error = new StringWriter();
 
-        var exitCode = await new CliApplication(_fileSystem,
-            new StubChildProcessRunner((_, _, _) => throw new InvalidOperationException("Unexpected process."))).RunAsync(
-            arguments,
-            error,
-            TestContext.Current.CancellationToken);
+        var exitCode = await new CliApplication(
+            _fileSystem,
+            new StubChildProcessRunner(
+                (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+            )
+        ).RunAsync(arguments, error, TestContext.Current.CancellationToken);
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
             $"Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]{Environment.NewLine}",
-            error.ToString());
+            error.ToString()
+        );
     }
 
     [Theory]
@@ -115,7 +146,10 @@ public sealed class CliApplicationTests
     [InlineData(1, CliExitCode.Failure)]
     [InlineData(2, CliExitCode.Failure)]
     [InlineData(42, CliExitCode.Failure)]
-    public async Task Shares_the_snapshot_with_both_tools_and_removes_it(int ruleResult, CliExitCode expected)
+    public async Task Shares_the_snapshot_with_both_tools_and_removes_it(
+        int ruleResult,
+        CliExitCode expected
+    )
     {
         var snapshot = CompilationSnapshot.Create();
         var calls = new List<(string Executable, string[] Arguments)>();
@@ -125,12 +159,18 @@ public sealed class CliApplicationTests
             ["host"] = Export,
             ["rules"] = Check,
         };
-        var runner = new StubChildProcessRunner((executable, arguments, _) =>
+        var runner = new StubChildProcessRunner(
+            (executable, arguments, _) =>
+            {
+                calls.Add((executable, arguments.ToArray()));
+                return handlers[executable](arguments);
+            }
+        )
         {
-            calls.Add((executable, arguments.ToArray()));
-            return handlers[executable](arguments);
-        }) { StandardOutput = Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(
-            new BundleResponse(1, snapshot.RequestId, [], []))) };
+            StandardOutput = Encoding.UTF8.GetString(
+                BundleResponseProtocol.Serialize(new BundleResponse(1, snapshot.RequestId, [], []))
+            ),
+        };
         async Task<int> Export(IReadOnlyList<string> arguments)
         {
             await new CompilationSnapshotFile(_fileSystem).WriteAsync(arguments[2], snapshot);
@@ -141,11 +181,17 @@ public sealed class CliApplicationTests
             observedSnapshot = arguments[1];
             return Task.FromResult(ruleResult);
         }
-        var application = new CliApplication(_fileSystem, runner, permissions: new StubSnapshotDirectoryPermissions(_fileSystem));
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        );
 
         var result = await application.RunAsync(
             ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
-            TextWriter.Null, TestContext.Current.CancellationToken);
+            TextWriter.Null,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(expected, result);
         Assert.Equal(calls[0].Arguments[2], observedSnapshot);
@@ -161,18 +207,26 @@ public sealed class CliApplicationTests
     {
         var calls = new List<string>();
         var snapshotPath = "";
-        var runner = new StubChildProcessRunner((executable, arguments, _) =>
-        {
-            calls.Add(executable);
-            snapshotPath = arguments[2];
-            _fileSystem.File.WriteAllText(snapshotPath, "partial");
-            return Task.FromResult(17);
-        });
-        var application = new CliApplication(_fileSystem, runner, permissions: new StubSnapshotDirectoryPermissions(_fileSystem));
+        var runner = new StubChildProcessRunner(
+            (executable, arguments, _) =>
+            {
+                calls.Add(executable);
+                snapshotPath = arguments[2];
+                _fileSystem.File.WriteAllText(snapshotPath, "partial");
+                return Task.FromResult(17);
+            }
+        );
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        );
 
         var result = await application.RunAsync(
             ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
-            TextWriter.Null, TestContext.Current.CancellationToken);
+            TextWriter.Null,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(CliExitCode.Failure, result);
         Assert.Equal(["host"], calls);
@@ -183,17 +237,27 @@ public sealed class CliApplicationTests
     public async Task Cancellation_propagates_after_temporary_files_are_removed()
     {
         var snapshotPath = "";
-        var runner = new StubChildProcessRunner((_, arguments, token) =>
-        {
-            snapshotPath = arguments[2];
-            _fileSystem.File.WriteAllText(snapshotPath, "partial");
-            throw new OperationCanceledException(token);
-        });
-        var application = new CliApplication(_fileSystem, runner, permissions: new StubSnapshotDirectoryPermissions(_fileSystem));
+        var runner = new StubChildProcessRunner(
+            (_, arguments, token) =>
+            {
+                snapshotPath = arguments[2];
+                _fileSystem.File.WriteAllText(snapshotPath, "partial");
+                throw new OperationCanceledException(token);
+            }
+        );
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        );
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => application.RunAsync(
-            ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
-            TextWriter.Null, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            application.RunAsync(
+                ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
+                TextWriter.Null,
+                TestContext.Current.CancellationToken
+            )
+        );
 
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
     }
@@ -202,30 +266,51 @@ public sealed class CliApplicationTests
     public async Task Process_errors_are_reported_after_temporary_files_are_removed()
     {
         var snapshotPath = "";
-        var runner = new StubChildProcessRunner((_, arguments, _) =>
-        {
-            snapshotPath = arguments[2];
-            _fileSystem.File.WriteAllText(snapshotPath, "partial");
-            throw new IOException("Cannot launch tool.");
-        });
+        var runner = new StubChildProcessRunner(
+            (_, arguments, _) =>
+            {
+                snapshotPath = arguments[2];
+                _fileSystem.File.WriteAllText(snapshotPath, "partial");
+                throw new IOException("Cannot launch tool.");
+            }
+        );
         var error = new StringWriter();
-        var application = new CliApplication(_fileSystem, runner, permissions: new StubSnapshotDirectoryPermissions(_fileSystem));
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        );
 
         var result = await application.RunAsync(
             ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
-            error, TestContext.Current.CancellationToken);
+            error,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(CliExitCode.Failure, result);
         Assert.Equal($"drillpress: Cannot launch tool.{Environment.NewLine}", error.ToString());
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
     }
+
     [Theory]
     [InlineData(0, "")]
     [InlineData(0, "loader logging")]
-    [InlineData(0, "{\"protocolVersion\":99,\"requestId\":\"request\",\"contexts\":[],\"batches\":[]}")]
-    [InlineData(0, "{\"protocolVersion\":1,\"requestId\":\"foreign\",\"contexts\":[],\"batches\":[]}")]
-    [InlineData(1, "{\"protocolVersion\":1,\"requestId\":\"request\",\"contexts\":[],\"batches\":[]}")]
-    public async Task Invalid_bundle_output_never_reaches_public_stdout(int exitCode, string response)
+    [InlineData(
+        0,
+        "{\"protocolVersion\":99,\"requestId\":\"request\",\"contexts\":[],\"batches\":[]}"
+    )]
+    [InlineData(
+        0,
+        "{\"protocolVersion\":1,\"requestId\":\"foreign\",\"contexts\":[],\"batches\":[]}"
+    )]
+    [InlineData(
+        1,
+        "{\"protocolVersion\":1,\"requestId\":\"request\",\"contexts\":[],\"batches\":[]}"
+    )]
+    public async Task Invalid_bundle_output_never_reaches_public_stdout(
+        int exitCode,
+        string response
+    )
     {
         var snapshot = CompilationSnapshot.Create() with { RequestId = "request" };
         var snapshotPath = "";
@@ -240,21 +325,29 @@ public sealed class CliApplicationTests
             ["host"] = Export,
             ["rules"] = _ => Task.FromResult(exitCode),
         };
-        var runner = new StubChildProcessRunner((executable, arguments, _) => handlers[executable](arguments))
+        var runner = new StubChildProcessRunner(
+            (executable, arguments, _) => handlers[executable](arguments)
+        )
         {
             StandardOutput = response,
         };
         var stdout = new StringWriter();
         var stderr = new StringWriter();
 
-        var result = await new CliApplication(_fileSystem, runner, permissions: new StubSnapshotDirectoryPermissions(_fileSystem)).RunAsync(
-            ["check", "--build-host", "host", "--rules", "rules", "target.csproj"], stderr,
-            TestContext.Current.CancellationToken, stdout);
+        var result = await new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        ).RunAsync(
+            ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
+            stderr,
+            TestContext.Current.CancellationToken,
+            stdout
+        );
 
         Assert.Equal(CliExitCode.Failure, result);
         Assert.Equal("", stdout.ToString());
         Assert.NotEmpty(stderr.ToString());
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
     }
-
 }

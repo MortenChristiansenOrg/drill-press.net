@@ -9,7 +9,8 @@ namespace DrillPress.Cli;
 /// </summary>
 public sealed class CliApplication
 {
-    private const string Usage = "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]";
+    private const string Usage =
+        "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]";
     private const string Help = """
         drillpress check|fix --build-host <path> --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck.
@@ -27,12 +28,15 @@ public sealed class CliApplication
     private readonly SnapshotDirectoryPermissions _permissions;
 
     /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
-    public CliApplication() : this(new FileSystem(), new ChildProcessRunner())
-    {
-    }
+    public CliApplication()
+        : this(new FileSystem(), new ChildProcessRunner()) { }
 
-    internal CliApplication(IFileSystem fileSystem, ChildProcessRunner processRunner, FixPlanApplier? fixes = null,
-        SnapshotDirectoryPermissions? permissions = null)
+    internal CliApplication(
+        IFileSystem fileSystem,
+        ChildProcessRunner processRunner,
+        FixPlanApplier? fixes = null,
+        SnapshotDirectoryPermissions? permissions = null
+    )
     {
         _fileSystem = fileSystem;
         _processRunner = processRunner;
@@ -47,7 +51,8 @@ public sealed class CliApplication
         string[] args,
         TextWriter? standardError = null,
         CancellationToken cancellationToken = default,
-        TextWriter? standardOutput = null)
+        TextWriter? standardOutput = null
+    )
     {
         standardError ??= Console.Error;
         standardOutput ??= Console.Out;
@@ -71,11 +76,25 @@ public sealed class CliApplication
             try
             {
                 _permissions.Restrict(temporaryDirectory.FullName);
-                var snapshotPath = _fileSystem.Path.Combine(temporaryDirectory.FullName, "compilation.snapshot.json");
-                var evaluation = await EvaluateAsync(options, snapshotPath, standardError, profile, cancellationToken);
+                var snapshotPath = _fileSystem.Path.Combine(
+                    temporaryDirectory.FullName,
+                    "compilation.snapshot.json"
+                );
+                var evaluation = await EvaluateAsync(
+                    options,
+                    snapshotPath,
+                    standardError,
+                    profile,
+                    cancellationToken
+                );
                 if (options.Command == CliCommand.Fix && evaluation.Result.Edits.Length > 0)
                 {
-                    var application = await _fixes.ApplyAsync(evaluation.Snapshot, evaluation.Response, cancellationToken, profile);
+                    var application = await _fixes.ApplyAsync(
+                        evaluation.Snapshot,
+                        evaluation.Response,
+                        cancellationToken,
+                        profile
+                    );
                     if (application.Outcome != FixApplicationOutcome.Completed)
                     {
                         await WriteRecoveryAsync(standardError, application);
@@ -86,7 +105,13 @@ public sealed class CliApplication
                     {
                         try
                         {
-                            evaluation = await EvaluateAsync(options, snapshotPath, standardError, profile, cancellationToken);
+                            evaluation = await EvaluateAsync(
+                                options,
+                                snapshotPath,
+                                standardError,
+                                profile,
+                                cancellationToken
+                            );
                         }
                         catch (OperationCanceledException)
                         {
@@ -95,7 +120,9 @@ public sealed class CliApplication
                         }
                         catch (Exception exception)
                         {
-                            await standardError.WriteLineAsync($"drillpress: Files changed but verification failed: {exception.Message}");
+                            await standardError.WriteLineAsync(
+                                $"drillpress: Files changed but verification failed: {exception.Message}"
+                            );
                             await WritePathsAsync(standardError, "changed", application.Changed);
                             return CliExitCode.Failure;
                         }
@@ -111,7 +138,9 @@ public sealed class CliApplication
                     }
                     await standardOutput.WriteAsync(text);
                 }
-                return evaluation.Result.Findings.Length == 0 ? CliExitCode.Clean : CliExitCode.Findings;
+                return evaluation.Result.Findings.Length == 0
+                    ? CliExitCode.Clean
+                    : CliExitCode.Findings;
             }
             finally
             {
@@ -125,13 +154,22 @@ public sealed class CliApplication
         }
     }
 
-    private async Task<RuleEvaluation> EvaluateAsync(CliOptions options, string snapshotPath, TextWriter error, PipelineProfile profile, CancellationToken cancellationToken)
+    private async Task<RuleEvaluation> EvaluateAsync(
+        CliOptions options,
+        string snapshotPath,
+        TextWriter error,
+        PipelineProfile profile,
+        CancellationToken cancellationToken
+    )
     {
         ChildProcessResult export;
         using (profile.Measure("build-host"))
         {
-            export = await _processRunner.CaptureAsync(options.BuildHost,
-                ["export", options.Target, snapshotPath, .. options.ExportArguments], cancellationToken);
+            export = await _processRunner.CaptureAsync(
+                options.BuildHost,
+                ["export", options.Target, snapshotPath, .. options.ExportArguments],
+                cancellationToken
+            );
         }
         await error.WriteAsync(export.StandardError);
         if (export.ExitCode != 0)
@@ -142,16 +180,25 @@ public sealed class CliApplication
         CompilationSnapshot snapshot;
         using (profile.Measure("snapshot.loading"))
         {
-            snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath, cancellationToken);
+            snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(
+                snapshotPath,
+                cancellationToken
+            );
         }
 
         var ruleArguments = new List<string> { "check", snapshotPath };
-        if (options.Profile) ruleArguments.Add("--profile");
-        if (!options.EnableOptimizations) ruleArguments.Add("--no-optimization");
+        if (options.Profile)
+            ruleArguments.Add("--profile");
+        if (!options.EnableOptimizations)
+            ruleArguments.Add("--no-optimization");
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {
-            check = await _processRunner.CaptureAsync(options.Rules, ruleArguments, cancellationToken);
+            check = await _processRunner.CaptureAsync(
+                options.Rules,
+                ruleArguments,
+                cancellationToken
+            );
         }
         await error.WriteAsync(check.StandardError);
         if (check.ExitCode is not (0 or 1))
@@ -176,11 +223,17 @@ public sealed class CliApplication
         await WritePathsAsync(error, "pending", result.Pending);
     }
 
-    private static async Task WritePathsAsync(TextWriter error, string label, IEnumerable<string> paths)
+    private static async Task WritePathsAsync(
+        TextWriter error,
+        string label,
+        IEnumerable<string> paths
+    )
     {
         foreach (var path in paths)
         {
-            await error.WriteLineAsync($"  {label}: {System.Text.Json.JsonEncodedText.Encode(path)}");
+            await error.WriteLineAsync(
+                $"  {label}: {System.Text.Json.JsonEncodedText.Encode(path)}"
+            );
         }
     }
 }

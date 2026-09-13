@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A small language for your team’s conventions. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>The rule author’s manual · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html" aria-current="page">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Start here / 01</p>
+<h1>The rule author’s manual</h1>
+<p class="lead">A small language for your team’s conventions.</p>
+
+<p>Turn a convention your team keeps explaining into a small, repeatable check. Drill Press rules are ordinary C#: you choose some code, describe a requirement, and tell the reader how to fix a violation.</p>
+<div class="hero-actions"><a class="button" href="first-rule.html">Write your first rule →</a><a href="reference.html">Explore the API field guide</a></div>
+<div class="codeblock"><div class="codehead"><span>A complete rule declaration</span></div><pre tabindex="0" data-check="program" id="example-1"><code>using DrillPress;
+using DrillPress.Projects;
+using DrillPress.Queries;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var console = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);
+var productionCalls = ProjectFacts.ProductionFiles.Invocations();
+
+rules.For(productionCalls.Where(call =&gt; call.Calls(console)))
+    .Forbid(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;);</code></pre></div>
+<p>Read it from the inside out: <em>find calls in production files; keep calls to Console.WriteLine; report each one with this message.</em> Test projects are outside this rule’s scope.</p>
+<h2 id="choose">Choose your next step</h2>
+<div class="cards">
+<a class="card" href="first-rule.html"><span>01 / START SMALL</span><h3>A working first rule</h3><p>Create a bundle, run it against a project, and understand its output.</p></a>
+<a class="card" href="selections.html"><span>02 / SAY WHAT YOU MEAN</span><h3>Readable declarations</h3><p>Selections, requirements, exceptions, and named conditions.</p></a>
+<a class="card" href="analysis.html"><span>03 / LOOK DEEPER</span><h3>Calls and compiler facts</h3><p>Overloads, arguments, nullable values, and call paths.</p></a>
+<a class="card" href="testing.html"><span>04 / BUILD CONFIDENCE</span><h3>Test before you share</h3><p>Small source examples, precise findings, and safe-fix checks.</p></a>
+</div>
+<h2 id="mental-model">Three ideas are enough to start</h2>
+<dl><dt>A candidate is something to inspect.</dt><dd>A file, a method, a type, or a particular call. It carries the source location needed to report a useful finding.</dd>
+<dt>A query chooses candidates.</dt><dd><code>Where</code> narrows the selection. Reuse the same query in several rules when they share a scope.</dd>
+<dt>A rule explains a convention.</dt><dd><code>Forbid</code> reports everything selected. <code>Require</code> reports only the selected candidates that fail its condition.</dd></dl>
+<h2 id="knowledge">You do not need to know Roslyn first</h2>
+<p>You should be comfortable with C# methods, lambdas, and basic LINQ. Roslyn is the C# compiler’s API: it lets a rule distinguish a real framework call from an unrelated method with the same name. Start with Drill Press’s wrappers.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<span></span>
+<a href="first-rule.html"><small>NEXT →</small>Write your first rule</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#choose">Choose your next step</a><a href="#mental-model">Three ideas are enough to start</a><a href="#knowledge">You do not need to know Roslyn first</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

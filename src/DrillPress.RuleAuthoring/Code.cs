@@ -6,7 +6,8 @@ namespace DrillPress;
 public static class Code
 {
     /// <summary>Selects resolved member expressions.</summary>
-    public static CodeQuery<MemberReference> MemberReferences { get; } = new((solution, names) => solution.SelectMemberReferences(names));
+    public static CodeQuery<MemberReference> MemberReferences { get; } =
+        new((solution, names) => solution.SelectMemberReferences(names));
 
     /// <summary>Selects ordinary source methods.</summary>
     public static CodeQuery<CodeMethod> Methods { get; } = new(solution => solution.Methods);
@@ -15,5 +16,6 @@ public static class Code
     public static CodeQuery<CodeDeclaration> Types { get; } = new(solution => solution.Types);
 
     /// <summary>Selects distinct interfaces, including partial and generic definitions.</summary>
-    public static CodeQuery<CodeDeclaration> Interfaces { get; } = Types.Where(new(type => type.Symbol.TypeKind == TypeKind.Interface));
+    public static CodeQuery<CodeDeclaration> Interfaces { get; } =
+        Types.Where(new(type => type.Symbol.TypeKind == TypeKind.Interface));
 }

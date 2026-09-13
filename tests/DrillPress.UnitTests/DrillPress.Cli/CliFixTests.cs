@@ -6,24 +6,49 @@ namespace DrillPress.UnitTests.Cli;
 
 public sealed class CliFixTests
 {
-    private static readonly string[] _arguments = ["fix", "--build-host", "host", "--rules", "rules", "target.csproj", "--property", "Configuration=Release", "--validate-compilation"];
+    private static readonly string[] _arguments =
+    [
+        "fix",
+        "--build-host",
+        "host",
+        "--rules",
+        "rules",
+        "target.csproj",
+        "--property",
+        "Configuration=Release",
+        "--validate-compilation",
+    ];
 
     [Fact]
     public async Task Cancelled_recheck_reports_retained_writes_and_propagates_after_cleanup()
     {
         var fixture = new FixFixture();
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
         var runner = new FixProcessRunner(fixture) { OnRecheck = cancellation.Cancel };
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
-        var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
+        var cli = new CliApplication(
+            fixture.FileSystem,
+            runner,
+            fixture.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.FileSystem)
+        );
+        var paths = fixture
+            .Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString())
+            .ToArray();
 
-        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() => cli.RunAsync(_arguments, error, cancellation.Token, output));
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            cli.RunAsync(_arguments, error, cancellation.Token, output)
+        );
 
         Assert.Equal(cancellation.Token, exception.CancellationToken);
         Assert.Equal("", output.ToString());
-        Assert.Equal($"  changed: {paths[0]}{Environment.NewLine}  changed: {paths[1]}{Environment.NewLine}", error.ToString());
+        Assert.Equal(
+            $"  changed: {paths[0]}{Environment.NewLine}  changed: {paths[1]}{Environment.NewLine}",
+            error.ToString()
+        );
         Assert.Equal(["😀é\r\nbeta\ngamma\r", "😀é\r\nbeta\ngamma\r"], fixture.Texts());
         Assert.Empty(fixture.TemporaryFiles());
     }
@@ -35,16 +60,39 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture);
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
+        var cli = new CliApplication(
+            fixture.FileSystem,
+            runner,
+            fixture.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.FileSystem)
+        );
 
-        var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
+        var result = await cli.RunAsync(
+            _arguments,
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal("", output.ToString());
         Assert.Equal("", error.ToString());
-        Assert.Equal(["host", "rules", "host", "rules"], runner.Calls.Select(call => call.Executable));
+        Assert.Equal(
+            ["host", "rules", "host", "rules"],
+            runner.Calls.Select(call => call.Executable)
+        );
         Assert.Equal(runner.Calls[0].Arguments, runner.Calls[2].Arguments);
-        Assert.Equal(["export", "target.csproj", runner.Calls[0].Arguments[2], "--property", "Configuration=Release", "--validate-compilation"], runner.Calls[0].Arguments);
+        Assert.Equal(
+            [
+                "export",
+                "target.csproj",
+                runner.Calls[0].Arguments[2],
+                "--property",
+                "Configuration=Release",
+                "--validate-compilation",
+            ],
+            runner.Calls[0].Arguments
+        );
         Assert.Equal(["😀é\r\nbeta\ngamma\r", "😀é\r\nbeta\ngamma\r"], fixture.Texts());
         Assert.Empty(fixture.TemporaryFiles());
     }
@@ -52,20 +100,44 @@ public sealed class CliFixTests
     [Theory]
     [InlineData(true, false, "regeneration failed\n", "BuildHost exited 2.")]
     [InlineData(false, true, "recheck failed\n", "Rule bundle exited 2.")]
-    public async Task Failed_verification_retains_writes_and_emits_no_stale_findings(bool export, bool check, string childError, string reason)
+    public async Task Failed_verification_retains_writes_and_emits_no_stale_findings(
+        bool export,
+        bool check,
+        string childError,
+        string reason
+    )
     {
         var fixture = new FixFixture();
-        var runner = new FixProcessRunner(fixture) { FailRegeneration = export, FailRecheck = check };
+        var runner = new FixProcessRunner(fixture)
+        {
+            FailRegeneration = export,
+            FailRecheck = check,
+        };
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
-        var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
+        var cli = new CliApplication(
+            fixture.FileSystem,
+            runner,
+            fixture.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.FileSystem)
+        );
+        var paths = fixture
+            .Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString())
+            .ToArray();
 
-        var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
+        var result = await cli.RunAsync(
+            _arguments,
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
 
         Assert.Equal(CliExitCode.Failure, result);
         Assert.Equal("", output.ToString());
-        Assert.Equal($"{childError}drillpress: Files changed but verification failed: {reason}{Environment.NewLine}  changed: {paths[0]}{Environment.NewLine}  changed: {paths[1]}{Environment.NewLine}", error.ToString());
+        Assert.Equal(
+            $"{childError}drillpress: Files changed but verification failed: {reason}{Environment.NewLine}  changed: {paths[0]}{Environment.NewLine}  changed: {paths[1]}{Environment.NewLine}",
+            error.ToString()
+        );
         Assert.Equal(["😀é\r\nbeta\ngamma\r", "😀é\r\nbeta\ngamma\r"], fixture.Texts());
         Assert.Empty(fixture.TemporaryFiles());
     }
@@ -77,20 +149,33 @@ public sealed class CliFixTests
         var runner = new FixProcessRunner(fixture) { WithholdFixes = true };
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
+        var cli = new CliApplication(
+            fixture.FileSystem,
+            runner,
+            fixture.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.FileSystem)
+        );
 
-        var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
+        var result = await cli.RunAsync(
+            _arguments,
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
 
         Assert.Equal(CliExitCode.Findings, result);
         Assert.Equal("", error.ToString());
-        Assert.Equal("""
+        Assert.Equal(
+            """
             DP1004 Replace alpha.
             A.cs
               1:3
             B.cs
               1:3
 
-            """.ReplaceLineEndings("\n"), output.ToString().ReplaceLineEndings("\n"));
+            """.ReplaceLineEndings("\n"),
+            output.ToString().ReplaceLineEndings("\n")
+        );
         Assert.Equal(["host", "rules"], runner.Calls.Select(call => call.Executable));
         Assert.Equal(fixture.Documents.Select(document => document.Text), fixture.Texts());
         Assert.Empty(fixture.TemporaryFiles());
@@ -100,20 +185,39 @@ public sealed class CliFixTests
     public async Task Late_replacement_failure_reports_changed_and_failed_paths_without_rechecking()
     {
         var fixture = new FixFixture(fileCount: 3);
-        fixture.Replacer.OnReplacement[fixture.Paths[1]] = () => throw new IOException("replacement denied");
+        fixture.Replacer.OnReplacement[fixture.Paths[1]] = () =>
+            throw new IOException("replacement denied");
         var runner = new FixProcessRunner(fixture);
         var output = new StringWriter();
         var error = new StringWriter();
-        var cli = new CliApplication(fixture.FileSystem, runner, fixture.Applier, new StubSnapshotDirectoryPermissions(fixture.FileSystem));
-        var paths = fixture.Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString()).ToArray();
+        var cli = new CliApplication(
+            fixture.FileSystem,
+            runner,
+            fixture.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.FileSystem)
+        );
+        var paths = fixture
+            .Paths.Select(path => System.Text.Json.JsonEncodedText.Encode(path).ToString())
+            .ToArray();
 
-        var result = await cli.RunAsync(_arguments, error, TestContext.Current.CancellationToken, output);
+        var result = await cli.RunAsync(
+            _arguments,
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
 
         Assert.Equal(CliExitCode.Failure, result);
         Assert.Equal("", output.ToString());
-        Assert.Equal($"drillpress: Fix stopped: replacement denied{Environment.NewLine}  changed: {paths[0]}{Environment.NewLine}  failed: {paths[1]}{Environment.NewLine}  pending: {paths[2]}{Environment.NewLine}", error.ToString());
+        Assert.Equal(
+            $"drillpress: Fix stopped: replacement denied{Environment.NewLine}  changed: {paths[0]}{Environment.NewLine}  failed: {paths[1]}{Environment.NewLine}  pending: {paths[2]}{Environment.NewLine}",
+            error.ToString()
+        );
         Assert.Equal(["host", "rules"], runner.Calls.Select(call => call.Executable));
-        Assert.Equal(["😀é\r\nbeta\ngamma\r", fixture.Documents[1].Text, fixture.Documents[2].Text], fixture.Texts());
+        Assert.Equal(
+            ["😀é\r\nbeta\ngamma\r", fixture.Documents[1].Text, fixture.Documents[2].Text],
+            fixture.Texts()
+        );
         Assert.Empty(fixture.TemporaryFiles());
     }
 }

@@ -42,9 +42,18 @@ public sealed class ProfileMeasurement : IDisposable
         try
         {
             var current = _profile.ReadProcess();
-            _profile.Write(new("", _phase, Environment.ProcessId, wall,
-                (current.UserCpu - _initial.UserCpu).TotalMilliseconds,
-                (current.SystemCpu - _initial.SystemCpu).TotalMilliseconds, current.PeakWorkingSetBytes, null));
+            _profile.Write(
+                new(
+                    "",
+                    _phase,
+                    Environment.ProcessId,
+                    wall,
+                    (current.UserCpu - _initial.UserCpu).TotalMilliseconds,
+                    (current.SystemCpu - _initial.SystemCpu).TotalMilliseconds,
+                    current.PeakWorkingSetBytes,
+                    null
+                )
+            );
         }
         catch (Exception exception)
         {

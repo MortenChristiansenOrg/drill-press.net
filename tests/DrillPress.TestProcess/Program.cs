@@ -2,9 +2,15 @@ using System.IO.Abstractions;
 
 var fileSystem = new FileSystem();
 
-if (args is ["--version"] && Environment.GetEnvironmentVariable("DRILLPRESS_SDK_PROBE_READY") is { } sdkReadyPath)
+if (
+    args is ["--version"]
+    && Environment.GetEnvironmentVariable("DRILLPRESS_SDK_PROBE_READY") is { } sdkReadyPath
+)
 {
-    await fileSystem.File.WriteAllTextAsync(sdkReadyPath + ".pending", Environment.ProcessId.ToString());
+    await fileSystem.File.WriteAllTextAsync(
+        sdkReadyPath + ".pending",
+        Environment.ProcessId.ToString()
+    );
     fileSystem.File.Move(sdkReadyPath + ".pending", sdkReadyPath);
     await Task.Delay(Timeout.InfiniteTimeSpan);
     return 0;

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="From a C# project to your first useful finding. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Write your first rule · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html" aria-current="page">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Start here / 02</p>
+<h1>Write your first rule</h1>
+<p class="lead">From a C# project to your first useful finding.</p>
+
+<p>We’ll prevent direct console logging in production code. The first version only reports violations; it does not change source files.</p>
+<h2 id="project">1. Create a rule bundle</h2>
+<p>Install a .NET 10 SDK and use project references from a checkout of Drill Press. Register your rules explicitly in a console application; this application becomes the rule bundle.</p>
+<p>Create <code>samples/MyRules/MyRules.csproj</code> with the following content. These relative references assume that location inside the Drill Press checkout.</p>
+<div class="codeblock"><div class="codehead"><span>samples/MyRules/MyRules.csproj</span></div><pre tabindex="0" data-check="xml" id="example-2"><code>&lt;Project Sdk=&quot;Microsoft.NET.Sdk&quot;&gt;
+  &lt;PropertyGroup&gt;
+    &lt;OutputType&gt;Exe&lt;/OutputType&gt;
+    &lt;TargetFramework&gt;net10.0&lt;/TargetFramework&gt;
+    &lt;ImplicitUsings&gt;enable&lt;/ImplicitUsings&gt;
+    &lt;Nullable&gt;enable&lt;/Nullable&gt;
+  &lt;/PropertyGroup&gt;
+  &lt;ItemGroup&gt;
+    &lt;ProjectReference Include=&quot;../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj&quot; /&gt;
+    &lt;ProjectReference Include=&quot;../../src/DrillPress.Engine/DrillPress.Engine.csproj&quot; /&gt;
+  &lt;/ItemGroup&gt;
+&lt;/Project&gt;</code></pre></div>
+<p>The authoring library supplies the building blocks. The engine supplies <code>RuleApplication</code>, which hosts your compiled rules so the CLI can run them. You do not need NativeAOT to get started.</p>
+<h2 id="declaration">2. Declare and host the rule</h2>
+<div class="codeblock"><div class="codehead"><span>samples/MyRules/Program.cs</span></div><pre tabindex="0" data-check="program" id="example-3"><code>using DrillPress;
+using DrillPress.Engine;
+using DrillPress.Projects;
+using DrillPress.Queries;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var writeLine = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);
+
+rules.For(ProjectFacts.ProductionFiles.Invocations()
+        .Where(call =&gt; call.Calls(writeLine)))
+    .Forbid(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;);
+
+return (int)await new RuleApplication().RunAsync(rules, args);</code></pre></div>
+<p><code>TEAM001</code> is your stable rule identifier. Choose a unique identifier for every registered rule. The message should tell someone what to do next—not just say “bad code.” Both must be nonblank and single-line.</p>
+<h2 id="run">3. Build and check a target</h2>
+<p>Create a tiny target in <code>samples/MyRuleTarget</code>. Its console call is an intentional violation.</p>
+<div class="codeblock"><div class="codehead"><span>samples/MyRuleTarget/MyRuleTarget.csproj</span></div><pre tabindex="0" data-check="xml" id="example-7"><code>&lt;Project Sdk=&quot;Microsoft.NET.Sdk&quot;&gt;
+  &lt;PropertyGroup&gt;
+    &lt;TargetFramework&gt;net10.0&lt;/TargetFramework&gt;
+  &lt;/PropertyGroup&gt;
+&lt;/Project&gt;</code></pre></div>
+<div class="codeblock"><div class="codehead"><span>samples/MyRuleTarget/Worker.cs</span></div><pre tabindex="0" data-check="library" id="example-8"><code>public class Worker
+{
+    public void Run() =&gt; System.Console.WriteLine(&quot;starting&quot;);
+}</code></pre></div>
+<p>Run these commands from the repository root:</p>
+<div class="codeblock"><div class="codehead"><span>Terminal · repository root</span></div><pre tabindex="0" id="example-4"><code>dotnet build DrillPress.slnx
+dotnet build samples/MyRules/MyRules.csproj
+dotnet restore samples/MyRuleTarget/MyRuleTarget.csproj
+dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-host src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll --rules samples/MyRules/bin/Debug/net10.0/MyRules.dll samples/MyRuleTarget/MyRuleTarget.csproj</code></pre></div>
+<p>Replace the last path to check your own project or solution. Quote paths with spaces. The target must be restored first; generated assemblies needed by the target must also be built. The target’s own <code>global.json</code> controls its SDK selection.</p>
+<div class="note"><strong>The bundle is not the project loader</strong><p>Run the CLI with <code>--rules</code>, not your rule DLL with a project path. The CLI loads the project and passes a captured compilation to your bundle. Direct bundle output is an internal protocol, not the human-readable findings.</p></div>
+<h2 id="output">4. Read the result</h2>
+<p>For the target above, the finding points directly to the console call:</p>
+<div class="codeblock"><div class="codehead"><span>Expected CLI output</span></div><pre tabindex="0"><code>TEAM001 Use the application logger instead of Console.WriteLine.
+samples/MyRuleTarget/Worker.cs
+  3:26</code></pre></div>
+<p>Output groups findings by rule and file, followed by physical line/column locations. A clean run prints nothing. Exit codes are <code>0</code> for clean, <code>1</code> for findings, and <code>2</code> when the check could not finish.</p>
+<p>A <code>+</code> before a location means a proposed fix survived validation. This first rule offers none. Only the CLI’s <code>fix</code> command applies changes; <code>check</code> never does.</p>
+<h2 id="organize">5. Keep a growing bundle understandable</h2>
+<p>Move registrations into a class such as <code>LoggingRules</code> with a <code>Register(RuleSet rules)</code> method. Put reusable selections and named predicates next to their domain rules. Keep compiler details in small helpers, not inside a long registration expression.</p>
+<p>Register every rule explicitly before calling <code>RuleApplication.RunAsync</code>. This keeps the bundle easy to inspect and avoids runtime assembly scanning. Next, <a href="testing.html#first-test">write a small test</a> before adding more policies.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="index.html"><small>← PREVIOUS</small>The rule author’s manual</a>
+<a href="selections.html"><small>NEXT →</small>Select and compose</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#project">1. Create a rule bundle</a><a href="#declaration">2. Declare and host the rule</a><a href="#run">3. Build and check a target</a><a href="#output">4. Read the result</a><a href="#organize">5. Keep a growing bundle understandable</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>
