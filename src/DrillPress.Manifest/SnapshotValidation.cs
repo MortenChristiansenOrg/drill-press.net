@@ -7,6 +7,7 @@ public static class SnapshotValidation
     public static void Validate(CompilationSnapshot snapshot)
     {
         ValidateEnvelope(snapshot.FileIdentifier, snapshot.FormatVersion);
+        ComponentVersion.RequireMatch(snapshot.ProductVersion, "Snapshot producer");
         Require(
             !string.IsNullOrWhiteSpace(snapshot.RequestId),
             "Snapshot request identity is missing."

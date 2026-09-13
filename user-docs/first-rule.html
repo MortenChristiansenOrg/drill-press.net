@@ -31,7 +31,7 @@
 
 <p>We’ll prevent direct console logging in production code. The first version only reports violations; it does not change source files.</p>
 <h2 id="project">1. Create a rule bundle</h2>
-<p>Install a .NET 10 SDK and use project references from a checkout of Drill Press. Register your rules explicitly in a console application; this application becomes the rule bundle.</p>
+<p>Install a .NET 10 SDK. For package installation outside this checkout, see the <a href="../docs/DISTRIBUTION.md">distribution guide</a>. The example below uses project references for source development. Register your rules explicitly in a console application; this application becomes the rule bundle.</p>
 <p>Create <code>samples/MyRules/MyRules.csproj</code> with the following content. These relative references assume that location inside the Drill Press checkout.</p>
 <div class="codeblock"><div class="codehead"><span>samples/MyRules/MyRules.csproj</span></div><pre tabindex="0" data-check="xml" id="example-2"><code>&lt;Project Sdk=&quot;Microsoft.NET.Sdk&quot;&gt;
   &lt;PropertyGroup&gt;

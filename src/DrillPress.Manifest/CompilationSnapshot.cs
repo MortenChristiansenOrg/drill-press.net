@@ -16,7 +16,11 @@ public sealed record CompilationSnapshot(
     public const string ExpectedFileIdentifier = "drillpress-compilation";
 
     /// <summary>Identifies the exact snapshot shape supported by this build.</summary>
-    public const int CurrentFormatVersion = 2;
+    public const int CurrentFormatVersion = 3;
+
+    /// <summary>The exact alpha package version that produced this snapshot.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public string ProductVersion { get; init; } = ComponentVersion.Current;
 
     /// <summary>Associates every response with this specific export.</summary>
     [System.Text.Json.Serialization.JsonRequired]

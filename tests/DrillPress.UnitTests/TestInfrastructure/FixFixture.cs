@@ -64,7 +64,7 @@ internal sealed class FixFixture
             )
             .ToArray();
         Response = new(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             Snapshot.RequestId,
             [
                 new(
