@@ -9,13 +9,18 @@ public sealed class BundleResponseProtocolTests
     [Fact]
     public void Clean_internal_golden_is_exact_UTF8_JSON()
     {
-        var response = new BundleResponse(1, "request", [new("context", true, [])], []);
+        var response = new BundleResponse(
+            BundleResponseProtocol.CurrentVersion,
+            "request",
+            [new("context", true, [])],
+            []
+        );
 
         var output = BundleResponseProtocol.Serialize(response);
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                """{"protocolVersion":1,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[]}"""
+                $$"""{"protocolVersion":2,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -25,7 +30,7 @@ public sealed class BundleResponseProtocolTests
     public void Fixable_linked_internal_golden_locks_complete_batches_and_nonreporting_validation()
     {
         var response = new BundleResponse(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             "request",
             [
                 new("first", true, [new("R", "Replace.", "doc", 2, 5, "fix")]),
@@ -44,7 +49,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                """{"protocolVersion":1,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}]}"""
+                $$"""{"protocolVersion":2,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -54,7 +59,7 @@ public sealed class BundleResponseProtocolTests
     public void Nonfixable_single_context_internal_golden_is_exact()
     {
         var response = new BundleResponse(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             "request",
             [new("context", true, [new("R", "Replace.", "doc", 2, 5, null)])],
             []
@@ -64,7 +69,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                """{"protocolVersion":1,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[]}"""
+                $$"""{"protocolVersion":2,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );

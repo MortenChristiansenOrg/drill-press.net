@@ -31,7 +31,7 @@
 
 <p>Keep tests small enough that the intended violation is obvious. Test the negative cases as carefully as the positive ones: a noisy convention quickly stops being useful.</p>
 <h2 id="setup">Add the consumer test kit</h2>
-<p>Reference <code>src/DrillPress.Testing/DrillPress.Testing.csproj</code> from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk.</p>
+<p>Reference the <code>DrillPress.Testing</code> NuGet package at the same exact alpha version as your SDK (or <code>src/DrillPress.Testing/DrillPress.Testing.csproj</code> when working from source) from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk.</p>
 <p><code>RuleTestWorkspace()</code> uses the host runtime’s assembly references for convenience. You can supply an explicit list of compiler <code>MetadataReference</code> objects when you need exact reference packs or synthetic assemblies. The default constructor reads reference assemblies; the target source and edit results stay in memory.</p>
 <h2 id="first-test">Assert the complete finding and fixed text</h2>
 <div class="codeblock"><div class="codehead"><span>An xUnit test for the empty-string rule</span></div><pre tabindex="0" data-check="library" id="example-31"><code>using DrillPress;

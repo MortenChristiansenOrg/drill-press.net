@@ -1,0 +1,26 @@
+<Project>
+  <Target Name="PinAlphaPackageDependencies" AfterTargets="_GetProjectReferenceVersions">
+    <ItemGroup>
+      <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+        <ProjectVersion>[%(_ProjectReferencesWithVersions.ProjectVersion)]</ProjectVersion>
+      </_ProjectReferencesWithVersions>
+    </ItemGroup>
+  </Target>
+  <Target Name="ValidateAlphaPackageVersion" BeforeTargets="GenerateNuspec">
+    <Error
+      Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^0\.0\.(0|[1-9][0-9]*)$'))"
+      Text="Drill Press alpha versions must use 0.0.X (for example, -p:Version=0.0.1)."
+    />
+    <Error
+      Condition="'$(PackageVersion)' != '$(Version)'"
+      Text="Set Version, not PackageVersion, so package and assembly versions remain identical."
+    />
+    <GetAssemblyIdentity AssemblyFiles="$(TargetPath)">
+      <Output TaskParameter="Assemblies" ItemName="_PackedAssembly" />
+    </GetAssemblyIdentity>
+    <Error
+      Condition="'%(_PackedAssembly.Version)' != '$(Version).0'"
+      Text="Package $(Version) contains assembly %(_PackedAssembly.Version). Rebuild with the same Version before packing; do not override AssemblyVersion."
+    />
+  </Target>
+</Project>

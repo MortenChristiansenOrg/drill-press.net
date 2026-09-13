@@ -22,12 +22,12 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Write your first rule",
     "url": "first-rule.html",
-    "text": "From a C# project to your first useful finding. We’ll prevent direct console logging in production code. The first version only reports violations; it does not change source files. 1. Create a rule bundle Install a .NET 10 SDK and use project references from a checkout of Drill Press. Register you"
+    "text": "From a C# project to your first useful finding. We’ll prevent direct console logging in production code. The first version only reports violations; it does not change source files. 1. Create a rule bundle Install a .NET 10 SDK. For package installation outside this checkout, see the distribution guide. The example below uses project references for source development. Register you"
   },
   {
     "title": "1. Create a rule bundle · Write your first rule",
     "url": "first-rule.html#project",
-    "text": "Install a .NET 10 SDK and use project references from a checkout of Drill Press. Register your rules explicitly in a console application; this application becomes the rule bundle. Create samples/MyRules/MyRules.csproj with the following content. These relative references assume that location inside the Drill Press checkout. samples/MyRules/MyRules.csproj <Project Sdk=\"Microsoft.NET.Sdk\"> <PropertyGroup> <OutputType>Exe</OutputType> <TargetFramework>net10.0</TargetFramework> <ImplicitUsings>enable</ImplicitUsings> <Nullable>enable</Nullable> </PropertyGroup> <ItemGroup> <ProjectReference Include=\"../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj\" /> <ProjectReference Include=\"../../src/DrillPress.Engine/DrillPress.Engine.csproj\" /> </ItemGroup> </Project> The authoring library supplies the building blocks. The engine supplies RuleApplication , which hosts your compiled rules so the CLI can run them. You do not need NativeAOT to get started."
+    "text": "Install a .NET 10 SDK. For package installation outside this checkout, see the distribution guide. The example below uses project references for source development. Register your rules explicitly in a console application; this application becomes the rule bundle. Create samples/MyRules/MyRules.csproj with the following content. These relative references assume that location inside the Drill Press checkout. samples/MyRules/MyRules.csproj <Project Sdk=\"Microsoft.NET.Sdk\"> <PropertyGroup> <OutputType>Exe</OutputType> <TargetFramework>net10.0</TargetFramework> <ImplicitUsings>enable</ImplicitUsings> <Nullable>enable</Nullable> </PropertyGroup> <ItemGroup> <ProjectReference Include=\"../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj\" /> <ProjectReference Include=\"../../src/DrillPress.Engine/DrillPress.Engine.csproj\" /> </ItemGroup> </Project> The authoring library supplies the building blocks. The engine supplies RuleApplication , which hosts your compiled rules so the CLI can run them. You do not need NativeAOT to get started."
   },
   {
     "title": "2. Declare and host the rule · Write your first rule",
@@ -277,7 +277,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Add the consumer test kit · Test and run your rules",
     "url": "testing.html#setup",
-    "text": "Reference src/DrillPress.Testing/DrillPress.Testing.csproj from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk. RuleTestWorkspace() uses the host runtime’s assembly references for convenience. You can supply an explicit list of compiler MetadataReference objects when you need exact reference packs or synthetic assemblies. The default constructor reads reference assemblies; the target source and edit results stay in memory."
+    "text": "Reference the DrillPress.Testing NuGet package at the same exact alpha version as your SDK (or src/DrillPress.Testing/DrillPress.Testing.csproj when working from source) from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk. RuleTestWorkspace() uses the host runtime’s assembly references for convenience. You can supply an explicit list of compiler MetadataReference objects when you need exact reference packs or synthetic assemblies. The default constructor reads reference assemblies; the target source and edit results stay in memory."
   },
   {
     "title": "Assert the complete finding and fixed text · Test and run your rules",

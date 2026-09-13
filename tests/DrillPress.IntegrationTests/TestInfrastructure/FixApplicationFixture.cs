@@ -67,7 +67,7 @@ internal sealed class FixApplicationFixture : IntegrationTest
             )
             .ToArray();
         Response = new(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             Snapshot.RequestId,
             [
                 new(

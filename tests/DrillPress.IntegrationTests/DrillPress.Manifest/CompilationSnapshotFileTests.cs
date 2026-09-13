@@ -25,7 +25,7 @@ public sealed class CompilationSnapshotFileTests : IntegrationTest
         );
 
         Assert.Equal(
-            """{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[],"requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":3,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             await FileSystem.File.ReadAllTextAsync(path, TestContext.Current.CancellationToken)
         );
         Assert.Equal([path], FileSystem.Directory.GetFiles(directory.FullName));

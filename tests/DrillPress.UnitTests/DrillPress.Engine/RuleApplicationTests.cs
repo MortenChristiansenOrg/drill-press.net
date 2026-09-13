@@ -126,7 +126,7 @@ public sealed class RuleApplicationTests
         Assert.Equal(RuleExitCode.Failure, result);
         Assert.Equal("", output.ToString());
         Assert.Equal(
-            $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components.{Environment.NewLine}",
+            $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 3. Use matching Drill Press components.{Environment.NewLine}",
             error.ToString()
         );
     }

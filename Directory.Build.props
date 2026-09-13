@@ -7,5 +7,7 @@
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <Version>0.0.1</Version>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

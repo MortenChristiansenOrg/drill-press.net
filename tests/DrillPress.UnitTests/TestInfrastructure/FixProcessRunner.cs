@@ -73,7 +73,7 @@ internal sealed class FixProcessRunner(FixFixture fixture) : ChildProcessRunner
             _exports == 1
                 ? _fixture.Response
                 : new BundleResponse(
-                    1,
+                    BundleResponseProtocol.CurrentVersion,
                     _snapshot.RequestId,
                     _snapshot
                         .Projects.Select(project => new ContextEvaluation(

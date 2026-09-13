@@ -10,15 +10,16 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]";
+        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]";
     private const string Help = """
-        drillpress check|fix --build-host <path> --rules <path> <target> [options]
+        drillpress check|fix --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
-        --build-host: matching BuildHost DLL; --rules: compiled rule DLL or native executable.
+        --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
+        --version  Show the alpha package and protocol versions.
         Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
         """;
 
@@ -26,6 +27,7 @@ public sealed class CliApplication
     private readonly ChildProcessRunner _processRunner;
     private readonly FixPlanApplier _fixes;
     private readonly SnapshotDirectoryPermissions _permissions;
+    private readonly string _applicationDirectory;
 
     /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
     public CliApplication()
@@ -35,13 +37,15 @@ public sealed class CliApplication
         IFileSystem fileSystem,
         ChildProcessRunner processRunner,
         FixPlanApplier? fixes = null,
-        SnapshotDirectoryPermissions? permissions = null
+        SnapshotDirectoryPermissions? permissions = null,
+        string? applicationDirectory = null
     )
     {
         _fileSystem = fileSystem;
         _processRunner = processRunner;
         _fixes = fixes ?? new FixPlanApplier(fileSystem, new FileIdentityProbe());
         _permissions = permissions ?? new SnapshotDirectoryPermissions(fileSystem);
+        _applicationDirectory = applicationDirectory ?? AppContext.BaseDirectory;
     }
 
     /// <summary>
@@ -56,6 +60,13 @@ public sealed class CliApplication
     {
         standardError ??= Console.Error;
         standardOutput ??= Console.Out;
+        if (args is ["--version"])
+        {
+            await standardOutput.WriteAsync(
+                $"drillpress {ComponentVersion.Current} alpha (snapshot {CompilationSnapshot.CurrentFormatVersion}, response {BundleResponseProtocol.CurrentVersion})\n"
+            );
+            return CliExitCode.Clean;
+        }
         if (args is ["--help"] or ["check", "--help"] or ["fix", "--help"])
         {
             await standardOutput.WriteAsync(Help.ReplaceLineEndings("\n") + "\n");
@@ -72,6 +83,7 @@ public sealed class CliApplication
         using var total = profile.Measure("total");
         try
         {
+            options = options with { BuildHost = ResolveBuildHost(options.BuildHost) };
             var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
@@ -166,7 +178,7 @@ public sealed class CliApplication
         using (profile.Measure("build-host"))
         {
             export = await _processRunner.CaptureAsync(
-                options.BuildHost,
+                options.BuildHost!,
                 ["export", options.Target, snapshotPath, .. options.ExportArguments],
                 cancellationToken
             );
@@ -213,6 +225,28 @@ public sealed class CliApplication
         }
 
         return new(snapshot, result, check.StandardOutput);
+    }
+
+    private string ResolveBuildHost(string? overridePath)
+    {
+        if (overridePath is not null)
+        {
+            return overridePath;
+        }
+
+        var path = _fileSystem.Path.Combine(
+            _applicationDirectory,
+            "buildhost",
+            "DrillPress.BuildHost.dll"
+        );
+        if (!_fileSystem.File.Exists(path))
+        {
+            throw new FileNotFoundException(
+                $"Packaged BuildHost was not found at '{path}'. Reinstall DrillPress.Cli {ComponentVersion.Current}, or use --build-host with a matching source build."
+            );
+        }
+
+        return path;
     }
 
     private static async Task WriteRecoveryAsync(TextWriter error, FixApplicationResult result)

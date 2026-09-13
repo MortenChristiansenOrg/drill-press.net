@@ -90,11 +90,33 @@ public sealed class CliTests : IntegrationTest
         var projectFile = FileSystem.File.ReadAllText(projectPath);
 
         Assert.Equal(
-            ["../DrillPress.Manifest/DrillPress.Manifest.csproj"],
+            [
+                "../DrillPress.Manifest/DrillPress.Manifest.csproj",
+                "../DrillPress.BuildHost/DrillPress.BuildHost.csproj",
+            ],
             System
                 .Xml.Linq.XDocument.Parse(projectFile)
                 .Descendants("ProjectReference")
                 .Select(reference => reference.Attribute("Include")!.Value)
+        );
+        Assert.Equal(
+            "false",
+            System
+                .Xml.Linq.XDocument.Parse(projectFile)
+                .Descendants("ProjectReference")
+                .Single(reference => reference.Attribute("Include")!.Value.Contains("BuildHost"))
+                .Attribute("ReferenceOutputAssembly")!
+                .Value
+        );
+        Assert.DoesNotContain(
+            typeof(global::DrillPress.Cli.CliApplication).Assembly.GetReferencedAssemblies(),
+            assembly =>
+                assembly.Name
+                    is "DrillPress.BuildHost"
+                        or "DrillPress.Engine"
+                        or "DrillPress.RuleAuthoring"
+                || assembly.Name!.StartsWith("Microsoft.CodeAnalysis")
+                || assembly.Name.StartsWith("Microsoft.Build")
         );
         Assert.Equal(
             ["TestableIO.System.IO.Abstractions.Wrappers"],

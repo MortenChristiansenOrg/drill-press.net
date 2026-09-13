@@ -331,7 +331,7 @@ public sealed class BundleResponseValidatorTests
         var project = TestSnapshots.CreateProject("Lines.cs", "a\r\nb\rc\nd\u0085e\u2028f\u2029g");
         var snapshot = CompilationSnapshot.Create(project);
         var response = new BundleResponse(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             snapshot.RequestId,
             [
                 new(

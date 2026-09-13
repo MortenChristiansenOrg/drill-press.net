@@ -10,7 +10,12 @@ public sealed record BundleResponse(
     string RequestId,
     ContextEvaluation[] Contexts,
     FixBatch[] Batches
-);
+)
+{
+    /// <summary>The exact alpha runtime package version that evaluated the rules.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public string ProductVersion { get; init; } = ComponentVersion.Current;
+}
 
 /// <summary>Findings from one independently evaluated compilation.</summary>
 /// <param name="ContextId">Snapshot compilation identity.</param>
