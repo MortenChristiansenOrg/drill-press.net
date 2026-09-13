@@ -43,7 +43,7 @@ using DrillPress.Semantics;
 
 var rules = new RuleSet();
 var adapters = new PathPattern("**/Tracing/*.cs");
-var consoleOutput = new CodeMember(CodeType.Named("System.Console"), "WriteLine");
+var consoleOutput = CodeType.Named("System.Console").Member("WriteLine");
 
 rules.For(OperationQueries.Invocations.Where(call => call.Calls(consoleOutput)))
     .Require(call => adapters.Matches(call.Source.Document.Path),
@@ -55,7 +55,7 @@ predicate. Both accept exact location selectors and optional fix factories.
 `Where` and `ExceptWhen` accept lambdas or reusable `RuleCondition<T>` objects.
 Named conditions retain `And`, `Or`, `Not` and short-circuit evaluation.
 
-Use `OperationQueries.InvocationsIn(files)` or `SymbolQueries.DeclarationsIn(files)`
+Use `files.Invocations()`, `files.Declarations()` or `files.Nodes<TSyntax>()`
 when a policy applies to a small file scope. This avoids binding unrelated
 projects. Paths are case-sensitive; `PathPattern` matches the entire supplied
 path, normalizes slashes, and supports `*`, `?`, `**` and optional directories
@@ -72,26 +72,45 @@ named types within each evaluated context.
 `CodeNode` exposes its original syntax, compiler operation, constant and nullable
 type information. `CodeInvocation` exposes the chosen overload, receiver and
 `Argument("parameterName")`, including named arguments and implicit defaults.
-`CodeMember` can match a method family or an exact parameter list. `CodeType`
+`CodeType.Member(name)` creates a member on that declaring type. Its `References`
+query selects fields, properties or method references, including aliases and
+static imports, while retaining the engine's name-based discovery optimization.
+For example, `CodeType.Of<string>().Member(nameof(string.Empty)).References`
+is ready to pass to `rules.For(...)`.
+
+`member.WithParameters(CodeType.Of<string>())` selects an exact method overload;
+`member.WithParameters()` selects only the parameterless overload. Omitting
+parameter selection matches all overloads. The original descriptor is unchanged.
+The constructor and `type.Member(name, parameters)` remain available. `CodeType`
 supports assembly qualification, constructed generic identities and arrays.
+For open generics, prefer `CodeType.Named("System.Buffers.ArrayPool<>")` or
+`CodeType.Named("System.Collections.Generic.Dictionary<,>")`. Empty slots
+normalize to CLR metadata arity (`ArrayPool` followed by a backtick and `1`,
+for example); existing metadata spellings remain supported. Whitespace between
+slots is allowed. After an open generic type, dots select nested types, as in
+`Outer<>.Inner<,>`. Existing `+` separators still work; use `+` when a non-generic
+containing type would otherwise be indistinguishable from a namespace.
+Array suffixes are preserved. These names match any constructed arguments;
+use `CodeType.Of<List<string>>()` when arguments must match exactly. Named
+arguments such as `List<T>` or `List<string>` are not parsed by `Named`.
 Raw Roslyn symbols, compilations and semantic models remain deliberate escape
 hatches for policies requiring compiler detail.
 
 ## Custom roots, facts and requirements
 
 ```csharp
-using DrillPress.Analysis;
-using DrillPress.Facts;
-using DrillPress.Relationships;
-
-var sleep = new CodeMember(CodeType.Named("System.Threading.Thread"), "Sleep");
-var blockingAsyncMethods = CodeQuery<CodeMethod>.Create(solution =>
-    Code.Methods.In(solution).Where(method => method.IsAsync &&
-        CodeRelationships.In(solution).Reaches(method.Symbol!, sleep)));
+var sleep = CodeType.Named("System.Threading.Thread").Member("Sleep");
+var blockingAsyncMethods = Code.Methods.Where(method => method.IsAsync && method.Reaches(sleep));
 
 rules.For(blockingAsyncMethods)
     .Forbid("TEAM002", "Keep blocking sleeps out of asynchronous call paths.");
 ```
+
+Start from the object whose information you need: `method.Flow` gives its cached
+compiler flow facts; `method.Reaches(member)` follows statically bound source
+calls; `method.Solution.Relationships` and `solution.ProjectGraph` expose shared
+solution-wide analysis. These are entry points into the existing analysis, not
+separate caches or alternate matching semantics.
 
 `CodeQuery<T>.Create` is the public extension point. A query can `Select`,
 `SelectMany`, `Join` or `WithoutMatching` another query and can be read with
@@ -121,7 +140,7 @@ rules.For(codecs.WithoutMatching(roundTrips,
 
 Keys are explicit policy: include framework, namespace, ownership or project
 identity as required. For dependency-sensitive matching, use the predicate
-overload and `ProjectGraph.Includes(consumer, owner)`, as the complete showcase
+overload and `solution.ProjectGraph.Includes(consumer, owner)`, as the complete showcase
 does. `CompatibleViewsOf` retains separate alternative evaluations. A missing
 counterpart is reported on its existing owner. Use `.At(result => result.Owner)`
 to anchor a custom fact or joined tuple. Project-only requirements likewise need
@@ -221,6 +240,17 @@ rules.For(code.Calls.Where(CodecBehavior.WritesToConsole))
     .Require(CodecBehavior.IsInTracingAdapter,
         "SDK2002", "Keep console output in the Tracing adapter.");
 
-rules.For(code.TextCodecs.WithoutMatching(examples.RoundTrips, examples.IsRoundTripExampleFor))
-    .Forbid("SDK2004", "Provide a named round-trip example for each text codec.");
+rules.For(code.TextCodecs.WithoutMatching(examples.RoundTripTests, examples.IsRoundTripTestFor))
+    .Forbid("SDK2004", "Provide an xUnit <CodecName>RoundTrip test for each text codec.");
 ```
+
+The showcase's production call policies exclude test setup. Round-trip coverage
+requires genuine xUnit Fact/Theory methods for concrete production codecs in a compatible test project, using
+the explicit `<CodecName>RoundTrip` naming convention; this checks discoverable
+coverage, not whether the assertions prove correctness. The buffer policy flags
+captured locals initialized directly by `ArrayPool<T>.Rent`, independently of
+variable names. It deliberately prohibits all such captures, even callbacks
+invoked before `Return`; it does not infer aliases, escaping delegates or lease
+lifetimes. The runnable `PooledUtf8Decoder` shows why that ownership convention
+is useful. Inventory and duplicate-example policies remain explicit team
+conventions, not general claims that all duplication is harmful.

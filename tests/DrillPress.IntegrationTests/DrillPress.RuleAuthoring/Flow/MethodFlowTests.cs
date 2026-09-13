@@ -23,7 +23,7 @@ public sealed class MethodFlowTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var method = solution.Methods.Single();
-        var flow = MethodFlow.For(solution, method);
+        var flow = method.Flow;
         var receiver = method
             .Syntax.DescendantNodes()
             .OfType<MemberAccessExpressionSyntax>()
@@ -37,6 +37,8 @@ public sealed class MethodFlowTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         Assert.Equal(["value"], reads);
         Assert.NotNull(flow.Graph);
         Assert.Same(flow, MethodFlow.For(solution, method));
+        Assert.Same(flow, method.Flow);
+        Assert.Same(solution, method.Solution);
     }
 
     [Fact]
@@ -49,7 +51,7 @@ public sealed class MethodFlowTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         );
         var method = workspace.Analyze(TestContext.Current.CancellationToken).Methods.Single();
 
-        var flow = new MethodFlow(method);
+        var flow = method.Flow;
 
         Assert.Null(flow.Graph);
         Assert.Null(flow.Data);

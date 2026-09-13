@@ -41,9 +41,12 @@ public static class ShowcaseRules
 
         rules
             .For(
-                code.TextCodecs.WithoutMatching(examples.RoundTrips, examples.IsRoundTripExampleFor)
+                code.TextCodecs.WithoutMatching(
+                    examples.RoundTripTests,
+                    examples.IsRoundTripTestFor
+                )
             )
-            .Forbid("SDK2004", "Provide a named round-trip example for each text codec.");
+            .Forbid("SDK2004", "Provide an xUnit <CodecName>RoundTrip test for each text codec.");
 
         rules
             .For(examples.RepeatedStringLiterals(longerThan: 80))
@@ -88,7 +91,10 @@ public static class ShowcaseRules
             .Forbid("SDK2009", "Handle a missing input before normalizing codec text.");
 
         rules
-            .For(code.Methods.ThatCapture(variableName: "scratchBuffer"))
-            .Forbid("SDK2010", "Keep scratch buffers local to one codec invocation.");
+            .For(code.Methods.Where(CodecBehavior.CapturesRentedBuffer))
+            .Forbid(
+                "SDK2010",
+                "Do not capture rented buffers; callbacks can outlive the array-pool lease."
+            );
     }
 }

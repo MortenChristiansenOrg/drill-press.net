@@ -25,16 +25,18 @@ internal sealed class CodecSources
 
     internal CodecSources()
     {
-        Calls = OperationQueries.InvocationsIn(Files);
-        AsyncMethods = Methods.Where(method => method.IsAsync);
-        TextCodecs = Types.Where(type =>
-            type.Implements(CodeType.Named("CodecExamples.ITextCodec"))
+        Calls = Files.Where(file => !file.Source.Project.IsTestProject).Invocations();
+        AsyncMethods = Methods.Where(method =>
+            !method.Source.Project.IsTestProject && method.IsAsync
         );
-        TopLevelTypes = Files
-            .SelectMany(file => file.Nodes<MemberDeclarationSyntax>())
-            .Where(IsTopLevelType);
-        TypeDeclarations = SymbolQueries
-            .DeclarationsIn(Files)
+        TextCodecs = Types.Where(type =>
+            !type.Source.Project.IsTestProject
+            && type.Symbol is { IsAbstract: false, TypeKind: TypeKind.Class or TypeKind.Struct }
+            && type.Implements(CodeType.Named("CodecExamples.ITextCodec"))
+        );
+        TopLevelTypes = Files.Nodes<MemberDeclarationSyntax>().Where(IsTopLevelType);
+        TypeDeclarations = Files
+            .Declarations()
             .Where(declaration => declaration.Symbol is INamedTypeSymbol);
     }
 

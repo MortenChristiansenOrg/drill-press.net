@@ -36,7 +36,7 @@ public static class SampleRuleSet
                 "Remove interfaces with exactly one concrete non-test implementation."
             );
         rules
-            .For(Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty))))
+            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
             .Forbid(
                 "DP1004",
                 "Use the empty string literal \"\" instead of string.Empty.",
@@ -44,10 +44,10 @@ public static class SampleRuleSet
             );
         rules
             .For(
-                Code.MemberReferences.Where(
-                        Members.Are<StringComparer>(nameof(StringComparer.Ordinal))
-                    )
-                    .Where(OrdinalComparerFix.IsArgument)
+                CodeType
+                    .Of<StringComparer>()
+                    .Member(nameof(StringComparer.Ordinal))
+                    .References.Where(OrdinalComparerFix.IsArgument)
             )
             .Forbid(
                 "DP1005",

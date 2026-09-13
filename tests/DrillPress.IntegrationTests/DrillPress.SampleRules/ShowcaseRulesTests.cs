@@ -9,6 +9,93 @@ namespace DrillPress.IntegrationTests.SampleRules;
 public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public async Task Buffer_ownership_policy_uses_Rent_identity_not_variable_names()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            using System;
+            using System.Buffers;
+            class Decoder
+            {
+                Func<byte> Deferred()
+                {
+                    var bytes = ArrayPool<byte>.Shared.Rent(256);
+                    return () => bytes[0];
+                }
+                Func<int> OrdinaryClosure() { var scratchBuffer = 1; return () => scratchBuffer; }
+                byte Immediate()
+                {
+                    var bytes = ArrayPool<byte>.Shared.Rent(256);
+                    var result = bytes[0];
+                    ArrayPool<byte>.Shared.Return(bytes);
+                    return result;
+                }
+                Func<byte> OwnsArray() { var bytes = new byte[256]; return () => bytes[0]; }
+                Func<byte> UnrelatedRent() { var bytes = Other.Rent(); return () => bytes[0]; }
+            }
+            static class Other { public static byte[] Rent() => new byte[256]; }
+            """;
+        workspace.AddProject("CodecExamples", [new("Decoder.cs", source)]);
+
+        var result = await workspace.CheckAsync(
+            ShowcaseRules.Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            [new TestFinding("SDK2010", "Decoder.cs", 5, 16, "Deferred", false)],
+            result.Findings
+        );
+        Assert.Equal(source, result.FixedText("Decoder.cs"));
+    }
+
+    [Fact]
+    public async Task Round_trip_helpers_without_xunit_attributes_do_not_satisfy_test_coverage()
+    {
+        var workspace = fixture.Workspace();
+        var production = workspace.AddProject(
+            "CodecExamples",
+            [
+                new(
+                    "Codec.cs",
+                    """
+                    namespace CodecExamples;
+                    public interface ITextCodec { }
+                    public class JsonCodec : ITextCodec { }
+                    """
+                ),
+            ]
+        );
+        workspace.AddProject(
+            "CodecExamples.Tests",
+            [
+                new(
+                    "Tests.cs",
+                    """
+                    class Tests
+                    {
+                        public void JsonCodecRoundTrip() { }
+                        [Xunit.Fact] public void Can_create_test_inputs() => System.Console.WriteLine(System.Guid.NewGuid());
+                    }
+                    """
+                ),
+            ],
+            isTest: true,
+            dependencies: [production]
+        );
+
+        var result = await workspace.CheckAsync(
+            ShowcaseRules.Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            [new TestFinding("SDK2004", "Codec.cs", 3, 14, "JsonCodec", false)],
+            result.Findings
+        );
+    }
+
+    [Fact]
     public async Task Composed_policies_accept_guarded_text_matching_formats_and_referenced_examples()
     {
         var workspace = fixture.Workspace();
@@ -20,6 +107,7 @@ public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFi
                     """
                     namespace CodecExamples;
                     public interface ITextCodec { }
+                    public abstract class CodecBase : ITextCodec { }
                     public class JsonCodec : ITextCodec
                     {
                         const string Example = "This is one deliberately long protocol example, kept only once so it needs no shared declaration.";
@@ -44,7 +132,15 @@ public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
         workspace.AddProject(
             "CodecExamples.Tests",
-            [new("Tests.cs", "class Tests { void JsonCodecRoundTrip() { } }")],
+            [
+                new(
+                    "Tests.cs",
+                    """
+                    class FakeCodec : CodecExamples.ITextCodec { }
+                    class Tests { [Xunit.Fact] public void JsonCodecRoundTrip() { } }
+                    """
+                ),
+            ],
             isTest: true,
             dependencies: [production]
         );
@@ -114,7 +210,7 @@ public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFi
                         const string First = "This is a deliberately long protocol example that should have one shared declaration across the codec tests.";
                         const string Second = "This is a deliberately long protocol example that should have one shared declaration across the codec tests.";
                         string Normalize(string? text) => text.Trim();
-                        System.Func<int> Capture() { var scratchBuffer = 1; return () => scratchBuffer; }
+                        System.Func<byte> Capture() { var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(256); return () => buffer[0]; }
                         int Read(int value) => value switch { 1 => 100, 2 => 200, 3 => 300, 4 => 400, _ => 0 };
                         int Write(int value) => value switch { 1 => 100, 2 => 200, 3 => 300, 4 => 400, _ => 0 };
                     }
@@ -206,7 +302,7 @@ public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
         workspace.AddProject(
             "CodecExamples.Tests",
-            [new("Tests.cs", "class Tests { void JsonCodecRoundTrip() { } }")],
+            [new("Tests.cs", "class Tests { [Xunit.Fact] public void JsonCodecRoundTrip() { } }")],
             isTest: true,
             dependencies: [production]
         );

@@ -6,6 +6,23 @@ entry point, no round-trip test counterparts, and a redundant accessibility
 modifier with an eligible fix. The two codec implementations keep the older
 single-implementation interface rule from obscuring these examples.
 
+`JsonCodec.SendWithRetryAsync` encodes a message and retries a timed-out send
+once. Its backoff helper blocks a thread with `Thread.Sleep`; SDK2003 follows
+the call path from the async entry point. An awaited `Task.Delay` would express
+the nonblocking backoff this code intends.
+
+`PooledUtf8Decoder.ReadDeferred` demonstrates a concrete ownership bug: it
+returns a callback that reads a rented array, then returns the array to the pool
+before the callback can run. SDK2010 identifies the `ArrayPool<T>.Rent` call and
+the compiler's captured local, not a special variable name. Decode before
+returning the lease, or copy to an owned buffer before creating the callback.
+The rule deliberately bans even immediately invoked captures; it is an ownership
+convention, not an escape/lifetime proof.
+
+SDK2004 expects a genuine xUnit Fact/Theory named `<CodecName>RoundTrip` in a
+referencing test project. A similarly named helper is not a test. Randomized
+test inputs and test console output are excluded from production call policies.
+
 From the repository root:
 
 ```sh

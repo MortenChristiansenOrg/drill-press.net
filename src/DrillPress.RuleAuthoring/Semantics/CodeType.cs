@@ -17,7 +17,12 @@ public readonly record struct CodeType(string MetadataName)
     /// <summary>Captures a statically referenced type, including its constructed generic arguments.</summary>
     public static CodeType Of<T>() => FromRuntime(typeof(T));
 
-    /// <summary>Names a target type without referencing its assembly from the rule project.</summary>
+    /// <summary>Names a member declared on this type. Omit parameter types for a member family; pass an empty list for a parameterless method.</summary>
+    public CodeMember Member(string name, IReadOnlyList<CodeType>? parameters = null) =>
+        new(this, name, parameters);
+
+    /// <summary>Names a target type without referencing its assembly from the rule project. Accepts metadata names or open generic names such as List&lt;&gt; and Dictionary&lt;,&gt;.</summary>
+    /// <remarks>Open generic slots are normalized to metadata arity. After an open generic type, dots identify nested types, as in Outer&lt;&gt;.Inner&lt;,&gt;. Use + when a non-generic containing type would be indistinguishable from a namespace. Metadata names with + remain supported. Use Of&lt;T&gt; for exact constructed arguments.</remarks>
     public static CodeType Named(string metadataName, string? assemblyName = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(metadataName);
@@ -26,7 +31,7 @@ public readonly record struct CodeType(string MetadataName)
             ArgumentException.ThrowIfNullOrWhiteSpace(assemblyName);
         }
 
-        return new(metadataName) { AssemblyName = assemblyName };
+        return new(GenericTypeName.Normalize(metadataName)) { AssemblyName = assemblyName };
     }
 
     /// <summary>Matches semantic identity, allowing the standard framework reference-assembly facades.</summary>

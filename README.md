@@ -19,14 +19,25 @@ for Release builds, managed/native execution, all target shapes, and the
 
 ## Install from source
 
-Install Git and the .NET SDK specified in [global.json](global.json), then clone
-and build the repository:
+Writing your own conventions? Start with the [rule author’s manual](user-docs/index.html).
+Open `user-docs/index.html` in a browser for the searchable, offline HTML guide,
+including examples, an API field guide, and light/dark themes. Repository
+maintenance and acceptance-gate documentation remains in `docs/`.
+
+Install Git and a .NET 10 SDK, then clone and build the repository. A specific
+SDK patch or feature-band build is not required; see [global.json](global.json)
+for SDK selection:
 
 ```sh
 git clone https://github.com/MortenChristiansenOrg/drill-press.net.git
 cd drill-press.net
 dotnet build DrillPress.slnx
 ```
+
+The SDK version in `global.json` is a minimum, not an exact pin. `latestMinor`
+roll-forward selects the highest installed .NET 10 SDK at or above `10.0.100`,
+including newer feature bands and patches, without rolling forward to .NET 11.
+CI installs the .NET 10 channel (`10.x`) rather than the minimum build.
 
 For now, run the built tool directly from this checkout.
 

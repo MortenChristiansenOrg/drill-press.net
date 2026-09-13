@@ -1,8 +1,9 @@
 using DrillPress.Configuration;
-using DrillPress.Flow;
 using DrillPress.Operations;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace DrillPress.SampleRules.CodecPolicies;
 
@@ -10,22 +11,22 @@ namespace DrillPress.SampleRules.CodecPolicies;
 internal static class CodecBehavior
 {
     private static readonly ApiSet _nonRepeatableValues = new(
-        new(CodeType.Of<Guid>(), nameof(Guid.NewGuid)),
-        new(CodeType.Of<Random>(), nameof(Random.Next))
+        CodeType.Of<Guid>().Member(nameof(Guid.NewGuid)),
+        CodeType.Of<Random>().Member(nameof(Random.Next))
     );
-    private static readonly CodeMember _consoleWriteLine = new(
-        CodeType.Named("System.Console"),
-        "WriteLine"
-    );
-    private static readonly CodeMember _blockingSleep = new(
-        CodeType.Named("System.Threading.Thread"),
-        "Sleep"
-    );
-    private static readonly CodeMember _trimWithoutArguments = new(
-        CodeType.Of<string>(),
-        nameof(string.Trim),
-        []
-    );
+    private static readonly CodeMember _consoleWriteLine = CodeType
+        .Named("System.Console")
+        .Member("WriteLine");
+    private static readonly CodeMember _blockingSleep = CodeType
+        .Named("System.Threading.Thread")
+        .Member("Sleep");
+    private static readonly CodeMember _trimWithoutArguments = CodeType
+        .Of<string>()
+        .Member(nameof(string.Trim))
+        .WithParameters();
+    private static readonly CodeMember _rentBuffer = CodeType
+        .Named("System.Buffers.ArrayPool<>")
+        .Member("Rent");
     private static readonly PathPattern _tracingFiles = new("**/Tracing/*.cs");
 
     internal static bool CreatesNonRepeatableValues(CodeInvocation call) =>
@@ -46,26 +47,20 @@ internal static class CodecBehavior
 
     internal static CodeQuery<CodeMethod> WhoseCallPathsReachBlockingSleep(
         this CodeQuery<CodeMethod> methods
-    ) =>
-        CodeQuery<CodeMethod>.Create(solution =>
-            methods
-                .In(solution)
-                .Where(method =>
-                    method.Symbol is { } symbol
-                    && CodeRelationships.In(solution).Reaches(symbol, _blockingSleep)
-                )
-        );
+    ) => methods.Where(method => method.Reaches(_blockingSleep));
 
-    internal static CodeQuery<CodeMethod> ThatCapture(
-        this CodeQuery<CodeMethod> methods,
-        string variableName
-    ) =>
-        CodeQuery<CodeMethod>.Create(solution =>
-            methods
-                .In(solution)
-                .Where(method =>
-                    MethodFlow.For(solution, method).Data is { Succeeded: true } data
-                    && data.Captured.Any(symbol => symbol.Name == variableName)
-                )
+    internal static bool CapturesRentedBuffer(CodeMethod method) =>
+        method.Flow.Data is { Succeeded: true } data
+        && data.Captured.OfType<ILocalSymbol>().Any(local => IsRentedBuffer(method, local));
+
+    // This ownership policy bans captures even when a callback happens to run before Return.
+    // It recognizes direct Rent initializers, not aliases or interprocedural buffer provenance.
+    private static bool IsRentedBuffer(CodeMethod method, ILocalSymbol local) =>
+        local.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax(method.Source.Project.CancellationToken)
+                is VariableDeclaratorSyntax { Initializer.Value: { } value }
+            && method.Source.Model.GetOperation(value, method.Source.Project.CancellationToken)
+                is IInvocationOperation call
+            && _rentBuffer.Matches(call.TargetMethod)
         );
 }

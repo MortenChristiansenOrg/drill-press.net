@@ -1,3 +1,4 @@
+using DrillPress.Flow;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,8 +11,13 @@ public sealed class CodeMethod : ICodeElement
     private readonly Lazy<IMethodSymbol?> _symbol;
     private readonly Lazy<TestBody> _body;
 
-    internal CodeMethod(AnalysisSource source, MethodDeclarationSyntax syntax)
+    internal CodeMethod(
+        AnalysisSolution solution,
+        AnalysisSource source,
+        MethodDeclarationSyntax syntax
+    )
     {
+        Solution = solution;
         Source = source;
         Syntax = syntax;
         _symbol = new(() =>
@@ -22,6 +28,17 @@ public sealed class CodeMethod : ICodeElement
 
     /// <summary>The document and compilation used to bind this declaration.</summary>
     public AnalysisSource Source { get; }
+
+    /// <summary>The analysis owning this method and its cached relationships.</summary>
+    public AnalysisSolution Solution { get; }
+
+    /// <summary>Cached compiler control flow, reads, writes, captures and nullable state for this method.</summary>
+    public MethodFlow Flow => MethodFlow.For(Solution, this);
+
+    /// <summary>Whether a statically bound source call path reaches the target. Unresolved methods do not match.</summary>
+    /// <remarks>Does not infer dynamic dispatch, delegate invocation or reflection. Nested functions are followed only through direct calls.</remarks>
+    public bool Reaches(CodeMember target) =>
+        Symbol is { } symbol && Solution.Relationships.Reaches(symbol, target);
 
     /// <summary>The complete method declaration.</summary>
     public MethodDeclarationSyntax Syntax { get; }

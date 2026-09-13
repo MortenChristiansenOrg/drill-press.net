@@ -1,5 +1,10 @@
 # Authoring compiled rules
 
+For the reader-friendly HTML manual, open [Writing custom rules](../user-docs/index.html)
+in a browser. It includes a guided first rule, searchable API coverage, and
+light/dark themes. This page retains the repository's compiled-rule and preview
+fix contracts.
+
 A rule bundle constructs a `RuleSet` in ordinary C# and passes it to
 `RuleApplication`. Rules are compiled into the managed or NativeAOT executable;
 there is no runtime source compiler, assembly scan, or rule discovery.
@@ -57,9 +62,17 @@ Use semantic identities instead of source spelling:
 
 ```csharp
 var target = CodeType.Named("Product.Storage.Cache", "Product.Storage");
-var reads = Code.MemberReferences.Where(Members.Are(target, "Read"));
+var reads = target.Member("Read").References;
+var rent = CodeType.Named("System.Buffers.ArrayPool<>").Member("Rent");
 var lists = CodeType.Of<List<string>>(); // includes the constructed string argument
 ```
+
+`Named` accepts open generic slots: `List<>`, `Dictionary<,>`, and
+`Outer<>.Inner<,>` normalize to CLR metadata names while matching any constructed
+arguments. Dots after an open generic type denote nested types; use `+` to
+distinguish a non-generic containing type from a namespace. Existing `+` and
+backtick-and-arity names also work. Use `Of<T>()` for exact
+constructed types; `Named("List<string>")` is not a C# type-expression parser.
 
 Assembly qualification can be a simple name or full assembly display identity.
 An omitted qualification matches any declaring assembly. Use `Members.Are` or

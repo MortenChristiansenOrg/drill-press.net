@@ -1,5 +1,4 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
-using DrillPress.Projects;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -147,14 +146,15 @@ public sealed class CodeRelationshipsTests(SdkFixture fixture) : IClassFixture<S
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var graph = CodeRelationships.In(solution);
-        var target = new CodeMember(CodeType.Named("System.Threading.Thread"), "Sleep");
+        var target = CodeType.Named("System.Threading.Thread").Member("Sleep");
 
         var paths = solution
             .Methods.Where(method => method.Source.Project.Snapshot.Name == "Consumer")
-            .Select(method => (method.Symbol!.Name, graph.Reaches(method.Symbol, target)))
+            .Select(method => (method.Name, method.Reaches(target)))
             .ToArray();
 
         Assert.Equal([("A", true), ("B", true), ("C", false)], paths);
+        Assert.Same(graph, solution.Relationships);
         Assert.Equal(
             ["Dependency.Run()", "Dependency.Run()"],
             graph
@@ -182,7 +182,8 @@ public sealed class CodeRelationshipsTests(SdkFixture fixture) : IClassFixture<S
             [new("Consumer.cs", "class C : I { }")],
             dependencies: [second]
         );
-        var graph = new ProjectGraph(workspace.Analyze(TestContext.Current.CancellationToken));
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var graph = solution.ProjectGraph;
 
         var dependencies = graph.DependenciesOf(consumer);
         var views = graph.CompatibleViewsOf(first);
@@ -190,6 +191,7 @@ public sealed class CodeRelationshipsTests(SdkFixture fixture) : IClassFixture<S
         Assert.Equal([second, consumer], dependencies);
         Assert.Equal([first], Assert.Single(views));
         Assert.False(graph.Includes(consumer, first));
+        Assert.Same(graph, solution.ProjectGraph);
     }
 
     [Fact]

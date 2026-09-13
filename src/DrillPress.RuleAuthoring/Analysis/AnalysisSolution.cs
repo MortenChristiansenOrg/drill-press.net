@@ -1,3 +1,4 @@
+using DrillPress.Projects;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -13,6 +14,7 @@ public sealed class AnalysisSolution
     private readonly Lazy<MemberCandidateIndex> _memberCandidates;
     private readonly bool _providedReferences;
     private readonly Dictionary<object, Lazy<object>> _facts = [];
+    private readonly Lazy<ProjectGraph> _projectGraph;
 
     internal T Cached<T>(object key, Func<T> create)
         where T : notnull
@@ -49,6 +51,7 @@ public sealed class AnalysisSolution
         CancellationToken = cancellationToken;
         Projects = projects.ToArray();
         Implementations = new(this);
+        _projectGraph = new(() => new ProjectGraph(this));
         _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
         _references = new(() =>
             Options.EnableOptimizations
@@ -62,7 +65,7 @@ public sealed class AnalysisSolution
                         .Tree.GetRoot(source.Project.CancellationToken)
                         .DescendantNodes()
                         .OfType<MethodDeclarationSyntax>()
-                        .Select(syntax => new CodeMethod(source, syntax))
+                        .Select(syntax => new CodeMethod(this, source, syntax))
                 )
                 .ToArray()
         );
@@ -101,6 +104,12 @@ public sealed class AnalysisSolution
 
     /// <summary>Cached concrete implementation analysis over compatible source graphs.</summary>
     public InterfaceImplementations Implementations { get; }
+
+    /// <summary>Compatible evaluated project dependencies, shared by counterpart and ownership policies.</summary>
+    public ProjectGraph ProjectGraph => _projectGraph.Value;
+
+    /// <summary>Shared source inheritance and statically bound call-path analysis.</summary>
+    public CodeRelationships Relationships => CodeRelationships.In(this);
 
     internal void WriteProfileCounters()
     {

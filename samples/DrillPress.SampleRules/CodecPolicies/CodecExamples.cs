@@ -1,6 +1,5 @@
 using DrillPress.Collections;
 using DrillPress.Facts;
-using DrillPress.Projects;
 using DrillPress.Queries;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,16 +10,15 @@ namespace DrillPress.SampleRules.CodecPolicies;
 internal sealed class CodecExamples
 {
     private readonly CodecSources _code;
-    private readonly AnalysisFact<ProjectGraph> _projectGraph = new(solution => new(solution));
     private readonly CodeQuery<CodeNode<LiteralExpressionSyntax>> _stringLiterals;
     private readonly AnalysisFact<IReadOnlyDictionary<string, int>> _stringOccurrences;
 
     internal CodecExamples(CodecSources code)
     {
         _code = code;
-        RoundTrips = code.Methods.Where(IsNamedRoundTripExample);
+        RoundTripTests = code.Methods.Where(XunitTests.AreTests).Where(IsNamedRoundTripTest);
         _stringLiterals = code
-            .Files.SelectMany(file => file.Nodes<LiteralExpressionSyntax>())
+            .Files.Nodes<LiteralExpressionSyntax>()
             .Where(node => node.Constant is { HasValue: true, Value: string });
         _stringOccurrences = new(solution =>
             _stringLiterals
@@ -31,14 +29,14 @@ internal sealed class CodecExamples
         ReaderWriterInventoryMismatches = FindReaderWriterInventoryMismatches();
     }
 
-    internal CodeQuery<CodeMethod> RoundTrips { get; }
+    internal CodeQuery<CodeMethod> RoundTripTests { get; }
     internal CodeQuery<
         LocatedCandidate<(CodeDeclaration Reader, CodeDeclaration Writer)>
     > ReaderWriterInventoryMismatches { get; }
 
-    internal bool IsRoundTripExampleFor(CodeDeclaration codec, CodeMethod example) =>
-        example.Name == codec.Name + "RoundTrip"
-        && _projectGraph.In(codec.Solution).Includes(example.Source.Project, codec.Source.Project);
+    internal bool IsRoundTripTestFor(CodeDeclaration codec, CodeMethod example) =>
+        example.Name == $"{codec.Name}RoundTrip"
+        && codec.Solution.ProjectGraph.Includes(example.Source.Project, codec.Source.Project);
 
     internal CodeQuery<CodeNode<LiteralExpressionSyntax>> RepeatedStringLiterals(int longerThan)
     {
@@ -57,11 +55,7 @@ internal sealed class CodecExamples
 
     internal CodeQuery<CodeNode<SwitchExpressionSyntax>> RepeatedSwitchExpressions(
         int minimumTokens
-    ) =>
-        DuplicateSyntax.In(
-            _code.Files.SelectMany(file => file.Nodes<SwitchExpressionSyntax>()),
-            minimumTokens
-        );
+    ) => DuplicateSyntax.In(_code.Files.Nodes<SwitchExpressionSyntax>(), minimumTokens);
 
     private CodeQuery<
         LocatedCandidate<(CodeDeclaration Reader, CodeDeclaration Writer)>
@@ -91,7 +85,7 @@ internal sealed class CodecExamples
             .Select(field => field.ConstantValue)
             .OfType<string>();
 
-    private static bool IsNamedRoundTripExample(CodeMethod method) =>
+    private static bool IsNamedRoundTripTest(CodeMethod method) =>
         method.Source.Project.IsTestProject
         && method.Symbol is { } symbol
         && symbol.Name.AsSpan().EndsWith("RoundTrip");
