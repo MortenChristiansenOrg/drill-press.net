@@ -11,14 +11,23 @@ public sealed class CompilationSnapshotFileTests : IntegrationTest
     {
         var directory = CreateTemporaryDirectory("drillpress-snapshot-");
         var path = FileSystem.Path.Combine(directory.FullName, "snapshot.json");
-        await FileSystem.File.WriteAllTextAsync(path, "previous snapshot", TestContext.Current.CancellationToken);
+        await FileSystem.File.WriteAllTextAsync(
+            path,
+            "previous snapshot",
+            TestContext.Current.CancellationToken
+        );
         var storage = new CompilationSnapshotFile();
 
-        await storage.WriteAsync(path, (CompilationSnapshot.Create() with { RequestId = "request" }), TestContext.Current.CancellationToken);
+        await storage.WriteAsync(
+            path,
+            (CompilationSnapshot.Create() with { RequestId = "request" }),
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(
             """{"fileIdentifier":"drillpress-compilation","formatVersion":2,"projects":[],"requestId":"request"}""",
-            await FileSystem.File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            await FileSystem.File.ReadAllTextAsync(path, TestContext.Current.CancellationToken)
+        );
         Assert.Equal([path], FileSystem.Directory.GetFiles(directory.FullName));
     }
 
@@ -31,9 +40,17 @@ public sealed class CompilationSnapshotFileTests : IntegrationTest
         var storage = new CompilationSnapshotFile();
 
         var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
-            storage.WriteAsync(path, (CompilationSnapshot.Create() with { RequestId = "request" }), TestContext.Current.CancellationToken));
+            storage.WriteAsync(
+                path,
+                (CompilationSnapshot.Create() with { RequestId = "request" }),
+                TestContext.Current.CancellationToken
+            )
+        );
 
-        Assert.Contains(exception.GetType(), new[] { typeof(IOException), typeof(UnauthorizedAccessException) });
+        Assert.Contains(
+            exception.GetType(),
+            new[] { typeof(IOException), typeof(UnauthorizedAccessException) }
+        );
         Assert.True(FileSystem.Directory.Exists(path));
         Assert.Empty(FileSystem.Directory.GetFiles(directory.FullName));
     }

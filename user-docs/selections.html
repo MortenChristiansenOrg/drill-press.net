@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Choose the code you mean, then say what it must do. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Select and compose · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html" aria-current="page">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Everyday rules / 03</p>
+<h1>Select and compose</h1>
+<p class="lead">Choose the code you mean, then say what it must do.</p>
+
+<p>A good declaration separates <em>where the policy applies</em> from <em>what it requires</em>. Keep these decisions visible in the code.</p>
+<h2 id="roots">Start with the smallest useful selection</h2>
+<div class="table-wrap"><table><thead><tr><th>Start here</th><th>You get</th></tr></thead><tbody>
+<tr><td><code>Code.Methods</code></td><td>Ordinary method declarations; not constructors, accessors, or local functions.</td></tr>
+<tr><td><code>Code.Types</code> / <code>Code.Interfaces</code></td><td>Named types / interfaces. Partial type definitions appear once per evaluated project context.</td></tr>
+<tr><td><code>Code.MemberReferences</code></td><td>Source expressions referring to fields, properties, and methods.</td></tr>
+<tr><td><code>Sources.Files</code> / <code>Sources.Projects</code></td><td>Source files / evaluated project contexts.</td></tr>
+<tr><td><code>files.Invocations()</code></td><td>Bound calls inside an existing file selection.</td></tr>
+<tr><td><code>files.Nodes&lt;T&gt;()</code> / <code>files.Declarations()</code></td><td>Syntax of a chosen kind / resolved declarations, including locals and fields.</td></tr>
+</tbody></table></div>
+<p>The <code>Code</code> roots live in <code>DrillPress</code>; file and syntax helpers use <code>DrillPress.Queries</code>. See <a href="reference.html">the field guide</a> for all namespaces.</p>
+<h2 id="require">Forbid or require?</h2>
+<div class="codeblock"><div class="codehead"><span>Require a naming convention for async methods</span></div><pre tabindex="0" data-check="program" id="example-5"><code>using DrillPress;
+
+var rules = new RuleSet();
+var asyncMethods = Code.Methods.Where(method =&gt; method.IsAsync);
+
+rules.For(asyncMethods).Require(
+    method =&gt; method.Name.AsSpan().EndsWith(&quot;Async&quot;),
+    &quot;TEAM002&quot;,
+    &quot;Give asynchronous methods an Async suffix.&quot;);</code></pre></div>
+<p>This selects async methods, then reports the ones whose names lack the suffix. By contrast, <code>Forbid</code> reports every candidate already selected. Neither method throws away the useful source location.</p>
+<h2 id="conditions">Name conditions and exceptions</h2>
+<div class="codeblock"><div class="codehead"><span>Compose a convention and its exception</span></div><pre tabindex="0" data-check="program" id="example-6"><code>using DrillPress;
+using DrillPress.Analysis;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var asynchronous = new RuleCondition&lt;CodeMethod&gt;(method =&gt; method.IsAsync);
+var eventHandler = new RuleCondition&lt;CodeMethod&gt;(method =&gt;
+    method.HasAttribute(CodeType.Named(&quot;Product.EventHandlerAttribute&quot;)));
+
+var applicationMethods = Code.Methods.Where(method =&gt;
+    !method.Source.Project.IsTestProject);
+
+rules.For(applicationMethods.Where(asynchronous.ExceptWhen(eventHandler)))
+    .Require(method =&gt; method.Name.AsSpan().EndsWith(&quot;Async&quot;),
+        &quot;TEAM003&quot;, &quot;Give asynchronous application methods an Async suffix.&quot;);</code></pre></div>
+<p><code>And</code>, <code>Or</code>, <code>Not</code>, and condition-level <code>ExceptWhen</code> compose Boolean tests with short-circuit behavior. Query-level <code>ExceptWhen</code> excludes matches. Both <code>Where</code> and <code>Require</code> also accept ordinary lambdas.</p>
+<h2 id="composition">Transform and connect selections</h2>
+<p><code>CodeQuery&lt;T&gt;</code> is the reusable selection type. It resembles LINQ, but it belongs to an analysis rather than an arbitrary list.</p>
+<div class="table-wrap"><table><thead><tr><th>Operation</th><th>Use it when</th></tr></thead><tbody>
+<tr><td><code>Select</code></td><td>Each candidate becomes another value.</td></tr>
+<tr><td><code>SelectMany</code></td><td>Each candidate has several children to inspect.</td></tr>
+<tr><td><code>Join</code></td><td>You need matching pairs, using explicit keys and an optional equality comparer.</td></tr>
+<tr><td><code>WithoutMatching</code></td><td>You need owners missing a counterpart. Supply keys or a predicate comparing the two candidates.</td></tr>
+<tr><td><code>At</code></td><td>A tuple or calculated value needs an existing code element as its diagnostic anchor.</td></tr>
+<tr><td><code>Create</code> / <code>In(solution)</code></td><td>You need a custom query, or need to read a query in a supplied analysis.</td></tr>
+</tbody></table></div>
+<p>See <a href="relationships.html#counterparts">counterpart matching</a> and <a href="facts.html#custom">custom queries</a> for complete examples. A plain project or number has no automatic source location; add an anchor or a location selector before reporting it.</p>
+<h2 id="reuse">Reuse queries; keep predicates pure</h2>
+<p>Drill Press materializes a query once per query instance and analysis. Reuse the instance to share work. Do not increment counters, write files, log to standard output, or depend on evaluation order in predicates. A new analysis gets fresh caches.</p>
+<p>Prefer <code>files.Invocations()</code> to finding calls globally and filtering them afterwards: the narrow file selection avoids compiler work outside your policy’s scope. Generated files supply compiler information but ordinary roots exclude them; see <a href="syntax.html#generated">generated and linked source</a>.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="first-rule.html"><small>← PREVIOUS</small>Write your first rule</a>
+<a href="identities.html"><small>NEXT →</small>Types and members</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#conditions">Name conditions and exceptions</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

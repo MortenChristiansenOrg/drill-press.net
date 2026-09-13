@@ -10,10 +10,16 @@ public sealed class ProcessCancellationTests : IntegrationTest
         var directory = CreateTemporaryDirectory("drillpress-runner-cancellation-");
         var readyPath = FileSystem.Path.Combine(directory.FullName, "ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
 
         var run = RunProcessAsync(
-            "dotnet", [testProcess, "export", readyPath, "unused.snapshot"], RepositoryRoot, cancellation.Token);
+            "dotnet",
+            [testProcess, "export", readyPath, "unused.snapshot"],
+            RepositoryRoot,
+            cancellation.Token
+        );
         var process = await WaitForTestProcessAsync(readyPath, run, cancellation);
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
@@ -28,13 +34,25 @@ public sealed class ProcessCancellationTests : IntegrationTest
         var readyPath = FileSystem.Path.Combine(directory.FullName, "ready");
         var missingReadyPath = FileSystem.Path.Combine(directory.FullName, "never-ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
         var run = RunProcessAsync(
-            "dotnet", [testProcess, "export", readyPath, "unused.snapshot"], RepositoryRoot, cancellation.Token);
+            "dotnet",
+            [testProcess, "export", readyPath, "unused.snapshot"],
+            RepositoryRoot,
+            cancellation.Token
+        );
         var process = await WaitForTestProcessAsync(readyPath, run, cancellation);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            WaitForTestProcessAsync(missingReadyPath, run, cancellation, TimeSpan.FromMilliseconds(50)));
+            WaitForTestProcessAsync(
+                missingReadyPath,
+                run,
+                cancellation,
+                TimeSpan.FromMilliseconds(50)
+            )
+        );
 
         Assert.True(run.IsCanceled);
         Assert.True(process.HasExited);
@@ -46,11 +64,14 @@ public sealed class ProcessCancellationTests : IntegrationTest
         var directory = CreateTemporaryDirectory("drillpress-readiness-exit-");
         var readyPath = FileSystem.Path.Combine(directory.FullName, "never-ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
         var run = RunProcessAsync("dotnet", [testProcess], RepositoryRoot, cancellation.Token);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            WaitForTestProcessAsync(readyPath, run, cancellation));
+            WaitForTestProcessAsync(readyPath, run, cancellation)
+        );
 
         Assert.True(run.IsCompletedSuccessfully);
         Assert.Equal("The test process exited before reporting readiness.", exception.Message);

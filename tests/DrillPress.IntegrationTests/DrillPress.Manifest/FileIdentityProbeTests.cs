@@ -1,5 +1,5 @@
-using DrillPress.Manifest;
 using DrillPress.IntegrationTests.TestInfrastructure;
+using DrillPress.Manifest;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.Manifest;
@@ -52,8 +52,15 @@ public sealed class FileIdentityProbeTests : IntegrationTest
     private async Task CreateHardLinkAsync(string source, string target)
     {
         var command = OperatingSystem.IsWindows() ? "fsutil" : "ln";
-        string[] arguments = OperatingSystem.IsWindows() ? ["hardlink", "create", target, source] : [source, target];
-        var result = await RunProcessAsync(command, arguments, FileSystem.Path.GetDirectoryName(source)!, TestContext.Current.CancellationToken);
+        string[] arguments = OperatingSystem.IsWindows()
+            ? ["hardlink", "create", target, source]
+            : [source, target];
+        var result = await RunProcessAsync(
+            command,
+            arguments,
+            FileSystem.Path.GetDirectoryName(source)!,
+            TestContext.Current.CancellationToken
+        );
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
     }
 }

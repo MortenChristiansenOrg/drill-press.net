@@ -1,6 +1,6 @@
-using DrillPress.Manifest;
 using System.IO.Abstractions.TestingHelpers;
 using DrillPress.Benchmarks;
+using DrillPress.Manifest;
 using Xunit;
 
 namespace DrillPress.UnitTests.DrillPress.Benchmarks;
@@ -11,10 +11,15 @@ public sealed class ProfileMeasurementsTests
     public void Preserves_complete_events_alongside_nonprofile_stderr()
     {
         var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("profile", new("""
-            workspace warning
-            drillpress-profile {"component":"rules","phase":"total","processId":1,"wallMilliseconds":12,"userCpuMilliseconds":8,"systemCpuMilliseconds":2,"processPeakWorkingSetBytes":1024,"count":null}
-            """));
+        fileSystem.AddFile(
+            "profile",
+            new(
+                """
+                workspace warning
+                drillpress-profile {"component":"rules","phase":"total","processId":1,"wallMilliseconds":12,"userCpuMilliseconds":8,"systemCpuMilliseconds":2,"processPeakWorkingSetBytes":1024,"count":null}
+                """
+            )
+        );
         var measurements = new ProfileMeasurements(fileSystem);
 
         var events = measurements.Read("profile", "rules");
@@ -24,7 +29,9 @@ public sealed class ProfileMeasurementsTests
 
     [Theory]
     [InlineData("warning only")]
-    [InlineData("drillpress-profile {\"component\":\"rules\",\"phase\":\"total\",\"processId\":1,\"wallMilliseconds\":-1,\"userCpuMilliseconds\":0,\"systemCpuMilliseconds\":0,\"processPeakWorkingSetBytes\":1,\"count\":null}")]
+    [InlineData(
+        "drillpress-profile {\"component\":\"rules\",\"phase\":\"total\",\"processId\":1,\"wallMilliseconds\":-1,\"userCpuMilliseconds\":0,\"systemCpuMilliseconds\":0,\"processPeakWorkingSetBytes\":1,\"count\":null}"
+    )]
     public void Rejects_missing_or_invalid_measurements(string output)
     {
         var fileSystem = new MockFileSystem();
@@ -33,13 +40,19 @@ public sealed class ProfileMeasurementsTests
 
         Assert.Throws<InvalidDataException>(() => measurements.Read("profile", "rules"));
     }
+
     [Fact]
     public void Rejects_an_inner_total_that_exceeds_the_paired_outer_stopwatch_interval()
     {
         var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("profile", new("""
-            drillpress-profile {"component":"rules","phase":"total","processId":1,"wallMilliseconds":12,"userCpuMilliseconds":8,"systemCpuMilliseconds":2,"processPeakWorkingSetBytes":1024,"count":null}
-            """));
+        fileSystem.AddFile(
+            "profile",
+            new(
+                """
+                drillpress-profile {"component":"rules","phase":"total","processId":1,"wallMilliseconds":12,"userCpuMilliseconds":8,"systemCpuMilliseconds":2,"processPeakWorkingSetBytes":1024,"count":null}
+                """
+            )
+        );
         var measurements = new ProfileMeasurements(fileSystem);
 
         Assert.Throws<InvalidDataException>(() => measurements.Read("profile", 10, "rules"));

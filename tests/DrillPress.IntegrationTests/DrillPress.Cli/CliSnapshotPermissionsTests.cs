@@ -18,13 +18,22 @@ public sealed class CliSnapshotPermissionsTests : IntegrationTest
     {
         using var fixture = new SnapshotPermissionFixture();
 
-        var permissions = await fixture.CaptureAsync((directory, snapshot) => new[]
-        {
-            FileSystem.File.GetUnixFileMode(directory), FileSystem.File.GetUnixFileMode(snapshot),
-        });
+        var permissions = await fixture.CaptureAsync(
+            (directory, snapshot) =>
+                new[]
+                {
+                    FileSystem.File.GetUnixFileMode(directory),
+                    FileSystem.File.GetUnixFileMode(snapshot),
+                }
+        );
 
-        Assert.Equal([UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite], permissions);
+        Assert.Equal(
+            [
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite,
+            ],
+            permissions
+        );
         Assert.True(fixture.ChildExited);
         Assert.True(fixture.DirectoryRemoved);
     }
@@ -41,25 +50,59 @@ public sealed class CliSnapshotPermissionsTests : IntegrationTest
 
         Assert.True(permissions.Protected);
         Assert.Equal(owner, permissions.Owner);
-        Assert.Equal(new(owner, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-            PropagationFlags.None, AccessControlType.Allow, false), Assert.Single(permissions.DirectoryRules));
-        Assert.Equal(new(owner, FileSystemRights.FullControl, InheritanceFlags.None,
-            PropagationFlags.None, AccessControlType.Allow, true), Assert.Single(permissions.FileRules));
+        Assert.Equal(
+            new(
+                owner,
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow,
+                false
+            ),
+            Assert.Single(permissions.DirectoryRules)
+        );
+        Assert.Equal(
+            new(
+                owner,
+                FileSystemRights.FullControl,
+                InheritanceFlags.None,
+                PropagationFlags.None,
+                AccessControlType.Allow,
+                true
+            ),
+            Assert.Single(permissions.FileRules)
+        );
         Assert.True(fixture.ChildExited);
         Assert.True(fixture.DirectoryRemoved);
     }
 
     [SupportedOSPlatform("windows")]
-    private static WindowsSnapshotPermissions ReadWindowsPermissions(string directory, string snapshot)
+    private static WindowsSnapshotPermissions ReadWindowsPermissions(
+        string directory,
+        string snapshot
+    )
     {
         var security = FileSystem.Directory.GetAccessControl(directory);
-        return new(security.AreAccessRulesProtected, security.GetOwner(typeof(SecurityIdentifier))!.Value,
-            Rules(security), Rules(FileSystem.File.GetAccessControl(snapshot)));
+        return new(
+            security.AreAccessRulesProtected,
+            security.GetOwner(typeof(SecurityIdentifier))!.Value,
+            Rules(security),
+            Rules(FileSystem.File.GetAccessControl(snapshot))
+        );
     }
 
     [SupportedOSPlatform("windows")]
-    private static SnapshotAccessRule[] Rules(FileSystemSecurity security) => security.GetAccessRules(true, true, typeof(SecurityIdentifier))
-        .Cast<FileSystemAccessRule>()
-        .Select(rule => new SnapshotAccessRule(rule.IdentityReference.Value, rule.FileSystemRights, rule.InheritanceFlags,
-            rule.PropagationFlags, rule.AccessControlType, rule.IsInherited)).ToArray();
+    private static SnapshotAccessRule[] Rules(FileSystemSecurity security) =>
+        security
+            .GetAccessRules(true, true, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .Select(rule => new SnapshotAccessRule(
+                rule.IdentityReference.Value,
+                rule.FileSystemRights,
+                rule.InheritanceFlags,
+                rule.PropagationFlags,
+                rule.AccessControlType,
+                rule.IsInherited
+            ))
+            .ToArray();
 }

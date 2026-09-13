@@ -12,16 +12,38 @@ public sealed class MemoryProbeTests : IntegrationTest
     public async Task Fresh_workers_preserve_binary_contracts_and_report_child_memory()
     {
         var directory = CreateTemporaryDirectory("drillpress-memory-probe-");
-        var scenario = new BundleCase("bytes", ["bytes"], BundleOutcome.Failure,
-            Enumerable.Repeat((byte)255, 200_000).ToArray(), new byte[200_000]);
-        var plan = new BenchmarkPlan(RepositoryRoot, GetOutputPath("DrillPress.TestProcess", "tests"),
-            "", [scenario]);
+        var scenario = new BundleCase(
+            "bytes",
+            ["bytes"],
+            BundleOutcome.Failure,
+            Enumerable.Repeat((byte)255, 200_000).ToArray(),
+            new byte[200_000]
+        );
+        var plan = new BenchmarkPlan(
+            RepositoryRoot,
+            GetOutputPath("DrillPress.TestProcess", "tests"),
+            "",
+            [scenario]
+        );
         var planPath = FileSystem.Path.Combine(directory.FullName, "plan.json");
-        await FileSystem.File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan), TestContext.Current.CancellationToken);
+        await FileSystem.File.WriteAllTextAsync(
+            planPath,
+            JsonSerializer.Serialize(plan),
+            TestContext.Current.CancellationToken
+        );
 
-        var output = await ProcessRunner.RunAsync("dotnet",
-            [GetOutputPath("DrillPress.Benchmarks", "tools"), "--memory-worker", planPath, "Managed", "bytes"],
-            RepositoryRoot, TestContext.Current.CancellationToken);
+        var output = await ProcessRunner.RunAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.Benchmarks", "tools"),
+                "--memory-worker",
+                planPath,
+                "Managed",
+                "bytes",
+            ],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(0, output.ExitCode);
         Assert.Empty(output.StandardError);

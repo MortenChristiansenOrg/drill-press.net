@@ -11,7 +11,12 @@ public sealed class BundleProcessTests : IntegrationTest
     {
         var process = GetOutputPath("DrillPress.TestProcess", "tests");
 
-        var result = await ProcessRunner.RunAsync("dotnet", [process, "bytes"], RepositoryRoot, TestContext.Current.CancellationToken);
+        var result = await ProcessRunner.RunAsync(
+            "dotnet",
+            [process, "bytes"],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(2, result.ExitCode);
         Assert.Equal(Enumerable.Repeat((byte)255, 200_000), result.StandardOutput);
@@ -23,9 +28,15 @@ public sealed class BundleProcessTests : IntegrationTest
     {
         var directory = CreateTemporaryDirectory("drillpress-verification-cancel-");
         var ready = FileSystem.Path.Combine(directory.FullName, "ready");
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var run = ProcessRunner.RunAsync("dotnet",
-            [GetOutputPath("DrillPress.TestProcess", "tests"), "export", ready, "snapshot"], RepositoryRoot, cancellation.Token);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
+        var run = ProcessRunner.RunAsync(
+            "dotnet",
+            [GetOutputPath("DrillPress.TestProcess", "tests"), "export", ready, "snapshot"],
+            RepositoryRoot,
+            cancellation.Token
+        );
         var process = await WaitForTestProcessAsync(ready, run, cancellation);
 
         await cancellation.CancelAsync();

@@ -1,4 +1,5 @@
 namespace Linked;
+
 public static class Shared
 {
 #if NET10_0

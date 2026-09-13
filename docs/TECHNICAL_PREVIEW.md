@@ -6,7 +6,10 @@ project template. Run the commands below from the repository root.
 
 ## Fresh checkout
 
-Install Git and the .NET SDK selected by [global.json](../global.json). Native
+Install Git and a .NET 10 SDK. A specific SDK patch or feature-band build is not
+required; [global.json](../global.json) uses `10.0.100` as a minimum and
+`latestMinor` to select the highest installed .NET 10 SDK. It does not require
+that exact build or roll forward to .NET 11. Native
 rule publication also needs the [NativeAOT toolchain](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/):
 Visual Studio 2022 or later with **Desktop development with C++** on Windows;
 Clang and zlib development headers on Ubuntu. Linux measurements also use GNU
@@ -137,7 +140,8 @@ and supplies `EmptyStringFix.Create` to `Forbid`. Its explicit entry point calls
 `new RuleApplication().RunAsync(SampleRuleSet.Create(), args)`; there is no reflection
 discovery or runtime source compilation. Follow the complete examples and safety
 contracts in [rule authoring](RULE_AUTHORING.md), then rebuild and republish the
-bundle with the commands above. This preview includes exactly five sample rules.
+bundle with the commands above. The bundle includes five general preview rules
+and the configured [codec SDK showcase](SDK_CAPABILITIES.md).
 
 ## Write policy and trust
 

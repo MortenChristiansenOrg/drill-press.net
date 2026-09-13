@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Match what code refers to—not how someone spelled it. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Types and members · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html" aria-current="page">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Everyday rules / 04</p>
+<h1>Types and members</h1>
+<p class="lead">Match what code refers to—not how someone spelled it.</p>
+
+<p>Code can spell the same operation in different ways: a fully qualified name, a <code>using</code> alias, or a static import. Semantic identity means matching the actual type or member chosen by the compiler.</p>
+<h2 id="types">Describe a type</h2>
+<div class="codeblock"><div class="codehead"><span>Types you know—and types your rule project does not reference</span></div><pre tabindex="0" data-check="program" id="example-9"><code>using DrillPress.Semantics;
+
+var text = CodeType.Of&lt;string&gt;();
+var textLists = CodeType.Of&lt;List&lt;string&gt;&gt;();
+var console = CodeType.Named(&quot;System.Console&quot;);
+var contract = CodeType.Named(&quot;Product.IStorage&quot;, &quot;Product.Contracts&quot;);</code></pre></div>
+<p><code>Of&lt;T&gt;()</code> records a type your rule project can reference, including exact generic arguments. <code>Named</code> describes a target type by its namespace-qualified name, without taking a project dependency on it. The optional second argument restricts the declaring assembly; omitting it permits any assembly.</p>
+<p><code>CodeType</code> exposes <code>MetadataName</code>, <code>AssemblyName</code>, and <code>TypeArguments</code>. These describe compiler identity, not a display name. Use <code>Matches</code> to test a compiler type; record equality is not a substitute for its optional-assembly and framework-facade matching rules.</p>
+<h2 id="generics">Open and constructed generics</h2>
+<div class="codeblock"><div class="codehead"><span>Empty slots match any constructed arguments</span></div><pre tabindex="0" data-check="program" id="example-10"><code>using DrillPress.Semantics;
+
+var anyPool = CodeType.Named(&quot;System.Buffers.ArrayPool&lt;&gt;&quot;);
+var dictionaries = CodeType.Named(&quot;System.Collections.Generic.Dictionary&lt;,&gt;&quot;);
+var nested = CodeType.Named(&quot;Product.Outer&lt;&gt;.Inner&lt;,&gt;&quot;);
+var listArrays = CodeType.Named(&quot;System.Collections.Generic.List&lt;&gt;[]&quot;);
+
+var onlyStringLists = CodeType.Of&lt;List&lt;string&gt;&gt;();
+var onlyTwoDimensionalArrays = CodeType.Of&lt;List&lt;string&gt;[,]&gt;();</code></pre></div>
+<p><code>&lt;&gt;</code> means one generic parameter; <code>&lt;,&gt;</code> means two. Empty slots normalize to the compiler’s metadata representation. Keep array suffixes such as <code>[]</code> or <code>[,]</code>.</p>
+<p>After an open generic type, use dots for nested types: <code>Product.Outer&lt;&gt;.Inner&lt;,&gt;</code> selects <code>Inner&lt;U, V&gt;</code> declared inside <code>Outer&lt;T&gt;</code>, regardless of their type arguments. This is not <code>Outer&lt;Inner&lt;,&gt;&gt;</code>, which puts a type argument inside <code>Outer</code>. Existing metadata names using <code>+</code> still work. If the first containing type is not generic, use <code>+</code> to distinguish it from a namespace, as in <code>Product.Container+Item&lt;&gt;</code>.</p>
+<div class="note"><strong>Names are not C# type expressions</strong><p><code>Named("List&lt;string&gt;")</code> and <code>Named("List&lt;T&gt;")</code> are not accepted. Use a fully qualified open name, or <code>Of&lt;List&lt;string&gt;&gt;()</code> for an exact constructed type.</p></div>
+<h2 id="members">Build members from their declaring type</h2>
+<div class="codeblock"><div class="codehead"><span>A family, a parameterless overload, and an exact overload</span></div><pre tabindex="0" data-check="program" id="example-11"><code>using DrillPress.Semantics;
+
+var console = CodeType.Named(&quot;System.Console&quot;);
+var allWriteLines = console.Member(&quot;WriteLine&quot;);
+var blankLine = allWriteLines.WithParameters();
+var textLine = allWriteLines.WithParameters(CodeType.Of&lt;string&gt;());
+
+var trim = CodeType.Of&lt;string&gt;().Member(nameof(string.Trim), []);
+var emptyStringReferences = CodeType.Of&lt;string&gt;().Member(nameof(string.Empty)).References;</code></pre></div>
+<p>Omitting parameters matches every method overload. Passing an empty list—or calling <code>WithParameters()</code>—matches only a parameterless method. A nonempty list matches the parameter types in order. <code>WithParameters</code> creates a new descriptor; it does not narrow the original one.</p>
+<p><code>CodeMember</code> also has a constructor taking declaring type, name, and optional parameters. Its <code>DeclaringType</code> and <code>Name</code> are readable properties. <code>Matches</code> accepts compiler methods, fields, or properties; a parameter-constrained descriptor matches methods only. Reduced extension methods are compared with their original static declaration, so an exact parameter list includes the extension receiver.</p>
+<h2 id="references">References or calls?</h2>
+<p><code>member.References</code> selects named source expressions referring to that member. It includes method groups as well as invoked method names. It does not represent object creation, indexer syntax, or implicit uses. For the actual invocation—including its arguments—use <code>files.Invocations()</code> and <code>call.Calls(member)</code>.</p>
+<p>The lower-level <code>Members.Are&lt;T&gt;(name)</code> and <code>Members.Are(type, name)</code> return reusable conditions for <code>Code.MemberReferences</code>. These and <code>member.References</code> preserve name-based discovery optimizations. A <code>MemberReference</code> exposes <code>ContainingType</code>, <code>MemberName</code>, <code>Location</code>, and optional <code>Source</code>, <code>Syntax</code>, and <code>Symbol</code>.</p>
+<h2 id="sets">Configure a family of restricted APIs</h2>
+<div class="codeblock"><div class="codehead"><span>Keep non-repeatable values out of production code</span></div><pre tabindex="0" data-check="program" id="example-12"><code>using DrillPress;
+using DrillPress.Configuration;
+using DrillPress.Projects;
+using DrillPress.Queries;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var randomValues = new ApiSet(
+    CodeType.Of&lt;Guid&gt;().Member(nameof(Guid.NewGuid)),
+    CodeType.Of&lt;Random&gt;().Member(nameof(Random.Next)));
+
+rules.For(ProjectFacts.ProductionFiles.Invocations()
+        .Where(call =&gt; randomValues.Contains(call.Target)))
+    .Forbid(&quot;TEAM004&quot;, &quot;Pass reproducible values into the application core.&quot;);</code></pre></div>
+<p><code>ApiSet.Contains</code> matches compiler methods against any configured descriptor. Scope this policy to the deterministic part of your application; randomness is appropriate in many other places.</p>
+<h2 id="attributes">Attributes, inheritance, and symbols</h2>
+<p><code>method.HasAttribute(type)</code> and <code>declaration.HasAttribute(type)</code> inspect resolved attributes. <code>declaration.Implements(contract)</code> follows inherited interfaces, not just the interface names written beside the class.</p>
+<p>For raw compiler symbols, <code>Symbols.HasAttribute</code> can include or exclude derived attribute types; <code>Symbols.IsOrDerivesFrom</code> follows base classes; <code>Symbols.Implements</code> follows interfaces. Unresolved types are not guessed.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="selections.html"><small>← PREVIOUS</small>Select and compose</a>
+<a href="syntax.html"><small>NEXT →</small>Inspect source code</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#types">Describe a type</a><a href="#generics">Open and constructed generics</a><a href="#members">Build members from their declaring type</a><a href="#references">References or calls?</a><a href="#sets">Configure a family of restricted APIs</a><a href="#attributes">Attributes, inheritance, and symbols</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

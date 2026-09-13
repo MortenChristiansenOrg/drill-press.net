@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Text;
 using System.Runtime.ExceptionServices;
+using System.Text;
 
 namespace DrillPress.Cli;
 
@@ -13,7 +13,10 @@ public class ChildProcessRunner
     /// <summary>Limits each captured pipe independently; oversized responses fail before protocol validation.</summary>
     /// <param name="maximumStandardOutputBytes">Maximum internal response or loader log size; defaults to 64 MiB.</param>
     /// <param name="maximumStandardErrorBytes">Maximum operational error output; defaults to 8 MiB.</param>
-    public ChildProcessRunner(int maximumStandardOutputBytes = 64 * 1024 * 1024, int maximumStandardErrorBytes = 8 * 1024 * 1024)
+    public ChildProcessRunner(
+        int maximumStandardOutputBytes = 64 * 1024 * 1024,
+        int maximumStandardErrorBytes = 8 * 1024 * 1024
+    )
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumStandardOutputBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumStandardErrorBytes);
@@ -25,7 +28,8 @@ public class ChildProcessRunner
     public virtual async Task<int> RunAsync(
         string executable,
         IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var result = await CaptureAsync(executable, arguments, cancellationToken);
         return result.ExitCode;
@@ -33,15 +37,33 @@ public class ChildProcessRunner
 
     /// <summary>Drains stdout and stderr concurrently, keeping child logs out of public diagnostics.</summary>
     public virtual async Task<ChildProcessResult> CaptureAsync(
-        string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+        string executable,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var process = Process.Start(CreateStartInfo(executable, arguments))
+        using var process =
+            Process.Start(CreateStartInfo(executable, arguments))
             ?? throw new InvalidOperationException($"Could not start '{executable}'.");
         using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var stdout = CaptureStreamAsync(process.StandardOutput.BaseStream, _maximumStandardOutputBytes, "standard output", failure, shutdown.Token);
-        var stderr = CaptureStreamAsync(process.StandardError.BaseStream, _maximumStandardErrorBytes, "standard error", failure, shutdown.Token);
+        var failure = new TaskCompletionSource<Exception>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var stdout = CaptureStreamAsync(
+            process.StandardOutput.BaseStream,
+            _maximumStandardOutputBytes,
+            "standard output",
+            failure,
+            shutdown.Token
+        );
+        var stderr = CaptureStreamAsync(
+            process.StandardError.BaseStream,
+            _maximumStandardErrorBytes,
+            "standard error",
+            failure,
+            shutdown.Token
+        );
         var drain = Task.WhenAll(stdout, stderr);
         var exit = process.WaitForExitAsync(shutdown.Token);
         var completion = Task.WhenAll(drain, exit);
@@ -64,10 +86,17 @@ public class ChildProcessRunner
         }
 
         var encoding = new UTF8Encoding(false, true);
-        return new ChildProcessResult(process.ExitCode, encoding.GetString(await stdout), encoding.GetString(await stderr));
+        return new ChildProcessResult(
+            process.ExitCode,
+            encoding.GetString(await stdout),
+            encoding.GetString(await stderr)
+        );
     }
 
-    private static ProcessStartInfo CreateStartInfo(string executable, IReadOnlyList<string> arguments)
+    private static ProcessStartInfo CreateStartInfo(
+        string executable,
+        IReadOnlyList<string> arguments
+    )
     {
         var isManagedAssembly = executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
         var startInfo = new ProcessStartInfo(isManagedAssembly ? "dotnet" : executable)
@@ -98,8 +127,10 @@ public class ChildProcessRunner
                 process.Kill(entireProcessTree: true);
             }
         }
-        catch (Exception exception) when (
-            (exception is InvalidOperationException or System.ComponentModel.Win32Exception) && process.HasExited)
+        catch (Exception exception)
+            when ((exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+                && process.HasExited
+            )
         {
             // A process can exit between the state check and termination.
         }
@@ -108,7 +139,12 @@ public class ChildProcessRunner
     }
 
     private static async Task<byte[]> CaptureStreamAsync(
-        Stream stream, int maximumBytes, string name, TaskCompletionSource<Exception> failure, CancellationToken cancellationToken)
+        Stream stream,
+        int maximumBytes,
+        string name,
+        TaskCompletionSource<Exception> failure,
+        CancellationToken cancellationToken
+    )
     {
         try
         {

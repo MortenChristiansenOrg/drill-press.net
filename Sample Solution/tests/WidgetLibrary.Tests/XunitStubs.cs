@@ -8,13 +8,9 @@ public sealed class TheoryAttribute : Attribute;
 
 public static class Assert
 {
-    public static void Equal<T>(T expected, T actual)
-    {
-    }
+    public static void Equal<T>(T expected, T actual) { }
 
-    public static void True(bool value)
-    {
-    }
+    public static void True(bool value) { }
 
     public static T Throws<T>(Action action)
         where T : Exception

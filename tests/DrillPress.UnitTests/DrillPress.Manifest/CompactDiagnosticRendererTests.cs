@@ -21,27 +21,60 @@ public sealed class CompactDiagnosticRendererTests
         fileSystem.Directory.CreateDirectory(directory);
         fileSystem.Directory.SetCurrentDirectory(directory);
         var result = new ValidatedResult(
-            [new("Z", "Replace Z.", "z", fileSystem.Path.GetFullPath("z.cs"), 20, 1, 3, 1, null),
-             new("A", "Replace A.", "a", fileSystem.Path.GetFullPath(" a\"\t.cs "), 3, 1, 1, 4, "fix"),
-             new("A", "Replace A.", "a", fileSystem.Path.GetFullPath(" a\"\t.cs "), 0, 1, 1, 1, null)], [], []);
+            [
+                new("Z", "Replace Z.", "z", fileSystem.Path.GetFullPath("z.cs"), 20, 1, 3, 1, null),
+                new(
+                    "A",
+                    "Replace A.",
+                    "a",
+                    fileSystem.Path.GetFullPath(" a\"\t.cs "),
+                    3,
+                    1,
+                    1,
+                    4,
+                    "fix"
+                ),
+                new(
+                    "A",
+                    "Replace A.",
+                    "a",
+                    fileSystem.Path.GetFullPath(" a\"\t.cs "),
+                    0,
+                    1,
+                    1,
+                    1,
+                    null
+                ),
+            ],
+            [],
+            []
+        );
         var renderer = new CompactDiagnosticRenderer(fileSystem);
 
-        var output = await Task.Run(() =>
-        {
-            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
-            return Encoding.UTF8.GetBytes(renderer.Render(result));
-        }, TestContext.Current.CancellationToken);
+        var output = await Task.Run(
+            () =>
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+                return Encoding.UTF8.GetBytes(renderer.Render(result));
+            },
+            TestContext.Current.CancellationToken
+        );
 
-        Assert.Equal(Encoding.UTF8.GetBytes("""
-            A Replace A.
-            " a\u0022\t.cs "
-              1
-              +1:4
-            Z Replace Z.
-            z.cs
-              3
+        Assert.Equal(
+            Encoding.UTF8.GetBytes(
+                """
+                A Replace A.
+                " a\u0022\t.cs "
+                  1
+                  +1:4
+                Z Replace Z.
+                z.cs
+                  3
 
-            """.ReplaceLineEndings("\n")), output);
+                """.ReplaceLineEndings("\n")
+            ),
+            output
+        );
     }
 
     [Fact]

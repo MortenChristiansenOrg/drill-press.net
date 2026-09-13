@@ -9,7 +9,19 @@ namespace DrillPress.Manifest;
 /// <param name="SystemCpuMilliseconds">Kernel CPU consumed by this process during the phase.</param>
 /// <param name="ProcessPeakWorkingSetBytes">Process lifetime high-water mark; not a phase-specific peak.</param>
 /// <param name="Count">Workload counter value, or null for a duration.</param>
-public sealed record ProfileEvent(string Component, string Phase, int ProcessId, double WallMilliseconds,
-    double UserCpuMilliseconds, double SystemCpuMilliseconds, long ProcessPeakWorkingSetBytes, long? Count);
+public sealed record ProfileEvent(
+    string Component,
+    string Phase,
+    int ProcessId,
+    double WallMilliseconds,
+    double UserCpuMilliseconds,
+    double SystemCpuMilliseconds,
+    long ProcessPeakWorkingSetBytes,
+    long? Count
+);
 
-internal sealed record ProcessProfileSample(TimeSpan UserCpu, TimeSpan SystemCpu, long PeakWorkingSetBytes);
+internal sealed record ProcessProfileSample(
+    TimeSpan UserCpu,
+    TimeSpan SystemCpu,
+    long PeakWorkingSetBytes
+);

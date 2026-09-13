@@ -9,7 +9,8 @@ namespace DrillPress.Manifest;
 public sealed record CompilationSnapshot(
     string FileIdentifier,
     int FormatVersion,
-    ProjectSnapshot[] Projects)
+    ProjectSnapshot[] Projects
+)
 {
     /// <summary>Identifies files that contain a Drill Press compilation snapshot.</summary>
     public const string ExpectedFileIdentifier = "drillpress-compilation";

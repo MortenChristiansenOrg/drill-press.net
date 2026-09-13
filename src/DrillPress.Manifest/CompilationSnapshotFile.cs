@@ -9,9 +9,8 @@ public sealed class CompilationSnapshotFile
     private readonly IFileSystem _fileSystem;
 
     /// <summary>Creates snapshot storage on the local filesystem.</summary>
-    public CompilationSnapshotFile() : this(new FileSystem())
-    {
-    }
+    public CompilationSnapshotFile()
+        : this(new FileSystem()) { }
 
     internal CompilationSnapshotFile(IFileSystem fileSystem)
     {
@@ -19,18 +18,25 @@ public sealed class CompilationSnapshotFile
     }
 
     /// <summary>Reads and validates the versioned envelope before exposing compiler inputs.</summary>
-    public async Task<CompilationSnapshot> ReadAsync(string path, CancellationToken cancellationToken = default)
+    public async Task<CompilationSnapshot> ReadAsync(
+        string path,
+        CancellationToken cancellationToken = default
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         await using var stream = _fileSystem.File.OpenRead(path);
-        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        using var json = await JsonDocument.ParseAsync(
+            stream,
+            cancellationToken: cancellationToken
+        );
         if (json.RootElement.ValueKind == JsonValueKind.Null)
         {
             throw new InvalidDataException($"Compilation snapshot '{path}' is empty.");
         }
 
         ValidateHeader(json.RootElement);
-        var snapshot = json.RootElement.Deserialize(CompilationSnapshotJsonContext.Default.CompilationSnapshot)
+        var snapshot =
+            json.RootElement.Deserialize(CompilationSnapshotJsonContext.Default.CompilationSnapshot)
             ?? throw new InvalidDataException("Missing compilation snapshot.");
         SnapshotValidation.Validate(snapshot);
         return snapshot;
@@ -38,14 +44,22 @@ public sealed class CompilationSnapshotFile
 
     /// <summary>Writes the current JSON contract to a sibling file before replacing the destination.</summary>
     public async Task WriteAsync(
-        string path, CompilationSnapshot snapshot, CancellationToken cancellationToken = default)
+        string path,
+        CompilationSnapshot snapshot,
+        CancellationToken cancellationToken = default
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         SnapshotValidation.Validate(snapshot);
         cancellationToken.ThrowIfCancellationRequested();
         var destinationPath = _fileSystem.Path.GetFullPath(path);
         var temporaryPath = destinationPath + $".{Guid.NewGuid():N}.tmp";
-        var streamOptions = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
+        var streamOptions = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+        };
         if (!OperatingSystem.IsWindows())
         {
             streamOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
@@ -57,7 +71,11 @@ public sealed class CompilationSnapshotFile
             await using (stream)
             {
                 await JsonSerializer.SerializeAsync(
-                    stream, snapshot, CompilationSnapshotJsonContext.Default.CompilationSnapshot, cancellationToken);
+                    stream,
+                    snapshot,
+                    CompilationSnapshotJsonContext.Default.CompilationSnapshot,
+                    cancellationToken
+                );
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -76,10 +94,17 @@ public sealed class CompilationSnapshotFile
             throw new InvalidDataException("The input is not a Drill Press compilation snapshot.");
         }
 
-        if (!root.TryGetProperty("fileIdentifier", out var identifier) || !root.TryGetProperty("formatVersion", out var format) ||
-            identifier.ValueKind != JsonValueKind.String || format.ValueKind != JsonValueKind.Number || !format.TryGetInt32(out var version))
+        if (
+            !root.TryGetProperty("fileIdentifier", out var identifier)
+            || !root.TryGetProperty("formatVersion", out var format)
+            || identifier.ValueKind != JsonValueKind.String
+            || format.ValueKind != JsonValueKind.Number
+            || !format.TryGetInt32(out var version)
+        )
         {
-            throw new InvalidDataException("Invalid snapshot header. Use matching Drill Press components.");
+            throw new InvalidDataException(
+                "Invalid snapshot header. Use matching Drill Press components."
+            );
         }
 
         SnapshotValidation.ValidateEnvelope(identifier.GetString()!, version);

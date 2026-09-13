@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Connect policies across files, types, and project boundaries. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Projects and relationships · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html" aria-current="page">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Deeper analysis / 07</p>
+<h1>Projects and relationships</h1>
+<p class="lead">Connect policies across files, types, and project boundaries.</p>
+
+<p>Some policies depend on more than one code fragment: a codec needs tests, an interface has implementations, or a production project references an unwanted package. Keep project identity explicit.</p>
+<h2 id="projects">Read evaluated project facts</h2>
+<div class="codeblock"><div class="codehead"><span>Keep a legacy package out of production projects</span></div><pre tabindex="0" data-check="program" id="example-21"><code>using DrillPress;
+using DrillPress.Projects;
+
+var rules = new RuleSet();
+
+rules.For(ProjectFacts.ProductionFiles.Where(file =&gt;
+        file.Source.Project.ReferencesPackage(&quot;Newtonsoft.Json&quot;)))
+    .Forbid(&quot;TEAM012&quot;, &quot;Use the application's System.Text.Json contract.&quot;);</code></pre></div>
+<p>This intentionally reports on each ordinary file in the offending project. Project-only diagnostics need an existing source anchor; an empty project cannot be reported by this source-diagnostic protocol. If one finding per project is preferable, build a query that chooses one ordinary file per project.</p>
+<p><code>ProjectFacts.TestFiles</code> and <code>ProductionFiles</code> use the project classification captured by the loader. <code>WithRole(predicate)</code> selects projects using your policy. <code>ReferencesPackage</code> compares direct package identifiers case-insensitively.</p>
+<p><code>AnalysisProject</code> offers <code>Name</code>, <code>ProjectPath</code>, <code>TargetFramework</code>, <code>IsTestProject</code>, <code>Packages</code>, <code>Properties</code>, and <code>SourceRoots</code>. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment.</p>
+<h2 id="counterparts">Require a counterpart</h2>
+<div class="codeblock"><div class="codehead"><span>Require a named xUnit round-trip test for each concrete codec</span></div><pre tabindex="0" data-check="program" id="example-22"><code>using DrillPress;
+using DrillPress.Semantics;
+using DrillPress.Testing;
+using TypeKind = Microsoft.CodeAnalysis.TypeKind;
+
+var rules = new RuleSet();
+var contract = CodeType.Named(&quot;Product.ITextCodec&quot;);
+var codecs = Code.Types.Where(type =&gt;
+    !type.Source.Project.IsTestProject
+    &amp;&amp; type.Symbol is { IsAbstract: false, TypeKind: TypeKind.Class or TypeKind.Struct }
+    &amp;&amp; type.Implements(contract));
+var tests = XunitTests.Methods.Where(method =&gt; method.Source.Project.IsTestProject);
+
+rules.For(codecs.WithoutMatching(tests, (codec, test) =&gt;
+        test.Name == $&quot;{codec.Name}RoundTrip&quot;
+        &amp;&amp; codec.Solution.ProjectGraph.Includes(
+            test.Source.Project, codec.Source.Project)))
+    .Forbid(&quot;TEAM013&quot;, &quot;Add an xUnit &lt;CodecName&gt;RoundTrip test for this codec.&quot;);</code></pre></div>
+<p>The missing thing has no source location, so the rule reports on the existing codec. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names.</p>
+<p>The keyed <code>WithoutMatching(other, key, otherKey, comparer)</code> overload is useful for simple equality and large inventories. The predicate overload handles context-sensitive matching. <code>Join</code> returns matching pairs rather than missing owners.</p>
+<h2 id="graph">Respect project boundaries</h2>
+<p><code>solution.ProjectGraph.Includes(consumer, owner)</code> means the consumer is the owner itself or transitively references that exact evaluated context. <code>DependenciesOf(project)</code> includes the project itself. <code>CompatibleViewsOf(owner)</code> returns separate compatible project sets; it does not merge alternate frameworks or incompatible evaluations.</p>
+<p>A project name is not a unique compilation identity. A multi-targeted project appears as separate contexts, and a linked source file can be compiled with different settings. Keep those memberships separate when comparing code.</p>
+<h2 id="types">Follow type and method relationships</h2>
+<p><code>solution.Relationships</code> is the shared <code>CodeRelationships</code> object, also available from <code>CodeRelationships.In(solution)</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Member</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>CallsFrom(methodSymbol)</code></td><td>Direct bound source calls, excluding nested function bodies.</td></tr>
+<tr><td><code>CallersOf(methodSymbol)</code></td><td>Source calls bound to a loaded source declaration. Metadata-only targets have no source declaration key.</td></tr>
+<tr><td><code>Reaches(methodSymbol, member)</code></td><td>The same static call-path analysis exposed by <code>method.Reaches(member)</code>.</td></tr>
+<tr><td><code>DerivedTypes(type)</code></td><td>Compatible source types inheriting a class or implementing an interface; includes abstract and test types for you to filter.</td></tr>
+<tr><td><code>FilesOf(type)</code></td><td>Ordinary source files for a type’s partial declarations in its own context.</td></tr>
+</tbody></table></div>
+<h2 id="implementations">Count concrete implementations</h2>
+<div class="codeblock"><div class="codehead"><span>Find interfaces with one concrete production implementation</span></div><pre tabindex="0" data-check="program" id="example-23"><code>using DrillPress;
+
+var rules = new RuleSet();
+
+rules.For(Code.Interfaces.Where(type =&gt;
+        type.Solution.Implementations.HasExactlyOne(type)))
+    .Forbid(&quot;TEAM014&quot;, &quot;Consider removing this single-implementation interface.&quot;);</code></pre></div>
+<p><code>InterfaceImplementations.HasExactlyOne</code> considers compatible source views and excludes abstract and test implementations. It reports when any compatible view has exactly one concrete production implementation. It does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="analysis.html"><small>← PREVIOUS</small>Calls and flow</a>
+<a href="facts.html"><small>NEXT →</small>Facts, comparisons, and baselines</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#projects">Read evaluated project facts</a><a href="#counterparts">Require a counterpart</a><a href="#graph">Respect project boundaries</a><a href="#types">Follow type and method relationships</a><a href="#implementations">Count concrete implementations</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

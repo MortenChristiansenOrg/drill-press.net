@@ -17,11 +17,18 @@ public sealed class RepositoryBenchmarkTests
         var benchmark = new RepositoryBenchmark(fileSystem);
 
         var exception = await Assert.ThrowsAsync<AggregateException>(() =>
-            benchmark.RunAsync(checkout, output, 1, TestContext.Current.CancellationToken));
+            benchmark.RunAsync(checkout, output, 1, TestContext.Current.CancellationToken)
+        );
 
-        Assert.Collection(exception.InnerExceptions,
-            original => Assert.Equal("The file 'path' already exists.", Assert.IsType<IOException>(original).Message),
-            report => Assert.Same(fileSystem.ReportFailure, report));
+        Assert.Collection(
+            exception.InnerExceptions,
+            original =>
+                Assert.Equal(
+                    "The file 'path' already exists.",
+                    Assert.IsType<IOException>(original).Message
+                ),
+            report => Assert.Same(fileSystem.ReportFailure, report)
+        );
         Assert.Equal("existing file", fileSystem.File.ReadAllText(blockedParent));
         Assert.True(fileSystem.File.Exists(fileSystem.Path.Combine(output, "preparation.json")));
     }

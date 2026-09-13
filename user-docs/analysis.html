@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Ask what a call does and what the compiler knows. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Calls and flow · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html" aria-current="page">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Deeper analysis / 06</p>
+<h1>Calls and flow</h1>
+<p class="lead">Ask what a call does and what the compiler knows.</p>
+
+<p>A method name alone does not tell you which overload is called, how named arguments map to parameters, or whether a value may be null. These APIs use the compiler’s answers.</p>
+<h2 id="invocations">Inspect calls and arguments</h2>
+<div class="codeblock"><div class="codehead"><span>Disallow an infinite timeout on a specific API</span></div><pre tabindex="0" data-check="program" id="example-16"><code>using DrillPress;
+using DrillPress.Operations;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var send = CodeType.Named(&quot;Product.Transport&quot;).Member(&quot;Send&quot;);
+
+rules.For(OperationQueries.Invocations
+        .Where(call =&gt; call.Calls(send))
+        .Where(call =&gt; call.Argument(&quot;timeoutMilliseconds&quot;)?.Value.ConstantValue
+            is { HasValue: true, Value: -1 }))
+    .Forbid(&quot;TEAM008&quot;, &quot;Pass a bounded timeout to Transport.Send.&quot;);</code></pre></div>
+<p><code>CodeInvocation.Target</code> is the chosen method overload. <code>Calls</code> compares it to your <code>CodeMember</code>. <code>Argument("name")</code> returns the argument mapped to that declared parameter, including optional defaults; it returns null when the parameter is absent. A named argument appearing first in the source is not necessarily the first declared parameter.</p>
+<p><code>Operation</code> exposes the compiler’s invocation object. Its <code>Instance</code> is the receiver (the object before the dot), if any. <code>Source</code> and <code>Location</code> retain the original context and complete call span.</p>
+<h2 id="operations">Look beyond ordinary calls</h2>
+<p>An <em>operation</em> describes what bound code does. A <code>new</code> expression is an object-creation operation; a method call is an invocation operation. Operations can include things the compiler adds implicitly, such as conversions.</p>
+<div class="codeblock"><div class="codehead"><span>Flag a legacy serializer being constructed</span></div><pre tabindex="0" data-check="program" id="example-17"><code>using DrillPress;
+using DrillPress.Operations;
+using DrillPress.Semantics;
+using Microsoft.CodeAnalysis.Operations;
+
+var rules = new RuleSet();
+var legacy = CodeType.Named(&quot;Product.LegacySerializer&quot;);
+
+rules.For(OperationQueries.Of&lt;IObjectCreationOperation&gt;()
+        .Where(item =&gt; item.Operation.Constructor is { } constructor
+            &amp;&amp; legacy.Matches(constructor.ContainingType)))
+    .Forbid(&quot;TEAM009&quot;, &quot;Create the supported serializer instead.&quot;);</code></pre></div>
+<p><code>OperationQueries.All</code>, <code>Of&lt;T&gt;()</code>, and <code>Invocations</code> share ordinary-source roots. <code>InFiles(files)</code> and <code>InvocationsIn(files)</code> restrict discovery; the latter is also available as <code>files.Invocations()</code>. Discovery covers bodies, accessors, initializers, attributes, top-level code, and nested functions—not just methods selected by <code>Code.Methods</code>.</p>
+<p><code>CodeOperation&lt;T&gt;</code> gives you the typed <code>Operation</code>, <code>ContainingSymbol</code> when resolvable, <code>Source</code>, and <code>Location</code>. Implicit operations may share a source span. Invalid operations can remain visible; check the facts your conclusion depends on.</p>
+<h2 id="paths">Follow a call path</h2>
+<div class="codeblock"><div class="codehead"><span>Find blocking sleeps beneath async entry points</span></div><pre tabindex="0" data-check="program" id="example-18"><code>using DrillPress;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var sleep = CodeType.Named(&quot;System.Threading.Thread&quot;).Member(&quot;Sleep&quot;);
+
+rules.For(Code.Methods.Where(method =&gt;
+        method.IsAsync &amp;&amp; method.Reaches(sleep)))
+    .Forbid(&quot;TEAM010&quot;, &quot;Use an awaited delay along asynchronous call paths.&quot;);</code></pre></div>
+<p><code>method.Reaches(member)</code> follows statically bound calls through loaded source, including helpers in referenced projects and generated implementations. It terminates cycles. It does not infer reflection, runtime interface dispatch, dependency injection, or delegate dispatch into a lambda. An uncalled local function is not attributed to its enclosing method.</p>
+<div class="note"><strong>“Not found” is not a proof of safety</strong><p>A negative result only says the modeled source call paths did not reach that target. It does not prove that runtime execution cannot call it.</p></div>
+<h2 id="flow">Use method-local flow facts</h2>
+<p><code>method.Flow</code> returns shared <code>MethodFlow</code> analysis. The older <code>MethodFlow.For(solution, method)</code> entry point shares that cache; constructing <code>new MethodFlow(method)</code> creates independent lazy analysis.</p>
+<dl><dt><code>Data</code></dt><dd>Reads, writes, captured variables, and other compiler data-flow sets. Check <code>Succeeded</code> before trusting them. A captured variable is one referenced by a nested lambda or local function.</dd>
+<dt><code>Graph</code></dt><dd>A control-flow graph: blocks of operations connected by possible branches. It can be null for a method without a supported executable body.</dd>
+<dt><code>NullState(expression)</code></dt><dd>The compiler’s nullable state at an expression. <code>MaybeNull</code>, <code>NotNull</code>, or <code>None</code> (no answer). It is not a runtime guarantee.</dd></dl>
+<div class="codeblock"><div class="codehead"><span>A query exposing methods with captured variables</span></div><pre tabindex="0" data-check="program" id="example-19"><code>using DrillPress;
+
+var methodsWithClosures = Code.Methods.Where(method =&gt;
+    method.Flow.Data is { Succeeded: true } data
+    &amp;&amp; data.Captured.Length &gt; 0);</code></pre></div>
+<p>This is evidence to build on, not a rule forbidding every closure. In the <a href="../samples/CodecExamples/PooledUtf8Decoder.cs">pooled-buffer example</a>, a captured local initialized by <code>ArrayPool&lt;T&gt;.Rent</code> indicates a concrete ownership concern. The rule does not claim to prove delegate escape or lease lifetime.</p>
+<h2 id="nullable">Read nullable state at a call site</h2>
+<div class="codeblock"><div class="codehead"><span>Find potentially null text receivers</span></div><pre tabindex="0" data-check="program" id="example-20"><code>using DrillPress;
+using DrillPress.Operations;
+using DrillPress.Semantics;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using RuleSet = DrillPress.RuleSet;
+
+var rules = new RuleSet();
+var trim = CodeType.Of&lt;string&gt;().Member(nameof(string.Trim)).WithParameters();
+
+rules.For(OperationQueries.Invocations.Where(call =&gt;
+        call.Calls(trim)
+        &amp;&amp; call.Operation.Instance is { } receiver
+        &amp;&amp; call.Source.Model.GetTypeInfo(receiver.Syntax,
+            call.Source.Project.CancellationToken).Nullability.FlowState
+                == NullableFlowState.MaybeNull))
+    .Forbid(&quot;TEAM011&quot;, &quot;Handle missing input before trimming text.&quot;);</code></pre></div>
+<p>Here the semantic model connects the receiver’s written expression to its compiler type information. The pattern check handles static calls or other cases without a receiver. Keep these details in a named helper when the registration becomes difficult to read.</p>
+<p>The <code>RuleSet</code> alias is deliberate: <code>Microsoft.CodeAnalysis</code> also has a type with that name. The alias selects Drill Press’s rule set while making the compiler’s extension methods available.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="syntax.html"><small>← PREVIOUS</small>Inspect source code</a>
+<a href="relationships.html"><small>NEXT →</small>Projects and relationships</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#invocations">Inspect calls and arguments</a><a href="#operations">Look beyond ordinary calls</a><a href="#paths">Follow a call path</a><a href="#flow">Use method-local flow facts</a><a href="#nullable">Read nullable state at a call site</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

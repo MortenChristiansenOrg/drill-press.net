@@ -13,17 +13,39 @@ public sealed class CliFixTests : IntegrationTest
         var first = FileSystem.Path.Combine(directory.FullName, "A.cs");
         var second = FileSystem.Path.Combine(directory.FullName, "B.cs");
         const string emptySource = "public class A { public string Value => string.Empty; }\r\n";
-        const string ordinalSource = "using System;\nusing System.Linq;\r\npublic class B { public object Values => new[] { \"é😀\" }.Distinct(StringComparer.Ordinal); }\n";
-        await FileSystem.File.WriteAllTextAsync(first, emptySource, new UnicodeEncoding(false, true, true), TestContext.Current.CancellationToken);
-        await FileSystem.File.WriteAllTextAsync(second, ordinalSource, new UTF8Encoding(false, true), TestContext.Current.CancellationToken);
+        const string ordinalSource =
+            "using System;\nusing System.Linq;\r\npublic class B { public object Values => new[] { \"é😀\" }.Distinct(StringComparer.Ordinal); }\n";
+        await FileSystem.File.WriteAllTextAsync(
+            first,
+            emptySource,
+            new UnicodeEncoding(false, true, true),
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            second,
+            ordinalSource,
+            new UTF8Encoding(false, true),
+            TestContext.Current.CancellationToken
+        );
 
         var result = await FixAsync(FileSystem.Path.Combine(directory.FullName, "*.cs"));
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("", result.StandardOutput);
         Assert.Equal("", result.StandardError);
-        Assert.Equal<byte>([.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes("public class A { public string Value => \"\"; }\r\n")], FileSystem.File.ReadAllBytes(first));
-        Assert.Equal(Encoding.UTF8.GetBytes("using System;\nusing System.Linq;\r\npublic class B { public object Values => new[] { \"é😀\" }.Distinct(); }\n"), FileSystem.File.ReadAllBytes(second));
+        Assert.Equal<byte>(
+            [
+                .. Encoding.Unicode.GetPreamble(),
+                .. Encoding.Unicode.GetBytes("public class A { public string Value => \"\"; }\r\n"),
+            ],
+            FileSystem.File.ReadAllBytes(first)
+        );
+        Assert.Equal(
+            Encoding.UTF8.GetBytes(
+                "using System;\nusing System.Linq;\r\npublic class B { public object Values => new[] { \"é😀\" }.Distinct(); }\n"
+            ),
+            FileSystem.File.ReadAllBytes(second)
+        );
         Assert.Equal([first, second], FileSystem.Directory.GetFiles(directory.FullName).Order());
     }
 
@@ -35,7 +57,12 @@ public sealed class CliFixTests : IntegrationTest
         await RestoreAsync(project);
 
         var result = await FixAsync(project);
-        var build = await RunProcessAsync("dotnet", ["build", project, "--no-restore", "--nologo"], directory.FullName, TestContext.Current.CancellationToken);
+        var build = await RunProcessAsync(
+            "dotnet",
+            ["build", project, "--no-restore", "--nologo"],
+            directory.FullName,
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(1, result.ExitCode);
         Assert.Equal("", result.StandardError);
@@ -49,10 +76,21 @@ public sealed class CliFixTests : IntegrationTest
     private static string CopySampleSolution(string destination)
     {
         var root = RepositoryPath("Sample Solution");
-        foreach (var source in FileSystem.Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-            .Where(path => !FileSystem.Path.GetRelativePath(root, path).Split(FileSystem.Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj")))
+        foreach (
+            var source in FileSystem
+                .Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Where(path =>
+                    !FileSystem
+                        .Path.GetRelativePath(root, path)
+                        .Split(FileSystem.Path.DirectorySeparatorChar)
+                        .Any(part => part is "bin" or "obj")
+                )
+        )
         {
-            var target = FileSystem.Path.Combine(destination, FileSystem.Path.GetRelativePath(root, source));
+            var target = FileSystem.Path.Combine(
+                destination,
+                FileSystem.Path.GetRelativePath(root, source)
+            );
             FileSystem.Directory.CreateDirectory(FileSystem.Path.GetDirectoryName(target)!);
             FileSystem.File.Copy(source, target);
         }
@@ -60,7 +98,19 @@ public sealed class CliFixTests : IntegrationTest
         return FileSystem.Path.Combine(destination, "DrillPress.SampleTarget.slnx");
     }
 
-    private Task<ProcessResult> FixAsync(string target) => RunProcessAsync("dotnet",
-        [GetOutputPath("DrillPress.Cli"), "fix", "--build-host", GetOutputPath("DrillPress.BuildHost"),
-            "--rules", GetOutputPath("DrillPress.SampleRules", "samples"), target], RepositoryRoot, TestContext.Current.CancellationToken);
+    private Task<ProcessResult> FixAsync(string target) =>
+        RunProcessAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.Cli"),
+                "fix",
+                "--build-host",
+                GetOutputPath("DrillPress.BuildHost"),
+                "--rules",
+                GetOutputPath("DrillPress.SampleRules", "samples"),
+                target,
+            ],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
 }

@@ -11,6 +11,13 @@ might require opt-in flags for more detailed information, etc.
 
 # Code conventions
 
+- Run the repository-local CSharpier on all changed C# and XML code before
+  committing: `dotnet tool restore`, then `dotnet csharpier format <changed-paths>`.
+  Use `dotnet csharpier format .` for the entire solution and
+  `dotnet csharpier check .` to verify formatting. Accept its formatting; do not
+  add ignore comments for stylistic preferences. Use a narrowly scoped
+  `// csharpier-ignore - <reason>` (or a ranged ignore) only when source layout
+  is itself an input to formatting-specific rule logic or validation.
 - Clean up related obsolete code, documentation, and generated artifacts before completing a PR.
 - Keep DTO-only records together; give each type with behavior its own file. Use
   descriptive domain names and typed enums for process outcomes.

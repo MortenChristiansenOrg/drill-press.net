@@ -3,16 +3,27 @@ using Microsoft.CodeAnalysis;
 
 namespace DrillPress.Engine;
 
-internal sealed class SnapshotTreeOptions(Dictionary<SyntaxTree, DocumentSnapshot> documents) : SyntaxTreeOptionsProvider
+internal sealed class SnapshotTreeOptions(Dictionary<SyntaxTree, DocumentSnapshot> documents)
+    : SyntaxTreeOptionsProvider
 {
     private readonly Dictionary<SyntaxTree, DocumentSnapshot> _documents = documents;
 
-    public override GeneratedKind IsGenerated(SyntaxTree tree, CancellationToken cancellationToken) =>
-        _documents[tree].IsGenerated ? GeneratedKind.MarkedGenerated : GeneratedKind.NotGenerated;
+    public override GeneratedKind IsGenerated(
+        SyntaxTree tree,
+        CancellationToken cancellationToken
+    ) => _documents[tree].IsGenerated ? GeneratedKind.MarkedGenerated : GeneratedKind.NotGenerated;
 
-    public override bool TryGetDiagnosticValue(SyntaxTree tree, string diagnosticId, CancellationToken cancellationToken, out ReportDiagnostic severity)
+    public override bool TryGetDiagnosticValue(
+        SyntaxTree tree,
+        string diagnosticId,
+        CancellationToken cancellationToken,
+        out ReportDiagnostic severity
+    )
     {
-        if (_documents[tree].Options is { } options && options.DiagnosticOptions.TryGetValue(diagnosticId, out var value))
+        if (
+            _documents[tree].Options is { } options
+            && options.DiagnosticOptions.TryGetValue(diagnosticId, out var value)
+        )
         {
             severity = (ReportDiagnostic)value;
             return true;
@@ -22,7 +33,11 @@ internal sealed class SnapshotTreeOptions(Dictionary<SyntaxTree, DocumentSnapsho
         return false;
     }
 
-    public override bool TryGetGlobalDiagnosticValue(string diagnosticId, CancellationToken cancellationToken, out ReportDiagnostic severity)
+    public override bool TryGetGlobalDiagnosticValue(
+        string diagnosticId,
+        CancellationToken cancellationToken,
+        out ReportDiagnostic severity
+    )
     {
         severity = ReportDiagnostic.Default;
         return false;

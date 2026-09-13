@@ -19,7 +19,8 @@ public sealed record ProjectSnapshot(
     int NullableContextOptions,
     string[] PreprocessorSymbols,
     DocumentSnapshot[] Documents,
-    string[] MetadataReferences)
+    string[] MetadataReferences
+)
 {
     /// <summary>Identifies this evaluated project, target framework, and effective property set.</summary>
     [System.Text.Json.Serialization.JsonRequired]
@@ -33,6 +34,12 @@ public sealed record ProjectSnapshot(
 
     /// <summary>Records effective MSBuild property overrides for this context.</summary>
     public Dictionary<string, string> Properties { get; init; } = [];
+
+    /// <summary>Direct evaluated NuGet references; versions may be ranges or empty when supplied by restore tooling.</summary>
+    public PackageReferenceSnapshot[] Packages { get; init; } = [];
+
+    /// <summary>Evaluated source-root items, where the SDK supplies them.</summary>
+    public string[] SourceRoots { get; init; } = [];
 
     /// <summary>External references with validated byte identity and complete binding properties.</summary>
     public MetadataReferenceSnapshot[] ExternalReferences { get; init; } = [];
@@ -52,6 +59,11 @@ public sealed record ProjectSnapshot(
     /// <summary>Contains metadata emitted from project dependencies, including reference aliases.</summary>
     public MetadataImageSnapshot[] ProjectReferences { get; init; } = [];
 }
+
+/// <summary>A direct evaluated package reference, distinct from compiler assembly references and transitive restore dependencies.</summary>
+/// <param name="Id">NuGet package identity.</param>
+/// <param name="Version">Evaluated requested version, including central package versions.</param>
+public sealed record PackageReferenceSnapshot(string Id, string Version);
 
 /// <summary>Preserves a project dependency as metadata without requiring a built assembly on disk.</summary>
 /// <param name="Image">The emitted metadata assembly.</param>

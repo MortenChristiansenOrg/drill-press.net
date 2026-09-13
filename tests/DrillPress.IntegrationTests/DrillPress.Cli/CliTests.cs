@@ -25,8 +25,11 @@ public sealed class CliTests : IntegrationTest
               7:43
 
             """.ReplaceLineEndings("\n"),
-            result.StandardOutput);
-        Assert.Empty(FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*"));
+            result.StandardOutput
+        );
+        Assert.Empty(
+            FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*")
+        );
     }
 
     [Fact]
@@ -44,20 +47,26 @@ public sealed class CliTests : IntegrationTest
               </PropertyGroup>
             </Project>
             """.ReplaceLineEndings("\n"),
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
         await FileSystem.File.WriteAllTextAsync(
             FileSystem.Path.Combine(projectDirectory.FullName, "Clean.cs"),
             "public static class Clean { public static string Value => \"\"; }",
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken
+        );
 
         await RestoreAsync(FileSystem.Path.Combine(projectDirectory.FullName, "Clean.csproj"));
 
-        var result = await RunCliAsync(FileSystem.Path.Combine(projectDirectory.FullName, "Clean.csproj"));
+        var result = await RunCliAsync(
+            FileSystem.Path.Combine(projectDirectory.FullName, "Clean.csproj")
+        );
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(string.Empty, result.StandardOutput);
         Assert.Equal(string.Empty, result.StandardError);
-        Assert.Empty(FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*"));
+        Assert.Empty(
+            FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*")
+        );
     }
 
     [Fact]
@@ -68,7 +77,9 @@ public sealed class CliTests : IntegrationTest
         Assert.Equal(2, result.ExitCode);
         Assert.Equal(string.Empty, result.StandardOutput);
         Assert.Contains("was not found", result.StandardError);
-        Assert.Empty(FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*"));
+        Assert.Empty(
+            FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*")
+        );
     }
 
     [Fact]
@@ -78,14 +89,19 @@ public sealed class CliTests : IntegrationTest
 
         var projectFile = FileSystem.File.ReadAllText(projectPath);
 
-        Assert.Equal(["../DrillPress.Manifest/DrillPress.Manifest.csproj"],
-            System.Xml.Linq.XDocument.Parse(projectFile).Descendants("ProjectReference")
-                .Select(reference => reference.Attribute("Include")!.Value));
+        Assert.Equal(
+            ["../DrillPress.Manifest/DrillPress.Manifest.csproj"],
+            System
+                .Xml.Linq.XDocument.Parse(projectFile)
+                .Descendants("ProjectReference")
+                .Select(reference => reference.Attribute("Include")!.Value)
+        );
         Assert.Equal(
             ["TestableIO.System.IO.Abstractions.Wrappers"],
-            System.Xml.Linq.XDocument.Parse(projectFile).Descendants("PackageReference")
-                .Select(reference => reference.Attribute("Include")!.Value));
+            System
+                .Xml.Linq.XDocument.Parse(projectFile)
+                .Descendants("PackageReference")
+                .Select(reference => reference.Attribute("Include")!.Value)
+        );
     }
-
-
 }

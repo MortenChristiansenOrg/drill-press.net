@@ -15,12 +15,25 @@ public sealed class DisposableRepositoryTests
         fileSystem.AddFile(fileSystem.Path.Combine(root, "src", "Input.cs"), new("original"));
         using var copy = new DisposableRepository(fileSystem, root, CancellationToken.None);
 
-        fileSystem.File.WriteAllText(fileSystem.Path.Combine(copy.Root, "src", "Input.cs"), "changed");
+        fileSystem.File.WriteAllText(
+            fileSystem.Path.Combine(copy.Root, "src", "Input.cs"),
+            "changed"
+        );
 
-        Assert.Equal("original", fileSystem.File.ReadAllText(fileSystem.Path.Combine(root, "src", "Input.cs")));
-        Assert.Equal("changed", fileSystem.File.ReadAllText(fileSystem.Path.Combine(copy.Root, "src", "Input.cs")));
-        Assert.Equal("revision", fileSystem.File.ReadAllText(fileSystem.Path.Combine(copy.Root, ".git", "HEAD")));
+        Assert.Equal(
+            "original",
+            fileSystem.File.ReadAllText(fileSystem.Path.Combine(root, "src", "Input.cs"))
+        );
+        Assert.Equal(
+            "changed",
+            fileSystem.File.ReadAllText(fileSystem.Path.Combine(copy.Root, "src", "Input.cs"))
+        );
+        Assert.Equal(
+            "revision",
+            fileSystem.File.ReadAllText(fileSystem.Path.Combine(copy.Root, ".git", "HEAD"))
+        );
     }
+
     [Fact]
     public void Removes_copied_readonly_git_objects_without_changing_the_checkout()
     {
@@ -37,6 +50,7 @@ public sealed class DisposableRepositoryTests
         Assert.Equal("packed", fileSystem.File.ReadAllText(gitObject));
         Assert.Equal(FileAttributes.ReadOnly, fileSystem.File.GetAttributes(gitObject));
     }
+
     [Fact]
     public void Repeated_disposal_leaves_the_original_repository_available()
     {
@@ -49,6 +63,9 @@ public sealed class DisposableRepositoryTests
         copy.Dispose();
 
         Assert.False(fileSystem.Directory.Exists(copy.Root));
-        Assert.Equal("original", fileSystem.File.ReadAllText(fileSystem.Path.Combine(root, "Input.cs")));
+        Assert.Equal(
+            "original",
+            fileSystem.File.ReadAllText(fileSystem.Path.Combine(root, "Input.cs"))
+        );
     }
 }

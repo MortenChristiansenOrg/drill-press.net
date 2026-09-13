@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A useful correction needs more than compilable code. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Offer safe fixes · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html" aria-current="page">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Ship with confidence / 09</p>
+<h1>Offer safe fixes</h1>
+<p class="lead">A useful correction needs more than compilable code.</p>
+
+<p>A finding can propose a correction, but “the edited code compiles” is not enough. A fix must preserve the behavior your policy promises to preserve in every affected loaded compilation.</p>
+<h2 id="existing">Start with a proven fix</h2>
+<div class="codeblock"><div class="codehead"><span>Attach the built-in empty-string correction</span></div><pre tabindex="0" data-check="program" id="example-29"><code>using DrillPress;
+using DrillPress.Fixes;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var emptyString = CodeType.Of&lt;string&gt;().Member(nameof(string.Empty));
+
+rules.For(emptyString.References).Forbid(
+    &quot;TEAM018&quot;,
+    &quot;Use the empty string literal instead of string.Empty.&quot;,
+    fix: EmptyStringFix.Create);</code></pre></div>
+<p>A fix factory receives the violating candidate and returns a <code>FixProposal</code> or null. Returning null keeps the finding but offers no fix. <code>Forbid</code> and <code>Require</code> both accept the optional <code>fix</code> argument.</p>
+<div class="table-wrap"><table><thead><tr><th>Built-in fix</th><th>Supported correction</th></tr></thead><tbody>
+<tr><td><code>EmptyStringFix.Create</code></td><td><code>string.Empty</code> to <code>""</code>, with binding, conversion, expression-tree, comment, and directive safeguards.</td></tr>
+<tr><td><code>OrdinalComparerFix.IsArgument</code> / <code>Create</code></td><td>The condition selects comparer arguments. The fix is narrowly limited to the supported <code>Enumerable.Distinct&lt;string&gt;</code> overload pair, not arbitrary comparer APIs.</td></tr>
+<tr><td><code>ModifierFix.RemoveRedundantAccessibility</code></td><td>Removes a redundant accessibility modifier from a <code>CodeNode&lt;MemberDeclarationSyntax&gt;</code>, checking accessibility before and after in affected contexts.</td></tr>
+</tbody></table></div>
+<p>These factories intentionally withhold fixes for cases they cannot prove. For example, replacing a field access with a constant can change overload selection higher up the expression. A similarly named collection method is not automatically safe for comparer removal.</p>
+<h2 id="proposal">Build an exact edit proposal</h2>
+<div class="codeblock"><div class="codehead"><span>A helper that requires the caller to supply its proof</span></div><pre tabindex="0" data-check="program" id="example-30"><code>using DrillPress.Analysis;
+using DrillPress.Fixes;
+using Microsoft.CodeAnalysis.Text;
+
+static FixProposal ProposeReplacement(
+    AnalysisSource source,
+    TextSpan span,
+    string replacement,
+    Func&lt;RewriteContext, bool&gt; preservesBehavior)
+{
+    var edit = SourceChanges.Replace(source, span, replacement);
+    return SourceChanges.Propose([edit], preservesBehavior);
+}</code></pre></div>
+<p><code>SourceChanges.Replace</code> creates a <code>SourceEdit</code> anchored to the captured file identity, fingerprint, original text, start offset, and length. It does not edit the filesystem. Pass all edits for a correction to <code>SourceChanges.Propose</code>, along with a required proof callback.</p>
+<p>The proposal checks source eligibility, original text, inactive regions, conflicts, and compiler errors before invoking the proof. The <code>RewriteContext</code> contains the <code>Original</code> project, the <code>Rewritten</code> compilation with local edits applied, and the complete <code>Edits</code> batch, including edits belonging to other contexts.</p>
+<div class="note"><strong>Never use an unconditional “true” proof</strong><p>The callback must establish the semantic claim of your particular correction. Consider overloads, conversions, evaluation order, side effects, lifetime, and reflection. When those cannot be established, offer a finding without a fix.</p></div>
+<h2 id="binding">Check binding without overstating it</h2>
+<p><code>BindingProof.PreservesEnclosingExpressions(source, replacedNode, replacement)</code> checks surrounding expression symbols, types, and conversions and withholds errors, <code>nameof</code>, and expression-tree cases. It is a reusable compiler check, not proof of equal side effects, evaluation order, or lifetime.</p>
+<p>For advanced integrations, the <code>FixProposal(edits, validate)</code> constructor accepts a per-project validator and <code>IsSafeIn(project)</code> evaluates it. Prefer <code>SourceChanges.Propose</code> for ordinary custom fixes so its standard eligibility and compiler checks are included.</p>
+<h2 id="agreement">Validation and application are separate</h2>
+<ol><li>Your rule proposes one complete batch.</li><li>The engine checks every loaded context containing an edited physical file—even a context that reported no finding.</li><li>The validator requires agreement and withholds conflicting or disagreeing batches.</li><li>The CLI marks an accepted correction with <code>+</code>. Only <code>fix</code> writes it.</li></ol>
+<p>Generated, missing, inactive, non-editable, or ambiguously bound memberships cannot be assumed safe. Source fingerprints guard against applying edits to a changed file.</p>
+<p>A multi-file proposal is validated as a unit, but physical application is atomic <em>per file</em>, not a filesystem-wide transaction. If later application fails, the CLI retains recovery information. There is no file-creation/deletion, project-wide rename, or general refactoring engine in this API. See the <a href="../docs/FIXING.md">application and recovery contract</a> for operational details.</p>
+<h2 id="test-fixes">Test the fixes you withhold</h2>
+<p>Check both <code>HasFix</code> and the complete <code>FixedText(path)</code> result. Include linked files, multiple frameworks, conflicting proposals, comments, invalid code, and different overload contexts. “Finding exists” does not prove “fix is safe.” The <a href="testing.html#first-test">next chapter</a> uses the production validator in memory.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="facts.html"><small>← PREVIOUS</small>Facts, comparisons, and baselines</a>
+<a href="testing.html"><small>NEXT →</small>Test and run your rules</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#existing">Start with a proven fix</a><a href="#proposal">Build an exact edit proposal</a><a href="#binding">Check binding without overstating it</a><a href="#agreement">Validation and application are separate</a><a href="#test-fixes">Test the fixes you withhold</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

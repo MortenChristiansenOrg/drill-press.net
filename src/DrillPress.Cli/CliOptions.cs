@@ -1,6 +1,14 @@
 namespace DrillPress.Cli;
 
-internal sealed record CliOptions(CliCommand Command, string BuildHost, string Rules, string Target, string[] ExportArguments, bool Profile, bool EnableOptimizations)
+internal sealed record CliOptions(
+    CliCommand Command,
+    string BuildHost,
+    string Rules,
+    string Target,
+    string[] ExportArguments,
+    bool Profile,
+    bool EnableOptimizations
+)
 {
     public static bool TryParse(string[] args, out CliOptions options)
     {
@@ -51,14 +59,24 @@ internal sealed record CliOptions(CliCommand Command, string BuildHost, string R
             }
         }
 
-        if (string.IsNullOrWhiteSpace(buildHost) ||
-            string.IsNullOrWhiteSpace(rules) ||
-            string.IsNullOrWhiteSpace(target))
+        if (
+            string.IsNullOrWhiteSpace(buildHost)
+            || string.IsNullOrWhiteSpace(rules)
+            || string.IsNullOrWhiteSpace(target)
+        )
         {
             return false;
         }
 
-        options = new CliOptions(args[0] == "fix" ? CliCommand.Fix : CliCommand.Check, buildHost, rules, target, exportArguments.ToArray(), profile, optimize);
+        options = new CliOptions(
+            args[0] == "fix" ? CliCommand.Fix : CliCommand.Check,
+            buildHost,
+            rules,
+            target,
+            exportArguments.ToArray(),
+            profile,
+            optimize
+        );
         return true;
     }
 }

@@ -18,9 +18,20 @@ public sealed class PublishedBundleIdentityTests
         var result = identity.Read(entry);
 
         Assert.Equal(entry, result.EntryPoint);
-        Assert.Equal([
-            new ArtifactFingerprint("entry.dll", 3, "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"),
-            new ArtifactFingerprint("nested/dependency.dll", 0, "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"),
-        ], result.Files);
+        Assert.Equal(
+            [
+                new ArtifactFingerprint(
+                    "entry.dll",
+                    3,
+                    "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"
+                ),
+                new ArtifactFingerprint(
+                    "nested/dependency.dll",
+                    0,
+                    "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+                ),
+            ],
+            result.Files
+        );
     }
 }

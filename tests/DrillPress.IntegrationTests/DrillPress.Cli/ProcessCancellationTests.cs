@@ -12,14 +12,20 @@ public sealed class ProcessCancellationTests : IntegrationTest
         var directory = CreateTemporaryDirectory("drillpress-cancellation-");
         var readyPath = FileSystem.Path.Combine(directory.FullName, "ready");
         var testProcess = GetOutputPath("DrillPress.TestProcess", "tests");
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
 
         var run = new CliApplication().RunAsync(
             ["check", "--build-host", testProcess, "--rules", "unused.dll", readyPath],
             TextWriter.Null,
-            cancellation.Token);
+            cancellation.Token
+        );
         var process = await WaitForTestProcessAsync(readyPath, run, cancellation);
-        var snapshotPath = await FileSystem.File.ReadAllTextAsync(readyPath + ".snapshot", TestContext.Current.CancellationToken);
+        var snapshotPath = await FileSystem.File.ReadAllTextAsync(
+            readyPath + ".snapshot",
+            TestContext.Current.CancellationToken
+        );
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
 

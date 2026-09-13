@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Files, declarations, syntax, and precise locations. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Inspect source code · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html" aria-current="page">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Everyday rules / 05</p>
+<h1>Inspect source code</h1>
+<p class="lead">Files, declarations, syntax, and precise locations.</p>
+
+<p>Use file and declaration wrappers first. Reach for syntax when your convention is about an exact piece of source: a modifier, a switch expression, or a particular literal.</p>
+<h2 id="files">Files and path patterns</h2>
+<div class="codeblock"><div class="codehead"><span>Keep console output inside a tracing adapter</span></div><pre tabindex="0" data-check="program" id="example-13"><code>using DrillPress;
+using DrillPress.Configuration;
+using DrillPress.Projects;
+using DrillPress.Queries;
+using DrillPress.Semantics;
+
+var rules = new RuleSet();
+var adapters = new PathPattern(&quot;**/Tracing/*.cs&quot;);
+var writeLine = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);
+
+rules.For(ProjectFacts.ProductionFiles.Invocations()
+        .Where(call =&gt; call.Calls(writeLine)))
+    .Require(call =&gt; adapters.Matches(call.Source.Document.Path),
+        &quot;TEAM005&quot;, &quot;Keep direct console output inside the Tracing adapter.&quot;);</code></pre></div>
+<p><code>CodeFile</code> provides a slash-normalized <code>Path</code>, <code>Name</code>, <code>Folder</code>, <code>Source</code>, and a location at the start of the file. Its <code>Nodes&lt;T&gt;()</code> enumerates syntax in that file; the same method on a file query builds a reusable selection.</p>
+<p><code>PathPattern.Matches</code> compares the entire path, case-sensitively, without accessing the filesystem. <code>*</code> stays within one path segment; <code>?</code> matches one character; <code>**</code> crosses directories; <code>**/</code> also matches no directory. It normalizes slashes but does not guess a repository root. Supply an explicitly relative path if your policy needs one.</p>
+<h2 id="vocabulary">A small compiler vocabulary</h2>
+<dl><dt>Syntax node</dt><dd>A structured piece of the written code, such as a class declaration or a string literal. It is useful even when the code does not compile.</dd>
+<dt>Token</dt><dd>A small language element such as an identifier, keyword, or punctuation mark. Tokens carry exact source spans.</dd>
+<dt>Trivia</dt><dd>Whitespace, comments, and directives attached to tokens. The name does not mean it is unimportant—formatting rules need it.</dd>
+<dt>Symbol</dt><dd>The resolved identity of a declaration: which method, type, field, or parameter a piece of code means.</dd>
+<dt>Semantic model</dt><dd>The compiler’s bridge from written syntax to symbols, types, and other meaning.</dd></dl>
+<h2 id="nodes">Choose a syntax kind</h2>
+<div class="codeblock"><div class="codehead"><span>Find repeated format-dispatch expressions</span></div><pre tabindex="0" data-check="program" id="example-14"><code>using DrillPress;
+using DrillPress.Collections;
+using DrillPress.Projects;
+using DrillPress.Queries;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+var rules = new RuleSet();
+var switches = ProjectFacts.ProductionFiles.Nodes&lt;SwitchExpressionSyntax&gt;();
+
+rules.For(DuplicateSyntax.In(switches, minimumTokens: 20))
+    .Forbid(&quot;TEAM006&quot;, &quot;Share the repeated format-dispatch expression.&quot;);</code></pre></div>
+<p><code>SwitchExpressionSyntax</code> represents an expression such as <code>format switch { ... }</code>. Other useful types in <code>Microsoft.CodeAnalysis.CSharp.Syntax</code> include <code>LiteralExpressionSyntax</code>, <code>AttributeSyntax</code>, <code>TypeDeclarationSyntax</code>, and <code>MemberDeclarationSyntax</code>.</p>
+<p>Each <code>CodeNode&lt;T&gt;</code> has <code>Syntax</code>, <code>Source</code>, and <code>Location</code>, plus <code>Operation</code>, <code>TypeInfo</code>, and <code>Constant</code>. A constant result distinguishes “no constant value” from a constant whose value is null: check <code>HasValue</code> before reading <code>Value</code>.</p>
+<h2 id="declarations">Methods, types, and all other declarations</h2>
+<p><code>CodeMethod</code> exposes <code>Name</code>, <code>IsAsync</code>, <code>HasAttribute</code>, <code>Body</code>, <code>Flow</code>, <code>Reaches</code>, <code>Syntax</code>, <code>Symbol</code>, <code>Source</code>, <code>Solution</code>, and <code>Location</code>. The symbol can be null when binding fails.</p>
+<p><code>CodeDeclaration</code> is a named type with <code>Name</code>, <code>Namespace</code>, <code>Implements</code>, <code>HasAttribute</code>, and its source, syntax, symbol, solution, and location. Use <code>files.Declarations()</code> or <code>SymbolQueries.Declarations</code> for fields, properties, events, parameters, locals, accessors, and separate partial declarations. Those return <code>CodeSymbol</code>, with <code>Symbol</code>, <code>Syntax</code>, <code>Source</code>, and <code>Location</code>.</p>
+<p><code>SymbolQueries.References</code> selects resolved simple-name references to types, namespaces, and members. <code>ReferencesTo(symbol)</code> follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries.</p>
+<h2 id="locations">Report the smallest useful location</h2>
+<div class="codeblock"><div class="codehead"><span>Report the internal keyword, not the entire type</span></div><pre tabindex="0" data-check="program" id="example-15"><code>using DrillPress;
+using DrillPress.Queries;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RuleSet = DrillPress.RuleSet;
+
+var rules = new RuleSet();
+var internalTypes = Sources.Nodes&lt;TypeDeclarationSyntax&gt;()
+    .Where(node =&gt; node.Syntax.Parent is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax)
+    .Where(node =&gt; node.Syntax.Modifiers.Any(SyntaxKind.InternalKeyword));
+
+rules.For(internalTypes).Forbid(
+    &quot;TEAM007&quot;, &quot;Use implicit assembly visibility for top-level types.&quot;,
+    location: node =&gt; node.Source.Locate(
+        node.Syntax.Modifiers.First(token =&gt; token.IsKind(SyntaxKind.InternalKeyword)).Span));</code></pre></div>
+<p><code>AnalysisSource.Locate(TextSpan)</code> converts an exact character range into a <code>SourceLocation</code>: file path, zero-based <code>Start</code>, <code>Length</code>, and one-based <code>Line</code>/<code>Column</code>. Columns use UTF-16 character positions, not byte offsets. Physical positions ignore <code>#line</code> remapping.</p>
+<p>Locations and fix factories run only for violating candidates. A custom candidate can implement <code>ICodeElement</code> with <code>Location</code> and optional <code>Source</code>, or use query-level <code>At</code> to retain an existing candidate’s source membership.</p>
+<h2 id="generated">Generated and linked source</h2>
+<p>Ordinary roots exclude generated files. <code>Sources.FilesIncludingGenerated</code> lets advanced facts inspect them, but the evaluator still suppresses findings anchored there. Linked files and alternative target frameworks remain separate compilation memberships; do not collapse them just because the path is the same.</p>
+<p><code>AnalysisSource.Document</code> exposes captured text, path, generated classification, and edit eligibility. <code>Tree</code> is the original syntax tree; <code>Model</code> is the shared semantic model; <code>Project</code> owns that compilation context. Prefer these captured values to opening source files yourself.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="identities.html"><small>← PREVIOUS</small>Types and members</a>
+<a href="analysis.html"><small>NEXT →</small>Calls and flow</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#files">Files and path patterns</a><a href="#vocabulary">A small compiler vocabulary</a><a href="#nodes">Choose a syntax kind</a><a href="#declarations">Methods, types, and all other declarations</a><a href="#locations">Report the smallest useful location</a><a href="#generated">Generated and linked source</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

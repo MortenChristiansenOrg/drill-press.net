@@ -3,7 +3,8 @@ using DrillPress.Cli;
 
 namespace DrillPress.UnitTests.TestInfrastructure;
 
-internal sealed class StubSnapshotDirectoryPermissions(IFileSystem fileSystem) : SnapshotDirectoryPermissions(fileSystem)
+internal sealed class StubSnapshotDirectoryPermissions(IFileSystem fileSystem)
+    : SnapshotDirectoryPermissions(fileSystem)
 {
     public Action<string> OnRestrict { get; init; } = _ => { };
 

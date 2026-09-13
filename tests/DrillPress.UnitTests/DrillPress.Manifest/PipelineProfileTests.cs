@@ -13,7 +13,12 @@ public sealed class PipelineProfileTests
         using var output = new ProfileFailureWriter();
         var profile = new PipelineProfile(true, output, "fix", new StubProcessProfileProbe());
 
-        var result = await fixture.Applier.ApplyAsync(fixture.Snapshot, fixture.Json, TestContext.Current.CancellationToken, profile);
+        var result = await fixture.Applier.ApplyAsync(
+            fixture.Snapshot,
+            fixture.Json,
+            TestContext.Current.CancellationToken,
+            profile
+        );
 
         Assert.Equal(FixApplicationOutcome.Completed, result.Outcome);
         Assert.Equal(fixture.Paths, result.Changed);

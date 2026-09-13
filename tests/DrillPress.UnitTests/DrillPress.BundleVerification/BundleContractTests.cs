@@ -12,12 +12,27 @@ public sealed class BundleContractTests
     [InlineData(0, "out", "changed")]
     public void Rejects_different_exit_codes_or_output(int exitCode, string stdout, string stderr)
     {
-        var expected = new BundleCase("probe", [], BundleOutcome.Clean, "out"u8.ToArray(), "err"u8.ToArray());
-        var actual = new ProcessOutput(exitCode, Encoding.UTF8.GetBytes(stdout), Encoding.UTF8.GetBytes(stderr));
+        var expected = new BundleCase(
+            "probe",
+            [],
+            BundleOutcome.Clean,
+            "out"u8.ToArray(),
+            "err"u8.ToArray()
+        );
+        var actual = new ProcessOutput(
+            exitCode,
+            Encoding.UTF8.GetBytes(stdout),
+            Encoding.UTF8.GetBytes(stderr)
+        );
 
-        var exception = Assert.Throws<InvalidOperationException>(() => BundleContract.Validate(expected, actual));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            BundleContract.Validate(expected, actual)
+        );
 
-        Assert.Equal("probe: bundle output differs from the exact byte/exit contract.", exception.Message);
+        Assert.Equal(
+            "probe: bundle output differs from the exact byte/exit contract.",
+            exception.Message
+        );
     }
 
     [Fact]

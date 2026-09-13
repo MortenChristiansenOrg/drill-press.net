@@ -13,7 +13,12 @@ public sealed class PipelineProfile
     public PipelineProfile(bool enabled, TextWriter output, string component)
         : this(enabled, output, component, new ProcessProfileProbe()) { }
 
-    internal PipelineProfile(bool enabled, TextWriter output, string component, ProcessProfileProbe probe)
+    internal PipelineProfile(
+        bool enabled,
+        TextWriter output,
+        string component,
+        ProcessProfileProbe probe
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(component);
         Enabled = enabled;
@@ -53,11 +58,20 @@ public sealed class PipelineProfile
 
     internal void Write(ProfileEvent measurement)
     {
-        if (!CanRecord) return;
+        if (!CanRecord)
+            return;
         try
         {
-            _output.WriteLine("drillpress-profile " + JsonSerializer.Serialize(
-                measurement with { Component = _component }, CompilationSnapshotJsonContext.Default.ProfileEvent));
+            _output.WriteLine(
+                "drillpress-profile "
+                    + JsonSerializer.Serialize(
+                        measurement with
+                        {
+                            Component = _component,
+                        },
+                        CompilationSnapshotJsonContext.Default.ProfileEvent
+                    )
+            );
         }
         catch (Exception exception)
         {

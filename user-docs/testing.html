@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prove the rule finds the right code—and leaves the rest alone. A practical guide to writing custom Drill Press rules.">
+<meta name="color-scheme" content="dark light">
+<title>Test and run your rules · Drill Press manual</title>
+<script src="assets/theme.js"></script>
+<link rel="stylesheet" href="assets/manual.css">
+<script src="assets/search-index.js" defer></script>
+<script src="assets/manual.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">dp</span>Drill Press <small>AUTHOR’S MANUAL</small></a>
+<div class="tools">
+<button class="control menu-button" id="menu-toggle" aria-controls="chapter-nav" aria-expanded="false" data-enhancement hidden>Chapters</button>
+<button class="control" id="search-open" data-enhancement hidden>Search <kbd aria-hidden="true">/</kbd></button>
+<button class="control" id="theme-toggle" data-enhancement hidden>Light mode</button>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" id="chapter-nav" aria-label="Chapters"><div class="nav-group"><p class="nav-label">Start here</p><a href="index.html">The rule author’s manual</a><a href="first-rule.html">Write your first rule</a></div><div class="nav-group"><p class="nav-label">Everyday rules</p><a href="selections.html">Select and compose</a><a href="identities.html">Types and members</a><a href="syntax.html">Inspect source code</a></div><div class="nav-group"><p class="nav-label">Deeper analysis</p><a href="analysis.html">Calls and flow</a><a href="relationships.html">Projects and relationships</a><a href="facts.html">Facts, comparisons, and baselines</a></div><div class="nav-group"><p class="nav-label">Ship with confidence</p><a href="fixes.html">Offer safe fixes</a><a href="testing.html" aria-current="page">Test and run your rules</a></div><div class="nav-group"><p class="nav-label">Reference</p><a href="reference.html">API field guide</a></div></nav>
+<main class="reading" id="main" tabindex="-1">
+<article class="article">
+<p class="eyebrow">Ship with confidence / 10</p>
+<h1>Test and run your rules</h1>
+<p class="lead">Prove the rule finds the right code—and leaves the rest alone.</p>
+
+<p>Keep tests small enough that the intended violation is obvious. Test the negative cases as carefully as the positive ones: a noisy convention quickly stops being useful.</p>
+<h2 id="setup">Add the consumer test kit</h2>
+<p>Reference <code>src/DrillPress.Testing/DrillPress.Testing.csproj</code> from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk.</p>
+<p><code>RuleTestWorkspace()</code> uses the host runtime’s assembly references for convenience. You can supply an explicit list of compiler <code>MetadataReference</code> objects when you need exact reference packs or synthetic assemblies. The default constructor reads reference assemblies; the target source and edit results stay in memory.</p>
+<h2 id="first-test">Assert the complete finding and fixed text</h2>
+<div class="codeblock"><div class="codehead"><span>An xUnit test for the empty-string rule</span></div><pre tabindex="0" data-check="library" id="example-31"><code>using DrillPress;
+using DrillPress.Fixes;
+using DrillPress.Semantics;
+using DrillPress.Testing;
+using Xunit;
+
+public class EmptyStringRuleTests
+{
+    [Fact]
+    public async Task Replaces_the_empty_string_field()
+    {
+        var workspace = new RuleTestWorkspace();
+        workspace.AddProject(&quot;Example&quot;, [new TestSource(&quot;Example.cs&quot;,
+            &quot;class C { string Value =&gt; string.Empty; }&quot;)]);
+        var rules = new RuleSet();
+        rules.For(CodeType.Of&lt;string&gt;().Member(nameof(string.Empty)).References)
+            .Forbid(&quot;TEAM018&quot;, &quot;Use the empty string literal instead of string.Empty.&quot;,
+                fix: EmptyStringFix.Create);
+
+        var result = await workspace.CheckAsync(rules);
+
+        Assert.Equal(
+            [new TestFinding(&quot;TEAM018&quot;, &quot;Example.cs&quot;, 1, 26, &quot;string.Empty&quot;, true)],
+            result.Findings);
+        Assert.Equal(&quot;class C { string Value =&gt; \&quot;\&quot;; }&quot;, result.FixedText(&quot;Example.cs&quot;));
+    }
+}</code></pre></div>
+<p><code>TestFinding</code> includes rule ID, path, physical line and column, exact highlighted text, and <code>HasFix</code>. <code>FixedText</code> applies only the validated plan in memory. Create another workspace from the resulting text to check that a second run is clean.</p>
+<h2 id="contexts">Model the contexts your policy depends on</h2>
+<p><code>AddProject</code> returns an <code>AnalysisProject</code>. Dependencies must already belong to the workspace. Its options are:</p>
+<div class="table-wrap"><table><thead><tr><th>Argument</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>name</code>, <code>sources</code></td><td>Project identity and exact <code>TestSource(Path, Text, Generated)</code> values.</td></tr>
+<tr><td><code>framework</code></td><td>A context label, defaulting to <code>net10.0</code>. It does not select reference assemblies.</td></tr>
+<tr><td><code>isTest</code></td><td>Mark a test project for project-role policies.</td></tr>
+<tr><td><code>dependencies</code></td><td>Previously added source projects to reference.</td></tr>
+<tr><td><code>symbols</code></td><td>Conditional compilation symbols for <code>#if</code>.</td></tr>
+<tr><td><code>allowErrors</code></td><td>Keep deliberately invalid source for failure-path tests.</td></tr>
+<tr><td><code>references</code>, <code>packages</code></td><td>Override compiler references or supply direct package facts. Package facts do not download packages or supply assemblies.</td></tr>
+</tbody></table></div>
+<div class="codeblock"><div class="codehead"><span>Model a referenced production project</span></div><pre tabindex="0" data-check="program" id="example-32"><code>using DrillPress.Testing;
+
+var workspace = new RuleTestWorkspace();
+var production = workspace.AddProject(&quot;Product&quot;, [
+    new TestSource(&quot;Codec.cs&quot;, &quot;public class Codec { }&quot;)
+]);
+workspace.AddProject(&quot;Product.Tests&quot;, [
+    new TestSource(&quot;Tests.cs&quot;, &quot;class Tests { Codec value = new(); }&quot;)
+], isTest: true, dependencies: [production]);</code></pre></div>
+<p>Use the same source path and text across projects to test linked-file agreement. Use different reference sets for real framework differences. For xUnit attribute detection, <code>isTest: true</code> alone is not enough: include real xUnit references and Fact/Theory attributes.</p>
+<h2 id="xunit">Write conventions for xUnit bodies</h2>
+<div class="codeblock"><div class="codehead"><span>Require a predictable three-part test layout</span></div><pre tabindex="0" data-check="program" id="example-33"><code>using DrillPress;
+using DrillPress.Testing;
+
+var rules = new RuleSet();
+var tests = XunitTests.Methods;
+
+rules.For(tests).Require(
+    method =&gt; method.Body.EmptyLines.Count &lt;= 2,
+    &quot;TEAM019&quot;, &quot;Keep at most two empty lines in a test.&quot;,
+    location: method =&gt; method.Body.EmptyLines[2]);
+
+rules.For(tests.Where(method =&gt; method.Body.EarlyAssertion is not null))
+    .Forbid(&quot;TEAM020&quot;, &quot;Move assertions after the final empty line.&quot;,
+        location: method =&gt; method.Body.EarlyAssertion!);</code></pre></div>
+<p><code>XunitTests.AreTests</code> is the reusable condition behind <code>Methods</code>. It recognizes genuine Fact/Theory attributes, including derived attributes, in xUnit core assemblies. Unrelated attributes named “Fact” do not count.</p>
+<p><code>TestBody.EmptyLines</code> excludes multiline content, disabled text, and nested functions. <code>Assertions</code> contains <code>TestAssertion(MemberName, Location)</code> entries for resolved xUnit assertions outside nested functions. <code>EarlyAssertion</code> finds the first assertion before the final qualifying blank line, except a sole synchronous <code>Assert.Throws</code>. Expression-bodied methods have no block-body layout facts.</p>
+<p>When a fixture’s exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore. Do not use formatter exclusions merely to prefer a different style.</p>
+<h2 id="baselines">Test an accepted baseline</h2>
+<div class="codeblock"><div class="codehead"><span>Compare two in-memory versions</span></div><pre tabindex="0" data-check="program" id="example-34"><code>using DrillPress.Baselines;
+using DrillPress.Testing;
+
+var before = new RuleTestWorkspace();
+before.AddProject(&quot;Product&quot;, [new TestSource(&quot;A.cs&quot;, &quot;class A { }&quot;)]);
+var baseline = new SourceBaseline(before.Analyze());
+
+var after = new RuleTestWorkspace();
+after.AddProject(&quot;Product&quot;, [
+    new TestSource(&quot;A.cs&quot;, &quot;class A { public int Value; }&quot;),
+    new TestSource(&quot;B.cs&quot;, &quot;class B { }&quot;)
+]);
+
+var changes = baseline.ChangedFiles.In(after.Analyze());
+// A.cs is Modified; B.cs is Added.</code></pre></div>
+<h2 id="checklist">Before sharing a bundle</h2>
+<ul><li>Test one violation and a nearby allowed case, including configured exceptions.</li><li>Check exact locations and full output; do not assert only the count.</li><li>Test alias spelling, overloads, generated source, and unresolved symbols where relevant.</li><li>For fixes, check both accepted and withheld corrections.</li><li>Run the bundle against a restored real project with the CLI.</li></ul>
+<h2 id="troubleshooting">When a rule does not behave as expected</h2>
+<dl><dt>It finds nothing.</dt><dd>Check the project/file scope, whether the source is generated, the declaring type’s full name, and whether your exact overload includes all parameters.</dd>
+<dt>The test compiles, but the target does not.</dt><dd>Runtime reference defaults are a convenience, not a target reference pack. Supply explicit references for fidelity.</dd>
+<dt>There is a finding but no fix.</dt><dd>Inspect the safety boundaries in <a href="fixes.html">Offer safe fixes</a>. This is often intentional, not a broken rule.</dd>
+<dt>A rule throws.</dt><dd>Check null/absent compiler facts, unsuccessful flow analysis, and invalid source. Do not convert unknown facts into confident findings.</dd></dl>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="fixes.html"><small>← PREVIOUS</small>Offer safe fixes</a>
+<a href="reference.html"><small>NEXT →</small>API field guide</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
+</article>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and fixed text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Write conventions for xUnit bodies</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
+</main>
+</div>
+<dialog id="search-dialog" aria-labelledby="search-title">
+<header><h2 id="search-title">Search the manual</h2><button class="control" id="search-close" aria-label="Close search">Close</button></header>
+<label for="search-input">Topic or API name</label>
+<input type="search" id="search-input" placeholder="Try CodeType, nullable, or fixes…" autocomplete="off" aria-controls="search-results">
+<p id="search-count" role="status"></p><ul id="search-results"></ul>
+</dialog>
+<p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>
