@@ -108,5 +108,12 @@ public sealed class CompilationSnapshotFile
         }
 
         SnapshotValidation.ValidateEnvelope(identifier.GetString()!, version);
+        ComponentVersion.RequireMatch(
+            root.TryGetProperty("productVersion", out var productVersion)
+            && productVersion.ValueKind == JsonValueKind.String
+                ? productVersion.GetString()!
+                : "missing",
+            "Snapshot producer"
+        );
     }
 }

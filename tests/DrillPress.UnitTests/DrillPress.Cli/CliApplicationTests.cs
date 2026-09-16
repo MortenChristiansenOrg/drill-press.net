@@ -52,19 +52,140 @@ public sealed class CliApplicationTests
         Assert.Equal("", error.ToString());
         Assert.Equal(
             """
-            drillpress check|fix --build-host <path> --rules <path> <target> [options]
+            drillpress check|fix --rules <path> <target> [options]
             check reports findings; fix applies common-safe edits and reports the recheck.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
-            --build-host: matching BuildHost DLL; --rules: compiled rule DLL or native executable.
+            --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
+            --version  Show the alpha package and protocol versions.
             Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
 
             """.ReplaceLineEndings("\n"),
             output.ToString()
         );
         Assert.Equal(directories, _fileSystem.AllDirectories);
+        Assert.Empty(_fileSystem.AllFiles);
+    }
+
+    [Fact]
+    public async Task Version_identifies_the_package_and_wire_contracts_without_starting_tools()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var application = new CliApplication(
+            _fileSystem,
+            new StubChildProcessRunner(
+                (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+            )
+        );
+
+        var result = await application.RunAsync(
+            ["--version"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal(
+            $"drillpress {ComponentVersion.Current} alpha (snapshot 3, response 2)\n",
+            output.ToString()
+        );
+        Assert.Equal("", error.ToString());
+        Assert.Empty(_fileSystem.AllFiles);
+    }
+
+    [Fact]
+    public async Task Packaged_loader_is_resolved_from_the_application_directory()
+    {
+        var applicationDirectory = _fileSystem.Path.GetFullPath("installed-tool");
+        var host = _fileSystem.Path.Combine(
+            applicationDirectory,
+            "buildhost",
+            "DrillPress.BuildHost.dll"
+        );
+        _fileSystem.AddFile(host, new MockFileData("host"));
+        var snapshot = CompilationSnapshot.Create();
+        var calls = new List<string>();
+        var runner = new StubChildProcessRunner(
+            async (executable, arguments, _) =>
+            {
+                calls.Add(executable);
+                await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+                    arguments.Last(),
+                    snapshot
+                );
+                return 0;
+            }
+        )
+        {
+            StandardOutput = Encoding.UTF8.GetString(
+                BundleResponseProtocol.Serialize(
+                    new BundleResponse(
+                        BundleResponseProtocol.CurrentVersion,
+                        snapshot.RequestId,
+                        [],
+                        []
+                    )
+                )
+            ),
+        };
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem),
+            applicationDirectory: applicationDirectory
+        );
+
+        var result = await application.RunAsync(
+            ["check", "--rules", "rules", "target.csproj"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal([host, "rules"], calls);
+        Assert.Equal("", error.ToString());
+        Assert.Equal("", output.ToString());
+    }
+
+    [Fact]
+    public async Task Missing_packaged_loader_reports_how_to_repair_installation()
+    {
+        var applicationDirectory = _fileSystem.Path.GetFullPath("missing-tool");
+        var host = _fileSystem.Path.Combine(
+            applicationDirectory,
+            "buildhost",
+            "DrillPress.BuildHost.dll"
+        );
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var application = new CliApplication(
+            _fileSystem,
+            new StubChildProcessRunner(
+                (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+            ),
+            applicationDirectory: applicationDirectory
+        );
+
+        var result = await application.RunAsync(
+            ["check", "--rules", "rules", "target.csproj"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Failure, result);
+        Assert.Equal(
+            $"drillpress: Packaged BuildHost was not found at '{host}'. Reinstall DrillPress.Cli {ComponentVersion.Current}, or use --build-host with a matching source build.{Environment.NewLine}",
+            error.ToString()
+        );
+        Assert.Equal("", output.ToString());
         Assert.Empty(_fileSystem.AllFiles);
     }
 
@@ -136,7 +257,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --build-host <path> --rules <path> <target> [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -168,7 +289,14 @@ public sealed class CliApplicationTests
         )
         {
             StandardOutput = Encoding.UTF8.GetString(
-                BundleResponseProtocol.Serialize(new BundleResponse(1, snapshot.RequestId, [], []))
+                BundleResponseProtocol.Serialize(
+                    new BundleResponse(
+                        BundleResponseProtocol.CurrentVersion,
+                        snapshot.RequestId,
+                        [],
+                        []
+                    )
+                )
             ),
         };
         async Task<int> Export(IReadOnlyList<string> arguments)

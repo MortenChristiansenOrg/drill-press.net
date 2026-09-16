@@ -1,12 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>drillpress</ToolCommandName>
+    <EnablePackageValidation>false</EnablePackageValidation>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DrillPress.Manifest/DrillPress.Manifest.csproj" />
+    <ProjectReference
+      Include="../DrillPress.BuildHost/DrillPress.BuildHost.csproj"
+      ReferenceOutputAssembly="false"
+      PrivateAssets="all"
+    />
     <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DrillPress.UnitTests" />
   </ItemGroup>
+  <Target Name="IncludePackagedBuildHost" AfterTargets="ComputeFilesToPublish">
+    <PropertyGroup>
+      <_BuildHostPublishDirectory>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)buildhost-publish'))/</_BuildHostPublishDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_BuildHostPublishDirectory)" />
+    <MSBuild
+      Projects="../DrillPress.BuildHost/DrillPress.BuildHost.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);PublishDir=$(_BuildHostPublishDirectory);UseAppHost=false;SelfContained=false"
+      RemoveProperties="RuntimeIdentifier;PublishAot;PublishSingleFile;PublishTrimmed;PublishReadyToRun"
+    />
+    <ItemGroup>
+      <_PackagedBuildHost Include="$(_BuildHostPublishDirectory)**/*" />
+      <ResolvedFileToPublish Include="@(_PackagedBuildHost)">
+        <RelativePath>buildhost/%(_PackagedBuildHost.RecursiveDir)%(_PackagedBuildHost.Filename)%(_PackagedBuildHost.Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>

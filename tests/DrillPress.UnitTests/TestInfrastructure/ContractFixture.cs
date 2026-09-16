@@ -37,7 +37,7 @@ internal sealed class ContractFixture
         };
         Snapshot = CompilationSnapshot.Create(first, second) with { RequestId = "request" };
         Response = new BundleResponse(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             "request",
             [
                 new("first", true, [new("DP1004", "Replace alpha.", "document", 2, 5, "fix")]),

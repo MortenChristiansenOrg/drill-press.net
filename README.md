@@ -4,7 +4,35 @@ Drill Press checks C# projects for coding-convention violations. It is designed
 for AI coding assistants: compact results identify the rule, file, and location
 to change, without pages of repeated messages.
 
-## Technical preview
+## Alpha versions
+
+**All `0.0.X` releases are alpha builds. Every release may introduce breaking
+changes, even when only `X` increases; backward compatibility is not guaranteed.**
+Pin the tool and all Drill Press SDK packages to the same exact version. Before
+upgrading, check the release's compatibility notes and rebuild your rule bundles.
+
+## Install packages
+
+The managed tool requires a .NET 10 SDK and bundles its matching BuildHost.
+The commands below apply after `0.0.1` is published to nuget.org. Before
+publication, follow the [local artifact instructions](docs/DISTRIBUTION.md#build-and-validate-distribution-artifacts).
+From your consuming repository:
+
+```sh
+dotnet new tool-manifest -o .config
+dotnet tool install DrillPress.Cli --version 0.0.1
+dotnet tool run drillpress -- --version
+```
+
+Commit `.config/dotnet-tools.json`; subsequent checkouts run `dotnet tool restore`.
+For a global installation, use `dotnet tool install --global DrillPress.Cli --version 0.0.1`.
+The SDK packages are `DrillPress.RuleAuthoring`, `DrillPress.Engine`, and the
+optional existing `DrillPress.Testing` kit; `DrillPress.Manifest` is transitive.
+Packages use the [MIT license](LICENSE); the intended public feed is nuget.org.
+See [package references, compatibility, packing, and publication](docs/DISTRIBUTION.md)
+for the minimal consumer project and isolated-feed validation.
+
+## Preview capabilities
 
 Drill Press is an experimental .NET lint-rule engine.
 Commands and APIs may change. The sample bundle includes five general preview rules covering
@@ -39,7 +67,8 @@ roll-forward selects the highest installed .NET 10 SDK at or above `10.0.100`,
 including newer feature bands and patches, without rolling forward to .NET 11.
 CI installs the .NET 10 channel (`10.x`) rather than the minimum build.
 
-For now, run the built tool directly from this checkout.
+Source builds can run the tool directly as shown below. Installed tools locate
+their packaged BuildHost automatically.
 
 ## Try it
 
@@ -50,9 +79,9 @@ dotnet restore "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
 dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-host src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll --rules samples/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
 ```
 
-The current command requires explicit paths to the project loader
-(`--build-host`) and the compiled rules (`--rules`). The example uses both
-from the build above.
+This source-build example selects the project loader with `--build-host`.
+Installed tools need only `--rules` and the target; `--build-host` remains an
+explicit override for development. Rule bundles must already be built.
 
 Expected output:
 
@@ -80,7 +109,7 @@ applying fixes.
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
-BuildHost, and rule-bundle builds; snapshot format 2 binds responses to a unique
+BuildHost, and rule-bundle package versions; snapshot format 3 binds responses to a unique
 request and preserves individual compilation and document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
 child and fails the check before rendering diagnostics.

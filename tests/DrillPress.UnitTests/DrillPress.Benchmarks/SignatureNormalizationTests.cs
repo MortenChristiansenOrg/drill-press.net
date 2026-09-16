@@ -349,7 +349,7 @@ public sealed class SignatureNormalizationTests
         };
         var snapshot = CompilationSnapshot.Create(project) with { RequestId = id };
         var response = new BundleResponse(
-            1,
+            BundleResponseProtocol.CurrentVersion,
             id,
             [
                 new(

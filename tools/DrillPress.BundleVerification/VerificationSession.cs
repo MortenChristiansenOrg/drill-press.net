@@ -243,7 +243,7 @@ public sealed class VerificationSession : IDisposable
             }
 
             var response = new BundleResponse(
-                1,
+                BundleResponseProtocol.CurrentVersion,
                 captured.RequestId,
                 [new(context.ContextId, true, findings)],
                 batches
@@ -269,7 +269,7 @@ public sealed class VerificationSession : IDisposable
                 BundleOutcome.Failure,
                 [],
                 Encoding.UTF8.GetBytes(
-                    "drillpress-rules: Compilation snapshot format -1 is not supported; expected 2. Use matching Drill Press components."
+                    "drillpress-rules: Compilation snapshot format -1 is not supported; expected 3. Use matching Drill Press components."
                         + Environment.NewLine
                 )
             )
@@ -340,7 +340,7 @@ public sealed class VerificationSession : IDisposable
                 null
             );
             var response = new BundleResponse(
-                1,
+                BundleResponseProtocol.CurrentVersion,
                 name,
                 [
                     new("first", true, [finding]),

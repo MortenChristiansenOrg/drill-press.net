@@ -7,6 +7,7 @@ public sealed class BundleResponseValidator
     public ValidatedResult Validate(CompilationSnapshot snapshot, BundleResponse response)
     {
         SnapshotValidation.Validate(snapshot);
+        ComponentVersion.RequireMatch(response.ProductVersion, "Rule bundle");
         Require(
             response.ProtocolVersion == BundleResponseProtocol.CurrentVersion
                 && response.RequestId == snapshot.RequestId,

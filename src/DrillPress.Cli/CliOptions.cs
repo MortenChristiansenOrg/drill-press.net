@@ -2,7 +2,7 @@ namespace DrillPress.Cli;
 
 internal sealed record CliOptions(
     CliCommand Command,
-    string BuildHost,
+    string? BuildHost,
     string Rules,
     string Target,
     string[] ExportArguments,
@@ -13,7 +13,7 @@ internal sealed record CliOptions(
     public static bool TryParse(string[] args, out CliOptions options)
     {
         options = null!;
-        if (args.Length < 6 || args[0] is not ("check" or "fix"))
+        if (args.Length < 4 || args[0] is not ("check" or "fix"))
         {
             return false;
         }
@@ -60,7 +60,7 @@ internal sealed record CliOptions(
         }
 
         if (
-            string.IsNullOrWhiteSpace(buildHost)
+            (buildHost is not null && string.IsNullOrWhiteSpace(buildHost))
             || string.IsNullOrWhiteSpace(rules)
             || string.IsNullOrWhiteSpace(target)
         )
