@@ -1,19 +1,20 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
-    <Project Path="src/DrillPress.Testing/DrillPress.Testing.csproj" />
-    <Project Path="src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
-    <Project Path="src/DrillPress.Engine/DrillPress.Engine.csproj" />
     <Project Path="src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
     <Project Path="src/DrillPress.Cli/DrillPress.Cli.csproj" />
+    <Project Path="src/DrillPress.Engine/DrillPress.Engine.csproj" />
+    <Project Path="src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
+    <Project Path="src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
+    <Project Path="src/DrillPress.Testing/DrillPress.Testing.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/CodecExamples/CodecExamples.csproj" />
     <Project Path="samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/DrillPress.UnitTests/DrillPress.UnitTests.csproj" />
     <Project Path="tests/DrillPress.IntegrationTests/DrillPress.IntegrationTests.csproj" />
     <Project Path="tests/DrillPress.TestProcess/DrillPress.TestProcess.csproj" />
+    <Project Path="tests/DrillPress.UnitTests/DrillPress.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />

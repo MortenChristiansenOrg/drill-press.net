@@ -1,0 +1,2 @@
+# Keep solution files consistent when using Git from Windows and Linux.
+*.slnx text eol=lf

@@ -19,10 +19,7 @@ public sealed class ConsumerTests : IntegrationTest
 
         Assert.Empty(project.Descendants("PackageReference"));
         Assert.Equal(
-            [
-                "../../src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj",
-                "../../src/DrillPress.Engine/DrillPress.Engine.csproj",
-            ],
+            ["../../src/DrillPress.Engine/DrillPress.Engine.csproj"],
             project
                 .Descendants("ProjectReference")
                 .Select(reference => reference.Attribute("Include")!.Value)

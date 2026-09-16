@@ -47,7 +47,6 @@ In an ordinary directory outside this checkout, create `Rules.csproj`:
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DrillPress.RuleAuthoring" Version="[0.0.1]" />
     <PackageReference Include="DrillPress.Engine" Version="[0.0.1]" />
   </ItemGroup>
 </Project>

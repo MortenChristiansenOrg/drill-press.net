@@ -137,7 +137,6 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
                 <Nullable>enable</Nullable>
               </PropertyGroup>
               <ItemGroup>
-                <PackageReference Include="DrillPress.RuleAuthoring" Version="[{{Version}}]" />
                 <PackageReference Include="DrillPress.Engine" Version="[{{Version}}]" />
                 <PackageReference Include="DrillPress.Testing" Version="[{{Version}}]" />
               </ItemGroup>
