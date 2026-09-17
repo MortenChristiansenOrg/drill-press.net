@@ -2,17 +2,19 @@
 
 This is the evidence map for issues [#9](https://github.com/MortenChristiansenOrg/drill-press.net/issues/9)
 through [#16](https://github.com/MortenChristiansenOrg/drill-press.net/issues/16).
-The technical preview requires all rows below and successful Windows/Linux
-jobs on the PR being accepted. A completed publication without native execution,
-a partial performance report, or a finding-count match alone does not pass.
+The current technical preview gate requires all rows below and successful
+Windows/Linux jobs on the PR being accepted. A completed publication without
+native execution or a finding-count match alone does not pass.
 
 The [continuous native workflow](../.github/workflows/native-bundles.yml) runs
 Release builds, all unit/integration tests, native execution/parity, real fixes,
 and compiler-fixture conformance on every PR and main push. The
 [repository workflow](../.github/workflows/repository-preview.yml) additionally
-runs pinned xUnit conformance and the complete performance harness on both
-platforms for relevant PRs and manual runs. OS-specific permission tests run on
-their corresponding platform; the other platform skips that single test.
+runs pinned xUnit conformance on both platforms for relevant PRs and manual runs.
+OS-specific permission tests run on their corresponding platform; the other
+platform skips that single test.
+
+The repository performance harness and its acceptance criteria have been retired.
 
 ## Prior slice criteria
 
@@ -36,9 +38,8 @@ their corresponding platform; the other platform skips that single test.
 | s6.1–s6.5, s6.12–s6.13 | Shared [response validation](../tests/DrillPress.UnitTests/DrillPress.Manifest/BundleResponseValidatorTests.cs), [fix application](../tests/DrillPress.UnitTests/DrillPress.Manifest/FixPlanApplierTests.cs), and [file eligibility](../tests/DrillPress.UnitTests/DrillPress.Manifest/SourceFilePolicyTests.cs) cover whole-plan agreement, duplicate edits, conflicts, stale bytes, and preparation failures. |
 | s6.6–s6.11, s6.16 | Real [CLI fix and sample rebuild](../tests/DrillPress.IntegrationTests/DrillPress.Cli/CliFixTests.cs), [native/managed fix verification](../tools/DrillPress.BundleVerification/FixVerificationCase.cs), encoding/UTF-16 tests, and the [write policy](FIXING.md). |
 | s6.14–s6.15 | [Late replacement integration tests](../tests/DrillPress.IntegrationTests/DrillPress.Manifest/FixPlanApplierTests.cs), [CLI recheck/recovery tests](../tests/DrillPress.UnitTests/DrillPress.Cli/CliFixTests.cs), and [real cancellation cleanup](../tests/DrillPress.IntegrationTests/DrillPress.Cli/ProcessCancellationTests.cs). |
-| s7.1–s7.4, s7.9–s7.10 | [Profiling guide and command](PROFILING.md), [stored pre-optimization evidence](../reports/performance), [profiling tests](../tests/DrillPress.UnitTests/DrillPress.Manifest/PipelineProfileTests.cs), [CLI stdout/profiling parity](../tests/DrillPress.IntegrationTests/DrillPress.Cli/CliProfilingTests.cs), and platform repository artifacts. |
-| s7.5–s7.8 | [Member-index/composition parity tests](../tests/DrillPress.IntegrationTests/DrillPress.RuleAuthoring/Queries/MemberCandidateIndexTests.cs), [interface tests](../tests/DrillPress.IntegrationTests/DrillPress.RuleAuthoring/Relationships/InterfaceImplementationsTests.cs), and all four modes in each complete repository report. |
-| s7.11–s7.12 | [Signature normalization](../tests/DrillPress.UnitTests/DrillPress.Benchmarks/SignatureNormalizationTests.cs), [full result comparison tests](../tests/DrillPress.UnitTests/DrillPress.Benchmarks/ResultSignaturesTests.cs), [disposable-copy tests](../tests/DrillPress.UnitTests/DrillPress.Benchmarks/DisposableRepositoryTests.cs), and real isolated fix/recheck runs with complete compiler-input and response/plan/public signatures. |
+| s7.1–s7.4, s7.9–s7.10 | [Profiling guide](PROFILING.md), [profiling tests](../tests/DrillPress.UnitTests/DrillPress.Manifest/PipelineProfileTests.cs), and [CLI stdout/profiling parity](../tests/DrillPress.IntegrationTests/DrillPress.Cli/CliProfilingTests.cs). |
+| s7.5–s7.8 | [Member-index/composition parity tests](../tests/DrillPress.IntegrationTests/DrillPress.RuleAuthoring/Queries/MemberCandidateIndexTests.cs) and [interface tests](../tests/DrillPress.IntegrationTests/DrillPress.RuleAuthoring/Relationships/InterfaceImplementationsTests.cs). |
 
 ## Final preview criteria
 
@@ -51,11 +52,9 @@ their corresponding platform; the other platform skips that single test.
 | s8.8, s8.14–s8.15 | Protocol, affected-context, encoding, target/SDK/restore, late replacement, and recheck cases above run in the shared Windows/Linux test suite. The guide states loaded-graph scope, per-file atomicity, single-pass behavior, and recovery. |
 | s8.9–s8.11 | [Fresh-checkout guide](TECHNICAL_PREVIEW.md), [rule authoring](RULE_AUTHORING.md), [fix recovery](FIXING.md), and exact CLI help goldens. |
 | s8.12, s8.16 | Both repository jobs reuse `PinnedXunit` and `XunitConformance.cs`, preserve complete reports and raw diagnostics for 90 days, and impose semantic parity rather than timing/count thresholds. The earlier native execution gate remains continuous. |
-| s8.13 | All prior criteria are mapped above; both workflows must pass before declaring the preview accepted. |
+| s8.13 | All retained prior criteria are mapped above; both workflows must pass before declaring the preview accepted. |
 
 The PR's validation record links the actual Windows/Linux workflow runs and
-their artifacts. In repository artifacts, require `performance/report.json`
-to have `complete: true`; failures retain their available evidence and fail the
-job. The reports record revisions, SDKs, workload options, input signatures,
-measurement scopes, and repetition counts so a later run can be compared without
-turning one machine's result into a release contract.
+their artifacts. In repository artifacts, every context comparison and rule
+parity in `conformance/conformance.json` must pass. Failures retain their
+available diagnostics and fail the job.

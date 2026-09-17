@@ -1,4 +1,4 @@
-#:project ../tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj
+#:project ../tools/DrillPress.Conformance/DrillPress.Conformance.csproj
 #:property PublishAot=false
 
 using System.IO.Abstractions;
@@ -8,16 +8,10 @@ using DrillPress.Engine;
 using DrillPress.Manifest;
 
 var fileSystem = new FileSystem();
-if (
-    args.Length is not (2 or 4)
-    || (
-        args.Length == 4
-        && (args[2] != "--performance" || !int.TryParse(args[3], out var count) || count < 1)
-    )
-)
+if (args.Length != 2)
 {
     Console.Error.WriteLine(
-        "Usage: dotnet run --file scripts/XunitConformance.cs -- <checkout> <report-directory> [--performance <repetitions>]"
+        "Usage: dotnet run --file scripts/XunitConformance.cs -- <checkout> <report-directory>"
     );
     return 2;
 }
@@ -27,17 +21,6 @@ var output = args[1];
 
 try
 {
-    if (args.Length == 4)
-    {
-        await new DrillPress.Benchmarks.RepositoryBenchmark(fileSystem).RunAsync(
-            checkout,
-            output,
-            int.Parse(args[3]),
-            CancellationToken.None
-        );
-        return 0;
-    }
-
     var target = await new PinnedXunit(fileSystem).PrepareAsync(
         checkout,
         fileSystem.Path.Combine(output, "preparation.json"),

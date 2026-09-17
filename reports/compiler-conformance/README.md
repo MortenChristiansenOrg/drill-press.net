@@ -19,5 +19,4 @@ the checkout/submodules, dependency lockfiles, preparation log, and report. Its
 directories and are copied to the report directory. The checked-in hash manifest
 identifies this run's dependency baseline without duplicating upstream package
 lock content. The harness leaves upstream tracked files unchanged. Its source
-pin and dependency baseline are shared inputs for later rule conformance and
-performance work; these reports make no performance claim.
+pin and dependency baseline are shared inputs for rule conformance.
