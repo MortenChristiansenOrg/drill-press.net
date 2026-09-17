@@ -181,30 +181,24 @@ dotnet run --file scripts/NativeBundles.cs -c Release --no-cache -- --output art
 ```
 
 The additional [repository workflow](../.github/workflows/repository-preview.yml)
-uses the same pinned xUnit harness as the compiler and performance slices. These
-single-line commands work in either shell; keep the checkout outside this repo
-and choose new report directories:
+runs pinned xUnit compiler conformance. This command works in either shell;
+keep the checkout outside this repo and choose a new report directory:
 
 ```sh
 dotnet run --file scripts/XunitConformance.cs -c Release --no-cache -- ../drillpress-xunit artifacts/preview-conformance
-dotnet run --file scripts/XunitConformance.cs -c Release --no-cache -- ../drillpress-xunit artifacts/preview-performance --performance 1
 ```
 
-CI retains both platforms' raw diagnostics, snapshots, profiles, dependency
-locks, identities, and conformance/performance reports as `repository-preview-*`
-artifacts for 90 days. This workflow accepts no custom target or repository
-inputs: its snapshots come only from this public repository's sample/compiler
-fixtures and the fixed public xUnit revision, including their disposable copies.
-Those public-fixture snapshots are retained intentionally so compiler inputs can
-be inspected alongside the comparison results. This upload policy does not apply
-to reports from private targets run outside the workflow.
+CI retains both platforms' raw diagnostics, dependency locks, and conformance
+reports as `repository-preview-*` artifacts for 90 days. This workflow accepts
+no custom target or repository inputs: its reports describe only the fixed
+public xUnit revision. This upload policy does not apply to reports from private
+targets run outside the workflow.
 
 Download a run's artifacts from
 [repository workflow runs](https://github.com/MortenChristiansenOrg/drill-press.net/actions/workflows/repository-preview.yml)
-for longer retention. Measurements compare complete signatures across managed,
-native, exhaustive, optimized, and disposable fix/recheck runs on the same
-machine; absolute timings and finding counts are not release thresholds.
+for longer retention. The conformance gate compares live and reconstructed
+compiler semantics and complete rule responses.
 
 [Acceptance evidence](PREVIEW_ACCEPTANCE.md) maps every implementation slice to
 its tests and retained reports. The preview gate requires both platform jobs and
-all earlier slice criteria to pass.
+all retained slice criteria to pass.

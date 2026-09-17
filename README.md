@@ -178,7 +178,7 @@ with owner-only read/write permissions. On Windows the CLI protects its
 temporary directory with inheritable access restricted to the current user
 before starting a child process.
 
-Run compiler conformance independently of performance measurements:
+Run compiler conformance:
 
 ```sh
 dotnet build fixtures/CompilerSnapshot/Interop/Interop.csproj -c Release
@@ -197,11 +197,8 @@ rule responses. Keep its checkout outside this repository to avoid inheriting
 our MSBuild files. Existing checkouts must match the pin and have no tracked
 changes. Dependency locks are generated separately under each project's `obj`
 and copied into the report directory; upstream lockfiles remain unchanged.
-Add `--performance 2` to the xUnit harness command and choose a new report
-directory to measure managed/native and exhaustive/optimized execution, including
-disposable fix/recheck workloads. See [profiling and reproducible measurements](docs/PROFILING.md)
-for the full command, report contents, and measurement scopes. `--profile` also
-reports phases on stderr during ordinary CLI checks and fixes.
+See [profiling](docs/PROFILING.md) for phase measurements on stderr during
+ordinary CLI checks and fixes with `--profile`.
 
 See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
 rules, semantic type identities, and the exact automatic-fix contracts.
