@@ -37,9 +37,14 @@ public sealed class BundleResponseValidator
         );
         var batches = response.Batches.ToDictionary(batch => batch.Id);
         ValidateFindings(response, contexts, batches);
+        var targetFiles = snapshot
+            .Projects.Where(project => project.IsAnalysisTarget)
+            .SelectMany(project => project.Documents)
+            .Select(document => document.FileIdentity)
+            .ToHashSet();
         foreach (var batch in batches.Values)
         {
-            ValidateBatch(batch, files, contexts);
+            ValidateBatch(batch, files, contexts, targetFiles);
         }
 
         var safe = batches
@@ -94,6 +99,10 @@ public sealed class BundleResponseValidator
         var messages = new Dictionary<string, string>();
         foreach (var context in response.Contexts)
         {
+            Require(
+                contexts[context.ContextId].IsAnalysisTarget || context.Findings.Length == 0,
+                "Finding references a project outside the analysis scope."
+            );
             var documents = contexts[context.ContextId]
                 .Documents.ToDictionary(document => document.DocumentId);
             foreach (var finding in context.Findings)
@@ -128,7 +137,8 @@ public sealed class BundleResponseValidator
     private static void ValidateBatch(
         FixBatch batch,
         Dictionary<string, DocumentSnapshot> files,
-        Dictionary<string, ProjectSnapshot> contexts
+        Dictionary<string, ProjectSnapshot> contexts,
+        IReadOnlySet<string> targetFiles
     )
     {
         Require(batch.Edits.Length > 0, "Fix batch contains no edits.");
@@ -140,6 +150,10 @@ public sealed class BundleResponseValidator
         );
         foreach (var edit in batch.Edits)
         {
+            Require(
+                targetFiles.Contains(edit.FileIdentity),
+                "Fix targets a document outside the analysis scope."
+            );
             Require(
                 files.TryGetValue(edit.FileIdentity, out var document)
                     && document.IsEditable

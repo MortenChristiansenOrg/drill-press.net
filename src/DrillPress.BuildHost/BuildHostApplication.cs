@@ -44,7 +44,7 @@ public sealed class BuildHostApplication
         if (args.Length < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
-                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]"
+                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile]"
             );
             return BuildHostExitCode.Failure;
         }
@@ -142,11 +142,16 @@ public sealed class BuildHostApplication
     {
         var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var validate = false;
+        var includeReferencedProjects = false;
         for (var index = 0; index < args.Length; index++)
         {
             if (args[index] == "--validate-compilation")
             {
                 validate = true;
+            }
+            else if (args[index] == "--include-referenced-projects")
+            {
+                includeReferencedProjects = true;
             }
             else if (args[index] == "--profile")
             {
@@ -163,12 +168,17 @@ public sealed class BuildHostApplication
             else
             {
                 throw new ArgumentException(
-                    "Expected --property Name=Value, --validate-compilation, or --profile."
+                    "Expected --property Name=Value, --validate-compilation, --include-referenced-projects, or --profile."
                 );
             }
         }
 
-        return new SnapshotLoadOptions { Properties = properties, ValidateCompilation = validate };
+        return new SnapshotLoadOptions
+        {
+            Properties = properties,
+            ValidateCompilation = validate,
+            IncludeReferencedProjects = includeReferencedProjects,
+        };
     }
 
     private async Task WriteSnapshotAsync(

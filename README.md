@@ -109,8 +109,9 @@ applying fixes.
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
-BuildHost, and rule-bundle package versions; snapshot format 3 binds responses to a unique
-request and preserves individual compilation and document identities. Captured child
+BuildHost, and rule-bundle package versions; snapshot format 4 records analysis
+scope, binds responses to a unique request, and preserves individual compilation
+and document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
 child and fails the check before rendering diagnostics.
 
@@ -126,8 +127,8 @@ context must validate the complete batch, including contexts without a finding.
 Missing, inactive-source, or ambiguous-binding validation withholds the fix.
 Conflicting batches are withheld in full; independent fixes survive. Insertions
 conflict at either boundary of another edit when their order would be ambiguous.
-The renderer and fix writer consume the same validated plan. Scope is the
-loaded project graph. `fix` applies retained edits and reports only remaining
+The renderer and fix writer consume the same validated plan. Fix validation covers
+the loaded project graph. `fix` applies retained edits and reports only remaining
 findings after rechecking; see the [write and recovery workflow](docs/FIXING.md).
 
 Snapshots contain source and machine-local paths. Rule bundles execute trusted
@@ -143,6 +144,13 @@ segments (`**/` also matches no directories). Matching C# paths are deduplicated
 and ordinal-sorted. Pattern matching is case-sensitive on both platforms;
 recursive expansion skips symbolic links. Quote globs to keep the shell from
 expanding them.
+
+A `.csproj` target (including a directory resolving to one) lints only that
+project, across its evaluated target frameworks. Dependencies remain loaded for
+semantic resolution and fix validation, but do not produce findings or receive
+fixes to dependency-only files. Pass `--include-referenced-projects` to `check` or
+`fix` to include direct and transitive project references. Solution targets retain
+analysis of the loaded project graph; loose-source targets retain their selected files.
 
 Pass repeatable `--property Name=Value` options to override MSBuild global
 properties; the last assignment wins. `--property TargetFramework=net10.0`

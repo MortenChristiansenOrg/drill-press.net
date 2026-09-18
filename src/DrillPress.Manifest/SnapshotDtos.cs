@@ -26,6 +26,10 @@ public sealed record ProjectSnapshot(
     [System.Text.Json.Serialization.JsonRequired]
     public string ContextId { get; init; } = Guid.NewGuid().ToString("N");
 
+    /// <summary>Whether this context is selected for lint findings and fixes; dependencies still supply semantics.</summary>
+    [System.Text.Json.Serialization.JsonRequired]
+    public bool IsAnalysisTarget { get; init; } = true;
+
     /// <summary>Identifies source project contexts referenced by this compilation.</summary>
     public string[] ReferencedContextIds { get; init; } = [];
 

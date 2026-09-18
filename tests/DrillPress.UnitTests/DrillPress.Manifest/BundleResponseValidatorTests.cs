@@ -9,6 +9,51 @@ public sealed class BundleResponseValidatorTests
     private readonly ContractFixture _fixture = new();
 
     [Fact]
+    public void Findings_from_dependency_only_contexts_are_rejected()
+    {
+        var snapshot = _fixture.Snapshot with
+        {
+            Projects =
+            [
+                _fixture.Snapshot.Projects[0] with
+                {
+                    IsAnalysisTarget = false,
+                },
+                _fixture.Snapshot.Projects[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(snapshot, _fixture.Response)
+        );
+
+        Assert.Equal("Finding references a project outside the analysis scope.", error.Message);
+    }
+
+    [Fact]
+    public void Batches_cannot_edit_dependency_only_files()
+    {
+        var snapshot = _fixture.Snapshot with
+        {
+            Projects = _fixture
+                .Snapshot.Projects.Select(project => project with { IsAnalysisTarget = false })
+                .ToArray(),
+        };
+        var response = _fixture.Response with
+        {
+            Contexts = _fixture
+                .Response.Contexts.Select(context => context with { Findings = [] })
+                .ToArray(),
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(snapshot, response)
+        );
+
+        Assert.Equal("Fix targets a document outside the analysis scope.", error.Message);
+    }
+
+    [Fact]
     public void Non_reporting_linked_context_participates_in_fix_validation()
     {
         var batch = _fixture.Response.Batches[0] with
@@ -17,7 +62,19 @@ public sealed class BundleResponseValidatorTests
         };
         var response = _fixture.Response with { Batches = [batch] };
 
-        var result = new BundleResponseValidator().Validate(_fixture.Snapshot, response);
+        var snapshot = _fixture.Snapshot with
+        {
+            Projects =
+            [
+                _fixture.Snapshot.Projects[0],
+                _fixture.Snapshot.Projects[1] with
+                {
+                    IsAnalysisTarget = false,
+                },
+            ],
+        };
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
 
         Assert.Equal(
             [
