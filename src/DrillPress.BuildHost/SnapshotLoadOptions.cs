@@ -7,6 +7,9 @@ public sealed record SnapshotLoadOptions
     public Dictionary<string, string> Properties { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Includes direct and transitive dependencies in lint analysis when the target resolves to a project.</summary>
+    public bool IncludeReferencedProjects { get; init; }
+
     /// <summary>Enumerates compiler errors after generators finish and rejects invalid compilations.</summary>
     public bool ValidateCompilation { get; init; }
 }

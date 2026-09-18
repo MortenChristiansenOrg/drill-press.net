@@ -32,7 +32,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(BuildHostExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--profile]{Environment.NewLine}",
+            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -52,7 +52,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(_fileSystem.Path.GetFullPath("Target.csproj"), loader.ProjectPath);
         Assert.Equal(
-            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":3,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             _fileSystem.File.ReadAllText("nested/output/snapshot.json")
         );
     }
@@ -159,6 +159,7 @@ public sealed class BuildHostApplicationTests
                 "--property",
                 "mode=last",
                 "--validate-compilation",
+                "--include-referenced-projects",
             ],
             error,
             TestContext.Current.CancellationToken
@@ -171,6 +172,7 @@ public sealed class BuildHostApplicationTests
             loader.Options!.Properties
         );
         Assert.True(loader.Options.ValidateCompilation);
+        Assert.True(loader.Options.IncludeReferencedProjects);
     }
 
     [Fact]
@@ -194,7 +196,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(BuildHostExitCode.Success, result);
         Assert.Equal(
-            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":3,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             fileSystem.File.ReadAllText("snapshot.json")
         );
         Assert.Equal(

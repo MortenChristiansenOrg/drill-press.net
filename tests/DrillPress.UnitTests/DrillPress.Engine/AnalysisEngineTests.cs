@@ -1,6 +1,9 @@
 using System.IO.Abstractions.TestingHelpers;
+using DrillPress.Analysis;
 using DrillPress.Engine;
+using DrillPress.Fixes;
 using DrillPress.Manifest;
+using DrillPress.Queries;
 using DrillPress.UnitTests.TestInfrastructure;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -181,6 +184,126 @@ public sealed class AnalysisEngineTests
         Assert.Equal([1, 0], response.Contexts.Select(context => context.Findings.Length));
         Assert.Equal(first.Documents[0].DocumentId, response.Contexts[0].Findings[0].DocumentId);
         Assert.Equal(snapshot.RequestId, response.RequestId);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Dependency_symbols_bind_without_producing_dependency_findings(bool optimize)
+    {
+        const string dependencySource =
+            "namespace Sample; public class Target { public static Target Empty => null; public Target Value => Target.Empty; }";
+        var dependency = TestSnapshots.CreateProject("Dependency.cs", dependencySource) with
+        {
+            ContextId = "dependency",
+            AssemblyName = "Dependency",
+            IsAnalysisTarget = false,
+        };
+        var selected = TestSnapshots.CreateProject(
+            "Selected.cs",
+            "class Selected { Sample.Target Value => Sample.Target.Empty; }"
+        ) with
+        {
+            ContextId = "selected",
+            AssemblyName = "Selected",
+            ReferencedContextIds = ["dependency"],
+            CompilationReferences = [new CompilationReferenceSnapshot("dependency", [], false)],
+        };
+        var snapshot = CompilationSnapshot.Create(dependency, selected);
+
+        var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
+            RuleTestData.TargetEmptyRuleSet(),
+            snapshot,
+            new AnalysisOptions { EnableOptimizations = optimize },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            ["dependency", "selected"],
+            response.Contexts.Select(context => context.ContextId)
+        );
+        Assert.Equal([true, true], response.Contexts.Select(context => context.IsComplete));
+        Assert.Empty(response.Contexts[0].Findings);
+        Assert.Equal(
+            [
+                new Finding(
+                    "TEST001",
+                    "Do not use Target.Empty.",
+                    selected.Documents[0].DocumentId,
+                    40,
+                    19,
+                    null
+                ),
+            ],
+            response.Contexts[1].Findings
+        );
+        Assert.Empty(response.Batches);
+    }
+
+    [Fact]
+    public async Task Custom_semantic_queries_cannot_report_dependency_sources()
+    {
+        var dependency = TestSnapshots.CreateProject("Dependency.cs", "class Dependency { }") with
+        {
+            IsAnalysisTarget = false,
+        };
+        var selected = TestSnapshots.CreateProject("Selected.cs", "class Selected { }");
+        var rules = new RuleSet();
+        rules.For(Sources.FilesIncludingGenerated).Forbid("TEST001", "Selected files only.");
+
+        var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
+            rules,
+            CompilationSnapshot.Create(dependency, selected),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            [new SourceLocation("Selected.cs", 0, 0, 1, 1)],
+            diagnostics.Select(diagnostic => diagnostic.Location)
+        );
+    }
+
+    [Fact]
+    public async Task A_selected_finding_cannot_propose_edits_to_dependency_only_files()
+    {
+        var dependency = TestSnapshots.CreateProject("Dependency.cs", "class Dependency { }") with
+        {
+            IsAnalysisTarget = false,
+        };
+        var selected = TestSnapshots.CreateProject("Selected.cs", "class Selected { }");
+        var rules = new RuleSet();
+        rules
+            .For(Sources.Files)
+            .Forbid(
+                "TEST001",
+                "Selected files only.",
+                fix: _ => new FixProposal(
+                    [new SourceEdit("Dependency.cs", "fingerprint", 0, 0, "", "// change")],
+                    _ => true
+                )
+            );
+
+        var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
+            rules,
+            CompilationSnapshot.Create(dependency, selected),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Empty(response.Contexts[0].Findings);
+        Assert.Equal(
+            [
+                new Finding(
+                    "TEST001",
+                    "Selected files only.",
+                    selected.Documents[0].DocumentId,
+                    0,
+                    0,
+                    null
+                ),
+            ],
+            response.Contexts[1].Findings
+        );
+        Assert.Empty(response.Batches);
     }
 
     [Fact]

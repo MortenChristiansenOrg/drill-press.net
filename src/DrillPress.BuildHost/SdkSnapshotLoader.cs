@@ -106,8 +106,28 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             );
         }
 
+        var projectOnly =
+            !options.IncludeReferencedProjects
+            && _fileSystem
+                .Path.GetExtension(target)
+                .Equals(".csproj", StringComparison.OrdinalIgnoreCase);
         var contexts = results
-            .Values.OrderBy(context => context.Snapshot.ProjectPath, StringComparer.Ordinal)
+            .Values.Select(context => new CompilationContext(
+                context.Snapshot with
+                {
+                    IsAnalysisTarget =
+                        !projectOnly
+                        || string.Equals(
+                            _fileSystem.Path.GetFullPath(context.Snapshot.ProjectPath),
+                            _fileSystem.Path.GetFullPath(target),
+                            OperatingSystem.IsWindows()
+                                ? StringComparison.OrdinalIgnoreCase
+                                : StringComparison.Ordinal
+                        ),
+                },
+                context.Compilation
+            ))
+            .OrderBy(context => context.Snapshot.ProjectPath, StringComparer.Ordinal)
             .ThenBy(context => context.Snapshot.TargetFramework, StringComparer.Ordinal)
             .ToArray();
         var envelope = CompilationSnapshot.Create(

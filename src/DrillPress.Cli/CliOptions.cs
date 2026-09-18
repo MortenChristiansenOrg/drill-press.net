@@ -45,6 +45,7 @@ internal sealed record CliOptions(
                 case "--no-optimization":
                     optimize = false;
                     break;
+                case "--include-referenced-projects":
                 case "--validate-compilation":
                     exportArguments.Add(args[index]);
                     break;

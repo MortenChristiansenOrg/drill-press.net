@@ -54,7 +54,7 @@ public sealed class ComponentVersionTests
         fileSystem.AddFile(
             "snapshot.json",
             new MockFileData(
-                """{"fileIdentifier":"drillpress-compilation","formatVersion":3,"productVersion":"0.0.999","projects":"incompatible shape"}"""
+                """{"fileIdentifier":"drillpress-compilation","formatVersion":4,"productVersion":"0.0.999","projects":"incompatible shape"}"""
             )
         );
 

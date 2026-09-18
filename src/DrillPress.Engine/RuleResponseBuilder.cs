@@ -18,6 +18,12 @@ internal sealed class RuleResponseBuilder
             project => project.Snapshot.ContextId,
             _ => new List<Finding>()
         );
+        var targetFiles = solution
+            .Projects.Where(project => project.Snapshot.IsAnalysisTarget)
+            .SelectMany(project => project.Snapshot.Documents)
+            .Where(document => !document.IsGenerated)
+            .Select(document => document.FileIdentity)
+            .ToHashSet();
         foreach (var diagnostic in diagnostics)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -34,7 +40,10 @@ internal sealed class RuleResponseBuilder
                     "A selected diagnostic location is outside its compilation context."
                 );
             string? batchId = null;
-            if (diagnostic.Fix is { Edits.Count: > 0 } proposal)
+            if (
+                diagnostic.Fix is { Edits.Count: > 0 } proposal
+                && proposal.Edits.All(edit => targetFiles.Contains(edit.FileIdentity))
+            )
             {
                 var edits = proposal
                     .Edits.OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)

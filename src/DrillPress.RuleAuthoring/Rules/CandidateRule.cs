@@ -10,7 +10,14 @@ internal sealed class CandidateRule<T>(
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution) =>
         query
             .Evaluate(solution)
-            .Where(candidate => candidate is not ICodeElement { Source.Document.IsGenerated: true })
+            .Where(candidate =>
+                candidate
+                    is not ICodeElement
+                    {
+                        Source: { Document.IsGenerated: true }
+                            or { Project.Snapshot.IsAnalysisTarget: false }
+                    }
+            )
             .Select(candidate =>
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();

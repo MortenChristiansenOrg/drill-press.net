@@ -57,6 +57,7 @@ public sealed class CliApplicationTests
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
             --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
+            --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the alpha package and protocol versions.
@@ -90,7 +91,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} alpha (snapshot 3, response 2)\n",
+            $"drillpress {ComponentVersion.Current} alpha (snapshot 4, response 2)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());
@@ -257,7 +258,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--profile] [--no-optimization]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization]{Environment.NewLine}",
             error.ToString()
         );
     }
