@@ -59,7 +59,7 @@ public class EmptyStringRuleTests
         Assert.Equal(&quot;class C { string Value =&gt; string.Empty; }&quot;, result.FixedText(&quot;Example.cs&quot;));
     }
 }</code></pre></div>
-<p><code>TestFinding</code> includes rule ID, path, physical line and column, exact highlighted text, and <code>HasFix</code>. <code>FixedText</code> applies only the validated plan in memory. Create another workspace from the resulting text to check that a second run is clean.</p>
+<p><code>TestFinding</code> includes rule ID, path, physical line and column, exact highlighted text, and <code>HasFix</code>. This rule offers no fix, so <code>FixedText</code> returns the original source. For rules that offer fixes, assert the complete resulting text and check it in another workspace to verify that no findings remain.</p>
 <h2 id="contexts">Model the contexts your policy depends on</h2>
 <p><code>AddProject</code> returns an <code>AnalysisProject</code>. Dependencies must already belong to the workspace. Its options are:</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Purpose</th></tr></thead><tbody>
