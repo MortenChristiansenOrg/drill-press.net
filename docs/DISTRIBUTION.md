@@ -57,17 +57,18 @@ same version when using the existing test workspace. Drill Press library
 dependencies also require exact matching versions. Package installation does
 not depend on this checkout's central package versions or build properties.
 
-Add `Program.cs` using existing APIs:
+Add `Program.cs` defining a consumer-owned spelling preference. This example
+reports findings; add a fix with the [generic edit APIs](SDK_CAPABILITIES.md#safe-corrections)
+when your bundle can prove the replacement safe:
 
 ```csharp
 using DrillPress;
 using DrillPress.Engine;
-using DrillPress.Fixes;
 using DrillPress.Semantics;
 
 var rules = new RuleSet();
 rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
-    .Forbid("EMPTY", "Use an empty literal.", fix: EmptyStringFix.Create);
+    .Forbid("EMPTY", "Use an empty literal.");
 return (int)await new RuleApplication().RunAsync(rules, args);
 ```
 
@@ -78,7 +79,6 @@ local tool (or `drillpress` for a global installation):
 dotnet build Rules.csproj -c Release
 dotnet restore /path/to/Target.csproj
 dotnet tool run drillpress -- check --rules bin/Release/net10.0/Rules.dll /path/to/Target.csproj
-dotnet tool run drillpress -- fix --rules bin/Release/net10.0/Rules.dll /path/to/Target.csproj
 ```
 
 Use OS-appropriate paths. CLI-supplied rule, target, and explicit BuildHost paths

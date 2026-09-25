@@ -44,8 +44,7 @@ internal static class ContextualRewrite
     public static bool PreservesBinding(
         AnalysisSource source,
         SyntaxNode replaced,
-        string replacement,
-        InvocationExpressionSyntax? changedCall = null
+        string replacement
     )
     {
         if (IsObservableSyntax(source, replaced))
@@ -107,19 +106,7 @@ internal static class ContextualRewrite
                 return false;
             }
 
-            if (expression == changedCall)
-            {
-                if (
-                    !OrdinalComparerFix.IsDistinct(
-                        changedModel.GetSymbolInfo(rewritten).Symbol as IMethodSymbol,
-                        1
-                    )
-                )
-                {
-                    return false;
-                }
-            }
-            else if (expression != replaced)
+            if (expression != replaced)
             {
                 var before = source.Model.GetSymbolInfo(expression);
                 var after = changedModel.GetSymbolInfo(rewritten);

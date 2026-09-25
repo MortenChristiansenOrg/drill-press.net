@@ -9,7 +9,6 @@ namespace DrillPress.Analysis;
 public sealed class CodeMethod : ICodeElement
 {
     private readonly Lazy<IMethodSymbol?> _symbol;
-    private readonly Lazy<TestBody> _body;
 
     internal CodeMethod(
         AnalysisSolution solution,
@@ -23,7 +22,6 @@ public sealed class CodeMethod : ICodeElement
         _symbol = new(() =>
             source.Model.GetDeclaredSymbol(syntax, source.Project.CancellationToken)
         );
-        _body = new(() => new TestBody(this));
     }
 
     /// <summary>The document and compilation used to bind this declaration.</summary>
@@ -58,7 +56,4 @@ public sealed class CodeMethod : ICodeElement
 
     /// <summary>The method identifier's physical span.</summary>
     public SourceLocation Location => Source.Locate(Syntax.Identifier.Span);
-
-    /// <summary>Shared physical blank-line and assertion analysis, excluding nested bodies.</summary>
-    public TestBody Body => _body.Value;
 }

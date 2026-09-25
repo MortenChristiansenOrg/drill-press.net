@@ -1,9 +1,9 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Testing;
+namespace DrillPress.SampleRules.Testing;
 
 /// <summary>Reusable semantic xUnit selection shared by method-level conventions.</summary>
-public static class XunitTests
+internal static class XunitTests
 {
     /// <summary>Selects methods with genuine xUnit Fact/Theory attributes, including derived attributes.</summary>
     public static RuleCondition<CodeMethod> AreTests { get; } =
@@ -17,7 +17,7 @@ public static class XunitTests
     public static CodeQuery<CodeMethod> Methods { get; } = Code.Methods.Where(AreTests);
 
     internal static bool IsXunitType(INamedTypeSymbol type, string metadataName) =>
-        CodeType.MetadataNameOf(type) == metadataName
+        CodeType.Named(metadataName).Matches(type)
         && type.ContainingAssembly.Name
             is "xunit.core"
                 or "xunit.v3.core"

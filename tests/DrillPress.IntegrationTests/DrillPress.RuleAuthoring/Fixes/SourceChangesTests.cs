@@ -73,7 +73,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
     }
 
     [Fact]
-    public async Task Modifier_removal_preserves_comments_and_physical_lines()
+    public async Task Exact_replacements_preserve_comments_and_physical_lines()
     {
         var workspace = fixture.Workspace();
         workspace.AddProject(
@@ -96,11 +96,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
                     .Nodes<MemberDeclarationSyntax>()
                     .Where(node => node.Syntax is TypeDeclarationSyntax)
             )
-            .Forbid(
-                "ACCESS",
-                "Use default accessibility.",
-                fix: ModifierFix.RemoveRedundantAccessibility
-            );
+            .Forbid("ACCESS", "Use default accessibility.", fix: RemoveInternalToken);
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -214,7 +210,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
     }
 
     [Fact]
-    public async Task Modifier_removal_withholds_accessibility_changes()
+    public async Task Consumer_proof_can_withhold_a_compiling_edit_that_changes_accessibility()
     {
         var workspace = fixture.Workspace();
         workspace.AddProject(
@@ -228,11 +224,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
                     .Nodes<MemberDeclarationSyntax>()
                     .Where(node => node.Syntax is TypeDeclarationSyntax or MethodDeclarationSyntax)
             )
-            .Forbid(
-                "ACCESS",
-                "Remove redundant accessibility.",
-                fix: ModifierFix.RemoveRedundantAccessibility
-            );
+            .Forbid("ACCESS", "Remove redundant accessibility.", fix: RemoveInternalToken);
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -252,4 +244,30 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
         Assert.Equal("class A { internal void M() { } }", result.FixedText("A.cs"));
     }
+
+    private static FixProposal RemoveInternalToken(CodeNode<MemberDeclarationSyntax> node) =>
+        SourceChanges.Propose(
+            [
+                SourceChanges.Replace(
+                    node.Source,
+                    new TextSpan(node.Syntax.SpanStart, "internal ".Length),
+                    ""
+                ),
+            ],
+            context =>
+            {
+                var original = node.Source.Model.GetDeclaredSymbol(node.Syntax)!;
+                var rewritten = context.Rewritten.SyntaxTrees.Single();
+                var declaration = rewritten
+                    .GetRoot()
+                    .DescendantNodes()
+                    .OfType<MemberDeclarationSyntax>()
+                    .Single(candidate => candidate.RawKind == node.Syntax.RawKind);
+                return original.DeclaredAccessibility
+                    == context
+                        .Rewritten.GetSemanticModel(rewritten)
+                        .GetDeclaredSymbol(declaration)!
+                        .DeclaredAccessibility;
+            }
+        );
 }

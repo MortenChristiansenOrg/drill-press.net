@@ -4,10 +4,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress.SampleRules.Fixes;
 
 /// <summary>Removes the comparer only from Enumerable.Distinct&lt;string&gt;'s documented equivalent overload pair.</summary>
-public static class OrdinalComparerFix
+internal static class OrdinalComparerFix
 {
     /// <summary>Diagnoses Ordinal references inside arguments, including calls outside the fix allowlist.</summary>
     public static RuleCondition<MemberReference> IsArgument { get; } =
@@ -49,17 +49,14 @@ public static class OrdinalComparerFix
             list.ToString(),
             rewritten.ToString()
         );
-        return new(
+        return SourceChanges.Propose(
             [edit],
-            project =>
-            {
-                var sources = project
-                    .Sources.Where(candidate =>
+            context =>
+                context
+                    .Original.Sources.Where(candidate =>
                         candidate.Document.FileIdentity == edit.FileIdentity
                     )
-                    .ToArray();
-                return sources.Length > 0 && sources.All(candidate => Validate(candidate, edit));
-            }
+                    .All(candidate => Validate(candidate, edit, context))
         );
     }
 
@@ -71,8 +68,7 @@ public static class OrdinalComparerFix
         return method is { Name: "Distinct", IsStatic: true, Arity: 1 }
             && method.Parameters.Length == parameterCount
             && method.TypeArguments[0].SpecialType == SpecialType.System_String
-            && CodeType.MetadataNameOf(method.ContainingType) == "System.Linq.Enumerable"
-            && CodeType.IsFrameworkSymbol(method.ContainingType)
+            && IsFrameworkEnumerable(method.ContainingType)
             && method.Parameters[0].Type
                 is INamedTypeSymbol
                 {
@@ -81,9 +77,24 @@ public static class OrdinalComparerFix
             && (
                 parameterCount == 1
                 || method.Parameters[1].Type is INamedTypeSymbol comparer
-                    && CodeType.MetadataNameOf(comparer)
-                        == "System.Collections.Generic.IEqualityComparer`1"
+                    && CodeType
+                        .Named("System.Collections.Generic.IEqualityComparer<>")
+                        .Matches(comparer)
             );
+    }
+
+    private static bool IsFrameworkEnumerable(INamedTypeSymbol type)
+    {
+        var assembly = type.ContainingAssembly.Identity;
+        return CodeType.Named("System.Linq.Enumerable").Matches(type)
+            && (
+                assembly.Name is "mscorlib" or "netstandard" or "System"
+                || assembly.Name.StartsWith("System.", StringComparison.Ordinal)
+            )
+            && Convert.ToHexString(assembly.PublicKeyToken.AsSpan())
+                is "B03F5F7F11D50A3A"
+                    or "B77A5C561934E089"
+                    or "7CEC85D7BEA7798E";
     }
 
     private static bool IsEligible(
@@ -93,8 +104,8 @@ public static class OrdinalComparerFix
     )
     {
         if (
-            ContextualRewrite.HasInteriorContent(argument)
-            || ContextualRewrite.IsObservableSyntax(source, call)
+            RewriteSyntax.HasInteriorContent(argument)
+            || RewriteSyntax.IsObservableSyntax(source, call)
             || source.Model.GetOperation(call) is not IInvocationOperation operation
             || !IsDistinct(operation.TargetMethod, 2)
         )
@@ -118,7 +129,7 @@ public static class OrdinalComparerFix
             && CodeType.Of<StringComparer>().Matches(property.Property.ContainingType);
     }
 
-    private static bool Validate(AnalysisSource source, SourceEdit edit)
+    private static bool Validate(AnalysisSource source, SourceEdit edit, RewriteContext context)
     {
         if (
             !source.Document.IsEditable
@@ -138,6 +149,39 @@ public static class OrdinalComparerFix
                 IsEligible(source, call, argument)
                 && list.RemoveNode(argument, SyntaxRemoveOptions.KeepExteriorTrivia)?.ToString()
                     == edit.Replacement
-            ) && ContextualRewrite.PreservesBinding(source, list, edit.Replacement, call);
+            ) && PreservesCall(source, call, edit, context);
+    }
+
+    private static bool PreservesCall(
+        AnalysisSource source,
+        InvocationExpressionSyntax call,
+        SourceEdit edit,
+        RewriteContext context
+    )
+    {
+        var tree = context.Rewritten.SyntaxTrees.Single(tree =>
+            tree.FilePath == source.Tree.FilePath
+        );
+        var span = new TextSpan(
+            call.SpanStart,
+            call.Span.Length + edit.Replacement.Length - edit.Length
+        );
+        if (
+            tree.GetRoot().FindNode(span, getInnermostNodeForTie: true)
+                is not InvocationExpressionSyntax rewritten
+            || rewritten.Span != span
+            || !IsDistinct(
+                context.Rewritten.GetSemanticModel(tree).GetSymbolInfo(rewritten).Symbol
+                    as IMethodSymbol,
+                1
+            )
+        )
+        {
+            return false;
+        }
+
+        // This policy proves the overload pair. The shared proof checks the complete
+        // invocation's type/conversion and every enclosing expression's binding.
+        return BindingProof.PreservesEnclosingExpressions(source, call, rewritten.ToString());
     }
 }

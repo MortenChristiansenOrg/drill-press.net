@@ -1,4 +1,5 @@
 using DrillPress;
+using DrillPress.SampleRules.Relationships;
 
 namespace DrillPress.SampleRules;
 
@@ -8,29 +9,25 @@ public static class SampleRuleSet
     {
         var rules = new RuleSet();
         ShowcaseRules.Register(rules);
-        var tests = XunitTests.Methods;
+        var tests = XunitTests.Methods.Select(method => new TestBody(method));
 
         rules
             .For(tests)
             .Require(
-                new(method => method.Body.EmptyLines.Count <= 2),
+                new(method => method.EmptyLines.Count <= 2),
                 "DP1001",
                 "Keep at most two empty lines in a test.",
-                method => method.Body.EmptyLines[2]
+                method => method.EmptyLines[2]
             );
         rules
-            .For(tests.Where(new(method => method.Body.EarlyAssertion is not null)))
+            .For(tests.Where(new(method => method.EarlyAssertion is not null)))
             .Forbid(
                 "DP1002",
                 "Move assertions after the final empty line.",
-                method => method.Body.EarlyAssertion!
+                method => method.EarlyAssertion!
             );
         rules
-            .For(
-                Code.Interfaces.Where(
-                    new(type => type.Solution.Implementations.HasExactlyOne(type))
-                )
-            )
+            .For(Code.Interfaces.Where(InterfacePolicy.HasSingleProductionImplementation))
             .Forbid(
                 "DP1003",
                 "Remove interfaces with exactly one concrete non-test implementation."

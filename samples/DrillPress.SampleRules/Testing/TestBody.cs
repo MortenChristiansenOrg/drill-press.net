@@ -3,13 +3,19 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Testing;
+namespace DrillPress.SampleRules.Testing;
 
 /// <summary>Physical test-body facts shared by whitespace and assertion conventions.</summary>
-public sealed class TestBody
+internal sealed class TestBody : ICodeElement
 {
+    public AnalysisSource Source { get; }
+
+    public SourceLocation Location { get; }
+
     internal TestBody(CodeMethod method)
     {
+        Source = method.Source;
+        Location = method.Location;
         if (method.Syntax.Body is not { } body)
         {
             EmptyLines = [];

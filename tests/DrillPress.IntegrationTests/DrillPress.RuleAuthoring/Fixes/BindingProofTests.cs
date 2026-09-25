@@ -29,4 +29,27 @@ public sealed class BindingProofTests(SdkFixture fixture) : IClassFixture<SdkFix
 
         Assert.False(preserves);
     }
+
+    [Fact]
+    public void Argument_removal_does_not_grant_an_exception_for_a_specific_library_overload()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "using System; using System.Linq; class A { object M(string[] values) => values.Distinct(StringComparer.Ordinal); }"
+                ),
+            ]
+        );
+        var node = Sources
+            .Nodes<ArgumentListSyntax>()
+            .In(workspace.Analyze(TestContext.Current.CancellationToken))
+            .Single();
+
+        var preserves = BindingProof.PreservesEnclosingExpressions(node.Source, node.Syntax, "()");
+
+        Assert.False(preserves);
+    }
 }

@@ -3,10 +3,10 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress.SampleRules.Fixes;
 
 /// <summary>Proposes a literal only when rewriting the enclosing expression preserves binding and conversions.</summary>
-public static class EmptyStringFix
+internal static class EmptyStringFix
 {
     /// <summary>Creates a complete replacement with independent validation for every affected source membership.</summary>
     public static FixProposal? Create(MemberReference reference)
@@ -14,7 +14,7 @@ public static class EmptyStringFix
         if (
             reference.Source is not { Document.IsEditable: true } source
             || reference.Syntax is not { } expression
-            || ContextualRewrite.HasInteriorContent(expression)
+            || RewriteSyntax.HasInteriorContent(expression)
         )
         {
             return null;
@@ -59,6 +59,6 @@ public static class EmptyStringFix
             && source.Model.GetSymbolInfo(expression).Symbol
                 is Microsoft.CodeAnalysis.IFieldSymbol { Name: "Empty" } field
             && CodeType.Of<string>().Matches(field.ContainingType)
-            && ContextualRewrite.PreservesBinding(source, expression, edit.Replacement);
+            && BindingProof.PreservesEnclosingExpressions(source, expression, edit.Replacement);
     }
 }

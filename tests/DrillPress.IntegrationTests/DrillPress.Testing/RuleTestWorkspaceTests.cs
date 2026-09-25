@@ -40,7 +40,15 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
             .Forbid("GENERATED", "Do not report generated files.");
         rules
             .For(Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty))))
-            .Forbid("EMPTY", "Use a literal.", fix: EmptyStringFix.Create);
+            .Forbid(
+                "EMPTY",
+                "Use a literal.",
+                fix: reference =>
+                    SourceChanges.Propose(
+                        [SourceChanges.Replace(reference.Source!, reference.Syntax!.Span, "\"\"")],
+                        _ => true
+                    )
+            );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
