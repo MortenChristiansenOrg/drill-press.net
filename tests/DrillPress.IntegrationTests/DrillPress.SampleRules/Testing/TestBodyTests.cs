@@ -1,7 +1,7 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
 using Xunit;
 
-namespace DrillPress.IntegrationTests.RuleAuthoring.Testing;
+namespace DrillPress.IntegrationTests.SampleRules.Testing;
 
 public sealed class TestBodyTests(SemanticRuleFixture fixture) : IClassFixture<SemanticRuleFixture>
 {

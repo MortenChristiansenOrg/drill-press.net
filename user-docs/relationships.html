@@ -45,7 +45,6 @@ rules.For(ProjectFacts.ProductionFiles.Where(file =&gt;
 <h2 id="counterparts">Require a counterpart</h2>
 <div class="codeblock"><div class="codehead"><span>Require a named xUnit round-trip test for each concrete codec</span></div><pre tabindex="0" data-check="program" id="example-22"><code>using DrillPress;
 using DrillPress.Semantics;
-using DrillPress.Testing;
 using TypeKind = Microsoft.CodeAnalysis.TypeKind;
 
 var rules = new RuleSet();
@@ -54,14 +53,16 @@ var codecs = Code.Types.Where(type =&gt;
     !type.Source.Project.IsTestProject
     &amp;&amp; type.Symbol is { IsAbstract: false, TypeKind: TypeKind.Class or TypeKind.Struct }
     &amp;&amp; type.Implements(contract));
-var tests = XunitTests.Methods.Where(method =&gt; method.Source.Project.IsTestProject);
+var fact = CodeType.Named(&quot;Xunit.FactAttribute&quot;, &quot;xunit.v3.core&quot;);
+var tests = Code.Methods.Where(method =&gt;
+    method.Source.Project.IsTestProject &amp;&amp; method.HasAttribute(fact));
 
 rules.For(codecs.WithoutMatching(tests, (codec, test) =&gt;
         test.Name == $&quot;{codec.Name}RoundTrip&quot;
         &amp;&amp; codec.Solution.ProjectGraph.Includes(
             test.Source.Project, codec.Source.Project)))
     .Forbid(&quot;TEAM013&quot;, &quot;Add an xUnit &lt;CodecName&gt;RoundTrip test for this codec.&quot;);</code></pre></div>
-<p>The missing thing has no source location, so the rule reports on the existing codec. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names.</p>
+<p>The missing thing has no source location, so the rule reports on the existing codec. This example selects xUnit v3 Fact attributes, including derived attributes; adapt the configured attribute identity for your framework. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names.</p>
 <p>The keyed <code>WithoutMatching(other, key, otherKey, comparer)</code> overload is useful for simple equality and large inventories. The predicate overload handles context-sensitive matching. <code>Join</code> returns matching pairs rather than missing owners.</p>
 <h2 id="graph">Respect project boundaries</h2>
 <p><code>solution.ProjectGraph.Includes(consumer, owner)</code> means the consumer is the owner itself or transitively references that exact evaluated context. <code>DependenciesOf(project)</code> includes the project itself. <code>CompatibleViewsOf(owner)</code> returns separate compatible project sets; it does not merge alternate frameworks or incompatible evaluations.</p>
@@ -81,9 +82,13 @@ rules.For(codecs.WithoutMatching(tests, (codec, test) =&gt;
 var rules = new RuleSet();
 
 rules.For(Code.Interfaces.Where(type =&gt;
-        type.Solution.Implementations.HasExactlyOne(type)))
+        type.Solution.Implementations.In(type).Any(view =&gt;
+            view.Implementations.Count(item =&gt;
+                !item.Project.IsTestProject &amp;&amp; !item.Symbol.IsAbstract
+                &amp;&amp; item.Symbol.TypeKind is Microsoft.CodeAnalysis.TypeKind.Class
+                    or Microsoft.CodeAnalysis.TypeKind.Struct) == 1)))
     .Forbid(&quot;TEAM014&quot;, &quot;Consider removing this single-implementation interface.&quot;);</code></pre></div>
-<p><code>InterfaceImplementations.HasExactlyOne</code> considers compatible source views and excludes abstract and test implementations. It reports when any compatible view has exactly one concrete production implementation. It does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice.</p>
+<p><code>InterfaceImplementations.In</code> returns implementation evidence per compatible source view, including abstract types, derived interfaces, test projects, and generated definitions. This consumer chooses its filters and count explicitly. Each result exposes its evaluated project and declared symbol. It does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="analysis.html"><small>← PREVIOUS</small>Calls and flow</a>
 <a href="facts.html"><small>NEXT →</small>Facts, comparisons, and baselines</a>

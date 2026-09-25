@@ -14,22 +14,18 @@ and consumer fixtures, see the [composable SDK guide](SDK_CAPABILITIES.md).
 The five preview rules below remain available alongside the configured codec
 showcase in the sample bundle.
 
+The SDK supplies analysis and edit primitives. Test-framework recognition,
+layout conventions, and preferred spellings are implemented entirely in the
+sample bundle, not shipped as SDK APIs.
+
 ```csharp
 using DrillPress;
-using DrillPress.Fixes;
-using DrillPress.Testing;
+using DrillPress.Semantics;
 
 var rules = new RuleSet();
-var tests = XunitTests.Methods;
-
-rules.For(tests).Require(
-    new(method => method.Body.EmptyLines.Count <= 2),
-    "DP1001", "Keep at most two empty lines in a test.",
-    method => method.Body.EmptyLines[2]);
-
-rules.For(Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty))))
-    .Forbid("DP1004", "Use the empty string literal \"\" instead of string.Empty.",
-        fix: EmptyStringFix.Create);
+var legacyRead = CodeType.Named("Product.LegacyStore").Member("Read");
+rules.For(legacyRead.References)
+    .Forbid("TEAM001", "Use the application's current storage contract.");
 ```
 
 `Code.Methods`, `Code.Types`, `Code.Interfaces`, and `Code.MemberReferences` share
@@ -45,9 +41,12 @@ each query instance is materialized once per analysis. Derived queries share
 custom-root discovery; different conditions remain independent selections.
 
 ```csharp
+using DrillPress;
+using DrillPress.Analysis;
+
 var shortName = new RuleCondition<CodeMethod>(method => method.Symbol?.Name.Length < 3);
 var constructorLike = new RuleCondition<CodeMethod>(method => method.Symbol?.Name == "New");
-var candidates = Code.Methods.Where(shortName.Or(constructorLike)).ExceptWhen(XunitTests.AreTests);
+var candidates = Code.Methods.Where(shortName.Or(constructorLike)).ExceptWhen(method => method.Source.Project.IsTestProject);
 rules.For(candidates).Forbid("TEAM001", "Use a descriptive method name.");
 ```
 
@@ -92,7 +91,7 @@ The sample bundle supplies these conventions:
 | DP1004 | A resolved `string.Empty` reference. A fix replaces only the expression span with `""`, retaining surrounding trivia. |
 | DP1005 | A resolved `StringComparer.Ordinal` reference within an argument. Only the documented overload pair below currently receives a fix. |
 
-xUnit selection recognizes Fact/Theory attributes in the xUnit core assemblies
+The sample bundle's xUnit selection recognizes Fact/Theory attributes in the xUnit core assemblies
 and walks derived attribute base types. Assertions must resolve to xUnit's Assert
 class. Similarly named unrelated attributes and assertion classes do not match.
 Interface views combine compatible consumer roots for the same target framework;
@@ -110,13 +109,13 @@ validator then requires agreement and withholds entire conflicting batches.
 The `+` marker means that this complete plan survived validation; proposing a
 fix does not write files.
 
-The empty-string fix rejects `nameof`, expression trees, interior comments/directives, erroneous binding,
+The sample empty-string fix rejects `nameof`, expression trees, interior comments/directives, erroneous binding,
 changed enclosing overloads, and changed conversions. In particular, converting
 a nonconstant expression to a constant can change an overload selected several
 expressions above the field reference. Rebinding only the immediate argument is
 insufficient.
 
-The comparer allowlist is exactly the BCL
+The sample comparer allowlist is exactly the BCL
 `Enumerable.Distinct<string>(IEnumerable<string>, IEqualityComparer<string>)`
 to `Enumerable.Distinct<string>(IEnumerable<string>)` pair. Static, extension,
 and named arguments are mapped through compiler operations before removal;

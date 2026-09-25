@@ -30,25 +30,10 @@
 <p class="lead">A useful correction needs more than compilable code.</p>
 
 <p>A finding can propose a correction, but “the edited code compiles” is not enough. A fix must preserve the behavior your policy promises to preserve in every affected loaded compilation.</p>
-<h2 id="existing">Start with a proven fix</h2>
-<div class="codeblock"><div class="codehead"><span>Attach the built-in empty-string correction</span></div><pre tabindex="0" data-check="program" id="example-29"><code>using DrillPress;
-using DrillPress.Fixes;
-using DrillPress.Semantics;
-
-var rules = new RuleSet();
-var emptyString = CodeType.Of&lt;string&gt;().Member(nameof(string.Empty));
-
-rules.For(emptyString.References).Forbid(
-    &quot;TEAM018&quot;,
-    &quot;Use the empty string literal instead of string.Empty.&quot;,
-    fix: EmptyStringFix.Create);</code></pre></div>
+<h2 id="existing">Keep correction policy in your bundle</h2>
 <p>A fix factory receives the violating candidate and returns a <code>FixProposal</code> or null. Returning null keeps the finding but offers no fix. <code>Forbid</code> and <code>Require</code> both accept the optional <code>fix</code> argument.</p>
-<div class="table-wrap"><table><thead><tr><th>Built-in fix</th><th>Supported correction</th></tr></thead><tbody>
-<tr><td><code>EmptyStringFix.Create</code></td><td><code>string.Empty</code> to <code>""</code>, with binding, conversion, expression-tree, comment, and directive safeguards.</td></tr>
-<tr><td><code>OrdinalComparerFix.IsArgument</code> / <code>Create</code></td><td>The condition selects comparer arguments. The fix is narrowly limited to the supported <code>Enumerable.Distinct&lt;string&gt;</code> overload pair, not arbitrary comparer APIs.</td></tr>
-<tr><td><code>ModifierFix.RemoveRedundantAccessibility</code></td><td>Removes a redundant accessibility modifier from a <code>CodeNode&lt;MemberDeclarationSyntax&gt;</code>, checking accessibility before and after in affected contexts.</td></tr>
-</tbody></table></div>
-<p>These factories intentionally withhold fixes for cases they cannot prove. For example, replacing a field access with a constant can change overload selection higher up the expression. A similarly named collection method is not automatically safe for comparer removal.</p>
+<p>The SDK provides generic edit construction and compiler checks. It does not choose between <code>string.Empty</code> and <code>""</code>, explicit and implicit accessibility, or explicit and default comparers. The <a href="../samples/DrillPress.SampleRules/Fixes/EmptyStringFix.cs">sample spelling fix</a> and <a href="../samples/DrillPress.SampleRules/Fixes/OrdinalComparerFix.cs">sample comparer fix</a> show consumer-owned policies and their conservative proofs.</p>
+<p>Replacing a field access with a constant can change an enclosing overload. Removing an argument can change behavior even when the resulting call compiles. Keep those proofs with the policy that needs them.</p>
 <h2 id="proposal">Build an exact edit proposal</h2>
 <div class="codeblock"><div class="codehead"><span>A helper that requires the caller to supply its proof</span></div><pre tabindex="0" data-check="program" id="example-30"><code>using DrillPress.Analysis;
 using DrillPress.Fixes;
@@ -81,7 +66,7 @@ static FixProposal ProposeReplacement(
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#existing">Start with a proven fix</a><a href="#proposal">Build an exact edit proposal</a><a href="#binding">Check binding without overstating it</a><a href="#agreement">Validation and application are separate</a><a href="#test-fixes">Test the fixes you withhold</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#existing">Keep correction policy in your bundle</a><a href="#proposal">Build an exact edit proposal</a><a href="#binding">Check binding without overstating it</a><a href="#agreement">Validation and application are separate</a><a href="#test-fixes">Test the fixes you withhold</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

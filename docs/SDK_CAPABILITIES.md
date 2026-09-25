@@ -23,8 +23,7 @@ for the small `DrillPress` rule/query facade, folder names match namespaces.
 | `Collections` | Inventory comparison and repeated token shapes |
 | `Configuration` | Immutable API sets and path patterns |
 | `Baselines` | Accepted .NET source state and symbol comparisons |
-| `Fixes` | Edit construction, contextual compiler proofs and specialized fixes |
-| `Testing` | Semantic xUnit selection and test-body analysis |
+| `Fixes` | Edit construction and contextual compiler proofs |
 
 `DrillPress.Testing` is a separate consumer test-kit project using the
 `DrillPress.Testing` namespace. It references the production evaluator and
@@ -151,7 +150,7 @@ projects are not represented by the current source diagnostic protocol.
 
 | Capability | Implemented contract | Deliberate boundary |
 | --- | --- | --- |
-| Syntax and trivia | Original Roslyn syntax/text, paths, modifiers, comments, generated classification, precise spans; xUnit blank-line helpers | No universal primary-type or human-quality judgment |
+| Syntax and trivia | Original Roslyn syntax/text, paths, modifiers, comments, generated classification, precise spans | No universal primary-type or human-quality judgment |
 | Semantics | Resolved identities, attributes, generic definitions, conversions, constants, overloads and nullable state | Ambiguous bindings are never guessed |
 | Operations and flow | Cached operation roots, compiler CFG/data-flow sets, nullable flow at an expression | No interprocedural alias, transaction, token-provenance or general behavioral-equivalence engine |
 | Relationships | Inheritance, source ownership, references, callers and bound invocation paths, generated call bodies included | Paths follow invocation targets; constructor/property/event edges, dynamic dispatch, reflection, delegate dispatch (including lambda bodies) and DI resolution are not inferred |
@@ -161,7 +160,7 @@ projects are not represented by the current source diagnostic protocol.
 | Sets and duplicates | Keyed comparisons and exact repeated token shapes ignoring trivia | No semantic clone detector; repeated syntax does not prove equivalent behavior |
 | Requirements | Joins, contextual absence checks and source-anchored missing counterparts | Consumers supply ownership and naming policy |
 | Facts | Lazy values per analysis or evaluated project, composable with built-in queries | Cache identity is the fact instance; values are not serialized |
-| Fixes | Multi-file text batches, caller-supplied semantic proof, compiler checks, binding helpers, conservative modifier and existing expression/argument fixes | No file create/delete/move or solution-wide rename/inlining refactoring engine |
+| Fixes | Multi-file text batches, caller-supplied semantic proof, compiler checks and binding helpers | No file create/delete/move or solution-wide rename/inlining refactoring engine |
 | Consumer tests | Explicit references or runtime defaults, multiple projects/contexts, generated source, exact findings, fixed text and withheld fixes | Framework labels do not select reference packs; no OS file writes or target builds |
 
 Generated sources contribute compiler semantics and can be inspected through
@@ -188,9 +187,9 @@ semantic correction; successful compilation alone is insufficient.
 `BindingProof.PreservesEnclosingExpressions` reuses the existing enclosing
 expression/symbol/conversion check, excluding `nameof` and expression trees.
 It does not prove side effects, disposal, ref behavior or evaluation order.
-`ModifierFix.RemoveRedundantAccessibility` checks the compiler's accessibility
-before and after the edit in every affected context. The existing
-`EmptyStringFix` and allowlisted `OrdinalComparerFix` retain their contracts.
+The SDK does not choose a preferred spelling, accessibility style, test framework,
+or overload-removal policy. The sample bundle implements its own specialized
+fixes using these public primitives.
 
 The engine validates every loaded context containing edited physical files,
 including contexts that reported no violation. Its response validator withholds
@@ -254,3 +253,28 @@ invoked before `Return`; it does not infer aliases, escaping delegates or lease
 lifetimes. The runnable `PooledUtf8Decoder` shows why that ownership convention
 is useful. Inventory and duplicate-example policies remain explicit team
 conventions, not general claims that all duplication is harmful.
+
+## Migrating policy helpers out of the SDK
+
+This is a breaking alpha API change. `XunitTests`, `TestBody`, `TestAssertion`,
+`CodeMethod.Body`, `EmptyStringFix`, `OrdinalComparerFix`, and `ModifierFix`
+are no longer SDK APIs. The examples live under `samples/DrillPress.SampleRules`
+in its `Testing` and `Fixes` namespaces. They are consumer implementations,
+not an additional dependency or automatic convention set. Use semantic attributes,
+`CodeMethod.Syntax`, compiler operations, and custom query/fact composition to
+implement the policy your bundle needs. The separate `DrillPress.Testing`
+consumer test kit remains available.
+
+Replace `solution.Implementations.HasExactlyOne(type)` with
+`solution.Implementations.In(type)`. Each `InterfaceImplementationView` contains
+`Projects` and `Implementations`; each implementation exposes `Project` and
+`Symbol`. Results include test projects, abstract types, derived interfaces, and
+generated definitions. Filter these explicitly, then choose a count or other
+condition within each compatible view. Partial and constructed generic occurrences
+are deduplicated by source definition and context. Alternate evaluations remain
+separate; unloaded external consumers are not inferred. Discovery is cached and
+uses the existing indexed path when optimizations are enabled.
+
+The shared binding proof no longer has a special exception for the
+`Distinct<string>` overload pair. Consumers that intentionally change an overload
+must supply and test their own behavioral proof through `SourceChanges.Propose`.

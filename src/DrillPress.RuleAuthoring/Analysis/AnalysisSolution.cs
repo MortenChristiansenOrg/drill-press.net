@@ -102,7 +102,7 @@ public sealed class AnalysisSolution
     /// <summary>Distinct ordinary source type definitions within each context.</summary>
     public IReadOnlyList<CodeDeclaration> Types => _types.Value;
 
-    /// <summary>Cached concrete implementation analysis over compatible source graphs.</summary>
+    /// <summary>Cached source implementation analysis over compatible source graphs.</summary>
     public InterfaceImplementations Implementations { get; }
 
     /// <summary>Compatible evaluated project dependencies, shared by counterpart and ownership policies.</summary>

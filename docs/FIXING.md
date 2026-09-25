@@ -18,7 +18,7 @@ finding. Duplicate edits are written once. Conflicts withhold whole batches;
 unrelated safe batches still apply. Generated, foreign, and non-editable targets
 cannot be written even if a fix factory proposes them from another document.
 
-DP1004 replaces proven `string.Empty` references with `""`. DP1005 removes
+The consumer-owned sample rule DP1004 replaces proven `string.Empty` references with `""`. DP1005 removes
 `StringComparer.Ordinal` only from the proven `Enumerable.Distinct<string>`
 call shapes described in [rule authoring](RULE_AUTHORING.md). Other findings
 remain for manual correction. The CLI never invents edits.

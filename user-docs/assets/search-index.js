@@ -192,7 +192,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Require a counterpart · Projects and relationships",
     "url": "relationships.html#counterparts",
-    "text": "Require a named xUnit round-trip test for each concrete codec using DrillPress; using DrillPress.Semantics; using DrillPress.Testing; using TypeKind = Microsoft.CodeAnalysis.TypeKind; var rules = new RuleSet(); var contract = CodeType.Named(\"Product.ITextCodec\"); var codecs = Code.Types.Where(type => !type.Source.Project.IsTestProject && type.Symbol is { IsAbstract: false, TypeKind: TypeKind.Class or TypeKind.Struct } && type.Implements(contract)); var tests = XunitTests.Methods.Where(method => method.Source.Project.IsTestProject); rules.For(codecs.WithoutMatching(tests, (codec, test) => test.Name == $\"{codec.Name}RoundTrip\" && codec.Solution.ProjectGraph.Includes( test.Source.Project, codec.Source.Project))) .Forbid(\"TEAM013\", \"Add an xUnit <CodecName>RoundTrip test for this codec.\"); The missing thing has no source location, so the rule reports on the existing codec. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names. The keyed WithoutMatching(other, key, otherKey, comparer) overload is useful for simple equality and large inventories. The predicate overload handles context-sensitive matching. Join returns matching pairs rather than missing owners."
+    "text": "Require a named xUnit round-trip test for each concrete codec using DrillPress; using DrillPress.Semantics; using TypeKind = Microsoft.CodeAnalysis.TypeKind; var rules = new RuleSet(); var contract = CodeType.Named(\"Product.ITextCodec\"); var codecs = Code.Types.Where(type => !type.Source.Project.IsTestProject && type.Symbol is { IsAbstract: false, TypeKind: TypeKind.Class or TypeKind.Struct } && type.Implements(contract)); var fact = CodeType.Named(\"Xunit.FactAttribute\", \"xunit.v3.core\"); var tests = Code.Methods.Where(method => method.Source.Project.IsTestProject && method.HasAttribute(fact)); rules.For(codecs.WithoutMatching(tests, (codec, test) => test.Name == $\"{codec.Name}RoundTrip\" && codec.Solution.ProjectGraph.Includes( test.Source.Project, codec.Source.Project))) .Forbid(\"TEAM013\", \"Add an xUnit <CodecName>RoundTrip test for this codec.\"); The missing thing has no source location, so the rule reports on the existing codec. This example selects xUnit v3 Fact attributes, including derived attributes; adapt the configured attribute identity for your framework. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names. The keyed WithoutMatching(other, key, otherKey, comparer) overload is useful for simple equality and large inventories. The predicate overload handles context-sensitive matching. Join returns matching pairs rather than missing owners."
   },
   {
     "title": "Respect project boundaries · Projects and relationships",
@@ -207,7 +207,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Count concrete implementations · Projects and relationships",
     "url": "relationships.html#implementations",
-    "text": "Find interfaces with one concrete production implementation using DrillPress; var rules = new RuleSet(); rules.For(Code.Interfaces.Where(type => type.Solution.Implementations.HasExactlyOne(type))) .Forbid(\"TEAM014\", \"Consider removing this single-implementation interface.\"); InterfaceImplementations.HasExactlyOne considers compatible source views and excludes abstract and test implementations. It reports when any compatible view has exactly one concrete production implementation. It does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice."
+    "text": "Find interfaces with one concrete production implementation using DrillPress; var rules = new RuleSet(); rules.For(Code.Interfaces.Where(type => type.Solution.Implementations.In(type).Any(view => view.Implementations.Count(item => !item.Project.IsTestProject && !item.Symbol.IsAbstract && item.Symbol.TypeKind is Microsoft.CodeAnalysis.TypeKind.Class or Microsoft.CodeAnalysis.TypeKind.Struct) == 1))) .Forbid(\"TEAM014\", \"Consider removing this single-implementation interface.\"); InterfaceImplementations.In returns implementation evidence per compatible source view, including abstract types, derived interfaces, test projects, and generated definitions. This consumer chooses its filters and count explicitly. Each result exposes its evaluated project and declared symbol. It does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice."
   },
   {
     "title": "Facts, comparisons, and baselines",
@@ -245,9 +245,9 @@ window.DRILLPRESS_SEARCH = [
     "text": "A useful correction needs more than compilable code. A finding can propose a correction, but “the edited code compiles” is not enough. A fix must preserve the behavior your policy promises to preserve in every affected loaded compilation. Start with a proven fix Attach the built-in empty-string correct"
   },
   {
-    "title": "Start with a proven fix · Offer safe fixes",
+    "title": "Keep correction policy in your bundle · Offer safe fixes",
     "url": "fixes.html#existing",
-    "text": "Attach the built-in empty-string correction using DrillPress; using DrillPress.Fixes; using DrillPress.Semantics; var rules = new RuleSet(); var emptyString = CodeType.Of<string>().Member(nameof(string.Empty)); rules.For(emptyString.References).Forbid( \"TEAM018\", \"Use the empty string literal instead of string.Empty.\", fix: EmptyStringFix.Create); A fix factory receives the violating candidate and returns a FixProposal or null. Returning null keeps the finding but offers no fix. Forbid and Require both accept the optional fix argument. Built-in fix Supported correction EmptyStringFix.Create string.Empty to \"\" , with binding, conversion, expression-tree, comment, and directive safeguards. OrdinalComparerFix.IsArgument / Create The condition selects comparer arguments. The fix is narrowly limited to the supported Enumerable.Distinct<string> overload pair, not arbitrary comparer APIs. ModifierFix.RemoveRedundantAccessibility Removes a redundant accessibility modifier from a CodeNode<MemberDeclarationSyntax> , checking accessibility before and after in affected contexts. These factories intentionally withhold fixes for cases they cannot prove. For example, replacing a field access with a constant can change overload selection higher up the expression. A similarly named collection method is not automatically safe for comparer removal."
+    "text": "A fix factory receives the violating candidate and returns a FixProposal or null. Returning null keeps the finding but offers no fix. Forbid and Require both accept the optional fix argument. The SDK provides generic edit construction and compiler checks. It does not choose between string.Empty and \"\" , explicit and implicit accessibility, or explicit and default comparers. The sample spelling fix and sample comparer fix show consumer-owned policies and their conservative proofs. Replacing a field access with a constant can change an enclosing overload. Removing an argument can change behavior even when the resulting call compiles. Keep those proofs with the policy that needs them."
   },
   {
     "title": "Build an exact edit proposal · Offer safe fixes",
@@ -280,9 +280,9 @@ window.DRILLPRESS_SEARCH = [
     "text": "Reference the DrillPress.Testing NuGet package at the same exact alpha version as your SDK (or src/DrillPress.Testing/DrillPress.Testing.csproj when working from source) from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk. RuleTestWorkspace() uses the host runtime’s assembly references for convenience. You can supply an explicit list of compiler MetadataReference objects when you need exact reference packs or synthetic assemblies. The default constructor reads reference assemblies; the target source and edit results stay in memory."
   },
   {
-    "title": "Assert the complete finding and fixed text · Test and run your rules",
+    "title": "Assert the complete finding and source text · Test and run your rules",
     "url": "testing.html#first-test",
-    "text": "An xUnit test for the empty-string rule using DrillPress; using DrillPress.Fixes; using DrillPress.Semantics; using DrillPress.Testing; using Xunit; public class EmptyStringRuleTests { [Fact] public async Task Replaces_the_empty_string_field() { var workspace = new RuleTestWorkspace(); workspace.AddProject(\"Example\", [new TestSource(\"Example.cs\", \"class C { string Value => string.Empty; }\")]); var rules = new RuleSet(); rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References) .Forbid(\"TEAM018\", \"Use the empty string literal instead of string.Empty.\", fix: EmptyStringFix.Create); var result = await workspace.CheckAsync(rules); Assert.Equal( [new TestFinding(\"TEAM018\", \"Example.cs\", 1, 26, \"string.Empty\", true)], result.Findings); Assert.Equal(\"class C { string Value => \\\"\\\"; }\", result.FixedText(\"Example.cs\")); } } TestFinding includes rule ID, path, physical line and column, exact highlighted text, and HasFix . FixedText applies only the validated plan in memory. Create another workspace from the resulting text to check that a second run is clean."
+    "text": "An xUnit test for a consumer spelling rule using DrillPress; using DrillPress.Semantics; using DrillPress.Testing; using Xunit; public class EmptyStringRuleTests { [Fact] public async Task Reports_the_empty_string_field() { var workspace = new RuleTestWorkspace(); workspace.AddProject(\"Example\", [new TestSource(\"Example.cs\", \"class C { string Value => string.Empty; }\")]); var rules = new RuleSet(); rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References) .Forbid(\"TEAM018\", \"Use the empty string literal instead of string.Empty.\"); var result = await workspace.CheckAsync(rules); Assert.Equal( [new TestFinding(\"TEAM018\", \"Example.cs\", 1, 26, \"string.Empty\", false)], result.Findings); Assert.Equal(\"class C { string Value => string.Empty; }\", result.FixedText(\"Example.cs\")); } } TestFinding includes rule ID, path, physical line and column, exact highlighted text, and HasFix . This rule offers no fix, so FixedText returns the original source. For rules that offer fixes, assert the complete resulting text and check it in another workspace to verify that no findings remain."
   },
   {
     "title": "Model the contexts your policy depends on · Test and run your rules",
@@ -290,9 +290,9 @@ window.DRILLPRESS_SEARCH = [
     "text": "AddProject returns an AnalysisProject . Dependencies must already belong to the workspace. Its options are: Argument Purpose name , sources Project identity and exact TestSource(Path, Text, Generated) values. framework A context label, defaulting to net10.0 . It does not select reference assemblies. isTest Mark a test project for project-role policies. dependencies Previously added source projects to reference. symbols Conditional compilation symbols for #if . allowErrors Keep deliberately invalid source for failure-path tests. references , packages Override compiler references or supply direct package facts. Package facts do not download packages or supply assemblies. Model a referenced production project using DrillPress.Testing; var workspace = new RuleTestWorkspace(); var production = workspace.AddProject(\"Product\", [ new TestSource(\"Codec.cs\", \"public class Codec { }\") ]); workspace.AddProject(\"Product.Tests\", [ new TestSource(\"Tests.cs\", \"class Tests { Codec value = new(); }\") ], isTest: true, dependencies: [production]); Use the same source path and text across projects to test linked-file agreement. Use different reference sets for real framework differences. For xUnit attribute detection, isTest: true alone is not enough: include real xUnit references and Fact/Theory attributes."
   },
   {
-    "title": "Write conventions for xUnit bodies · Test and run your rules",
+    "title": "Keep test-framework conventions in your bundle · Test and run your rules",
     "url": "testing.html#xunit",
-    "text": "Require a predictable three-part test layout using DrillPress; using DrillPress.Testing; var rules = new RuleSet(); var tests = XunitTests.Methods; rules.For(tests).Require( method => method.Body.EmptyLines.Count <= 2, \"TEAM019\", \"Keep at most two empty lines in a test.\", location: method => method.Body.EmptyLines[2]); rules.For(tests.Where(method => method.Body.EarlyAssertion is not null)) .Forbid(\"TEAM020\", \"Move assertions after the final empty line.\", location: method => method.Body.EarlyAssertion!); XunitTests.AreTests is the reusable condition behind Methods . It recognizes genuine Fact/Theory attributes, including derived attributes, in xUnit core assemblies. Unrelated attributes named “Fact” do not count. TestBody.EmptyLines excludes multiline content, disabled text, and nested functions. Assertions contains TestAssertion(MemberName, Location) entries for resolved xUnit assertions outside nested functions. EarlyAssertion finds the first assertion before the final qualifying blank line, except a sole synchronous Assert.Throws . Expression-bodied methods have no block-body layout facts. When a fixture’s exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore. Do not use formatter exclusions merely to prefer a different style."
+    "text": "The SDK exposes CodeMethod.HasAttribute , syntax, semantic symbols, and custom facts. Your bundle selects its test framework and defines layout or assertion conventions. The sample xUnit selector and sample body analysis demonstrate this separation using public SDK APIs. CodeMethod has no test-specific body property. Inspect method.Syntax.Body or create a cached consumer fact when several rules share body analysis. DrillPress.Testing is the framework-independent test kit for your rules. When a fixture's exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore."
   },
   {
     "title": "Test an accepted baseline · Test and run your rules",
@@ -432,7 +432,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeMethod · API field guide",
     "url": "reference.html#api-codemethod",
-    "text": "Name; IsAsync; HasAttribute; Flow; Reaches; Body; Syntax; Symbol; Source; Solution; Location One ordinary method; its compiler symbol may be absent."
+    "text": "Name; IsAsync; HasAttribute; Flow; Reaches; Syntax; Symbol; Source; Solution; Location One ordinary method; its compiler symbol may be absent."
   },
   {
     "title": "CodeDeclaration · API field guide",
@@ -507,7 +507,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "InterfaceImplementations · API field guide",
     "url": "reference.html#api-interfaceimplementations",
-    "text": "constructor(solution); HasExactlyOne(declaration) Concrete production implementation counts in compatible source views; solution.Implementations shares this analysis."
+    "text": "constructor(solution); In(declaration) All source implementations per compatible view, including test and abstract types; consumers filter and count. Each InterfaceImplementationView exposes Projects and Implementations, and each InterfaceImplementation exposes Project and Symbol. solution.Implementations shares this analysis."
   },
   {
     "title": "Facts and comparison · API field guide",
@@ -565,21 +565,6 @@ window.DRILLPRESS_SEARCH = [
     "text": "DrillPress.Fixes · Read the guide →"
   },
   {
-    "title": "EmptyStringFix · API field guide",
-    "url": "reference.html#api-emptystringfix",
-    "text": "Create(memberReference) Conservative string.Empty replacement."
-  },
-  {
-    "title": "OrdinalComparerFix · API field guide",
-    "url": "reference.html#api-ordinalcomparerfix",
-    "text": "IsArgument; Create(memberReference) Argument condition and restricted Distinct<string> correction."
-  },
-  {
-    "title": "ModifierFix · API field guide",
-    "url": "reference.html#api-modifierfix",
-    "text": "RemoveRedundantAccessibility(memberDeclarationNode) Remove a sole redundant internal/private token where effective accessibility stays the same."
-  },
-  {
     "title": "SourceChanges · API field guide",
     "url": "reference.html#api-sourcechanges",
     "text": "Replace(source, span, replacement); Propose(edits, preservesBehavior) Exact edits and a complete proposal with required contextual semantic proof."
@@ -608,16 +593,6 @@ window.DRILLPRESS_SEARCH = [
     "title": "Testing and hosting · API field guide",
     "url": "reference.html#tests",
     "text": "DrillPress.Testing · DrillPress.Engine · Read the guide →"
-  },
-  {
-    "title": "XunitTests · API field guide",
-    "url": "reference.html#api-xunittests",
-    "text": "AreTests; Methods Resolved Fact/Theory selection, including derived xUnit attributes."
-  },
-  {
-    "title": "TestBody / TestAssertion · API field guide",
-    "url": "reference.html#api-testbody-testassertion",
-    "text": "EmptyLines; Assertions; EarlyAssertion / MemberName; Location Physical block-body layout facts and resolved assertion locations."
   },
   {
     "title": "RuleTestWorkspace · API field guide",

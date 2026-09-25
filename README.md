@@ -218,3 +218,9 @@ source baselines, safe edit construction, and the consumer test kit. The
 independent architecture and source policies. Authoring types now live in
 responsibility-specific namespaces such as `DrillPress.Analysis`,
 `DrillPress.Semantics`, and `DrillPress.Fixes`.
+
+The base rules SDK contains general analysis, query, diagnostic, and edit APIs.
+The xUnit layout, single-implementation interface, empty-string, ordinal-comparer,
+and implicit-accessibility conventions belong entirely to the sample bundle.
+See the [policy helper migration guide](docs/SDK_CAPABILITIES.md#migrating-policy-helpers-out-of-the-sdk)
+when updating an earlier consumer.

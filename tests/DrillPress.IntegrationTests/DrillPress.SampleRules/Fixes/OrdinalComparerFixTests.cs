@@ -1,7 +1,7 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
 using Xunit;
 
-namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
+namespace DrillPress.IntegrationTests.SampleRules.Fixes;
 
 public sealed class OrdinalComparerFixTests(SemanticRuleFixture fixture)
     : IClassFixture<SemanticRuleFixture>

@@ -1,172 +1,153 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
-using DrillPress.Manifest;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Relationships;
 
-public sealed class InterfaceImplementationsTests(SemanticRuleFixture fixture)
-    : IClassFixture<SemanticRuleFixture>
+public sealed class InterfaceImplementationsTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Theory]
-    [InlineData("class C : I { }", "DP1003:I")]
-    [InlineData("struct C : I { }", "DP1003:I")]
-    [InlineData("abstract class C : I { }", "")]
-    [InlineData("abstract class B : I { } class C : B { }", "DP1003:I")]
-    [InlineData("class B : I { } class C : B { }", "")]
-    [InlineData("partial class C : I { } partial class C { }", "DP1003:I")]
-    public async Task Counts_concrete_definitions_once(string implementations, string expected)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Discovery_retains_test_abstract_inherited_generic_and_generated_definitions(
+        bool optimized
+    )
     {
-        var project = fixture.Project("interface I { } " + implementations);
-
-        var findings = await fixture.Describe(project);
-
-        Assert.Equal(
-            expected,
-            string.Join(",", findings.Select(finding => finding.Rule + ":" + finding.Text))
+        var workspace = fixture.Workspace();
+        var contracts = workspace.AddProject(
+            "Contracts",
+            [new("I.cs", "public interface I<T> { }")]
         );
-    }
-
-    [Fact]
-    public async Task Constructed_generic_interfaces_and_partial_declarations_count_definitions_once()
-    {
-        var project = fixture.Project(
-            "partial interface I<T> { } partial interface I<T> { } class C : I<string>, I<int> { }"
-        );
-
-        var findings = await fixture.Describe(project);
-
-        Assert.Equal([("DP1003", 1, "I", (string?)null)], findings);
-    }
-
-    [Fact]
-    public async Task Generated_implementations_count_without_becoming_candidates()
-    {
-        var project = fixture.Project(
-            "interface I { }",
-            extra:
+        workspace.AddProject(
+            "Product",
             [
-                new DocumentSnapshot(
-                    "Generated.g.cs",
-                    "class C : I { string Value => string.Empty; }",
-                    true
+                new(
+                    "A.cs",
+                    "abstract class A : I<int> { } class B : A { } partial class C : I<int>, I<string> { } interface J : I<int> { }"
                 ),
-            ]
+                new("C.cs", "partial class C { }"),
+                new("G.g.cs", "struct G : I<int> { }", true),
+            ],
+            dependencies: [contracts]
         );
-
-        var findings = await fixture.Describe(project);
-
-        Assert.Equal([("DP1003", 1, "I", (string?)null)], findings);
-    }
-
-    [Fact]
-    public async Task Source_dependency_is_counted_and_test_implementations_are_excluded()
-    {
-        var contracts = fixture.Project("public interface I { }", "Contracts");
-        var product = fixture.Project("class C : I { }", "Product", dependencies: [contracts]);
-        var tests = fixture.Project(
-            "class Fake : I { }",
+        workspace.AddProject(
             "Tests",
+            [new("Fake.cs", "class Fake : I<int> { }")],
             isTest: true,
             dependencies: [contracts]
         );
-
-        var findings = await fixture.Describe(contracts, product, tests);
-
-        Assert.Equal([("DP1003", 1, "I", (string?)null)], findings);
-    }
-
-    [Fact]
-    public async Task Separate_compatible_consumers_are_counted_together()
-    {
-        var contracts = fixture.Project("public interface I { }", "Contracts");
-        var first = fixture.Project("class First : I { }", "First", dependencies: [contracts]);
-        var second = fixture.Project("class Second : I { }", "Second", dependencies: [contracts]);
-
-        var findings = await fixture.Describe(contracts, first, second);
-
-        Assert.Empty(findings);
-    }
-
-    [Fact]
-    public async Task Alternate_target_frameworks_have_independent_counts()
-    {
-        var first = fixture.Project("interface I { } class C : I { }", framework: "net9.0");
-        var second = fixture.Project(
-            "interface I { } class C : I { } class D : I { }",
-            framework: "net10.0"
+        var solution = new AnalysisSolution(
+            workspace.Analyze(TestContext.Current.CancellationToken).Projects,
+            new AnalysisOptions { EnableOptimizations = optimized },
+            TestContext.Current.CancellationToken
         );
+        var contract = solution.Types.Single(type => type.Name == "I");
 
-        var response = await fixture.Evaluate(first, second);
+        var views = solution.Implementations.In(contract);
+        var repeated = solution.Implementations.In(contract);
 
-        Assert.Equal([1, 0], response.Contexts.Select(context => context.Findings.Length));
+        Assert.Same(views, repeated);
         Assert.Equal(
-            ["DP1003"],
-            response
-                .Contexts.SelectMany(context => context.Findings)
-                .Select(finding => finding.RuleId)
+            ["Contracts", "Product", "Tests"],
+            Assert.Single(views).Projects.Select(project => project.Name).Order()
         );
-    }
-
-    [Fact]
-    public async Task Equal_assembly_and_type_names_do_not_merge_unrelated_contexts()
-    {
-        var first = fixture.Project("public interface I { }", "Contracts", framework: "net9.0");
-        var second = fixture.Project("public interface I { }", "Contracts", framework: "net10.0");
-        var consumer = fixture.Project("class C : I { }", "Consumer", dependencies: [second]);
-
-        var response = await fixture.Evaluate(first, second, consumer);
-
-        Assert.Equal([0, 1, 0], response.Contexts.Select(context => context.Findings.Length));
         Assert.Equal(
-            ["DP1003"],
-            response
-                .Contexts.SelectMany(context => context.Findings)
-                .Select(finding => finding.RuleId)
+            [
+                ("Product", "A", true, false),
+                ("Product", "B", false, false),
+                ("Product", "C", false, false),
+                ("Product", "J", true, false),
+                ("Product", "G", false, false),
+                ("Tests", "Fake", false, true),
+            ],
+            views
+                .Single()
+                .Implementations.Select(item =>
+                    (
+                        item.Project.Name,
+                        item.Symbol.Name,
+                        item.Symbol.IsAbstract,
+                        item.Project.IsTestProject
+                    )
+                )
         );
     }
 
     [Theory]
-    [InlineData("class Extra { }", "DP1003")]
-    [InlineData("class Extra : I { }", "")]
-    public async Task Equal_consumer_frameworks_cannot_union_alternate_dependency_contexts(
-        string extraSource,
-        string expected
-    )
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Alternate_dependency_contexts_have_separate_implementation_views(bool optimized)
     {
-        var contracts = fixture.Project("public interface I { }", "Contracts");
-        var first = fixture.Project(
-            "public class Implementation : I { }",
-            "Dependency",
+        var workspace = fixture.Workspace();
+        var contract = workspace.AddProject("Contracts", [new("I.cs", "public interface I { }")]);
+        workspace.AddProject(
+            "Product",
+            [new("A.cs", "class A : I { }")],
             framework: "net9.0",
-            dependencies: [contracts]
+            dependencies: [contract]
         );
-        var second = fixture.Project(
-            "public class Implementation : I { }",
-            "Dependency",
+        workspace.AddProject(
+            "Product",
+            [new("B.cs", "class B : I { }")],
             framework: "net10.0",
-            dependencies: [contracts]
+            dependencies: [contract]
         );
-        var firstRoot = fixture.Project("class First { }", "First", dependencies: [first]);
-        var secondRoot = fixture.Project("class Second { }", "Second", dependencies: [second]);
-        var extra = fixture.Project(extraSource, "Extra", dependencies: [contracts]);
+        var solution = new AnalysisSolution(
+            workspace.Analyze(TestContext.Current.CancellationToken).Projects,
+            new AnalysisOptions { EnableOptimizations = optimized },
+            TestContext.Current.CancellationToken
+        );
 
-        var response = await fixture.Evaluate(
-            contracts,
-            first,
-            second,
-            firstRoot,
-            secondRoot,
-            extra
-        );
+        var views = solution.Implementations.In(solution.Types.Single(type => type.Name == "I"));
 
         Assert.Equal(
-            expected,
-            string.Join(
-                ",",
-                response
-                    .Contexts.SelectMany(context => context.Findings)
-                    .Select(finding => finding.RuleId)
+            ["net9.0:A", "net10.0:B"],
+            views.Select(view =>
+                string.Join(
+                    ",",
+                    view.Implementations.Select(item =>
+                        item.Project.TargetFramework + ":" + item.Symbol.Name
+                    )
+                )
             )
         );
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Equal_assembly_names_do_not_merge_unrelated_contracts(bool optimized)
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Contracts",
+            [new("I.cs", "public interface I { }")],
+            framework: "net9.0"
+        );
+        var second = workspace.AddProject(
+            "Contracts",
+            [new("I.cs", "public interface I { }")],
+            framework: "net10.0"
+        );
+        workspace.AddProject("Consumer", [new("A.cs", "class A : I { }")], dependencies: [second]);
+        var solution = new AnalysisSolution(
+            workspace.Analyze(TestContext.Current.CancellationToken).Projects,
+            new AnalysisOptions { EnableOptimizations = optimized },
+            TestContext.Current.CancellationToken
+        );
+
+        var implementations = solution
+            .Types.Where(type => type.Name == "I")
+            .Select(type =>
+                string.Join(
+                    ",",
+                    solution
+                        .Implementations.In(type)
+                        .SelectMany(view => view.Implementations)
+                        .Select(item => item.Symbol.Name)
+                )
+            )
+            .ToArray();
+
+        Assert.Equal(["", "A"], implementations);
     }
 }

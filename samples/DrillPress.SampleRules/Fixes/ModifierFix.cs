@@ -3,10 +3,10 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Fixes;
+namespace DrillPress.SampleRules.Fixes;
 
 /// <summary>Conservative modifier removal, proved against the compiler's resulting declaration accessibility in every affected context.</summary>
-public static class ModifierFix
+internal static class ModifierFix
 {
     /// <summary>Removes a sole internal or private access token from a named type, method or property only when its effective accessibility remains identical.</summary>
     public static FixProposal? RemoveRedundantAccessibility(

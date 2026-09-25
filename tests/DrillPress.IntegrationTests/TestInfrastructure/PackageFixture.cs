@@ -153,7 +153,13 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
 
             var rules = new RuleSet();
             rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
-                .Forbid("EMPTY", "Use an empty literal.", fix: EmptyStringFix.Create);
+                .Forbid("EMPTY", "Use an empty literal.", fix: reference =>
+                    SourceChanges.Propose(
+                        [SourceChanges.Replace(reference.Source!, reference.Syntax!.Span, "\"\"")],
+                        context => context.Original.Sources
+                            .Where(source => source.Document.FileIdentity == reference.Source!.Document.FileIdentity)
+                            .All(source => BindingProof.PreservesEnclosingExpressions(
+                                source, source.Tree.GetRoot().FindNode(reference.Syntax!.Span, getInnermostNodeForTie: true), "\"\""))));
             return (int)await new RuleApplication().RunAsync(rules, args);
             """
         );

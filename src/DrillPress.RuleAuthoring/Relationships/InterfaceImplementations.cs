@@ -3,13 +3,20 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress.Relationships;
 
-/// <summary>Counts concrete source definitions within compatible evaluated source graphs.</summary>
+/// <summary>Discovers source implementations separately within compatible evaluated source graphs.</summary>
 public sealed class InterfaceImplementations(AnalysisSolution solution)
 {
     private readonly Dictionary<string, IReadOnlyList<INamedTypeSymbol>> _definitions = [];
     private readonly CompilationViews _views = new(solution);
     private long _definitionComparisons;
-    private readonly Dictionary<string, Dictionary<ISymbol, HashSet<string>>> _indexes = [];
+    private readonly Dictionary<
+        string,
+        Dictionary<ISymbol, Dictionary<string, INamedTypeSymbol>>
+    > _indexes = [];
+    private readonly Dictionary<
+        CodeDeclaration,
+        IReadOnlyList<InterfaceImplementationView>
+    > _matches = [];
     private long _indexEntries;
     private long _indexLookups;
 
@@ -23,19 +30,34 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
         }
     }
 
-    /// <summary>Tests whether any compatible view of this interface has exactly one non-test implementation.</summary>
-    public bool HasExactlyOne(CodeDeclaration declaration)
+    /// <summary>Returns implementations in each maximal compatible view, including test projects and abstract types. Partial and constructed generic occurrences count once per source definition and evaluated context.</summary>
+    /// <remarks>Consumers choose project scope, concrete-type filters and cardinality. Alternate frameworks are kept separate; generated implementations participate. Only loaded source definitions are returned, not external metadata consumers.</remarks>
+    public IReadOnlyList<InterfaceImplementationView> In(CodeDeclaration declaration)
     {
         solution.CancellationToken.ThrowIfCancellationRequested();
-        return _views
-            .For(declaration.Source.Project)
-            .Any(view => CountInView(view, declaration) == 1);
+        if (!_matches.TryGetValue(declaration, out var matches))
+        {
+            matches = Array.AsReadOnly(
+                _views
+                    .For(declaration.Source.Project)
+                    .Select(view => new InterfaceImplementationView(
+                        Array.AsReadOnly(view),
+                        FindInView(view, declaration)
+                    ))
+                    .ToArray()
+            );
+            _matches.Add(declaration, matches);
+        }
+        return matches;
     }
 
-    private int CountInView(AnalysisProject[] projects, CodeDeclaration declaration)
+    private IReadOnlyList<InterfaceImplementation> FindInView(
+        AnalysisProject[] projects,
+        CodeDeclaration declaration
+    )
     {
-        var implementations = new HashSet<string>();
-        foreach (var project in projects.Where(project => !project.Snapshot.IsTestProject))
+        var implementations = new Dictionary<string, InterfaceImplementation>();
+        foreach (var project in projects)
         {
             if (!_views.Reaches(project, declaration.Source.Project.Snapshot.ContextId))
             {
@@ -56,7 +78,10 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                 _indexLookups++;
                 if (Index(project).TryGetValue(target, out var matches))
                 {
-                    implementations.UnionWith(matches);
+                    foreach (var (identity, symbol) in matches)
+                    {
+                        implementations.TryAdd(identity, new(project, symbol));
+                    }
                 }
 
                 continue;
@@ -71,17 +96,18 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                     )
                 )
                 {
-                    implementations.Add(
-                        project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type)
+                    implementations.TryAdd(
+                        project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type),
+                        new(project, type)
                     );
                 }
             }
         }
 
-        return implementations.Count;
+        return Array.AsReadOnly(implementations.Values.ToArray());
     }
 
-    private Dictionary<ISymbol, HashSet<string>> Index(AnalysisProject project)
+    private Dictionary<ISymbol, Dictionary<string, INamedTypeSymbol>> Index(AnalysisProject project)
     {
         if (_indexes.TryGetValue(project.Snapshot.ContextId, out var index))
         {
@@ -101,7 +127,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                     index.Add(contract.OriginalDefinition, implementations);
                 }
 
-                if (implementations.Add(identity))
+                if (implementations.TryAdd(identity, type))
                 {
                     _indexEntries++;
                 }
@@ -149,11 +175,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                         )
                 )
                 .OfType<INamedTypeSymbol>()
-                .Where(type =>
-                    type.TypeKind is TypeKind.Class or TypeKind.Struct
-                    && !type.IsAbstract
-                    && seen.Add(type)
-                )
+                .Where(type => seen.Add(type))
                 .ToArray();
             _definitions.Add(project.Snapshot.ContextId, definitions);
         }
