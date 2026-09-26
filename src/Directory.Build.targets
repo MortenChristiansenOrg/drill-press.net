@@ -1,25 +1,43 @@
 <Project>
-  <Target Name="PinAlphaPackageDependencies" AfterTargets="_GetProjectReferenceVersions">
+  <Target Name="PinPackageDependencies" AfterTargets="_GetProjectReferenceVersions">
     <ItemGroup>
       <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
         <ProjectVersion>[%(_ProjectReferencesWithVersions.ProjectVersion)]</ProjectVersion>
       </_ProjectReferencesWithVersions>
     </ItemGroup>
   </Target>
-  <Target Name="ValidateAlphaPackageVersion" BeforeTargets="GenerateNuspec">
+  <Target Name="RecordBuiltPackageVersion" AfterTargets="Build">
+    <WriteLinesToFile
+      File="$(TargetDir)drillpress-version.txt"
+      Lines="$(Version)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+  </Target>
+  <Target Name="ValidatePackageVersion" BeforeTargets="GenerateNuspec">
     <Error
-      Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^0\.0\.(0|[1-9][0-9]*)$'))"
-      Text="Drill Press alpha versions must use 0.0.X (for example, -p:Version=0.0.1)."
+      Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?$'))"
+      Text="Use a stable or prerelease SemVer version (for example, -p:Version=1.0.0-rc.1)."
     />
     <Error
       Condition="'$(PackageVersion)' != '$(Version)'"
-      Text="Set Version, not PackageVersion, so package and assembly versions remain identical."
+      Text="Set Version, not PackageVersion, so package and informational versions remain identical."
     />
+    <ReadLinesFromFile File="$(TargetDir)drillpress-version.txt">
+      <Output TaskParameter="Lines" ItemName="_BuiltPackageVersion" />
+    </ReadLinesFromFile>
+    <Error
+      Condition="'@(_BuiltPackageVersion)' != '$(Version)'"
+      Text="Rebuild with Version=$(Version) before packing; the built package version differs."
+    />
+    <PropertyGroup>
+      <_ExpectedAssemblyVersion>$([System.String]::Copy('$(Version)').Split('-').GetValue(0)).0</_ExpectedAssemblyVersion>
+    </PropertyGroup>
     <GetAssemblyIdentity AssemblyFiles="$(TargetPath)">
       <Output TaskParameter="Assemblies" ItemName="_PackedAssembly" />
     </GetAssemblyIdentity>
     <Error
-      Condition="'%(_PackedAssembly.Version)' != '$(Version).0'"
+      Condition="'%(_PackedAssembly.Version)' != '$(_ExpectedAssemblyVersion)'"
       Text="Package $(Version) contains assembly %(_PackedAssembly.Version). Rebuild with the same Version before packing; do not override AssemblyVersion."
     />
   </Target>

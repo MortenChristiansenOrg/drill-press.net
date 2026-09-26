@@ -18,7 +18,7 @@ public sealed record CompilationSnapshot(
     /// <summary>Identifies the exact snapshot shape supported by this build.</summary>
     public const int CurrentFormatVersion = 4;
 
-    /// <summary>The exact alpha package version that produced this snapshot.</summary>
+    /// <summary>The exact package version that produced this snapshot.</summary>
     [System.Text.Json.Serialization.JsonRequired]
     public string ProductVersion { get; init; } = ComponentVersion.Current;
 

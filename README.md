@@ -4,10 +4,12 @@ Drill Press checks C# projects for coding-convention violations. It is designed
 for AI coding assistants: compact results identify the rule, file, and location
 to change, without pages of repeated messages.
 
-## Alpha versions
+## Versions
 
-**All `0.0.X` releases are alpha builds. Every release may introduce breaking
-changes, even when only `X` increases; backward compatibility is not guaranteed.**
+**All `0.0.X` releases are experimental and may introduce breaking changes.**
+Release tags also support explicit NuGet prereleases such as `1.0.0-rc.1`.
+Pushing a version tag publishes all five packages after release validation; see
+the [release process](docs/DISTRIBUTION.md#automatic-publication).
 Pin the tool and all Drill Press SDK packages to the same exact version. Before
 upgrading, check the release's compatibility notes and rebuild your rule bundles.
 

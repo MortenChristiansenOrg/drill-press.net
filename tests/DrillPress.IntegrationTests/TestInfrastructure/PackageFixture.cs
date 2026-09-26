@@ -16,7 +16,9 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
     public string ToolHome { get; private set; } = "";
     public string Config { get; private set; } = "";
     public string Version { get; } =
-        typeof(CompilationSnapshot).Assembly.GetName().Version!.ToString(3);
+        typeof(CompilationSnapshot)
+            .Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+            .InformationalVersion;
 
     public async ValueTask InitializeAsync()
     {
@@ -26,7 +28,27 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
         ToolHome = FileSystem.Path.Combine(Root, "tool-home");
         FileSystem.Directory.CreateDirectory(Consumer);
         FileSystem.Directory.CreateDirectory(ToolHome);
-        await PackCurrentReleaseAsync();
+        var releaseFeed = Environment.GetEnvironmentVariable("DRILLPRESS_RELEASE_FEED");
+        if (string.IsNullOrEmpty(releaseFeed))
+        {
+            await PackCurrentReleaseAsync();
+        }
+        else
+        {
+            FileSystem.Directory.CreateDirectory(Feed);
+            foreach (
+                var package in FileSystem.Directory.GetFiles(
+                    FileSystem.Path.GetFullPath(releaseFeed),
+                    "*.nupkg"
+                )
+            )
+            {
+                FileSystem.File.Copy(
+                    package,
+                    FileSystem.Path.Combine(Feed, FileSystem.Path.GetFileName(package))
+                );
+            }
+        }
         await ConfigureConsumerAsync();
         await InstallToolsAsync();
         await CreateRulesAsync();
@@ -44,6 +66,7 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
                 RepositoryPath("DrillPress.slnx"),
                 "-c",
                 configuration,
+                "-p:Version=" + Version,
                 "--no-build",
                 "--no-restore",
                 "-o",
@@ -253,9 +276,9 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
         await RequireDotnetAsync(Consumer, "tool", "restore", "--configfile", Config);
     }
 
-    public async Task<string> BuildOtherAlphaBundleAsync()
+    public async Task<string> BuildIncompatibleBundleAsync()
     {
-        const string otherVersion = "0.0.998";
+        var otherVersion = Version + "-incompatible";
         foreach (
             var id in new[]
             {

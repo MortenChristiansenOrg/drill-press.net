@@ -20,7 +20,7 @@ public sealed class CliApplication
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
-        --version  Show the alpha package and protocol versions.
+        --version  Show the package and protocol versions.
         Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
         """;
 
@@ -64,7 +64,7 @@ public sealed class CliApplication
         if (args is ["--version"])
         {
             await standardOutput.WriteAsync(
-                $"drillpress {ComponentVersion.Current} alpha (snapshot {CompilationSnapshot.CurrentFormatVersion}, response {BundleResponseProtocol.CurrentVersion})\n"
+                $"drillpress {ComponentVersion.Current} (snapshot {CompilationSnapshot.CurrentFormatVersion}, response {BundleResponseProtocol.CurrentVersion})\n"
             );
             return CliExitCode.Clean;
         }
