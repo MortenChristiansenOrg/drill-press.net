@@ -156,13 +156,37 @@ the same version; published versions must never be overwritten.
 The project and packages use the [MIT license](../LICENSE). Publication targets
 **nuget.org**. Before the first release:
 
-1. Ensure the maintainer owns or can publish all five package IDs listed above.
-2. Create the GitHub environment `nuget`, restrict its deployment policy to release
-   tags (`v*`), and add the environment secret `NUGET_API_KEY`. Use an expiring
-   nuget.org API key scoped to push new versions of only these five IDs. Rotate it
-   before expiration. Do not place the key in source, command history, or logs.
-3. Protect release tags against deletion or movement and limit who can create them.
-   Keep environment approval requirements disabled if releases must run unattended.
+Publishing uses [NuGet trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+with GitHub OIDC. No long-lived API key or `NUGET_API_KEY` GitHub secret is needed.
+
+1. Ensure your NuGet account owns or can publish all five package IDs listed above.
+2. Open the repository's **Settings → Environments** and create or select **nuget**.
+   Under **Deployment branches and tags**, select **Selected branches and tags**
+   and add a **Tag** rule matching `v*`. Leave required reviewers and wait timers
+   disabled for unattended releases. Protect release tags against deletion or
+   movement and limit who can create them.
+3. In that environment's **Environment variables**, add **NUGET_USER** with your
+   nuget.org account's profile name, not your email address or GitHub username.
+   For an organization-owned policy, use the NuGet user who created the policy
+   and ensure that user remains an active member of the NuGet organization.
+4. On nuget.org, open your account menu → **Trusted Publishing** and add a GitHub
+   policy with these values:
+
+   | Policy field | Value |
+   | --- | --- |
+   | Repository Owner | `MortenChristiansenOrg` |
+   | Repository | `drill-press.net` |
+   | Workflow File | `release.yml` (filename only) |
+   | Environment | `nuget` |
+
+   Choose the NuGet user or organization that owns the packages as the policy
+   owner. Allow **Push new packages and package versions** so the first release
+   can create the package IDs. Set the package glob pattern to `DrillPress.*`.
+
+If you already created a long-lived key using the previous setup instructions,
+remove its GitHub secret and revoke that key on nuget.org. The workflow no longer
+reads it. A policy shown as temporarily active must receive a successful publish
+within its activation window; if it expires first, reactivate it in nuget.org.
 
 Push a tag on the commit to release; no manual package edits or uploads are needed:
 
@@ -177,8 +201,13 @@ Linux: formatting, Release build, pack, complete package inventory, unit and
 integration tests, and CLI/SDK installation from copies of the actual artifacts.
 PRs and main-branch pushes exercise the same validation for `1.0.0` and
 `1.0.0-rc.1`, without publishing. Malformed `v*` tags fail validation; other tags
-are ignored. Only the tag workflow's publication job receives the NuGet secret
-and permission to create GitHub releases.
+are ignored. Only the tag workflow's publication job receives `id-token: write`
+and permission to create GitHub releases. After validation and artifact download,
+the pinned `NuGet/login` action exchanges the job's OIDC identity for a temporary
+NuGet credential.
+The publisher receives that action output through its `NUGET_API_KEY` process
+environment variable; the value is not stored as a GitHub secret. NuGet credentials
+last one hour and are requested immediately before the publication step.
 
 After both platforms pass, CI downloads the validated Linux package artifact,
 revalidates it, and publishes in dependency order. It verifies that **all five**
@@ -202,8 +231,12 @@ prerelease version does not need an additional `--prerelease` switch.
 
 NuGet publication is not atomic. A failure can leave only some packages published.
 Same-tag workflow runs are serialized and do not cancel a running publication.
-Fix expired credentials or connectivity, then use **Re-run failed jobs** on the
-original workflow run so publication reuses its validated artifacts. Do not move
+Fix policy configuration or connectivity, then use **Re-run failed jobs** on the
+original workflow run so publication reuses its validated artifacts and obtains
+a fresh OIDC credential. For authentication failures, check `NUGET_USER`, the
+policy owner and activation status, and the repository, workflow filename, and
+environment values against the table above. An expired temporary credential also
+requires rerunning the job; no stored key needs rotation. Do not move
 the tag, rebuild modified source under the same version, or overwrite packages.
 
 Before any upload, CI compares every already-published package's files with its
