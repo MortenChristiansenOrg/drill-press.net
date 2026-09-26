@@ -83,17 +83,14 @@ public sealed class InstalledPackageTests(PackageFixture fixture)
         );
         var global = await fixture.GlobalAsync("--version");
 
-        Assert.Equal(
-            (0, $"drillpress {fixture.Version} alpha (snapshot 4, response 2)\n", ""),
-            local
-        );
+        Assert.Equal((0, $"drillpress {fixture.Version} (snapshot 4, response 2)\n", ""), local);
         Assert.Equal(local, global);
     }
 
     [Fact]
-    public async Task Installed_tool_rejects_a_bundle_built_from_another_alpha_release()
+    public async Task Installed_tool_rejects_a_bundle_built_from_another_prerelease_suffix()
     {
-        var bundle = await fixture.BuildOtherAlphaBundleAsync();
+        var bundle = await fixture.BuildIncompatibleBundleAsync();
         var target = await fixture.CreateTargetAsync();
 
         var result = await fixture.GlobalAsync("fix", "--rules", bundle, target);
@@ -102,7 +99,7 @@ public sealed class InstalledPackageTests(PackageFixture fixture)
             (
                 2,
                 "",
-                $"drillpress-rules: Snapshot producer version '{fixture.Version}' is incompatible with Drill Press 0.0.998. Install tool and SDK packages at 0.0.998 and rebuild the rule bundle. Alpha releases require exact version matching.{Environment.NewLine}drillpress: Rule bundle exited 2.{Environment.NewLine}"
+                $"drillpress-rules: Snapshot producer version '{fixture.Version}' is incompatible with Drill Press {fixture.Version}-incompatible. Install tool and SDK packages at {fixture.Version}-incompatible and rebuild the rule bundle. Releases require exact version matching.{Environment.NewLine}drillpress: Rule bundle exited 2.{Environment.NewLine}"
             ),
             result
         );

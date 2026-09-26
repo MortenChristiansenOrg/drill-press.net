@@ -5,6 +5,7 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../tools/DrillPress.Release/DrillPress.Release.csproj" />
     <ProjectReference Include="../../src/DrillPress.Testing/DrillPress.Testing.csproj" />
     <ProjectReference
       Include="../../Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"

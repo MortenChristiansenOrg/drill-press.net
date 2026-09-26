@@ -12,7 +12,7 @@ public sealed record BundleResponse(
     FixBatch[] Batches
 )
 {
-    /// <summary>The exact alpha runtime package version that evaluated the rules.</summary>
+    /// <summary>The exact runtime package version that evaluated the rules.</summary>
     [System.Text.Json.Serialization.JsonRequired]
     public string ProductVersion { get; init; } = ComponentVersion.Current;
 }

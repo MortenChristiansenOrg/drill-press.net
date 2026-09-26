@@ -60,7 +60,7 @@ public sealed class CliApplicationTests
             --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
-            --version  Show the alpha package and protocol versions.
+            --version  Show the package and protocol versions.
             Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
 
             """.ReplaceLineEndings("\n"),
@@ -91,7 +91,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} alpha (snapshot 4, response 2)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 4, response 2)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());

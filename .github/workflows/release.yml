@@ -1,0 +1,67 @@
+name: Publish release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/release-validation.yml
+    with:
+      tag: ${{ github.ref_name }}
+
+  publish:
+    needs: validate
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
+    environment: nuget
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-${{ github.ref_name }}-Linux
+          path: artifacts/packages
+      - name: Publish and verify all five packages
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet run --project tools/DrillPress.Release -c Release -- publish "$RELEASE_TAG" artifacts/packages
+      - name: Create or update GitHub release
+        run: |
+          version=$(dotnet tools/DrillPress.Release/bin/Release/net10.0/DrillPress.Release.dll version "$RELEASE_TAG")
+          prerelease=false
+          latest_args=()
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+            latest_args=(--latest=false)
+          fi
+          notes="$RUNNER_TEMP/release-notes.md"
+          {
+            echo "All five packages are available on nuget.org at version $version."
+            echo
+            for package in DrillPress.Manifest DrillPress.RuleAuthoring DrillPress.Engine DrillPress.Testing DrillPress.Cli; do
+              echo "- [$package](https://www.nuget.org/packages/$package/$version)"
+            done
+          } > "$notes"
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" "${latest_args[@]}" --notes-file "$notes"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --prerelease="$prerelease" "${latest_args[@]}" --notes-file "$notes"
+          fi

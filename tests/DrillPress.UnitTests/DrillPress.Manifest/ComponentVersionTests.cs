@@ -8,10 +8,10 @@ namespace DrillPress.UnitTests.Manifest;
 public sealed class ComponentVersionTests
 {
     [Theory]
-    [InlineData("0.0.0")]
-    [InlineData("0.0.999")]
+    [InlineData("missing")]
+    [InlineData("invalid")]
     [InlineData("")]
-    public void Snapshot_rejects_a_different_alpha_release(string version)
+    public void Snapshot_rejects_a_different_release(string version)
     {
         var snapshot = CompilationSnapshot.Create() with { ProductVersion = version };
 
@@ -23,10 +23,10 @@ public sealed class ComponentVersionTests
     }
 
     [Theory]
-    [InlineData("0.0.0")]
-    [InlineData("0.0.999")]
+    [InlineData("missing")]
+    [InlineData("invalid")]
     [InlineData("")]
-    public void Response_rejects_a_different_alpha_release(string version)
+    public void Response_rejects_a_different_release(string version)
     {
         var snapshot = CompilationSnapshot.Create();
         var response = new BundleResponse(
@@ -50,11 +50,12 @@ public sealed class ComponentVersionTests
     [Fact]
     public async Task Snapshot_version_is_checked_before_deserializing_the_payload()
     {
+        var version = ComponentVersion.Current + "-different";
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile(
             "snapshot.json",
             new MockFileData(
-                """{"fileIdentifier":"drillpress-compilation","formatVersion":4,"productVersion":"0.0.999","projects":"incompatible shape"}"""
+                $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"productVersion":"{{version}}","projects":"incompatible shape"}"""
             )
         );
 
@@ -65,7 +66,7 @@ public sealed class ComponentVersionTests
             )
         );
 
-        Assert.Equal(Message("0.0.999", "Snapshot producer"), error.Message);
+        Assert.Equal(Message(version, "Snapshot producer"), error.Message);
     }
 
     [Fact]
@@ -84,5 +85,5 @@ public sealed class ComponentVersionTests
     }
 
     private static string Message(string version, string component) =>
-        $"{component} version '{version}' is incompatible with Drill Press {ComponentVersion.Current}. Install tool and SDK packages at {ComponentVersion.Current} and rebuild the rule bundle. Alpha releases require exact version matching.";
+        $"{component} version '{version}' is incompatible with Drill Press {ComponentVersion.Current}. Install tool and SDK packages at {ComponentVersion.Current} and rebuild the rule bundle. Releases require exact version matching.";
 }

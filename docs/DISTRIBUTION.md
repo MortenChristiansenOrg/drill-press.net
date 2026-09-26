@@ -1,10 +1,16 @@
 # Package distribution
 
-Every `0.0.X` version is an alpha build and may break APIs, commands, or protocols
-from any previous release. The numeric version is intentionally `0.0.X`, without
-a NuGet prerelease suffix; NuGet does not require `--prerelease` to select it.
-Pin versions explicitly. No compatibility with a different alpha version is
-promised, even if its snapshot and response protocol numbers are unchanged.
+Release tags use `vMAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH-PRERELEASE`,
+for example `v1.0.0` or `v1.0.0-rc.1`. NuGet package versions omit the leading
+`v`. Prereleases retain their complete suffix. Numeric components cannot have
+leading zeroes and must be 0–65534 to fit assembly metadata. Build metadata
+(`+...`) is not accepted in release tags. Numeric prerelease identifiers cannot
+have leading zeroes either.
+
+All `0.0.X` versions remain experimental and may break compatibility. A NuGet
+prerelease suffix explicitly identifies previews at any version. Pin the CLI
+and all SDK packages to the same exact version and rebuild bundles on upgrade;
+protocol compatibility requires the full version, including the prerelease suffix.
 
 ## Packages and supported boundaries
 
@@ -17,7 +23,7 @@ promised, even if its snapshot and response protocol numbers are unchanged.
 | `DrillPress.Cli` | .NET tool command `drillpress` | Bundled runtime files; no consumer package references |
 
 Each library ships its XML API documentation. Its exported public types are the
-alpha API surface. Roslyn syntax, symbol, compilation, operation, and metadata
+public API surface. Roslyn syntax, symbol, compilation, operation, and metadata
 types exposed by these APIs are deliberate public contracts; their NuGet
 dependencies flow transitively. Use the Roslyn versions resolved with the SDK
 instead of overriding them independently. Manifest DTOs are deliberate public
@@ -91,15 +97,15 @@ native compiler; explicitly supplied native bundles remain supported.
 ## Compatibility and upgrades
 
 `drillpress --version` identifies the package version and snapshot/response
-protocol numbers. Snapshots and responses carry their producer's exact alpha
+protocol numbers. Snapshots and responses carry their producer's exact package
 version; incompatible or missing versions fail before findings or edits are
 accepted. Snapshot format 4 requires explicit project analysis scope; the response
 format remains 2. Source preview bundles with earlier formats must be rebuilt.
 
-Update the local tool with `dotnet tool update DrillPress.Cli --version 0.0.X`
+Update the local tool with `dotnet tool update DrillPress.Cli --version 1.0.0-rc.1`
 (or add `--global` for a global installation), update all SDK references to
-`[0.0.X]`, then rebuild every rules bundle. Commit the updated local manifest.
-Replace `X` with the desired published release number. Read that release's
+`[1.0.0-rc.1]`, then rebuild every rules bundle. Commit the updated local manifest.
+Replace the example version with the desired published release. Read that release's
 changes and adapt authoring code if required. Normal checks remain silent when
 clean, with exit codes 0 clean, 1 findings, and 2 operational failure; version
 errors go to stderr and produce no diagnostic stdout.
@@ -116,12 +122,20 @@ dotnet pack DrillPress.slnx -c Release -o artifacts/packages
 dotnet test --solution DrillPress.slnx -c Release --no-build
 ```
 
-`Directory.Build.props` defines the release version. For a different release,
-change that value or supply the same `-p:Version=0.0.X` to build and pack; do not
-override `PackageVersion` alone. Only the four SDK libraries and the CLI are
-packable. Package validation checks reference/runtime API consistency inside
-each library package. No previous-alpha API baseline is enforced because
-breaking changes are allowed; wire version compatibility is tested separately.
+`Directory.Build.props` defines the default source-build version. Release CI
+supplies the tag-derived `-p:Version` consistently to build and pack without
+editing tracked files. For local validation, pass the same value to both commands,
+for example `-p:Version=1.0.0-rc.1`; do not override `PackageVersion` alone.
+Assembly versions use the numeric `MAJOR.MINOR.PATCH.0`; informational versions
+retain the full package version without an appended commit hash. The pack gate
+checks numeric assembly identity and a build version stamp to reject stale
+builds, including a different prerelease with the same numeric version. The
+release inventory additionally reads the actual informational version of every
+Drill Press assembly, including those bundled with the CLI.
+
+Only the four SDK libraries and the CLI are packable. Package validation checks
+reference/runtime API consistency inside each library package. No previous API
+baseline is enforced; wire version compatibility is tested separately.
 
 The installed-package integration tests pack the actual nupkg files into a
 temporary feed, use a fresh package cache and isolated tool home, compile an
@@ -137,23 +151,79 @@ command and add that directory as a package source for your consumer project.
 Use a fresh consumer/package cache when replacing an unpublished artifact with
 the same version; published versions must never be overwritten.
 
-## License and manual publication
+## Automatic publication
 
-The project and packages use the [MIT license](../LICENSE). The intended public
-publication destination is **nuget.org**, using
-`https://api.nuget.org/v3/index.json`. Building this repository does not publish
-anything or establish ownership of package IDs on that feed. The maintainer
-must have permission to publish the selected IDs before the first release.
+The project and packages use the [MIT license](../LICENSE). Publication targets
+**nuget.org**. Before the first release:
 
-After validating the five artifacts, publish them manually (POSIX shell):
+1. Ensure the maintainer owns or can publish all five package IDs listed above.
+2. Create the GitHub environment `nuget`, restrict its deployment policy to release
+   tags (`v*`), and add the environment secret `NUGET_API_KEY`. Use an expiring
+   nuget.org API key scoped to push new versions of only these five IDs. Rotate it
+   before expiration. Do not place the key in source, command history, or logs.
+3. Protect release tags against deletion or movement and limit who can create them.
+   Keep environment approval requirements disabled if releases must run unattended.
+
+Push a tag on the commit to release; no manual package edits or uploads are needed:
 
 ```sh
-dotnet nuget push 'artifacts/packages/*.nupkg' \
-  --source https://api.nuget.org/v3/index.json \
-  --api-key "$DRILLPRESS_NUGET_API_KEY"
+git tag -a v1.0.0-rc.1 -m "Release 1.0.0-rc.1"
+git push origin v1.0.0-rc.1
+# For a stable release, use v1.0.0 instead.
 ```
 
-In PowerShell use `$env:DRILLPRESS_NUGET_API_KEY` for the key. Supply it through
-your shell's secret environment; do not commit it. Publish only the validated
-version from a clean output directory. Publication automation and full
-onboarding remain separate follow-up work.
+The `Publish release` workflow validates the exact tagged commit on Windows and
+Linux: formatting, Release build, pack, complete package inventory, unit and
+integration tests, and CLI/SDK installation from copies of the actual artifacts.
+PRs and main-branch pushes exercise the same validation for `1.0.0` and
+`1.0.0-rc.1`, without publishing. Malformed `v*` tags fail validation; other tags
+are ignored. Only the tag workflow's publication job receives the NuGet secret
+and permission to create GitHub releases.
+
+After both platforms pass, CI downloads the validated Linux package artifact,
+revalidates it, and publishes in dependency order. It verifies that **all five**
+packages are retrievable from nuget.org before creating or updating the GitHub
+release with package links. Prereleases are marked as such and never promoted
+to the latest stable GitHub release. Validated packages are retained as workflow
+artifacts for 90 days.
+
+Install a specific prerelease the same way as a stable release:
+
+```sh
+dotnet tool install DrillPress.Cli --version 1.0.0-rc.1
+# In a consumer project:
+dotnet add package DrillPress.Engine --version 1.0.0-rc.1
+```
+
+Use `[1.0.0-rc.1]` in SDK PackageReferences to pin exact versions. An explicit
+prerelease version does not need an additional `--prerelease` switch.
+
+### Failed releases and reruns
+
+NuGet publication is not atomic. A failure can leave only some packages published.
+Same-tag workflow runs are serialized and do not cancel a running publication.
+Fix expired credentials or connectivity, then use **Re-run failed jobs** on the
+original workflow run so publication reuses its validated artifacts. Do not move
+the tag, rebuild modified source under the same version, or overwrite packages.
+
+Before any upload, CI compares every already-published package's files with its
+validated local artifact. NuGet's added `.signature.p7s` and ZIP container metadata
+are excluded from comparison; package payload files must match exactly. Identical
+packages are skipped and missing packages are uploaded. A content conflict fails
+the run and requires investigation and a new version, never an overwrite. Indexing
+can take time: CI waits up to ten minutes per package for availability. If this
+expires, rerun after indexing completes. Transient HTTP failures also fail safely
+and can be retried through the workflow.
+
+If all packages were published but GitHub release creation failed, rerunning the
+publication job verifies and skips them, then creates or updates the release.
+If artifacts have expired, a complete rerun rebuilds the tagged source and still
+requires exact payload matches for any existing packages; use a new version if
+the rebuild differs. A failed run must not be interpreted as a complete release.
+
+For local validation without any publication:
+
+```sh
+dotnet run --project tools/DrillPress.Release -- version v1.0.0-rc.1
+dotnet run --project tools/DrillPress.Release -- validate v1.0.0-rc.1 artifacts/packages
+```
