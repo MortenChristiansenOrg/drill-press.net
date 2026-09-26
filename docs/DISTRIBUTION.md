@@ -203,7 +203,8 @@ PRs and main-branch pushes exercise the same validation for `1.0.0` and
 `1.0.0-rc.1`, without publishing. Malformed `v*` tags fail validation; other tags
 are ignored. Only the tag workflow's publication job receives `id-token: write`
 and permission to create GitHub releases. After validation and artifact download,
-`NuGet/login@v1` exchanges the job's OIDC identity for a temporary NuGet credential.
+the pinned `NuGet/login` action exchanges the job's OIDC identity for a temporary
+NuGet credential.
 The publisher receives that action output through its `NUGET_API_KEY` process
 environment variable; the value is not stored as a GitHub secret. NuGet credentials
 last one hour and are requested immediately before the publication step.
