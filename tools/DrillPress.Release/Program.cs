@@ -50,6 +50,7 @@ catch (Exception exception)
     when (exception
             is ArgumentException
                 or InvalidOperationException
+                or InvalidDataException
                 or IOException
                 or HttpRequestException
                 or OperationCanceledException
