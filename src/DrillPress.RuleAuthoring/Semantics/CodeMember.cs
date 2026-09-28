@@ -7,6 +7,7 @@ public sealed class CodeMember
 {
     private readonly CodeType[]? _parameters;
     private readonly Lazy<CodeQuery<MemberReference>> _references;
+    private MethodSignature? _signature;
 
     /// <summary>Names a member on its declaring type, optionally selecting exact method parameter types.</summary>
     public CodeMember(
@@ -34,7 +35,11 @@ public sealed class CodeMember
 
     /// <summary>Creates an exact method-overload identity without changing this member. No arguments selects the parameterless overload.</summary>
     public CodeMember WithParameters(params CodeType[] parameters) =>
-        new(DeclaringType, Name, parameters);
+        new(DeclaringType, Name, parameters) { _signature = _signature };
+
+    /// <summary>Refines this member with generic, return and ref-kind constraints without changing the original descriptor.</summary>
+    public CodeMember WithSignature(MethodSignature signature) =>
+        new(DeclaringType, Name, _parameters) { _signature = signature };
 
     private RuleCondition<MemberReference> CreateReferenceCondition()
     {
@@ -43,7 +48,7 @@ public sealed class CodeMember
             reference =>
                 reference.Symbol is { } symbol
                     ? Matches(symbol)
-                    : _parameters is null && family.Evaluate(reference),
+                    : _parameters is null && _signature is null && family.Evaluate(reference),
             new HashSet<string> { Name }
         );
     }
@@ -54,6 +59,7 @@ public sealed class CodeMember
         {
             IMethodSymbol method => Matches(method),
             IFieldSymbol or IPropertySymbol => _parameters is null
+                && _signature is null
                 && symbol.Name == Name
                 && symbol.ContainingType is { } type
                 && DeclaringType.Matches(type),
@@ -63,9 +69,14 @@ public sealed class CodeMember
     /// <summary>Matches the original declaration of extension and constructed generic methods.</summary>
     public bool Matches(IMethodSymbol method)
     {
-        method = method.ReducedFrom ?? method;
+        method = method.ReducedFrom is { } definition
+            ? method.Arity == 0
+                ? definition
+                : definition.Construct(method.TypeArguments.ToArray())
+            : method;
         return method.Name == Name
             && DeclaringType.Matches(method.ContainingType)
+            && (_signature is null || _signature.Matches(method))
             && (
                 _parameters is null
                 || method.Parameters.Length == _parameters.Length
