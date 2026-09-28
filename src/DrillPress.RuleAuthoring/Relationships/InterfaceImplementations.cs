@@ -80,7 +80,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                 {
                     foreach (var (identity, symbol) in matches)
                     {
-                        implementations.TryAdd(identity, new(project, symbol));
+                        implementations.TryAdd(identity, Evidence(project, symbol, target));
                     }
                 }
 
@@ -98,7 +98,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
                 {
                     implementations.TryAdd(
                         project.Snapshot.ContextId + ":" + CodeType.MetadataNameOf(type),
-                        new(project, type)
+                        Evidence(project, type, target)
                     );
                 }
             }
@@ -106,6 +106,26 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
 
         return Array.AsReadOnly(implementations.Values.ToArray());
     }
+
+    private static InterfaceImplementation Evidence(
+        AnalysisProject project,
+        INamedTypeSymbol symbol,
+        INamedTypeSymbol target
+    ) =>
+        new(project, symbol)
+        {
+            Contracts = Array.AsReadOnly(
+                symbol
+                    .AllInterfaces.Where(contract =>
+                        SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, target)
+                    )
+                    .Select(contract => new ImplementedContract(
+                        contract,
+                        symbol.Interfaces.Contains(contract, SymbolEqualityComparer.Default)
+                    ))
+                    .ToArray()
+            ),
+        };
 
     private Dictionary<ISymbol, Dictionary<string, INamedTypeSymbol>> Index(AnalysisProject project)
     {

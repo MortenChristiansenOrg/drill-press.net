@@ -4,6 +4,9 @@ The authoring surface covers C# source and evaluated .NET project facts. Rules
 are ordinary compiled C#; the SDK supplies reusable selections and evidence.
 Repository policy stays in the consumer bundle.
 
+For entry filtering within compatible implementation views and bound override
+selection, see [relationship queries](RELATIONSHIP_QUERIES.md).
+
 ## Where changes belong
 
 The `DrillPress.RuleAuthoring` project is organized by responsibility. Except
