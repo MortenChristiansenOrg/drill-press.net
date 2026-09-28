@@ -12,6 +12,33 @@ public sealed class RewriteContext(
     IReadOnlyList<SourceEdit> edits
 )
 {
+    private readonly Lazy<AnalysisProject> _rewrittenProject = new(() =>
+        new(
+            original.Snapshot with
+            {
+                Documents = original
+                    .Snapshot.Documents.Zip(
+                        rewritten.SyntaxTrees,
+                        (document, tree) =>
+                            document with
+                            {
+                                Text = tree.GetText(original.CancellationToken).ToString(),
+                                IsEditable = false,
+                                Fingerprint = "",
+                            }
+                    )
+                    .ToArray(),
+            },
+            rewritten,
+            original.CancellationToken
+        )
+    );
+
+    internal AnalysisSource? RewrittenSource(AnalysisSource source) =>
+        TreeFor(source) is { } tree
+            ? _rewrittenProject.Value.Sources.FirstOrDefault(candidate => candidate.Tree == tree)
+            : null;
+
     private readonly System.Collections.Concurrent.ConcurrentDictionary<
         SyntaxTree,
         SemanticModel
