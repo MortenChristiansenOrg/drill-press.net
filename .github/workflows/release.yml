@@ -17,8 +17,11 @@ jobs:
     with:
       tag: ${{ github.ref_name }}
 
+  native:
+    uses: ./.github/workflows/native-bundles.yml
+
   publish:
-    needs: validate
+    needs: [validate, native]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
@@ -33,9 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.x'
+      - uses: ./.github/actions/setup-dotnet
       - uses: actions/download-artifact@v4
         with:
           name: packages-${{ github.ref_name }}-Linux

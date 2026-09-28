@@ -142,8 +142,9 @@ temporary feed, use a fresh package cache and isolated tool home, compile an
 external consumer with PackageReferences only, install locally and globally,
 restore the pinned manifest, and run check/fix/recheck from another directory.
 Package source mapping restricts `DrillPress.*` to that temporary feed; only
-third-party dependencies come from nuget.org. The Windows x64 and Linux x64 CI
-test jobs run this gate along with existing correctness and native parity tests.
+third-party dependencies come from nuget.org. Ordinary Linux CI runs this gate
+with the full correctness suite. Releases additionally require Windows tests
+and native parity on both platforms.
 
 To install your locally built artifact manually, add
 `--add-source /absolute/path/to/artifacts/packages` to the tool installation
@@ -199,8 +200,18 @@ git push origin v1.0.0-rc.1
 The `Publish release` workflow validates the exact tagged commit on Windows and
 Linux: formatting, Release build, pack, complete package inventory, unit and
 integration tests, and CLI/SDK installation from copies of the actual artifacts.
-PRs and main-branch pushes exercise the same validation for `1.0.0` and
-`1.0.0-rc.1`, without publishing. Malformed `v*` tags fail validation; other tags
+Formatting runs once on Linux. Separate native jobs require managed/NativeAOT
+parity on both platforms before publication; they do not rerun the test suite
+or collect performance measurements.
+
+PRs and main-branch pushes build and pack the source version once on Linux and
+run the full test suite against those packages, without publishing or retaining
+package artifacts. Stable/prerelease version rules remain covered by unit tests;
+the full OS/version Cartesian matrix is not repeated for ordinary changes.
+NuGet dependencies are cached, and superseded CI runs are cancelled. There are
+no scheduled jobs or external xUnit repository checks.
+
+Malformed `v*` tags fail validation; other tags
 are ignored. Only the tag workflow's publication job receives `id-token: write`
 and permission to create GitHub releases. After validation and artifact download,
 the pinned `NuGet/login` action exchanges the job's OIDC identity for a temporary
@@ -209,8 +220,9 @@ The publisher receives that action output through its `NUGET_API_KEY` process
 environment variable; the value is not stored as a GitHub secret. NuGet credentials
 last one hour and are requested immediately before the publication step.
 
-After both platforms pass, CI downloads the validated Linux package artifact,
-revalidates it, and publishes in dependency order. It verifies that **all five**
+After package validation and native parity pass on both platforms, CI downloads
+the validated Linux package artifact, revalidates it, and publishes in dependency
+order. It verifies that **all five**
 packages are retrievable from nuget.org before creating or updating the GitHub
 release with package links. Prereleases are marked as such and never promoted
 to the latest stable GitHub release. Validated packages are retained as workflow
