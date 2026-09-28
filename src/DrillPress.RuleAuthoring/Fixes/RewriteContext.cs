@@ -1,5 +1,7 @@
 using DrillPress.Manifest;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress.Fixes;
 
@@ -10,6 +12,8 @@ public sealed class RewriteContext(
     IReadOnlyList<SourceEdit> edits
 )
 {
+    private readonly Dictionary<SyntaxTree, SemanticModel> _models = [];
+
     /// <summary>The unmodified source context.</summary>
     public AnalysisProject Original { get; } = original;
 
@@ -18,4 +22,72 @@ public sealed class RewriteContext(
 
     /// <summary>The complete proposed batch, including edits in other contexts.</summary>
     public IReadOnlyList<SourceEdit> Edits { get; } = edits;
+
+    /// <summary>Maps an original node through the whole batch. Replaced descendants without explicit correspondence and ambiguous spans return null.</summary>
+    public NodeRewrite? Map(AnalysisSource source, SyntaxNode before)
+    {
+        Original.CancellationToken.ThrowIfCancellationRequested();
+        if (
+            source.Project != Original
+            || before.SyntaxTree != source.Tree
+            || !Original.Sources.Contains(source)
+        )
+            return null;
+        var tree = TreeFor(source);
+        var span = MapSpan(source, before.Span);
+        if (tree is null || span is not { } mapped || mapped.End > tree.Length)
+            return null;
+        var root = tree.GetRoot(Original.CancellationToken);
+        var after = root.FindNode(mapped, getInnermostNodeForTie: true);
+        if (after.Span != mapped)
+            return null;
+        if (!_models.TryGetValue(tree, out var model))
+        {
+            model = Rewritten.GetSemanticModel(tree);
+            _models.Add(tree, model);
+        }
+        return new(source, before, after, model);
+    }
+
+    /// <summary>Finds the corresponding rewritten tree by original compilation membership, not an ambiguous filename lookup.</summary>
+    public SyntaxTree? TreeFor(AnalysisSource source)
+    {
+        if (source.Project != Original)
+            return null;
+        var original = Original.Compilation.SyntaxTrees.ToArray();
+        var rewritten = Rewritten.SyntaxTrees.ToArray();
+        var index = Array.IndexOf(original, source.Tree);
+        return
+            original.Length == rewritten.Length
+            && index >= 0
+            && original[index].FilePath == rewritten[index].FilePath
+            ? rewritten[index]
+            : null;
+    }
+
+    private TextSpan? MapSpan(AnalysisSource source, TextSpan span)
+    {
+        var shift = 0;
+        var lengthChange = 0;
+        foreach (
+            var edit in Edits
+                .Where(edit => edit.FileIdentity == source.Document.FileIdentity)
+                .OrderBy(edit => edit.Start)
+        )
+        {
+            var end = edit.Start + edit.Length;
+            var delta = edit.Replacement.Length - edit.Length;
+            if (end <= span.Start)
+                shift += delta;
+            else if (edit.Start >= span.End)
+                continue;
+            else if (edit.Start >= span.Start && end <= span.End)
+                lengthChange += delta;
+            else
+                return null;
+        }
+        return span.Length + lengthChange >= 0
+            ? new TextSpan(span.Start + shift, span.Length + lengthChange)
+            : null;
+    }
 }

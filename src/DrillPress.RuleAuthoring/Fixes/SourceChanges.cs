@@ -30,7 +30,13 @@ public static class SourceChanges
             throw new ArgumentException("A correction requires at least one edit.", nameof(edits));
         }
 
-        return new(batch, project => Validate(project, batch, preservesBehavior));
+        return new(
+            batch,
+            project => Validate(project, batch, preservesBehavior),
+            (project, combined) =>
+                batch.All(combined.Contains)
+                && Validate(project, combined.ToArray(), preservesBehavior)
+        );
     }
 
     private static bool Validate(
