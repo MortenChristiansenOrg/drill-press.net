@@ -10,8 +10,7 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
 {
     private IOperation? _implicitReceiver;
     private readonly Lazy<bool> _resolved = new(() =>
-        source.Model.GetOperation(syntax, source.Project.CancellationToken)
-            is { Kind: not OperationKind.Invalid }
+        BoundOperation(source, syntax) is { Kind: not OperationKind.Invalid }
         && source.Model.GetTypeInfo(syntax, source.Project.CancellationToken).Type?.TypeKind
             != TypeKind.Error
         && !source
@@ -38,8 +37,7 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
     public SourceLocation Location => Source.Locate(Syntax.Span);
 
     /// <summary>The bound operation, absent for unsupported syntax.</summary>
-    public IOperation? Operation =>
-        _implicitReceiver ?? Source.Model.GetOperation(Syntax, Source.Project.CancellationToken);
+    public IOperation? Operation => _implicitReceiver ?? BoundOperation(Source, Syntax);
 
     /// <summary>The selected symbol, excluding ambiguous candidate symbols.</summary>
     public ISymbol? Symbol =>
@@ -132,6 +130,13 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
             ),
             _ => null,
         };
+
+    private static IOperation? BoundOperation(AnalysisSource source, ExpressionSyntax syntax)
+    {
+        while (syntax is ParenthesizedExpressionSyntax parenthesized)
+            syntax = parenthesized.Expression;
+        return source.Model.GetOperation(syntax, source.Project.CancellationToken);
+    }
 
     private IEnumerable<ITypeSymbol> TypeTargets(ITypeSymbol actual)
     {

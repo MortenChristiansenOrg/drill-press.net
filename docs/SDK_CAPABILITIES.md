@@ -10,6 +10,9 @@ selection, see [relationship queries](RELATIONSHIP_QUERIES.md).
 For bound arguments, expression facts, declared attributes, executable scopes,
 and normalized null checks, see [semantic queries](SEMANTIC_QUERIES.md).
 
+For policy-neutral validation correlation and bounded static model discovery,
+see [conditions and type graphs](CONDITIONS_AND_TYPES.md).
+
 ## Where changes belong
 
 The `DrillPress.RuleAuthoring` project is organized by responsibility. Except
