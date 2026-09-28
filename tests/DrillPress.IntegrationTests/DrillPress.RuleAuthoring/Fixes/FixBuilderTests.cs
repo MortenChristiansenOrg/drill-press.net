@@ -9,6 +9,82 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
 public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Theory]
+    [InlineData("bool", "bool value", "!value", "(!value)")]
+    [InlineData("int", "int value", "-value", "(-value)")]
+    [InlineData("long", "int value", "(long)value", "((long)value)")]
+    [InlineData("bool", "object value", "value is string", "(value is string)")]
+    public async Task Non_primary_replacements_keep_precedence_in_member_receivers(
+        string type,
+        string parameter,
+        string replacement,
+        string expected
+    )
+    {
+        var workspace = fixture.Workspace();
+        var declaration =
+            $"class A {{ {type} Value({parameter}) => {replacement}; string M({parameter}) => ";
+        workspace.AddProject("Library", [new("A.cs", declaration + "Value(value).ToString(); }")]);
+        var rules = new RuleSet();
+        rules
+            .For(
+                Sources
+                    .Nodes<InvocationExpressionSyntax>()
+                    .Where(node => node.Syntax.ToString() == "Value(value)")
+            )
+            .Forbid(
+                "VALUE",
+                "Inline the known expression.",
+                fix: node =>
+                    Fix.For(node)
+                        .ReplaceWith(SyntaxFactory.ParseExpression(replacement))
+                        .Propose(_ => ProofResult.Proven)
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(declaration + expected + ".ToString(); }", result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task Independent_optional_argument_calls_can_be_replaced_in_one_batch()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { int Value(int value = 1) => value; int M() => Value() + Value(); }"
+                ),
+            ]
+        );
+        var rules = new RuleSet();
+        rules
+            .For(
+                Sources
+                    .Nodes<InvocationExpressionSyntax>()
+                    .Where(node => node.Syntax.ToString() == "Value()")
+            )
+            .Forbid(
+                "VALUE",
+                "Inline the default value.",
+                fix: node =>
+                    Fix.For(node)
+                        .ReplaceWith(SyntaxFactory.ParseExpression("1"))
+                        .Propose(_ => ProofResult.Proven)
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true, true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(
+            "class A { int Value(int value = 1) => value; int M() => 1 + 1; }",
+            result.FixedText("A.cs")
+        );
+    }
+
     [Fact]
     public async Task Individually_valid_edits_that_together_change_overload_are_withheld()
     {

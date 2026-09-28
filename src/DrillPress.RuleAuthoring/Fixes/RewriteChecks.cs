@@ -178,7 +178,14 @@ public static class RewriteChecks
                 var newArguments = Arguments(mapped.Model.GetOperation(mapped.After));
                 if (newArguments is null)
                 {
-                    if (syntax == change.Before)
+                    if (
+                        syntax == change.Before
+                        || change.Context.Edits.Any(edit =>
+                            edit.FileIdentity == source.Document.FileIdentity
+                            && edit.Start == syntax.SpanStart
+                            && edit.Length == syntax.Span.Length
+                        )
+                    )
                         continue;
                     return ProofResult.Unknown;
                 }
