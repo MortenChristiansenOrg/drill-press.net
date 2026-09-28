@@ -24,8 +24,14 @@ internal static class OrdinalComparerFix
     {
         if (
             reference.Source is not { } source
-            || reference.Syntax?.Ancestors().OfType<InvocationExpressionSyntax>().FirstOrDefault()
+            || reference.Syntax is not { } referenceSyntax
+            || referenceSyntax.Ancestors().OfType<InvocationExpressionSyntax>().FirstOrDefault()
                 is not { } call
+            || source.Model.GetOperation(call) is not IInvocationOperation operation
+            || !operation.Arguments.Any(argument =>
+                argument.Parameter?.Name == "comparer"
+                && argument.Value.Syntax.Span.Contains(referenceSyntax.Span)
+            )
         )
             return null;
         return Fix.For(source, call)
@@ -36,7 +42,11 @@ internal static class OrdinalComparerFix
                     new Dictionary<string, string> { ["source"] = "source" }
                 )
             )
-            .RequireRemovedValue(ApprovedDefault)
+            .RequireRemovedValue(change =>
+                change.Removed.Operation.Syntax.Span.Contains(referenceSyntax.Span)
+                    ? ApprovedDefault(change)
+                    : ProofResult.Unknown
+            )
             // StringComparer.Ordinal is the framework's immutable singleton. For this exact string
             // Distinct pair, omitting its getter evaluation has no observable contract effect.
             .RequireRemovedEvaluation(ApprovedDefault)

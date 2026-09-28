@@ -271,6 +271,61 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
     }
 
     [Fact]
+    public void Template_shape_selection_applies_to_nested_parts()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    """
+                    class A
+                    {
+                        static void Use(string value) {}
+                        void M(string a, string b)
+                        {
+                            Use($"/{("x" + a)}");
+                            Use($"/{("x" + b)}");
+                            Use("/" + $"{a}");
+                            Use("/" + $"{b}");
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var interpolation = ExpressionGroups.OneHoleTemplates(
+            Selected(),
+            new(TemplateShapes.Interpolation, _ => true)
+        );
+        var concatenation = ExpressionGroups.OneHoleTemplates(
+            Selected(),
+            new(TemplateShapes.Concatenation, _ => true)
+        );
+        var both = ExpressionGroups.OneHoleTemplates(
+            Selected(),
+            new(TemplateShapes.Interpolation | TemplateShapes.Concatenation, _ => true)
+        );
+
+        var interpolationGroups = interpolation.In(solution);
+        var concatenationGroups = concatenation.In(solution);
+        var combinedGroups = both.In(solution);
+
+        Assert.Empty(interpolationGroups);
+        Assert.Empty(concatenationGroups);
+        Assert.Equal(
+            [new[] { "a", "b" }, new[] { "a", "b" }],
+            combinedGroups.Select(group =>
+                group
+                    .Occurrences.Select(occurrence => occurrence.Capture!.Syntax.ToString())
+                    .ToArray()
+            )
+        );
+    }
+
+    [Fact]
     public void Template_capture_nullability_remains_part_of_equivalence()
     {
         var workspace = fixture.Workspace();

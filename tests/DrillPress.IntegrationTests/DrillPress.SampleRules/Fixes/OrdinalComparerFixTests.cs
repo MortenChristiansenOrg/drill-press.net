@@ -61,6 +61,29 @@ public sealed class OrdinalComparerFixTests(SemanticRuleFixture fixture)
     }
 
     [Fact]
+    public async Task A_reference_in_the_source_argument_does_not_own_the_comparer_removal()
+    {
+        var project = fixture.Project(
+            "using System.Linq; class C { object M() => Enumerable.Distinct(new[] { System.StringComparer.Ordinal == null ? \"a\" : \"b\" }, System.StringComparer.Ordinal); }"
+        );
+
+        var findings = await fixture.Describe(project);
+
+        Assert.Equal(
+            [
+                ("DP1005", 1, "System.StringComparer.Ordinal", (string?)null),
+                (
+                    "DP1005",
+                    1,
+                    "System.StringComparer.Ordinal",
+                    "(new[] { System.StringComparer.Ordinal == null ? \"a\" : \"b\" })"
+                ),
+            ],
+            findings
+        );
+    }
+
+    [Fact]
     public async Task Expression_tree_call_is_not_rewritten()
     {
         var project = fixture.Project(

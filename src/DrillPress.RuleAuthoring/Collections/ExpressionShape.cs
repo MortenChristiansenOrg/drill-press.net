@@ -62,6 +62,7 @@ internal sealed record ExpressionShape(string Key, CodeExpression? Capture)
                 : null;
         if (
             syntax is BinaryExpressionSyntax binary
+            && options.Shapes.HasFlag(TemplateShapes.Concatenation)
             && operation
                 is IBinaryOperation
                 {
@@ -79,6 +80,7 @@ internal sealed record ExpressionShape(string Key, CodeExpression? Capture)
             );
         if (
             syntax is InterpolatedStringExpressionSyntax interpolation
+            && options.Shapes.HasFlag(TemplateShapes.Interpolation)
             && operation is IInterpolatedStringOperation
             && interpolation.Contents.OfType<InterpolationSyntax>().Count() == 1
         )
