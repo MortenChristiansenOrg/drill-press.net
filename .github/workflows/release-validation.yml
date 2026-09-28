@@ -1,14 +1,13 @@
 name: Release validation
 
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_call:
     inputs:
       tag:
-        required: true
+        description: Release tag; omit for ordinary Linux validation using the source version.
+        required: false
         type: string
+        default: ''
 
 permissions:
   contents: read
@@ -18,16 +17,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [blacksmith-4vcpu-ubuntu-2404, blacksmith-4vcpu-windows-2025]
-        tag: ${{ inputs.tag && fromJSON(format('["{0}"]', inputs.tag)) || fromJSON('["v1.0.0", "v1.0.0-rc.1"]') }}
+        os: ${{ inputs.tag != '' && fromJSON('["blacksmith-4vcpu-ubuntu-2404", "blacksmith-4vcpu-windows-2025"]') || fromJSON('["blacksmith-4vcpu-ubuntu-2404"]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 15
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
       DOTNET_CLI_UI_LANGUAGE: en-US
       VSLANG: 1033
-      RELEASE_TAG: ${{ matrix.tag }}
+      RELEASE_TAG: ${{ inputs.tag }}
     defaults:
       run:
         shell: bash
@@ -35,34 +33,41 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.x'
+      - uses: ./.github/actions/setup-dotnet
       - name: Validate version tag
+        if: inputs.tag != ''
         id: version
         run: |
           dotnet build tools/DrillPress.Release -c Release
           version=$(dotnet tools/DrillPress.Release/bin/Release/net10.0/DrillPress.Release.dll version "$RELEASE_TAG")
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Check formatting
+        if: runner.os == 'Linux'
         run: |
           dotnet tool restore
           dotnet csharpier check .
-      - name: Build and pack the tagged version
+      - name: Build and pack once
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          dotnet build DrillPress.slnx -c Release -p:Version="$RELEASE_VERSION"
-          dotnet pack DrillPress.slnx -c Release --no-build -p:Version="$RELEASE_VERSION" -o artifacts/packages
-          dotnet tools/DrillPress.Release/bin/Release/net10.0/DrillPress.Release.dll validate "$RELEASE_TAG" artifacts/packages
+          version_args=()
+          if [[ -n "$RELEASE_VERSION" ]]; then
+            version_args=("-p:Version=$RELEASE_VERSION")
+          fi
+          dotnet build DrillPress.slnx -c Release "${version_args[@]}"
+          dotnet pack DrillPress.slnx -c Release --no-build --no-restore "${version_args[@]}" -o artifacts/packages
+          if [[ -n "$RELEASE_TAG" ]]; then
+            dotnet tools/DrillPress.Release/bin/Release/net10.0/DrillPress.Release.dll validate "$RELEASE_TAG" artifacts/packages
+          fi
       - name: Test including installation of the exact release artifacts
         env:
           DRILLPRESS_RELEASE_FEED: ${{ github.workspace }}/artifacts/packages
         run: dotnet test --solution DrillPress.slnx -c Release --no-build
       - name: Retain validated packages
+        if: inputs.tag != ''
         uses: actions/upload-artifact@v4
         with:
-          name: packages-${{ matrix.tag }}-${{ runner.os }}
+          name: packages-${{ inputs.tag }}-${{ runner.os }}
           path: artifacts/packages/*.nupkg
           if-no-files-found: error
           retention-days: 90

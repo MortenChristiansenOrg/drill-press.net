@@ -151,13 +151,23 @@ public sealed class FixBuilder
         var clean = expression.WithoutTrivia();
         return (
             clean
-                is BinaryExpressionSyntax
-                    or ConditionalExpressionSyntax
-                    or AssignmentExpressionSyntax
-                    or LambdaExpressionSyntax
-                    or QueryExpressionSyntax
-                ? SyntaxFactory.ParenthesizedExpression(clean)
-                : clean
+                is IdentifierNameSyntax
+                    or GenericNameSyntax
+                    or LiteralExpressionSyntax
+                    or ParenthesizedExpressionSyntax
+                    or MemberAccessExpressionSyntax
+                    or InvocationExpressionSyntax
+                    or ElementAccessExpressionSyntax
+                    or BaseObjectCreationExpressionSyntax
+                    or ThisExpressionSyntax
+                    or BaseExpressionSyntax
+                    or TypeOfExpressionSyntax
+                    or DefaultExpressionSyntax
+                    or InterpolatedStringExpressionSyntax
+                    or TupleExpressionSyntax
+                    or PredefinedTypeSyntax
+                ? clean
+                : SyntaxFactory.ParenthesizedExpression(clean)
         ).NormalizeWhitespace();
     }
 }
