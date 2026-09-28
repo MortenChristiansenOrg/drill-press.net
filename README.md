@@ -196,17 +196,19 @@ dotnet build fixtures/CompilerSnapshot/Generator/Generator.csproj -c Release
 dotnet restore fixtures/CompilerSnapshot/Selected.slnx
 dotnet run --project tools/DrillPress.Conformance -c Release -- \
   fixtures/CompilerSnapshot/Selected.slnx artifacts/conformance/fixture.json
-dotnet run --file scripts/XunitConformance.cs -c Release -- \
-  ../drillpress-xunit-conformance artifacts/conformance/xunit
 ```
 
-The xUnit harness pins revision `6bbefaed1d0a995bc9970800384f9e8a1b9d2331`, initializes
-its submodules, records SDK and restore output, and compares live/reconstructed
-symbol bindings, conversions, declarations, compiler diagnostics, and current
-rule responses. Keep its checkout outside this repository to avoid inheriting
-our MSBuild files. Existing checkouts must match the pin and have no tracked
-changes. Dependency locks are generated separately under each project's `obj`
-and copied into the report directory; upstream lockfiles remain unchanged.
+The compiler fixture compares live/reconstructed symbol bindings, conversions,
+declarations, compiler diagnostics, and current rule responses. This check also
+runs in the project's integration suite. The external xUnit repository harness
+has been removed; Drill Press's own unit and integration tests still use xUnit.
+
+The [CI workflow](.github/workflows/ci.yml) builds, packs, checks formatting, and
+runs the complete test suite once on Linux for each PR update and main push.
+Superseded runs are cancelled. Tagged releases additionally gate publication on
+Windows tests and managed/NativeAOT parity on both platforms. There are no
+scheduled workflows. See [release validation](docs/DISTRIBUTION.md#automatic-publication).
+
 See [profiling](docs/PROFILING.md) for phase measurements on stderr during
 ordinary CLI checks and fixes with `--profile`.
 

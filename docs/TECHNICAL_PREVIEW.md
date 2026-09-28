@@ -172,35 +172,33 @@ rerun `check` or `fix`. See the full [fix and recovery policy](FIXING.md).
 
 ## Reproduce the acceptance gates
 
-The continuous [native bundle workflow](../.github/workflows/native-bundles.yml)
-builds Release, runs all unit/integration tests, publishes and executes both
-bundle modes, compares exact bytes for all target shapes, applies real fixes,
-and retains compiler-fixture conformance on Windows and Linux. Run its command
-locally with a new output directory:
+The [CI workflow](../.github/workflows/ci.yml) runs formatting, a Release build,
+package installation checks, and all unit/integration tests once on Linux for
+each PR update and main push. The integration tests include compiler-fixture
+conformance. NuGet packages are cached, and superseded CI runs are cancelled.
+
+Tagged releases run package validation and the complete test suite on Windows
+and Linux. The [native bundle workflow](../.github/workflows/native-bundles.yml)
+also publishes and executes both bundle modes on both platforms, compares exact
+bytes for all target shapes, and applies real fixes. Publication requires all
+these jobs to pass. Run native verification locally with a new output directory:
 
 ```sh
-dotnet run --file scripts/NativeBundles.cs -c Release --no-cache -- --output artifacts/preview-native
+dotnet run --file scripts/VerifyNativeBundles.cs -c Release -- --output artifacts/preview-native
 ```
 
-The additional [repository workflow](../.github/workflows/repository-preview.yml)
-runs pinned xUnit compiler conformance. This command works in either shell;
-keep the checkout outside this repo and choose a new report directory:
+Native verification retains logs and byte-level parity evidence in
+`native-bundle-report-*` artifacts. Performance measurement is a separate local
+command and does not run in CI:
 
 ```sh
-dotnet run --file scripts/XunitConformance.cs -c Release --no-cache -- ../drillpress-xunit artifacts/preview-conformance
+dotnet run --file scripts/NativeBundles.cs -c Release -- --output artifacts/preview-benchmarks
 ```
 
-CI retains both platforms' raw diagnostics, dependency locks, and conformance
-reports as `repository-preview-*` artifacts for 90 days. This workflow accepts
-no custom target or repository inputs: its reports describe only the fixed
-public xUnit revision. This upload policy does not apply to reports from private
-targets run outside the workflow.
-
-Download a run's artifacts from
-[repository workflow runs](https://github.com/MortenChristiansenOrg/drill-press.net/actions/workflows/repository-preview.yml)
-for longer retention. The conformance gate compares live and reconstructed
-compiler semantics and complete rule responses.
+The external xUnit repository harness, its workflow, and saved reports have
+been removed. There are no scheduled validation or benchmark runs.
 
 [Acceptance evidence](PREVIEW_ACCEPTANCE.md) maps every implementation slice to
-its tests and retained reports. The preview gate requires both platform jobs and
-all retained slice criteria to pass.
+its tests and retained reports. Release acceptance requires both platforms and
+all retained slice criteria to pass. Windows-specific and NativeAOT regressions
+can therefore be detected at release time rather than on ordinary PRs.
