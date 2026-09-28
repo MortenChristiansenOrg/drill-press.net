@@ -9,10 +9,10 @@ public sealed class OrdinalComparerFixTests(SemanticRuleFixture fixture)
     [Theory]
     [InlineData("values.Distinct(System.StringComparer.Ordinal)", "()")]
     [InlineData("values.Distinct(comparer: System.StringComparer.Ordinal)", "()")]
-    [InlineData("Enumerable.Distinct(values, System.StringComparer.Ordinal)", "(values )")]
+    [InlineData("Enumerable.Distinct(values, System.StringComparer.Ordinal)", "(values)")]
     [InlineData(
         "Enumerable.Distinct(comparer: System.StringComparer.Ordinal, source: values)",
-        "( source: values)"
+        "(source: values)"
     )]
     public async Task Exact_allowlist_validates_static_extension_and_named_mapping(
         string call,

@@ -27,6 +27,29 @@ public sealed class RewriteContext(
     public RewriteEvidence? Evidence(AnalysisSource source, SyntaxNode before) =>
         Map(source, before) is { } mapped ? new(this, mapped, []) : null;
 
+    /// <summary>Maps an unchanged token through the complete batch, preserving exact kind/text correspondence. Tokens replaced by an edit do not map.</summary>
+    public SyntaxToken? MapToken(AnalysisSource source, SyntaxToken before)
+    {
+        if (
+            source.Project != Original
+            || before.SyntaxTree != source.Tree
+            || Edits.Any(edit =>
+                edit.FileIdentity == source.Document.FileIdentity
+                && edit.Length > 0
+                && new TextSpan(edit.Start, edit.Length).OverlapsWith(before.Span)
+            )
+        )
+            return null;
+        var span = MapSpan(source, before.Span);
+        var tree = TreeFor(source);
+        if (span is not { } mapped || tree is null || mapped.End > tree.Length)
+            return null;
+        var after = tree.GetRoot(Original.CancellationToken).FindToken(mapped.Start);
+        return after.Span == mapped && after.RawKind == before.RawKind && after.Text == before.Text
+            ? after
+            : null;
+    }
+
     /// <summary>Maps an original node through the whole batch. Replaced descendants without explicit correspondence and ambiguous spans return null.</summary>
     public NodeRewrite? Map(AnalysisSource source, SyntaxNode before)
     {

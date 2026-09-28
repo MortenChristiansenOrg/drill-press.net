@@ -9,6 +9,35 @@ namespace DrillPress.Fixes;
 /// <summary>Bounded structural proofs over the actual fully rewritten compilation. These do not establish arbitrary behavioral equivalence.</summary>
 public static class RewriteChecks
 {
+    /// <summary>Preserves every original source expression's bound symbol, type and conversion in this compilation. Use for structural edits that intentionally change no expressions.</summary>
+    public static ProofResult SameSourceBindings(RewriteEvidence change)
+    {
+        foreach (var source in change.Context.Original.Sources)
+        foreach (
+            var expression in source
+                .Tree.GetRoot(source.Project.CancellationToken)
+                .DescendantNodes()
+                .OfType<ExpressionSyntax>()
+        )
+        {
+            if (
+                change.Context.Map(source, expression)
+                is not { After: ExpressionSyntax after } mapped
+            )
+                return ProofResult.Unknown;
+            if (
+                !SameTypes(source.Model, expression, mapped.Model, after)
+                || !RewriteSymbols.Same(
+                    source.Model.GetSymbolInfo(expression).Symbol,
+                    mapped.Model.GetSymbolInfo(after).Symbol,
+                    change.Context
+                )
+            )
+                return ProofResult.Disproven;
+        }
+        return ProofResult.Proven;
+    }
+
     /// <summary>Preserves expression and converted types plus enclosing member/operator binding, excluding the intentionally replaced root's symbol.</summary>
     public static ProofResult SameEnclosingBindings(RewriteEvidence change)
     {
@@ -145,7 +174,13 @@ public static class RewriteChecks
         };
 
     /// <summary>Compares compiler-supplied argument constants on retained calls, including caller-line and caller-argument-expression values outside the edited expression.</summary>
-    public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change)
+    public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change) =>
+        CompilerSuppliedArguments(change, null);
+
+    internal static ProofResult CompilerSuppliedArguments(
+        RewriteEvidence change,
+        SyntaxNode? approvedTransition
+    )
     {
         foreach (
             var source in change.Context.Original.Sources.Where(source =>
@@ -165,6 +200,8 @@ public static class RewriteChecks
                     )
             )
             {
+                if (syntax == approvedTransition)
+                    continue;
                 var oldArguments = Arguments(source.Model.GetOperation(syntax));
                 if (
                     oldArguments is null

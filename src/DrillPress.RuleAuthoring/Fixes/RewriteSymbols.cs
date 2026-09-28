@@ -39,14 +39,21 @@ internal static class RewriteSymbols
             );
             if (source is null)
                 continue;
-            if (
-                context.Map(source, reference.GetSyntax(context.Original.CancellationToken))
-                is not { } declaration
-            )
+            var beforeDeclaration = reference.GetSyntax(context.Original.CancellationToken);
+            var declaration = context.Map(source, beforeDeclaration)?.After;
+            if (declaration is null)
+                foreach (var token in beforeDeclaration.DescendantTokens())
+                    if (context.MapToken(source, token) is { } mapped)
+                    {
+                        declaration = mapped
+                            .Parent?.AncestorsAndSelf()
+                            .FirstOrDefault(node => node.RawKind == beforeDeclaration.RawKind);
+                        break;
+                    }
+            if (declaration is null)
                 return false;
             return after.DeclaringSyntaxReferences.Any(candidate =>
-                candidate.SyntaxTree == declaration.After.SyntaxTree
-                && candidate.Span == declaration.After.Span
+                candidate.SyntaxTree == declaration.SyntaxTree && candidate.Span == declaration.Span
             );
         }
         return true;

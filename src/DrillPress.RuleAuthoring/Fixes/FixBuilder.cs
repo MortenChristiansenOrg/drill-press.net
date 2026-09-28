@@ -42,6 +42,17 @@ public sealed class FixBuilder
     public FixBuilder Require(Func<RewriteEvidence, ProofResult> check) =>
         new(_source, _original, _replacement, _inputs, [.. _checks, check]);
 
+    /// <summary>Selects one actual declaration modifier token for removal. Declaration and behavior invariants remain explicit.</summary>
+    public ModifierRemoval RemoveModifier(SyntaxKind kind) =>
+        new(_source, _original, kind, _checks);
+
+    /// <summary>Wraps an actual if/else embedded statement in a block under the restricted structural proof.</summary>
+    public BlockWrapping WrapInBlock() => new(_source, _original, _checks);
+
+    /// <summary>Selects one explicit bound parameter value for removal under an exact contextual method transition.</summary>
+    public ArgumentRemoval RemoveArgument(string parameter) =>
+        new(_source, _original, parameter, _checks);
+
     /// <summary>Creates an atomic proposal with a required transformation-specific proof. Failed eligibility returns no proposal; contextual failures retain the finding.</summary>
     public FixProposal? Propose(Func<RewriteEvidence, ProofResult> provesBehavior)
     {
