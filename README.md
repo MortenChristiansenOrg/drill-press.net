@@ -215,6 +215,10 @@ ordinary CLI checks and fixes with `--profile`.
 See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
 rules, semantic type identities, and the exact automatic-fix contracts.
 
+The fix guides cover [contextual expression proposals](docs/CONTEXTUAL_FIXES.md),
+[argument, modifier and block edits](docs/STRUCTURED_FIXES.md), and
+[grouping and extracting repeated expressions](docs/EXPRESSION_EXTRACTION.md).
+
 The [composable SDK guide](docs/SDK_CAPABILITIES.md) covers custom query roots,
 source and operation analysis, shared facts, project relationships, accepted
 source baselines, safe edit construction, and the consumer test kit. The

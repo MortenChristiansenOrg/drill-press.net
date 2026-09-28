@@ -9,10 +9,10 @@ public sealed class OrdinalComparerFixTests(SemanticRuleFixture fixture)
     [Theory]
     [InlineData("values.Distinct(System.StringComparer.Ordinal)", "()")]
     [InlineData("values.Distinct(comparer: System.StringComparer.Ordinal)", "()")]
-    [InlineData("Enumerable.Distinct(values, System.StringComparer.Ordinal)", "(values )")]
+    [InlineData("Enumerable.Distinct(values, System.StringComparer.Ordinal)", "(values)")]
     [InlineData(
         "Enumerable.Distinct(comparer: System.StringComparer.Ordinal, source: values)",
-        "( source: values)"
+        "(source: values)"
     )]
     public async Task Exact_allowlist_validates_static_extension_and_named_mapping(
         string call,
@@ -58,6 +58,29 @@ public sealed class OrdinalComparerFixTests(SemanticRuleFixture fixture)
         var findings = await fixture.Describe(project);
 
         Assert.Equal([("DP1005", 5, "System.StringComparer.Ordinal", (string?)null)], findings);
+    }
+
+    [Fact]
+    public async Task A_reference_in_the_source_argument_does_not_own_the_comparer_removal()
+    {
+        var project = fixture.Project(
+            "using System.Linq; class C { object M() => Enumerable.Distinct(new[] { System.StringComparer.Ordinal == null ? \"a\" : \"b\" }, System.StringComparer.Ordinal); }"
+        );
+
+        var findings = await fixture.Describe(project);
+
+        Assert.Equal(
+            [
+                ("DP1005", 1, "System.StringComparer.Ordinal", (string?)null),
+                (
+                    "DP1005",
+                    1,
+                    "System.StringComparer.Ordinal",
+                    "(new[] { System.StringComparer.Ordinal == null ? \"a\" : \"b\" })"
+                ),
+            ],
+            findings
+        );
     }
 
     [Fact]

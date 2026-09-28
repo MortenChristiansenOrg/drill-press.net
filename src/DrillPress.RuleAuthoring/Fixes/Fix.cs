@@ -7,6 +7,10 @@ namespace DrillPress.Fixes;
 /// <summary>Constructs contextual edit proposals; no files are written and a consumer semantic proof is required.</summary>
 public static class Fix
 {
+    /// <summary>Starts atomic member extraction from explicitly selected and semantically grouped occurrences.</summary>
+    public static ExpressionExtraction Extract(DrillPress.Collections.ExpressionGroup group) =>
+        new(group);
+
     /// <summary>Starts a proposal for an exact original syntax candidate.</summary>
     public static FixBuilder For<TSyntax>(CodeNode<TSyntax> node)
         where TSyntax : SyntaxNode => new(node.Source, node.Syntax);

@@ -13,76 +13,31 @@ internal static class ModifierFix
         CodeNode<MemberDeclarationSyntax> candidate
     )
     {
-        var modifiers = Modifiers(candidate.Syntax);
-        var access = modifiers
+        var access = candidate
+            .Syntax.ChildTokens()
             .Where(token =>
-                token.IsKind(SyntaxKind.PublicKeyword)
-                || token.IsKind(SyntaxKind.PrivateKeyword)
-                || token.IsKind(SyntaxKind.ProtectedKeyword)
-                || token.IsKind(SyntaxKind.InternalKeyword)
-                || token.IsKind(SyntaxKind.FileKeyword)
+                token.Kind()
+                    is SyntaxKind.PublicKeyword
+                        or SyntaxKind.PrivateKeyword
+                        or SyntaxKind.ProtectedKeyword
+                        or SyntaxKind.InternalKeyword
+                        or SyntaxKind.FileKeyword
             )
             .ToArray();
         if (
             access.Length != 1
             || access[0].Kind() is not (SyntaxKind.InternalKeyword or SyntaxKind.PrivateKeyword)
         )
-        {
             return null;
-        }
-
-        var token = access[0];
-        var removedLength =
-            token.Span.Length
-            + token
-                .TrailingTrivia.TakeWhile(trivia => trivia.IsKind(SyntaxKind.WhitespaceTrivia))
-                .Sum(trivia => trivia.FullSpan.Length);
-        var span = new Microsoft.CodeAnalysis.Text.TextSpan(token.SpanStart, removedLength);
-        var edit = SourceChanges.Replace(candidate.Source, span, "");
-        return SourceChanges.Propose(
-            [edit],
-            context =>
-                context
-                    .Original.Sources.Where(source =>
-                        source.Document.FileIdentity == edit.FileIdentity
-                    )
-                    .All(source =>
-                        SameAccessibility(source, context, candidate.Syntax.SpanStart, edit.Length)
-                    )
-        );
+        return Fix.For(candidate)
+            .RemoveModifier(access[0].Kind())
+            .Require(DeclarationChecks.SameDeclaredAccessibility)
+            .Require(DeclarationChecks.SameIdentity)
+            .Require(DeclarationChecks.SameContract)
+            .Propose(change =>
+                change.Removed.Kind() is SyntaxKind.InternalKeyword or SyntaxKind.PrivateKeyword
+                    ? ProofResult.Proven
+                    : ProofResult.Unknown
+            );
     }
-
-    private static bool SameAccessibility(
-        AnalysisSource source,
-        RewriteContext context,
-        int start,
-        int removedLength
-    )
-    {
-        var before = source
-            .Tree.GetRoot()
-            .DescendantNodes()
-            .OfType<MemberDeclarationSyntax>()
-            .FirstOrDefault(node => node.SpanStart == start && Modifiers(node).Count > 0);
-        var evidence = before is null ? null : context.Evidence(source, before);
-        var oldSymbol = before is null ? null : source.Model.GetDeclaredSymbol(before);
-        var newSymbol = evidence is null
-            ? null
-            : evidence.AfterModel.GetDeclaredSymbol(evidence.After);
-        return evidence is not null
-            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven
-            && oldSymbol is not null
-            && newSymbol is not null
-            && oldSymbol.DeclaredAccessibility == newSymbol.DeclaredAccessibility
-            && oldSymbol.GetDocumentationCommentId() == newSymbol.GetDocumentationCommentId();
-    }
-
-    private static SyntaxTokenList Modifiers(MemberDeclarationSyntax node) =>
-        node switch
-        {
-            TypeDeclarationSyntax type => type.Modifiers,
-            MethodDeclarationSyntax method => method.Modifiers,
-            PropertyDeclarationSyntax property => property.Modifiers,
-            _ => default,
-        };
 }

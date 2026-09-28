@@ -1,8 +1,6 @@
-using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
-using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress.SampleRules.Fixes;
 
@@ -21,43 +19,85 @@ internal static class OrdinalComparerFix
                 .Any() == true
         );
 
-    /// <summary>Proposes argument removal only after exact API, parameter mapping, and contextual binding checks.</summary>
+    /// <summary>Declares the exact framework pair and separately certifies its default value and removable evaluation.</summary>
     public static FixProposal? Create(MemberReference reference)
     {
         if (
-            reference.Source is not { Document.IsEditable: true } source
-            || reference.Syntax?.Ancestors().OfType<ArgumentSyntax>().FirstOrDefault()
-                is not { Parent: ArgumentListSyntax list } argument
-            || list.Parent is not InvocationExpressionSyntax call
-            || !IsEligible(source, call, argument)
+            reference.Source is not { } source
+            || reference.Syntax is not { } referenceSyntax
+            || referenceSyntax.Ancestors().OfType<InvocationExpressionSyntax>().FirstOrDefault()
+                is not { } call
+            || source.Model.GetOperation(call) is not IInvocationOperation operation
+            || !operation.Arguments.Any(argument =>
+                argument.Parameter?.Name == "comparer"
+                && argument.Value.Syntax.Span.Contains(referenceSyntax.Span)
+            )
         )
-        {
             return null;
-        }
+        return Fix.For(source, call)
+            .RemoveArgument("comparer")
+            .RequireTransition(
+                new MethodTransition(
+                    ResolvePair,
+                    new Dictionary<string, string> { ["source"] = "source" }
+                )
+            )
+            .RequireRemovedValue(change =>
+                change.Removed.Operation.Syntax.Span.Contains(referenceSyntax.Span)
+                    ? ApprovedDefault(change)
+                    : ProofResult.Unknown
+            )
+            // StringComparer.Ordinal is the framework's immutable singleton. For this exact string
+            // Distinct pair, omitting its getter evaluation has no observable contract effect.
+            .RequireRemovedEvaluation(ApprovedDefault)
+            .Propose(change =>
+                IsDistinct(change.Expected.Before, 2) && IsDistinct(change.Expected.After, 1)
+                    ? ProofResult.Proven
+                    : ProofResult.Unknown
+            );
+    }
 
-        var rewritten = list.RemoveNode(argument, SyntaxRemoveOptions.KeepExteriorTrivia);
-        if (rewritten is null)
-        {
+    private static MethodPair? ResolvePair(AnalysisProject project)
+    {
+        var type = project.Compilation.GetTypeByMetadataName("System.Linq.Enumerable");
+        if (type is null || !IsFrameworkEnumerable(type))
             return null;
-        }
+        var methods = type.GetMembers("Distinct")
+            .OfType<IMethodSymbol>()
+            .Where(method => method.Arity == 1)
+            .Select(method =>
+                method.Construct(project.Compilation.GetSpecialType(SpecialType.System_String))
+            )
+            .ToArray();
+        var before = methods.SingleOrDefault(method => IsDistinct(method, 2));
+        var after = methods.SingleOrDefault(method => IsDistinct(method, 1));
+        return before is null || after is null ? null : new(before, after);
+    }
 
-        var edit = new SourceEdit(
-            source.Document.FileIdentity,
-            source.Document.Fingerprint,
-            list.SpanStart,
-            list.Span.Length,
-            list.ToString(),
-            rewritten.ToString()
-        );
-        return SourceChanges.Propose(
-            [edit],
-            context =>
-                context
-                    .Original.Sources.Where(candidate =>
-                        candidate.Document.FileIdentity == edit.FileIdentity
-                    )
-                    .All(candidate => Validate(candidate, edit, context))
-        );
+    private static ProofResult ApprovedDefault(ArgumentRemovalEvidence change)
+    {
+        var value = change.Removed.Operation;
+        while (
+            value
+                is IConversionOperation
+                {
+                    Conversion.IsImplicit: true,
+                    Conversion.IsUserDefined: false
+                } conversion
+        )
+            value = conversion.Operand;
+        return
+            value
+                is IPropertyReferenceOperation
+                {
+                    Property.Name: "Ordinal",
+                    Property.IsStatic: true
+                } property
+            && CodeType.Of<StringComparer>().Matches(property.Property.ContainingType)
+            && IsDistinct(change.Expected.Before, 2)
+            && IsDistinct(change.Expected.After, 1)
+            ? ProofResult.Proven
+            : ProofResult.Unknown;
     }
 
     internal static bool IsDistinct(IMethodSymbol? method, int parameterCount)
@@ -95,80 +135,5 @@ internal static class OrdinalComparerFix
                 is "B03F5F7F11D50A3A"
                     or "B77A5C561934E089"
                     or "7CEC85D7BEA7798E";
-    }
-
-    private static bool IsEligible(
-        AnalysisSource source,
-        InvocationExpressionSyntax call,
-        ArgumentSyntax argument
-    )
-    {
-        if (
-            RewriteSyntax.HasInteriorContent(argument)
-            || RewriteSyntax.IsObservableSyntax(source, call)
-            || source.Model.GetOperation(call) is not IInvocationOperation operation
-            || !IsDistinct(operation.TargetMethod, 2)
-        )
-        {
-            return false;
-        }
-
-        var mapped = operation.Arguments.FirstOrDefault(candidate => candidate.Syntax == argument);
-        IOperation? value = mapped?.Value;
-        while (
-            value is IConversionOperation conversion
-            && conversion.Conversion.IsImplicit
-            && !conversion.Conversion.IsUserDefined
-        )
-        {
-            value = conversion.Operand;
-        }
-
-        return mapped is { ArgumentKind: ArgumentKind.Explicit, Parameter.Name: "comparer" }
-            && value is IPropertyReferenceOperation { Property.Name: "Ordinal" } property
-            && CodeType.Of<StringComparer>().Matches(property.Property.ContainingType);
-    }
-
-    private static bool Validate(AnalysisSource source, SourceEdit edit, RewriteContext context)
-    {
-        if (
-            !source.Document.IsEditable
-            || source.Document.IsGenerated
-            || source.Document.Fingerprint != edit.Fingerprint
-            || source
-                .Tree.GetRoot()
-                .FindNode(new TextSpan(edit.Start, edit.Length), getInnermostNodeForTie: true)
-                is not ArgumentListSyntax { Parent: InvocationExpressionSyntax call } list
-            || list.ToString() != edit.OriginalText
-        )
-        {
-            return false;
-        }
-
-        return list.Arguments.Any(argument =>
-                IsEligible(source, call, argument)
-                && list.RemoveNode(argument, SyntaxRemoveOptions.KeepExteriorTrivia)?.ToString()
-                    == edit.Replacement
-            ) && PreservesCall(source, call, edit, context);
-    }
-
-    private static bool PreservesCall(
-        AnalysisSource source,
-        InvocationExpressionSyntax call,
-        SourceEdit edit,
-        RewriteContext context
-    )
-    {
-        if (
-            context.Evidence(source, call)
-                is not { After: InvocationExpressionSyntax rewritten } evidence
-            || !IsDistinct(evidence.AfterModel.GetSymbolInfo(rewritten).Symbol as IMethodSymbol, 1)
-        )
-            return false;
-
-        // This policy proves the overload pair. The shared proof checks the complete
-        // invocation's type/conversion and every enclosing expression's binding.
-        return RewriteChecks.SameEnclosingBindings(evidence) == ProofResult.Proven
-            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven;
     }
 }
