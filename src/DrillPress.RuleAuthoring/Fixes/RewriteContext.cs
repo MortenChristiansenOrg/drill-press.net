@@ -23,6 +23,10 @@ public sealed class RewriteContext(
     /// <summary>The complete proposed batch, including edits in other contexts.</summary>
     public IReadOnlyList<SourceEdit> Edits { get; } = edits;
 
+    /// <summary>Builds proof evidence for a mapped custom edit without registered retained-input correspondences.</summary>
+    public RewriteEvidence? Evidence(AnalysisSource source, SyntaxNode before) =>
+        Map(source, before) is { } mapped ? new(this, mapped, []) : null;
+
     /// <summary>Maps an original node through the whole batch. Replaced descendants without explicit correspondence and ambiguous spans return null.</summary>
     public NodeRewrite? Map(AnalysisSource source, SyntaxNode before)
     {

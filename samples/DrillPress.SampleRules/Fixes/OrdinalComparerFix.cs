@@ -159,29 +159,16 @@ internal static class OrdinalComparerFix
         RewriteContext context
     )
     {
-        var tree = context.Rewritten.SyntaxTrees.Single(tree =>
-            tree.FilePath == source.Tree.FilePath
-        );
-        var span = new TextSpan(
-            call.SpanStart,
-            call.Span.Length + edit.Replacement.Length - edit.Length
-        );
         if (
-            tree.GetRoot().FindNode(span, getInnermostNodeForTie: true)
-                is not InvocationExpressionSyntax rewritten
-            || rewritten.Span != span
-            || !IsDistinct(
-                context.Rewritten.GetSemanticModel(tree).GetSymbolInfo(rewritten).Symbol
-                    as IMethodSymbol,
-                1
-            )
+            context.Evidence(source, call)
+                is not { After: InvocationExpressionSyntax rewritten } evidence
+            || !IsDistinct(evidence.AfterModel.GetSymbolInfo(rewritten).Symbol as IMethodSymbol, 1)
         )
-        {
             return false;
-        }
 
         // This policy proves the overload pair. The shared proof checks the complete
         // invocation's type/conversion and every enclosing expression's binding.
-        return BindingProof.PreservesEnclosingExpressions(source, call, rewritten.ToString());
+        return RewriteChecks.SameEnclosingBindings(evidence) == ProofResult.Proven
+            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven;
     }
 }

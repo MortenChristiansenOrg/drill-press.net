@@ -103,6 +103,16 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
         );
         var literal = ExpectedFix(document, "string.Empty", "\"\"", project.ContextId);
         var comparer = ExpectedFix(document, "(StringComparer.Ordinal)", "()", project.ContextId);
+        var combinedId = Convert.ToHexString(
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes(string.Join("|", new[] { literal.Id, comparer.Id }.Order()))
+            )
+        );
+        var combined = new FixBatch(
+            combinedId,
+            [.. literal.Edits, .. comparer.Edits],
+            literal.Validations
+        );
         Finding[] findings =
         [
             new(
@@ -132,7 +142,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
                 document
             ) with
             {
-                BatchId = literal.Id,
+                BatchId = combinedId,
             },
             Find(
                 "DP1005",
@@ -141,14 +151,14 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
                 document
             ) with
             {
-                BatchId = comparer.Id,
+                BatchId = combinedId,
             },
         ];
         return new(
             BundleResponseProtocol.CurrentVersion,
             snapshot.RequestId,
             [new(project.ContextId, true, findings)],
-            [literal, comparer]
+            [combined]
         );
     }
 

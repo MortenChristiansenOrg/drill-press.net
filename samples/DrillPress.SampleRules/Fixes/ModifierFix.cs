@@ -64,23 +64,14 @@ internal static class ModifierFix
             .DescendantNodes()
             .OfType<MemberDeclarationSyntax>()
             .FirstOrDefault(node => node.SpanStart == start && Modifiers(node).Count > 0);
-        var tree = context.Rewritten.SyntaxTrees.Single(tree =>
-            tree.FilePath == source.Tree.FilePath
-        );
-        var after = before is null
-            ? null
-            : tree.GetRoot()
-                .DescendantNodes()
-                .OfType<MemberDeclarationSyntax>()
-                .FirstOrDefault(node =>
-                    node.RawKind == before.RawKind
-                    && node.Span.End == before.Span.End - removedLength
-                );
+        var evidence = before is null ? null : context.Evidence(source, before);
         var oldSymbol = before is null ? null : source.Model.GetDeclaredSymbol(before);
-        var newSymbol = after is null
+        var newSymbol = evidence is null
             ? null
-            : context.Rewritten.GetSemanticModel(tree).GetDeclaredSymbol(after);
-        return oldSymbol is not null
+            : evidence.AfterModel.GetDeclaredSymbol(evidence.After);
+        return evidence is not null
+            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven
+            && oldSymbol is not null
             && newSymbol is not null
             && oldSymbol.DeclaredAccessibility == newSymbol.DeclaredAccessibility
             && oldSymbol.GetDocumentationCommentId() == newSymbol.GetDocumentationCommentId();
