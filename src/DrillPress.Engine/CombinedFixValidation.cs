@@ -38,7 +38,7 @@ internal static class CombinedFixValidation
         var ids = new Dictionary<string, string>();
         while (remaining.Count > 0)
         {
-            solution.Projects.First().CancellationToken.ThrowIfCancellationRequested();
+            solution.CancellationToken.ThrowIfCancellationRequested();
             var group = new List<FixBatch> { remaining[0] };
             remaining.RemoveAt(0);
             var contexts = group[0]
@@ -58,34 +58,26 @@ internal static class CombinedFixValidation
                 index = 0;
             }
 
+            group = ValidatedGroup(solution, group, proposals);
+            if (group.Count == 0)
+                continue;
+            contexts = group
+                .SelectMany(batch => batch.Validations)
+                .Select(validation => validation.ContextId)
+                .ToHashSet();
+            var edits = Edits(group);
             if (group.Count == 1)
             {
-                result.Add(group[0]);
-                ids.Add(group[0].Id, group[0].Id);
+                var single = group[0] with
+                {
+                    Validations = contexts
+                        .Select(context => new FixValidation(context, true))
+                        .ToArray(),
+                };
+                result.Add(single);
+                ids.Add(single.Id, single.Id);
                 continue;
             }
-
-            var edits = group
-                .SelectMany(batch => batch.Edits)
-                .Distinct()
-                .OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
-                .ThenBy(edit => edit.Start)
-                .ToArray();
-            var safe = group.All(batch =>
-                batch.Validations.All(validation =>
-                    proposals[batch.Id]
-                        .All(proposal =>
-                            proposal.IsSafeIn(
-                                solution.Projects.Single(project =>
-                                    project.Snapshot.ContextId == validation.ContextId
-                                ),
-                                edits
-                            )
-                        )
-                )
-            );
-            if (!safe)
-                continue;
 
             // Keep the proved union atomic: a later transport/filter must not select an unproved subset.
             var id = Convert.ToHexString(
@@ -107,4 +99,60 @@ internal static class CombinedFixValidation
         }
         return (result.ToArray(), ids);
     }
+
+    private static List<FixBatch> ValidatedGroup(
+        AnalysisSolution solution,
+        List<FixBatch> group,
+        Dictionary<string, List<FixProposal>> proposals
+    )
+    {
+        while (group.Count > 0)
+        {
+            var edits = Edits(group);
+            var accepted = group
+                .Where(batch => Validate(solution, batch, proposals[batch.Id], edits))
+                .ToList();
+            if (accepted.Count == group.Count)
+                return group;
+            if (accepted.Count > 0)
+            {
+                group = accepted;
+                continue;
+            }
+            // A union may fail compilation before any individual proof runs. Isolate invalid proposals once;
+            // if all work alone but fail together, withhold the interacting group.
+            var individual = group
+                .Where(batch => Validate(solution, batch, proposals[batch.Id], batch.Edits))
+                .ToList();
+            if (individual.Count == group.Count)
+                return [];
+            group = individual;
+        }
+        return [];
+    }
+
+    private static bool Validate(
+        AnalysisSolution solution,
+        FixBatch batch,
+        List<FixProposal> proposals,
+        SourceEdit[] edits
+    ) =>
+        batch.Validations.All(validation =>
+            proposals.All(proposal =>
+                proposal.IsSafeIn(
+                    solution.Projects.Single(project =>
+                        project.Snapshot.ContextId == validation.ContextId
+                    ),
+                    edits
+                )
+            )
+        );
+
+    private static SourceEdit[] Edits(IEnumerable<FixBatch> batches) =>
+        batches
+            .SelectMany(batch => batch.Edits)
+            .Distinct()
+            .OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
+            .ThenBy(edit => edit.Start)
+            .ToArray();
 }
