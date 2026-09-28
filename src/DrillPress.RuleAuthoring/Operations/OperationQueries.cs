@@ -8,6 +8,10 @@ namespace DrillPress.Operations;
 /// <summary>Cached compiler-operation selections covering method bodies, accessors, initializers and top-level statements.</summary>
 public static class OperationQueries
 {
+    /// <summary>Bound null checks in ordinary source, retaining compiler nullable evidence and check polarity.</summary>
+    public static CodeQuery<CodeNullCheck> NullChecks { get; } =
+        NullCheckQueries.In(Sources.Nodes<ExpressionSyntax>());
+
     /// <summary>Every operation in ordinary source, including implicit conversions and nested functions.</summary>
     public static CodeQuery<CodeOperation<IOperation>> All { get; } =
         Sources.Files.SelectMany(Discover);
