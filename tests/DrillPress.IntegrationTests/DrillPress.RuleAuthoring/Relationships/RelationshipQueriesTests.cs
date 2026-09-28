@@ -6,6 +6,39 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Relationships;
 public sealed class RelationshipQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Body_errors_do_not_hide_resolved_override_edges_but_signature_errors_do()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Product",
+            [
+                new(
+                    "P.cs",
+                    """
+                    class Base { public virtual void Run(int value) {} }
+                    class BrokenBody : Base { public override void Run(int value) { Missing(); } }
+                    class BrokenSignature : Base { public override int Run(int value) => 1; }
+                    """
+                ),
+            ],
+            allowErrors: true
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var target = CodeType
+            .Named("Base", "Product")
+            .Member("Run")
+            .WithParameters(CodeType.Of<int>());
+
+        var owners = Code
+            .Methods.Overriding(target)
+            .In(solution)
+            .Select(method => method.Symbol!.ContainingType.Name)
+            .ToArray();
+
+        Assert.Equal(["BrokenBody"], owners);
+    }
+
+    [Fact]
     public void Filtering_preserves_empty_compatible_views_and_definition_counts()
     {
         var workspace = fixture.Workspace();

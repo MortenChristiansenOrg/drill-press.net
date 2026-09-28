@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress.Relationships;
 
@@ -91,7 +92,11 @@ public static class RelationshipQueries
         if (
             method
                 .Source.Model.GetDiagnostics(
-                    method.Syntax.Span,
+                    TextSpan.FromBounds(
+                        method.Syntax.SpanStart,
+                        method.Syntax.ConstraintClauses.LastOrDefault()?.Span.End
+                            ?? method.Syntax.ParameterList.Span.End
+                    ),
                     method.Source.Project.CancellationToken
                 )
                 .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)

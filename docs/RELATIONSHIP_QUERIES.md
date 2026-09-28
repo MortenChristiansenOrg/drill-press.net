@@ -41,8 +41,9 @@ var emptyOverrides = Code.Methods.Overriding(target, OverrideSearch.AnyAncestor)
 direct edge; `AnyAncestor` can match through an intermediate base type.
 `OverrideMatches` additionally exposes the matched constructed ancestor and edge
 distance. Hiding with `new`, coincidentally named methods, and interface
-implementation are not override relationships. Erroneous declarations do not
-satisfy semantic override predicates. Configured assembly/type/signature matching
+implementation are not override relationships. Erroneous declaration headers do
+not satisfy semantic override predicates; unrelated body errors do not hide a
+resolved override edge. Configured assembly/type/signature matching
 uses the existing member identity rules.
 
 `BodyShape()` distinguishes `Missing`, `EmptyBlock`, `NonEmptyBlock`, and
