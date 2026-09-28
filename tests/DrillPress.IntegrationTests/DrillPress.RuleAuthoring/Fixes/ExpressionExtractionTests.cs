@@ -33,7 +33,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             class A { static void Use(string value) {} void M() { Use(global::A.Route); Use(global::A.Route); } string N() => "/x";
                 private const string Route = "/x";
             }
-            """,
+            """.ReplaceLineEndings("\n"),
             result.FixedText("A.cs")
         );
     }
@@ -107,7 +107,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             class A { static void Use(string value) {} static string Encode(string value) => value; void M(string first, string second) { Use(global::A.Route(first)); Use(global::A.Route(second)); }
                 private static string Route(string value) => $"/x/{Encode(value)}";
             }
-            """,
+            """.ReplaceLineEndings("\n"),
             result.FixedText("A.cs")
         );
     }
@@ -215,7 +215,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             partial class A { void N() { Use(global::A.Route); }
                 private const string Route = "/x";
             }
-            """,
+            """.ReplaceLineEndings("\n"),
             result.FixedText("B.cs")
         );
     }
@@ -253,7 +253,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             class A { int Route; int Route1; static void Use(string value) {} void M() { Use(global::A.Route2); Use(global::A.Route2); }
                 private const string Route2 = "/x";
             }
-            """,
+            """.ReplaceLineEndings("\n"),
             result.FixedText("A.cs")
         );
     }
@@ -308,7 +308,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
         Assert.Equal([expectedFix], result.Findings.Select(finding => finding.HasFix));
-        Assert.Equal(expectedText, result.FixedText("A.cs"));
+        Assert.Equal(expectedText.ReplaceLineEndings("\n"), result.FixedText("A.cs"));
     }
 
     [Fact]
@@ -427,7 +427,38 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             class A { static void Use(string value) {} void M({{type}} first, {{type}} second) { Use(global::A.Route(first)); Use(global::A.Route(second)); }
                 private static string Route({{type}} value) => {{body}};
             }
-            """,
+            """.ReplaceLineEndings("\n"),
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public async Task Member_insertion_preserves_the_input_newline_convention(string newline)
+    {
+        var workspace = fixture.Workspace();
+        var source = """
+            class A
+            {
+                static void Use(string value) {}
+                void M() { Use("/x"); Use("/x"); }
+            }
+            """.ReplaceLineEndings(newline);
+        workspace.AddProject("Library", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(Constants(), TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(
+            """
+            class A
+            {
+                static void Use(string value) {}
+                void M() { Use(global::A.Route); Use(global::A.Route); }
+                private const string Route = "/x";
+            }
+            """.ReplaceLineEndings(newline),
             result.FixedText("A.cs")
         );
     }
