@@ -15,6 +15,10 @@ public sealed class CodeNode<TSyntax>(AnalysisSource source, TSyntax syntax) : I
     /// <summary>The complete node span, excluding exterior trivia.</summary>
     public SourceLocation Location => Source.Locate(Syntax.Span);
 
+    /// <summary>The compiler's actual enclosing symbol, keeping local functions and lambdas distinct from their outer method.</summary>
+    public ISymbol? ContainingSymbol =>
+        Source.Model.GetEnclosingSymbol(Syntax.SpanStart, Source.Project.CancellationToken);
+
     /// <summary>The compiler operation, absent for syntax without an operation.</summary>
     public IOperation? Operation =>
         Source.Model.GetOperation(Syntax, Source.Project.CancellationToken);

@@ -7,6 +7,9 @@ Repository policy stays in the consumer bundle.
 For entry filtering within compatible implementation views and bound override
 selection, see [relationship queries](RELATIONSHIP_QUERIES.md).
 
+For bound arguments, expression facts, declared attributes, executable scopes,
+and normalized null checks, see [semantic queries](SEMANTIC_QUERIES.md).
+
 ## Where changes belong
 
 The `DrillPress.RuleAuthoring` project is organized by responsibility. Except

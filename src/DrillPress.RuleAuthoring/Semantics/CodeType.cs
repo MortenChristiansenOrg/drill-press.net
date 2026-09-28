@@ -7,6 +7,36 @@ namespace DrillPress.Semantics;
 public readonly record struct CodeType(string MetadataName)
 {
     private bool AllowFrameworkFacades { get; init; }
+    private Type? RuntimeType { get; init; }
+
+    internal ITypeSymbol? Resolve(Compilation compilation)
+    {
+        var resolved =
+            RuntimeType is { } runtime ? ResolveRuntime(runtime, compilation)
+            : TypeArguments.Length == 0 ? compilation.GetTypeByMetadataName(MetadataName)
+            : null;
+        return resolved is not null && Matches(resolved) ? resolved : null;
+    }
+
+    private static ITypeSymbol? ResolveRuntime(Type type, Compilation compilation)
+    {
+        if (type.IsArray)
+            return ResolveRuntime(type.GetElementType()!, compilation) is { } element
+                ? compilation.CreateArrayTypeSymbol(element, type.GetArrayRank())
+                : null;
+        var definition = compilation.GetTypeByMetadataName(RuntimeName(type));
+        if (definition is null || !type.IsConstructedGenericType)
+            return definition;
+        // Nested generic construction is left to contextual symbols rather than guessing outer substitutions.
+        if (definition.ContainingType is not null)
+            return null;
+        var arguments = type
+            .GenericTypeArguments.Select(argument => ResolveRuntime(argument, compilation))
+            .ToArray();
+        return arguments.All(argument => argument is not null)
+            ? definition.Construct(arguments.Select(argument => argument!).ToArray())
+            : null;
+    }
 
     /// <summary>Optional assembly simple name or full display identity; null permits any declaring assembly.</summary>
     public string? AssemblyName { get; init; }
@@ -126,10 +156,12 @@ public readonly record struct CodeType(string MetadataName)
             ? FromRuntime(type.GetElementType()!) with
             {
                 MetadataName = RuntimeName(type),
+                RuntimeType = type,
             }
             : new(RuntimeName(type))
             {
                 AssemblyName = type.Assembly.GetName().Name,
+                RuntimeType = type,
                 AllowFrameworkFacades = RuntimeAssembly(type) == "framework",
                 TypeArguments = type.IsConstructedGenericType
                     ? string.Join(",", type.GenericTypeArguments.Select(RuntimeArgument))
