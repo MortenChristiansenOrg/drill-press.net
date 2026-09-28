@@ -10,6 +10,37 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public async Task Compatible_proofs_observe_the_same_complete_compilation_once()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", "class A { int M() => 1; int N() => 1; }")]);
+        var compilations = new List<Compilation>();
+        var rules = new RuleSet();
+        rules
+            .For(Sources.Nodes<LiteralExpressionSyntax>())
+            .Forbid(
+                "EDIT",
+                "Update constants.",
+                fix: node =>
+                    SourceChanges.Propose(
+                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
+                        context =>
+                        {
+                            compilations.Add(context.Rewritten);
+                            return context.Edits.Count == 2;
+                        }
+                    )
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true, true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal("class A { int M() => 2; int N() => 2; }", result.FixedText("A.cs"));
+        Assert.Equal(2, compilations.Count);
+        Assert.Same(compilations[0], compilations[1]);
+    }
+
+    [Fact]
     public async Task Inactive_region_edits_are_rejected_even_when_the_consumer_accepts_them()
     {
         var workspace = fixture.Workspace();

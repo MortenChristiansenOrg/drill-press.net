@@ -12,7 +12,21 @@ public sealed class RewriteContext(
     IReadOnlyList<SourceEdit> edits
 )
 {
-    private readonly Dictionary<SyntaxTree, SemanticModel> _models = [];
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        SyntaxTree,
+        SemanticModel
+    > _models = new();
+    private readonly Lazy<Dictionary<SyntaxTree, SyntaxTree>> _trees = new(() =>
+    {
+        var before = original.Compilation.SyntaxTrees.ToArray();
+        var after = rewritten.SyntaxTrees.ToArray();
+        return before.Length == after.Length
+            ? before
+                .Zip(after)
+                .Where(pair => pair.First.FilePath == pair.Second.FilePath)
+                .ToDictionary(pair => pair.First, pair => pair.Second)
+            : [];
+    });
 
     /// <summary>The unmodified source context.</summary>
     public AnalysisProject Original { get; } = original;
@@ -45,11 +59,7 @@ public sealed class RewriteContext(
         var after = root.FindNode(mapped, getInnermostNodeForTie: true);
         if (after.Span != mapped)
             return null;
-        if (!_models.TryGetValue(tree, out var model))
-        {
-            model = Rewritten.GetSemanticModel(tree);
-            _models.Add(tree, model);
-        }
+        var model = _models.GetOrAdd(tree, candidate => Rewritten.GetSemanticModel(candidate));
         return new(source, before, after, model);
     }
 
@@ -58,15 +68,7 @@ public sealed class RewriteContext(
     {
         if (source.Project != Original)
             return null;
-        var original = Original.Compilation.SyntaxTrees.ToArray();
-        var rewritten = Rewritten.SyntaxTrees.ToArray();
-        var index = Array.IndexOf(original, source.Tree);
-        return
-            original.Length == rewritten.Length
-            && index >= 0
-            && original[index].FilePath == rewritten[index].FilePath
-            ? rewritten[index]
-            : null;
+        return _trees.Value.GetValueOrDefault(source.Tree);
     }
 
     private TextSpan? MapSpan(AnalysisSource source, TextSpan span)

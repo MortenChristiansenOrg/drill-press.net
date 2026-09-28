@@ -58,12 +58,9 @@ internal sealed class RuleResponseBuilder
                     )
                     .ToArray();
                 var validations = affected
-                    .Select(project => new FixValidation(
-                        project.Snapshot.ContextId,
-                        proposal.IsSafeIn(project)
-                    ))
+                    .Select(project => new FixValidation(project.Snapshot.ContextId, false))
                     .ToArray();
-                if (validations.Length > 0 && validations.All(validation => validation.IsSafe))
+                if (validations.Length > 0)
                 {
                     var signature = string.Join(
                         "|",
