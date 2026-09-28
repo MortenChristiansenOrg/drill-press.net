@@ -33,6 +33,7 @@ public sealed class AnalysisProject
             );
         }
 
+        RewriteValidation = new(this);
         CancellationToken = cancellationToken;
         Snapshot = snapshot;
         Compilation = compilation;
@@ -45,6 +46,8 @@ public sealed class AnalysisProject
                 .ToArray()
         );
     }
+
+    internal RewriteValidationCache RewriteValidation { get; }
 
     /// <summary>Stops candidate discovery and contextual compiler validation.</summary>
     public CancellationToken CancellationToken { get; }

@@ -30,14 +30,23 @@ public static class SourceChanges
             throw new ArgumentException("A correction requires at least one edit.", nameof(edits));
         }
 
-        return new(batch, project => Validate(project, batch, preservesBehavior));
+        return new(
+            batch,
+            project => Validate(project, batch, preservesBehavior),
+            (project, combined) =>
+                batch.All(combined.Contains) && Validate(project, combined, preservesBehavior)
+        );
     }
 
     private static bool Validate(
         AnalysisProject project,
-        SourceEdit[] batch,
+        IReadOnlyList<SourceEdit> batch,
         Func<RewriteContext, bool> proof
-    )
+    ) =>
+        project.RewriteValidation.Get(batch, edits => Prepare(project, edits)) is { } context
+        && proof(context);
+
+    private static RewriteContext? Prepare(AnalysisProject project, SourceEdit[] batch)
     {
         var rewritten = project.Compilation;
         var affected = project
@@ -45,14 +54,9 @@ public static class SourceChanges
                 batch.Any(edit => edit.FileIdentity == source.Document.FileIdentity)
             )
             .ToArray();
-        if (
-            affected.Length == 0
-            || project
-                .Compilation.GetDiagnostics(project.CancellationToken)
-                .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-        )
+        if (affected.Length == 0 || project.RewriteValidation.OriginalHasErrors)
         {
-            return false;
+            return null;
         }
 
         foreach (var source in affected)
@@ -63,7 +67,7 @@ public static class SourceChanges
                 .ToArray();
             if (!Eligible(source, edits))
             {
-                return false;
+                return null;
             }
 
             var text = source
@@ -86,10 +90,11 @@ public static class SourceChanges
             }
         }
 
-        return !rewritten
-                .GetDiagnostics(project.CancellationToken)
-                .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            && proof(new(project, rewritten, Array.AsReadOnly(batch)));
+        return rewritten
+            .GetDiagnostics(project.CancellationToken)
+            .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            ? null
+            : new(project, rewritten, Array.AsReadOnly(batch));
     }
 
     private static bool Eligible(AnalysisSource source, SourceEdit[] edits)

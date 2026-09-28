@@ -14,6 +14,7 @@ internal sealed class RuleResponseBuilder
     )
     {
         var batches = new Dictionary<string, FixBatch>();
+        var proposals = new Dictionary<string, List<FixProposal>>();
         var findings = solution.Projects.ToDictionary(
             project => project.Snapshot.ContextId,
             _ => new List<Finding>()
@@ -57,12 +58,9 @@ internal sealed class RuleResponseBuilder
                     )
                     .ToArray();
                 var validations = affected
-                    .Select(project => new FixValidation(
-                        project.Snapshot.ContextId,
-                        proposal.IsSafeIn(project)
-                    ))
+                    .Select(project => new FixValidation(project.Snapshot.ContextId, false))
                     .ToArray();
-                if (validations.Length > 0 && validations.All(validation => validation.IsSafe))
+                if (validations.Length > 0)
                 {
                     var signature = string.Join(
                         "|",
@@ -74,6 +72,9 @@ internal sealed class RuleResponseBuilder
                         SHA256.HashData(Encoding.UTF8.GetBytes(signature))
                     );
                     batches.TryAdd(batchId, new FixBatch(batchId, edits, validations));
+                    if (!proposals.TryGetValue(batchId, out var proofs))
+                        proposals.Add(batchId, proofs = []);
+                    proofs.Add(proposal);
                 }
             }
 
@@ -90,6 +91,15 @@ internal sealed class RuleResponseBuilder
                 );
         }
 
+        var combined = CombinedFixValidation.Combine(solution, batches, proposals);
+        foreach (var list in findings.Values)
+            for (var index = 0; index < list.Count; index++)
+                if (list[index].BatchId is { } originalId)
+                    list[index] = list[index] with
+                    {
+                        BatchId = combined.Ids.GetValueOrDefault(originalId),
+                    };
+
         return new(
             BundleResponseProtocol.CurrentVersion,
             requestId,
@@ -100,7 +110,7 @@ internal sealed class RuleResponseBuilder
                     findings[project.Snapshot.ContextId].ToArray()
                 ))
                 .ToArray(),
-            batches.Values.ToArray()
+            combined.Batches
         );
     }
 }
