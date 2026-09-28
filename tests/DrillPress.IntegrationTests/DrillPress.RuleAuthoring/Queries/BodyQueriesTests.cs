@@ -8,6 +8,40 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Queries;
 public sealed class BodyQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Resolved_body_calls_exclude_error_bound_arguments_but_raw_body_evidence_remains_available()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Bodies",
+            [
+                new(
+                    "Bodies.cs",
+                    """
+                                class C { void Send(int value) {} void M() { Send(1); int unassigned; Send(unassigned); } }
+                    """
+                ),
+            ],
+            allowErrors: true
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var bodies = Code.Methods.Body();
+
+        var selected = bodies
+            .Invocations()
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+        var raw = bodies
+            .In(solution)
+            .SelectMany(body => body.Invocations())
+            .Select(call => call.IsResolved)
+            .ToArray();
+
+        Assert.Equal(["Send(1)"], selected);
+        Assert.Equal([true, false], raw);
+    }
+
+    [Fact]
     public void Nested_functions_are_independent_and_arrow_roots_participate()
     {
         var workspace = fixture.Workspace();

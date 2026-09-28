@@ -34,6 +34,7 @@ public static class BodyQueries
             bodies
                 .In(solution)
                 .SelectMany(body => body.Invocations())
+                .Where(call => call.IsResolved)
                 .DistinctBy(call => (call.Source, call.Operation.Syntax.Span))
         );
 
