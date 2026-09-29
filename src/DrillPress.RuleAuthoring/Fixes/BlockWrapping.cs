@@ -24,10 +24,12 @@ public sealed class BlockWrapping
     }
 
     /// <summary>Adds a contextual invariant to the built-in restricted block-wrapping proof.</summary>
+    /// <remarks>Default gates validate editable nongenerated source, one supported if/else statement, safe boundary trivia, unchanged statement/branch ownership and all bound expressions and compiler-supplied arguments in every affected compilation. The library owns this restricted structural equivalence proof.</remarks>
     public BlockWrapping Require(Func<RewriteEvidence, ProofResult> check) =>
         new(_source, _statement, [.. _checks, check]);
 
     /// <summary>Proposes two narrow boundary edits. Unsupported slots, labels, directives and ambiguous header trivia yield no proposal.</summary>
+    /// <remarks>Default gates validate editable nongenerated source, one supported if/else statement, safe boundary trivia, unchanged statement/branch ownership and all bound expressions and compiler-supplied arguments in every affected compilation. The library owns this restricted structural equivalence proof.</remarks>
     public FixProposal? Propose()
     {
         if (

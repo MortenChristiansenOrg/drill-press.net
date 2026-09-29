@@ -8,6 +8,22 @@ namespace DrillPress;
 /// <summary>A source expression and its compiler evidence; no expression evaluation or runtime inference is performed.</summary>
 public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax syntax) : ICodeElement
 {
+    /// <summary>Facts about enclosing observable syntax and interior trivia, independent of rewrite authorization.</summary>
+    public ExpressionSourceFacts Facts => new(Source, Syntax);
+
+    /// <summary>Matches a directly referenced member through parentheses and implicit built-in conversions; the original Operation and Conversion remain available.</summary>
+    public bool RefersTo(CodeMember member) =>
+        IsResolved
+        && Operation is { } operation
+        && ReferencedSymbol(operation) is { } symbol
+        && member.Matches(symbol);
+
+    /// <summary>Matches this expression's original static type.</summary>
+    public bool TypeIs<T>() => TypeIs(CodeType.Of<T>());
+
+    /// <summary>Matches a typed compiler constant, including a present null.</summary>
+    public bool IsConstant<T>(T value) => Is(value);
+
     /// <summary>The compile-time string value, or null when unavailable or a constant null.</summary>
     public string? TextValue => ValueAs<string>() is { HasValue: true } value ? value.Value : null;
 
@@ -139,9 +155,10 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
             ILocalReferenceOperation local => local.Local,
             IParameterReferenceOperation parameter => parameter.Parameter,
             IMethodReferenceOperation method => method.Method,
-            IConversionOperation { Conversion.IsIdentity: true } conversion => ReferencedSymbol(
-                conversion.Operand
-            ),
+            IInvocationOperation invocation => invocation.TargetMethod,
+            IConversionOperation { IsImplicit: true, Conversion.IsUserDefined: false } conversion =>
+                ReferencedSymbol(conversion.Operand),
+            IParenthesizedOperation parentheses => ReferencedSymbol(parentheses.Operand),
             _ => null,
         };
 

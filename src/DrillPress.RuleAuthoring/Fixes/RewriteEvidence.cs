@@ -16,6 +16,27 @@ public sealed class RewriteEvidence
         Inputs = inputs;
     }
 
+    /// <summary>Semantic expression views bound to their actual original and rewritten sources; absent for declaration or statement edits.</summary>
+    public ExpressionRewrite? Expressions =>
+        Before is Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax before
+        && After is Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax after
+        && Context.RewrittenSource(Source) is { } rewritten
+            ? new(new(Source, before), new(rewritten, after))
+            : null;
+
+    /// <summary>Original and rewritten semantic views of each explicitly mapped input, including missing or repeated uses.</summary>
+    public IReadOnlyList<RetainedExpression> RetainedExpressions =>
+        Context.RewrittenSource(Source) is { } rewritten
+            ? Inputs
+                .Select(input => new RetainedExpression(
+                    new(Source, input.Before),
+                    Array.AsReadOnly(
+                        input.After.Select(after => new CodeExpression(rewritten, after)).ToArray()
+                    )
+                ))
+                .ToArray()
+            : [];
+
     /// <summary>The complete rewritten compilation and original-text edits.</summary>
     public RewriteContext Context { get; }
 

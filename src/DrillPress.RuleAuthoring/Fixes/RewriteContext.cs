@@ -30,6 +30,7 @@ public sealed class RewriteContext(
                     .ToArray(),
             },
             rewritten,
+            original.FileSystem,
             original.CancellationToken
         )
     );

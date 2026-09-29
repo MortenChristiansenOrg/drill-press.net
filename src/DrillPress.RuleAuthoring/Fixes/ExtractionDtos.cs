@@ -27,3 +27,10 @@ public sealed record ExtractionEvidence(
     bool Reused,
     IReadOnlyList<RewriteEvidence> Occurrences
 );
+
+/// <summary>Policies for deriving an extracted helper's parameter name.</summary>
+public enum ParameterName
+{
+    /// <summary>Camel-case the representative bound member/local/parameter name, falling back to value for invalid identifiers.</summary>
+    FromCapture,
+}

@@ -40,6 +40,28 @@ public sealed class ArgumentRemoval
         _defaults = defaults;
     }
 
+    /// <summary>Requires the actual call to move between these unambiguous descriptors with unchanged constructed type arguments and an inferred identity parameter map.</summary>
+    public ArgumentRemoval ExpectOverloadChange(CodeMember from, CodeMember to) =>
+        RequireTransition(new MethodTransition(from, to));
+
+    /// <summary>Proves the removed semantic value; false is Unknown and does not approve losing its evaluation.</summary>
+    public ArgumentRemoval RequireRemovedValue(Func<ArgumentRemovalEvidence, bool> proof) =>
+        RequireRemovedValue(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
+
+    /// <summary>Separately approves removal of getter, conversion and initialization evaluation; false is Unknown.</summary>
+    public ArgumentRemoval RequireRemovedEvaluation(Func<ArgumentRemovalEvidence, bool> proof) =>
+        RequireRemovedEvaluation(change =>
+            proof(change) ? ProofResult.Proven : ProofResult.Unknown
+        );
+
+    /// <summary>Supplies the final overload behavior proof after value, evaluation, binding and transition gates. False is Unknown.</summary>
+    public FixProposal? SafeWhen(Func<ArgumentRemovalEvidence, bool> proof) =>
+        Propose(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
+
+    /// <summary>Supplies the final tri-state overload behavior proof.</summary>
+    public FixProposal? SafeWhen(Func<ArgumentRemovalEvidence, ProofResult> proof) =>
+        Propose(proof);
+
     /// <summary>Requires the actual before/after overloads to match this exact contextual pair and parameter map.</summary>
     public ArgumentRemoval RequireTransition(MethodTransition transition) =>
         new(
@@ -77,6 +99,7 @@ public sealed class ArgumentRemoval
     ) => new(_source, _syntax, _parameter, _contextChecks, _transition, _value, _evaluation, proof);
 
     /// <summary>Adds an invariant to the default retained-argument and enclosing-binding checks.</summary>
+    /// <remarks>Default gates reject noneditable/generated source, interior trivia, nameof/expression trees, receivers, defaults and expanded params. Every affected compilation must preserve the expected constructed overload transition, retained arguments/conversions/evaluation order, enclosing bindings and compiler-supplied arguments. Value equivalence, loss of evaluation and overload behavior require separate proofs; synthesized argument changes at the selected call require explicit approval.</remarks>
     public ArgumentRemoval Require(Func<RewriteEvidence, ProofResult> check) =>
         new(
             _source,
@@ -90,6 +113,7 @@ public sealed class ArgumentRemoval
         );
 
     /// <summary>Creates an atomic edit only with all three required proofs. Expanded params, receivers, absent arguments and ambiguous trivia are not removable.</summary>
+    /// <remarks>Default gates reject noneditable/generated source, interior trivia, nameof/expression trees, receivers, defaults and expanded params. Every affected compilation must preserve the expected constructed overload transition, retained arguments/conversions/evaluation order, enclosing bindings and compiler-supplied arguments. Value equivalence, loss of evaluation and overload behavior require separate proofs; synthesized argument changes at the selected call require explicit approval.</remarks>
     public FixProposal? Propose(Func<ArgumentRemovalEvidence, ProofResult> provesOverloadBehavior)
     {
         if (
@@ -147,7 +171,7 @@ public sealed class ArgumentRemoval
             || context.Evidence(source, syntax)
                 is not { After: InvocationExpressionSyntax afterSyntax } rewrite
             || rewrite.AfterModel.GetOperation(afterSyntax) is not IInvocationOperation after
-            || _transition!.Resolve(source.Project) is not { } expected
+            || _transition!.Resolve(source.Project, before.Declaration) is not { } expected
             || !SymbolEqualityComparer.Default.Equals(
                 before.Declaration,
                 Normalize(expected.Before)
@@ -171,11 +195,13 @@ public sealed class ArgumentRemoval
             removed,
             expected
         );
-        return ArgumentTransitionChecks.RetainedArguments(evidence, _transition.Parameters)
+        var parameters = _transition.ParametersFor(expected);
+        return parameters is not null
+            && ArgumentTransitionChecks.RetainedArguments(evidence, parameters)
             && RewriteChecks.SameEnclosingBindings(rewrite) == ProofResult.Proven
             && RewriteChecks.CompilerSuppliedArguments(rewrite, syntax) == ProofResult.Proven
             && (
-                ArgumentTransitionChecks.SameDefaults(evidence, _transition.Parameters)
+                ArgumentTransitionChecks.SameDefaults(evidence, parameters)
                 || _defaults?.Invoke(evidence) == ProofResult.Proven
             )
             && _contextChecks.All(check => check(rewrite) == ProofResult.Proven)

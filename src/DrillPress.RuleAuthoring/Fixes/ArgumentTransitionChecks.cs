@@ -25,8 +25,9 @@ internal static class ArgumentTransitionChecks
     {
         var source = change.Rewrite.Source;
         var before = new CodeInvocation(source, change.Before);
-        // Only operation-backed fields are read from this view; rewritten semantic queries use AfterModel below.
-        var after = new CodeInvocation(source, change.After);
+        if (change.Rewrite.Context.RewrittenSource(source) is not { } rewrittenSource)
+            return false;
+        var after = new CodeInvocation(rewrittenSource, change.After);
         var original = before.Declaration;
         var rewritten = after.Declaration;
         if (

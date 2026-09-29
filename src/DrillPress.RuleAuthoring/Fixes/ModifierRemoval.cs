@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
@@ -28,11 +29,40 @@ public sealed class ModifierRemoval
         _checks = checks ?? [];
     }
 
+    /// <summary>Adds named declaration invariants without asserting arbitrary semantic equivalence.</summary>
+    public ModifierRemoval MustPreserve(Behavior behavior) =>
+        BehaviorChecks
+            .Declarations(behavior)
+            .Aggregate(this, (builder, check) => builder.Require(check));
+
+    /// <summary>Provides the required declaration behavior proof; false is Unknown.</summary>
+    public FixProposal? SafeWhen(Func<DeclarationRewrite, bool> proof) =>
+        Propose(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
+
+    /// <summary>Provides the required tri-state declaration behavior proof.</summary>
+    public FixProposal? SafeWhen(Func<DeclarationRewrite, ProofResult> proof) => Propose(proof);
+
     /// <summary>Adds a declaration invariant without authorizing arbitrary behavior changes.</summary>
+    /// <remarks>Default gates require one editable ordinary declaration modifier, safe adjacent trivia, matching declaration symbols and unchanged compiler-supplied arguments in every affected compilation. Accessibility, identity and contract checks are additive for general removals; the no-argument top-level internal removal supplies all three and its restricted equivalence proof.</remarks>
     public ModifierRemoval Require(Func<DeclarationRewrite, ProofResult> check) =>
         new(_source, _declaration, _kind, _contextChecks, [.. _checks, check]);
 
+    /// <summary>Uses the restricted proof for redundant explicit internal on a top-level type. Other modifier removals require a behavior proof.</summary>
+    /// <remarks>Default gates require one editable ordinary declaration modifier, safe adjacent trivia, matching declaration symbols and unchanged compiler-supplied arguments in every affected compilation. Accessibility, identity and contract checks are additive for general removals; the no-argument top-level internal removal supplies all three and its restricted equivalence proof.</remarks>
+    public FixProposal? Propose() =>
+        _kind == SyntaxKind.InternalKeyword
+        && _declaration is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax
+        && _declaration.Parent is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax
+            ? MustPreserve(Behavior.Accessibility | Behavior.Identity | Behavior.Contract)
+                .Propose(change =>
+                    change.RemovedModifier == Modifier.Internal
+                        ? ProofResult.Proven
+                        : ProofResult.Unknown
+                )
+            : null;
+
     /// <summary>Proposes the token removal. The consumer must prove its behavior in addition to configured identity/accessibility checks.</summary>
+    /// <remarks>Default gates require one editable ordinary declaration modifier, safe adjacent trivia, matching declaration symbols and unchanged compiler-supplied arguments in every affected compilation. Accessibility, identity and contract checks are additive for general removals; the no-argument top-level internal removal supplies all three and its restricted equivalence proof.</remarks>
     public FixProposal? Propose(Func<DeclarationRewrite, ProofResult> provesBehavior)
     {
         if (

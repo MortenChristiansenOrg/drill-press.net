@@ -7,6 +7,17 @@ namespace DrillPress;
 /// <summary>Root queries over a shared analysis; only selected projects supply candidates, and generated source is excluded.</summary>
 public static class Code
 {
+    /// <summary>Creates typed primitive, enum or null literal syntax, preserving numeric types and escaping text.</summary>
+    public static ExpressionSyntax Literal(object? value) => LiteralSyntax.Create(value);
+
+    /// <summary>Parses a C# expression template with numbered original-input holes. Parentheses preserve precedence; repeated and unused inputs remain visible to evaluation proofs.</summary>
+    public static ExpressionTemplate Expression(string template, params ExpressionInput[] inputs) =>
+        ExpressionTemplates.Create(template, inputs);
+
+    /// <summary>Constructs equality syntax from explicitly selected operands. This does not prove equivalence to a method call or authorize a rewrite.</summary>
+    public static ExpressionTemplate Equal(ExpressionInput left, ExpressionInput right) =>
+        Expression("{0} == {1}", left, right);
+
     /// <summary>Every ordinary physical file membership in selected projects.</summary>
     public static CodeQuery<CodeFile> Files => Sources.Files;
 

@@ -16,6 +16,10 @@ public sealed class DeclarationRewrite
         Symbols = symbols;
     }
 
+    /// <summary>The removed modifier in authoring vocabulary, when represented by the Modifier enumeration.</summary>
+    public Modifier? RemovedModifier =>
+        Enum.IsDefined(typeof(Modifier), Removed.RawKind) ? (Modifier)Removed.RawKind : null;
+
     /// <summary>The complete batch mapping and original/rewritten semantic models.</summary>
     public RewriteEvidence Rewrite { get; }
 

@@ -185,7 +185,8 @@ internal static class ExtractionValidation
                 expression.Operation is IParameterReferenceOperation reference
                 && SymbolEqualityComparer.Default.Equals(reference.Parameter, method.Parameters[0]),
             options.AllowedCalls,
-            options.MaximumNodes
+            options.MaximumNodes,
+            options.AllowingCalls
         );
         return ExpressionShape.Read(new(rewrittenSource, body), rewrittenOptions)?.Key
             == ExpressionShape.Read(first.Expression, options)?.Key;

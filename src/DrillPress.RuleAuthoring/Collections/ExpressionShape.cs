@@ -56,6 +56,12 @@ internal sealed record ExpressionShape(string Key, CodeExpression? Capture)
             operation
             is ILocalReferenceOperation { Local.RefKind: RefKind.None }
                 or IParameterReferenceOperation { Parameter.RefKind: RefKind.None }
+                or IFieldReferenceOperation
+                or IPropertyReferenceOperation
+                {
+                    Property.IsIndexer: false,
+                    Property.RefKind: RefKind.None
+                }
         )
             return options.AllowedCapture(expression)
                 ? new("hole" + TypeKey(expression), expression)
@@ -120,7 +126,11 @@ internal sealed record ExpressionShape(string Key, CodeExpression? Capture)
                     TargetMethod.IsStatic: true,
                     TargetMethod.MethodKind: MethodKind.Ordinary
                 } call
-            && options.AllowedCalls.Contains(call.TargetMethod)
+            && (
+                options.AllowedCalls.Contains(call.TargetMethod)
+                || options.AllowingCalls?.Invoke(new CodeInvocation(expression.Source, call))
+                    == true
+            )
             && call.Arguments.All(argument =>
                 argument.ArgumentKind == ArgumentKind.Explicit
                 && argument.Parameter is { RefKind: RefKind.None, IsParams: false }

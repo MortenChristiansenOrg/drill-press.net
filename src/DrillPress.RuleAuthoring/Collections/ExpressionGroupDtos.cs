@@ -8,7 +8,7 @@ public enum ExpressionGroupKind
     /// <summary>Equal compiler types and constant values.</summary>
     Constant,
 
-    /// <summary>Equal supported string structure with one typed local/parameter occurrence substituted.</summary>
+    /// <summary>Equal supported string structure with one typed local/parameter/member occurrence substituted.</summary>
     OneHoleTemplate,
 }
 
@@ -25,5 +25,5 @@ public enum TemplateShapes
 
 /// <summary>A selected occurrence and its optional, explicitly recognized hole.</summary>
 /// <param name="Expression">The entire original source expression and semantic evidence.</param>
-/// <param name="Capture">The one local/parameter occurrence for a template; absent for constants.</param>
+/// <param name="Capture">The one local/parameter/member occurrence for a template; absent for constants.</param>
 public sealed record ExpressionOccurrence(CodeExpression Expression, CodeExpression? Capture);

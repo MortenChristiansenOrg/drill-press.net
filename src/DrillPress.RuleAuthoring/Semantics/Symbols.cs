@@ -5,6 +5,18 @@ namespace DrillPress;
 /// <summary>Semantic predicates that avoid spelling-based matches and reject unresolved types.</summary>
 public static class Symbols
 {
+    /// <summary>Tests whether a member is declared in the selected source type or its class ancestry, retaining constructed type and assembly identity across rewritten contexts.</summary>
+    public static bool IsDeclaredInOrAbove(this ISymbol member, CodeDeclaration owner)
+    {
+        for (var type = owner.Symbol; type is not null; type = type.BaseType)
+            if (
+                member.ContainingType is { } containing
+                && CodeType.FromSymbol(type).Matches(containing)
+            )
+                return true;
+        return false;
+    }
+
     /// <summary>Tests resolved attributes, optionally accepting derived attribute classes.</summary>
     public static bool HasAttribute(
         this ISymbol symbol,
