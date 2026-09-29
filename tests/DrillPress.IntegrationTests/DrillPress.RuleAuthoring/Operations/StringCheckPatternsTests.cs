@@ -7,6 +7,60 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Operations;
 public sealed class StringCheckPatternsTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Built_in_patterns_match_by_kind_and_custom_patterns_keep_instance_identity()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Checks",
+            [
+                new(
+                    "Checks.cs",
+                    "class C { void M(string value) { if (value is null) {} if (value == \"\") {} if (string.IsNullOrEmpty(value)) {} if (string.IsNullOrWhiteSpace(value)) {} } }"
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var method = CodeType
+            .Of<string>()
+            .Member("IsNullOrEmpty")
+            .WithParameters(CodeType.Of<string>());
+        var custom = ConditionPattern.ForCall(method, "value", "empty");
+        var other = ConditionPattern.ForCall(method, "value", "empty", matchingOutcome: false);
+        var checks = Code.Methods.Named("M").Body().Conditions();
+
+        var builtIn = checks
+            .Checks(
+                ConditionPattern.NullTests("missing"),
+                ConditionPattern.IsEmptyString(),
+                ConditionPattern.IsNullOrEmptyString(),
+                ConditionPattern.IsNullOrWhiteSpaceString()
+            )
+            .In(solution)
+            .Select(match =>
+                $"{match.Is(ConditionPattern.IsNull())}:{match.Is(ConditionPattern.IsEmptyString())}:{match.Is(ConditionPattern.IsNullOrEmptyString())}:{match.Is(ConditionPattern.IsNullOrWhiteSpaceString())}:{match.Is(custom)}"
+            )
+            .ToArray();
+        var configured = checks
+            .Checks(custom)
+            .In(solution)
+            .Select(match =>
+                $"{match.Is(custom)}:{match.Is(other)}:{match.Is(ConditionPattern.IsEmptyString())}:{match.Is(ConditionPattern.IsNullOrEmptyString())}"
+            )
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "True:False:False:False:False",
+                "False:True:False:False:False",
+                "False:False:True:False:False",
+                "False:False:False:True:False",
+            ],
+            builtIn
+        );
+        Assert.Equal(["True:False:False:False"], configured);
+    }
+
+    [Fact]
     public void Empty_checks_retain_property_identity_polarity_and_separate_null_semantics()
     {
         var workspace = fixture.Workspace();

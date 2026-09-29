@@ -31,6 +31,6 @@ public sealed record ExtractionEvidence(
 /// <summary>Policies for deriving an extracted helper's parameter name.</summary>
 public enum ParameterName
 {
-    /// <summary>Camel-case the representative bound member/local/parameter name, falling back to value for invalid identifiers.</summary>
+    /// <summary>Camel-case the bound member/local/parameter name when all captures agree, falling back to value for differing, missing or invalid names.</summary>
     FromCapture,
 }

@@ -19,8 +19,10 @@ public sealed class ConditionMatch : ICodeElement
         MatchingOutcome = outcome;
     }
 
-    /// <summary>Tests the configured pattern instance rather than comparing display names.</summary>
-    public bool Is(ConditionPattern pattern) => ReferenceEquals(Pattern, pattern);
+    /// <summary>Tests built-in patterns by kind and custom patterns by configured instance, independently of display names.</summary>
+    public bool Is(ConditionPattern pattern) =>
+        ReferenceEquals(Pattern, pattern)
+        || (Pattern.Kind != ConditionPatternKind.Custom && Pattern.Kind == pattern.Kind);
 
     /// <summary>The checked property through parentheses and implicit built-in conversions, if the value directly refers to a property.</summary>
     public IPropertySymbol? CheckedProperty

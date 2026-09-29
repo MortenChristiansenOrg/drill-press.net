@@ -5,6 +5,58 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
 public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Theory]
+    [InlineData("first", "second", "value")]
+    [InlineData("id", "id", "id")]
+    [InlineData("x.ServiceProviderId", "y.ServiceProviderId", "serviceProviderId")]
+    [InlineData("@class", "@class", "value")]
+    public async Task Capture_names_require_agreement(string first, string second, string parameter)
+    {
+        var workspace = fixture.Workspace();
+        const string prefix =
+            "class Item { public string ServiceProviderId => \"id\"; } class A { static void Use(string value) {} void M(string first, string second, string id, string @class, Item x, Item y) { ";
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    prefix + $"Use($\"/api/{{{first}}}\"); Use($\"/api/{{{second}}}\"); }} }}"
+                ),
+            ]
+        );
+        var urls = Code
+            .Calls.Calling(CodeType.Named("A").Member("Use"))
+            .ArgumentsFor("value")
+            .SourceValues();
+        var groups = ExpressionGroups.OneHoleTemplates(
+            urls,
+            new(TemplateShapes.Interpolation, capture => capture.TypeIs<string>())
+        );
+        var rules = new RuleSet();
+        rules
+            .For(groups)
+            .Forbid(
+                "URL",
+                "Extract URL.",
+                fix: group =>
+                    Fix.Extract(group)
+                        .ToMethod("CreateUrl", ParameterName.FromCapture)
+                        .SafeWhen(_ => true)
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(
+            $$"""
+            {{prefix}}Use(global::A.CreateUrl({{first}})); Use(global::A.CreateUrl({{second}})); }{{' '}}
+                private static string CreateUrl(string {{parameter}}) => $"/api/{{{parameter}}}";
+            }
+            """.ReplaceLineEndings("\n"),
+            result.FixedText("A.cs")
+        );
+    }
+
     [Fact]
     public async Task Member_capture_is_evaluated_at_the_call_site_and_wrapper_stays_in_helper()
     {

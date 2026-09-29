@@ -113,8 +113,10 @@ Coverage includes every selected value across ordinary partial parts in each
 validated context, excludes nested types, and must include already-compliant
 `_url` or `CreateUrl(...)` uses in the supplied query. Filtering that query to
 violations weakens the intended policy. A mismatching or uncovered use withholds
-the whole extraction. Parameter names use the deterministic representative
-capture (`ExternalId` → `externalId`); an explicit string name overrides it.
+the whole extraction. `ParameterName.FromCapture` uses a capture name only when
+every occurrence has the same bound name (`ExternalId` → `externalId`). Different,
+missing or invalid names fall back to `value`; an explicit string name overrides
+this policy.
 
 Constant groups support `Fix.Extract(group).ToConstant("_url").Propose()` under
 the library's restricted constant proof. Templates still require `SafeWhen` or

@@ -53,18 +53,49 @@ internal static class ExpressionTemplates
                 "Template holes must be expression positions, not string or comment contents.",
                 nameof(template)
             );
+        var parentheses = new List<SyntaxAnnotation>();
         var result = syntax.ReplaceNodes(
             holes,
             (node, _) =>
-                SyntaxFactory.ParenthesizedExpression(
-                    inputs[
-                        int.Parse(
-                            node.Identifier.ValueText[prefix.Length..],
-                            CultureInfo.InvariantCulture
-                        )
-                    ].Syntax
-                )
+            {
+                var annotation = new SyntaxAnnotation();
+                parentheses.Add(annotation);
+                return SyntaxFactory
+                    .ParenthesizedExpression(
+                        inputs[
+                            int.Parse(
+                                node.Identifier.ValueText[prefix.Length..],
+                                CultureInfo.InvariantCulture
+                            )
+                        ].Syntax
+                    )
+                    .WithAdditionalAnnotations(annotation);
+            }
         );
-        return new(result, Array.AsReadOnly(inputs.ToArray()));
+        return new(
+            RemoveRedundantParentheses(result, parentheses),
+            Array.AsReadOnly(inputs.ToArray())
+        );
+    }
+
+    private static ExpressionSyntax RemoveRedundantParentheses(
+        ExpressionSyntax result,
+        IEnumerable<SyntaxAnnotation> parentheses
+    )
+    {
+        foreach (var annotation in parentheses)
+        {
+            var wrapper = (ParenthesizedExpressionSyntax)
+                result.GetAnnotatedNodes(annotation).Single();
+            var candidate = result.ReplaceNode(wrapper, wrapper.Expression.WithTriviaFrom(wrapper));
+            var parsed = SyntaxFactory.ParseExpression(
+                candidate.NormalizeWhitespace().ToFullString()
+            );
+            // Ask the parser about precedence, associativity and grammar ambiguities while
+            // retaining the original annotated inputs used by contextual rewrite proofs.
+            if (!parsed.ContainsDiagnostics && SyntaxFactory.AreEquivalent(candidate, parsed))
+                result = candidate;
+        }
+        return result;
     }
 }

@@ -97,7 +97,7 @@ public sealed class ExpressionExtraction
     public ExpressionExtraction OnlyWhenGroupCoversAll(CodeQuery<CodeExpression> expressions) =>
         new(_group, _destination, _part, _name, _parameter, _reuse, _collision, expressions);
 
-    /// <summary>Names the helper parameter from the representative capture using camel case; ambiguous/keyword names fall back to value.</summary>
+    /// <summary>Camel-cases the capture name when all occurrences agree; differing, missing or invalid names fall back to value.</summary>
     public ExpressionExtraction ToMethod(
         string name,
         ParameterName parameterName,
@@ -106,9 +106,13 @@ public sealed class ExpressionExtraction
     {
         if (parameterName != ParameterName.FromCapture)
             throw new ArgumentOutOfRangeException(nameof(parameterName));
-        var capture = _group.Occurrences[0].Capture;
+        var captureNames = _group
+            .Occurrences.Select(occurrence => occurrence.Capture?.Symbol?.Name)
+            .Distinct()
+            .Take(2)
+            .ToArray();
         var selected = System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(
-            capture?.Symbol?.Name ?? "value"
+            captureNames.Length == 1 ? captureNames[0] ?? "value" : "value"
         );
         if (
             !SyntaxFacts.IsValidIdentifier(selected)

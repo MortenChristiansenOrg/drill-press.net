@@ -91,6 +91,11 @@ is not itself an unresolved compiler edge. Queries are lazy and cached per solut
 
 ### Readable validation and type sources
 
+`ConditionMatch.Is(ConditionPattern.IsNull())` and the other built-in factories
+compare pattern kinds, so a fresh factory call matches existing evidence.
+Configured `ForCall` patterns compare instance identity; retain the configured
+instance when filtering custom checks. Display names do not determine identity.
+
 `ConditionPattern.IsEmptyString()` recognizes empty-string equality (including reversed
 operands), `is ""`, and `Length == 0`, plus negations. The patterns
 `IsNullOrEmptyString()` and `IsNullOrWhiteSpaceString()` recognize their respective

@@ -27,6 +27,8 @@ internal static class EvaluationTrace
                 result.Add("input:" + input);
                 return true;
             }
+            if (isRoot && TransparentOperand(operation) is { } operand)
+                return Visit(operand, true);
             if (
                 operation
                     is IConditionalOperation
@@ -59,6 +61,26 @@ internal static class EvaluationTrace
         }
     }
 
+    internal static IOperation? UnwrapBooleanNegation(IOperation? operation)
+    {
+        while (TransparentOperand(operation) is { } operand)
+            operation = operand;
+        return operation;
+    }
+
+    private static IOperation? TransparentOperand(IOperation? operation) =>
+        operation switch
+        {
+            IParenthesizedOperation parentheses => parentheses.Operand,
+            IUnaryOperation
+            {
+                OperatorKind: UnaryOperatorKind.Not,
+                OperatorMethod: null,
+                Type.SpecialType: SpecialType.System_Boolean
+            } negation => negation.Operand,
+            _ => null,
+        };
+
     internal static TextSpan OperandSpan(ExpressionSyntax expression)
     {
         while (expression is ParenthesizedExpressionSyntax parenthesized)
@@ -67,7 +89,8 @@ internal static class EvaluationTrace
     }
 
     private static bool IsObservable(IOperation operation) =>
-        operation
+        !operation.ConstantValue.HasValue
+        && operation
             is IInvocationOperation
                 or IObjectCreationOperation
                 or IArrayCreationOperation
