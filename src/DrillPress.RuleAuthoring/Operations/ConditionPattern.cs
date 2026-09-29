@@ -8,11 +8,44 @@ public sealed class ConditionPattern
 {
     private readonly Func<CodeExpression, (CodeExpression Value, bool Outcome)?> _match;
 
-    private ConditionPattern(string name, Func<CodeExpression, (CodeExpression, bool)?> match)
+    private ConditionPattern(
+        string name,
+        Func<CodeExpression, (CodeExpression, bool)?> match,
+        ConditionPatternKind kind = ConditionPatternKind.Custom
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         Name = name;
         _match = match;
+        Kind = kind;
+    }
+
+    /// <summary>The built-in classification, independent of the consumer's display name.</summary>
+    public ConditionPatternKind Kind { get; }
+
+    /// <summary>Recognizes empty comparisons, string constant patterns and Length == 0, retaining negation polarity. These forms are not declared null-safe or interchangeable.</summary>
+    public static ConditionPattern IsEmptyString() =>
+        new("empty", StringCheckPatterns.Empty, ConditionPatternKind.EmptyString);
+
+    /// <summary>Recognizes only the framework's null-or-empty call predicate, including negation.</summary>
+    public static ConditionPattern IsNullOrEmptyString() =>
+        StringCall("IsNullOrEmpty", ConditionPatternKind.NullOrEmptyString);
+
+    /// <summary>Recognizes only the framework's null-or-whitespace call predicate, including negation.</summary>
+    public static ConditionPattern IsNullOrWhiteSpaceString() =>
+        StringCall("IsNullOrWhiteSpace", ConditionPatternKind.NullOrWhiteSpaceString);
+
+    /// <summary>Recognizes null tests with the matching branch denoting the null outcome.</summary>
+    public static ConditionPattern IsNull() => NullTests();
+
+    private static ConditionPattern StringCall(string name, ConditionPatternKind kind)
+    {
+        var call = ForCall(
+            CodeType.Of<string>().Member(name).WithParameters(CodeType.Of<string>()),
+            valueParameter: "value",
+            name: name
+        );
+        return new(name, call._match, kind);
     }
 
     /// <summary>The consumer's classification, such as null, empty or whitespace.</summary>
@@ -25,7 +58,8 @@ public sealed class ConditionPattern
             expression =>
                 NullCheckQueries.Match(expression) is { } check
                     ? (check.CheckedValue, check.Polarity == NullCheckPolarity.IsNull)
-                    : null
+                    : null,
+            ConditionPatternKind.Null
         );
 
     /// <summary>Recognizes an exact configured Boolean method and one explicit bound parameter, normalizing ordinary negation and Boolean comparisons.</summary>
@@ -63,7 +97,7 @@ public sealed class ConditionPattern
             ? new(condition, this, evidence.Value, evidence.Outcome)
             : null;
 
-    private static (IOperation Operation, bool Negated)? Normalize(IOperation? operation)
+    internal static (IOperation Operation, bool Negated)? Normalize(IOperation? operation)
     {
         var negated = false;
         while (operation is not null)

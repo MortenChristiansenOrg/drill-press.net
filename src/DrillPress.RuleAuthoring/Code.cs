@@ -5,6 +5,12 @@ namespace DrillPress;
 /// <summary>Root queries over a shared analysis; only selected projects supply candidates, and generated source is excluded.</summary>
 public static class Code
 {
+    /// <summary>Statically marked xUnit v2/v3 method declarations, with inherited override markers.</summary>
+    public static CodeQuery<CodeMethod> TestMethods => TestDiscovery.TestMethods;
+
+    /// <summary>Concrete test-project classes declaring or inheriting xUnit tests.</summary>
+    public static CodeQuery<CodeDeclaration> TestClasses => TestDiscovery.TestClasses;
+
     /// <summary>Selects resolved member expressions.</summary>
     public static CodeQuery<MemberReference> MemberReferences { get; } =
         new(

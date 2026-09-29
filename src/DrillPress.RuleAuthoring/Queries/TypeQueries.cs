@@ -5,6 +5,42 @@ namespace DrillPress.Queries;
 /// <summary>Composable source-anchored static type seeds, bounded traversal and contextual declaration projection.</summary>
 public static class TypeQueries
 {
+    /// <summary>Combines method and constructor argument type observations with one shared nested-function policy.</summary>
+    public static CodeQuery<TypeSeed> TypesPassedAs(
+        this CodeQuery<CodeMethod> methods,
+        string parameter,
+        IReadOnlyList<CodeMember> to,
+        NestedFunctions nested = NestedFunctions.Exclude
+    ) =>
+        methods.TypeSeeds(
+            to.Select(member =>
+                    member.Name == ".ctor"
+                        ? TypeSeedSelector.ConstructorArgument(member, parameter, nested: nested)
+                        : TypeSeedSelector.InvocationArgument(member, parameter, nested: nested)
+                )
+                .ToArray()
+        );
+
+    /// <summary>Combines explicit generic and typeof-constructor attribute forms under one attribute-value policy. Identity and parameter mappings are supplied separately rather than inferred from names.</summary>
+    public static CodeQuery<TypeSeed> TypesDeclaredBy(
+        this CodeQuery<CodeMethod> methods,
+        CodeType genericAttribute,
+        CodeType constructorAttribute,
+        Func<CodeAttribute, bool>? where = null,
+        int typeArgument = 0,
+        string typeParameter = "type"
+    ) =>
+        methods.TypeSeeds(
+            TypeSeedSelector.AttributeTypeArgument(genericAttribute, typeArgument, where),
+            TypeSeedSelector.AttributeConstructorType(constructorAttribute, typeParameter, where)
+        );
+
+    /// <summary>Projects reached definitions owned by the exact evaluated project name.</summary>
+    public static CodeQuery<CodeDeclaration> DeclaredInProject(
+        this CodeQuery<TypeReachability> results,
+        string name
+    ) => results.Declarations(project => project.Name == name);
+
     /// <summary>Combines configured seed selectors over selected methods. Each unresolved selected source remains an explicit seed.</summary>
     public static CodeQuery<TypeSeed> TypeSeeds(
         this CodeQuery<CodeMethod> methods,
