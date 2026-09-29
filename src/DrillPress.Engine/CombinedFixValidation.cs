@@ -9,7 +9,8 @@ internal static class CombinedFixValidation
     internal static (FixBatch[] Batches, Dictionary<string, string> Ids) Combine(
         AnalysisSolution solution,
         Dictionary<string, FixBatch> batches,
-        Dictionary<string, List<FixProposal>> proposals
+        Dictionary<string, List<FixProposal>> proposals,
+        IReadOnlyList<List<string>> reportingGroups
     )
     {
         var candidates = batches.Values.ToArray();
@@ -47,7 +48,12 @@ internal static class CombinedFixValidation
             for (var index = 0; index < remaining.Count; )
             {
                 var next = remaining[index];
-                if (!next.Validations.Any(validation => contexts.Contains(validation.ContextId)))
+                if (
+                    !next.Validations.Any(validation => contexts.Contains(validation.ContextId))
+                    && !reportingGroups.Any(ids =>
+                        ids.Contains(next.Id) && group.Any(batch => ids.Contains(batch.Id))
+                    )
+                )
                 {
                     index++;
                     continue;

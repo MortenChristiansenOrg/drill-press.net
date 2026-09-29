@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Composable source-anchored static type seeds, bounded traversal and contextual declaration projection.</summary>
 public static class TypeQueries

@@ -1,7 +1,7 @@
-using DrillPress.Semantics;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Configuration;
+namespace DrillPress;
 
 /// <summary>An immutable configured collection of method identities, reusable across restrictions and call-path rules.</summary>
 public sealed class ApiSet(params CodeMember[] members)

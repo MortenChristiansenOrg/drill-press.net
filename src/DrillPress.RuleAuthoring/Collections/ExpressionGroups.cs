@@ -1,7 +1,7 @@
 using DrillPress;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>Bounded grouping over explicitly selected expressions, cached once per analysis/query.</summary>
 public static class ExpressionGroups

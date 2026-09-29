@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 internal static class GenericTypeName
 {

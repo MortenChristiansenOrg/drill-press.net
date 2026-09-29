@@ -1,9 +1,7 @@
 using System.IO.Abstractions.TestingHelpers;
 using DrillPress;
-using DrillPress.Analysis;
 using DrillPress.Engine;
 using DrillPress.Manifest;
-using DrillPress.Queries;
 using DrillPress.UnitTests.TestInfrastructure;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;

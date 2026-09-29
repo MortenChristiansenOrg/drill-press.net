@@ -1,11 +1,39 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Relationships;
+namespace DrillPress;
 
 /// <summary>Policy-neutral projections over the shared relationship graph and compiler override chains.</summary>
 public static class RelationshipQueries
 {
+    /// <summary>Excludes implementations in evaluated test projects while retaining empty views.</summary>
+    public static CodeQuery<ImplementationView> IgnoringTestProjects(
+        this CodeQuery<ImplementationView> views
+    ) => views.WhereImplementation(implementation => !implementation.Project.IsTestProject);
+
+    /// <summary>Selects concrete implementation definitions inside every view.</summary>
+    public static CodeQuery<ImplementationView> ConcreteOnly(
+        this CodeQuery<ImplementationView> views
+    ) => views.WhereConcrete();
+
+    /// <summary>Returns interface memberships only when every selected compatible view across the same physical source interface has exactly one selected implementation. Empty view sets and zero-count views do not satisfy the requirement.</summary>
+    public static CodeQuery<CodeDeclaration> WithExactlyOneImplementation(
+        this CodeQuery<ImplementationView> views
+    ) =>
+        CodeQuery<CodeDeclaration>.Create(solution =>
+            views
+                .In(solution)
+                .GroupBy(view => (view.Owner.Source.Project.ProjectPath, view.Owner.Location))
+                .Where(group => group.All(view => view.Implementations.Count == 1))
+                .SelectMany(group => group.Select(view => view.Owner).Distinct())
+        );
+
+    /// <summary>Selects only the immediate compiler override edge.</summary>
+    public static CodeQuery<CodeMethod> DirectlyOverriding(
+        this CodeQuery<CodeMethod> methods,
+        CodeMember ancestor
+    ) => methods.Overriding(ancestor, OverrideSearch.Immediate);
+
     /// <summary>Retains each maximal compatible view, including zero-entry views and alternative evaluations of the same framework.</summary>
     public static CodeQuery<ImplementationView> ImplementationViews(
         this CodeQuery<CodeDeclaration> owners

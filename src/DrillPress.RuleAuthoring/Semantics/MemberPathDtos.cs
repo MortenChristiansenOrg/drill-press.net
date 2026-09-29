@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Structural correlation under the configured root relation; never a runtime object-alias proof.</summary>
 public enum PathCorrelation

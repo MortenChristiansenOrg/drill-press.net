@@ -1,8 +1,8 @@
-using DrillPress.Projects;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Analysis;
+namespace DrillPress;
 
 /// <summary>Shares lazy candidate collections across all rules in a loaded source-project graph.</summary>
 public sealed class AnalysisSolution

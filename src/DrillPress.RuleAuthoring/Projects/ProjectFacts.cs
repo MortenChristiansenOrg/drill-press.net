@@ -1,6 +1,6 @@
-using DrillPress.Queries;
+using DrillPress;
 
-namespace DrillPress.Projects;
+namespace DrillPress;
 
 /// <summary>Readable project-policy selections over captured, evaluated .NET project facts.</summary>
 public static class ProjectFacts

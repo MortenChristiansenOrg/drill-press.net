@@ -1,7 +1,7 @@
-using DrillPress.Queries;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>Exact token-shape duplication, ignoring trivia but preserving identifier spelling and literals. This is evidence of repetition, not semantic equivalence.</summary>
 public static class DuplicateSyntax

@@ -1,7 +1,7 @@
 using DrillPress;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Discovers compiler-backed candidates from an already selected file scope.</summary>
 public static class SourceQueryExtensions

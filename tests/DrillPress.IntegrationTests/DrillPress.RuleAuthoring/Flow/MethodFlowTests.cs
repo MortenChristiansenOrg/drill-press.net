@@ -1,4 +1,4 @@
-using DrillPress.Flow;
+using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

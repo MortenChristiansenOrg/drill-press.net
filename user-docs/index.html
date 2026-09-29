@@ -32,9 +32,6 @@
 <p>Turn a convention your team keeps explaining into a small, repeatable check. Drill Press rules are ordinary C#: you choose some code, describe a requirement, and tell the reader how to fix a violation.</p>
 <div class="hero-actions"><a class="button" href="first-rule.html">Write your first rule →</a><a href="reference.html">Explore the API field guide</a></div>
 <div class="codeblock"><div class="codehead"><span>A complete rule declaration</span></div><pre tabindex="0" data-check="program" id="example-1"><code>using DrillPress;
-using DrillPress.Projects;
-using DrillPress.Queries;
-using DrillPress.Semantics;
 
 var rules = new RuleSet();
 var console = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);

@@ -1,4 +1,4 @@
-using DrillPress.Flow;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -13,15 +13,28 @@ public sealed class CodeNullCheck : ICodeElement
         CodeExpression condition,
         CodeExpression value,
         NullCheckPolarity polarity,
-        NullCheckDomain domain
+        NullCheckDomain domain,
+        NullCheckForm form
     )
     {
         Condition = condition;
         CheckedValue = value;
         Polarity = polarity;
         Domain = domain;
+        Form = form;
         _beforeCheck = new(() => NullableProbe.BeforeCheck(value, condition));
     }
+
+    /// <summary>The underlying comparison, pattern or nullable-presence form.</summary>
+    public NullCheckForm Form { get; }
+
+    /// <summary>Whether the checked reference declaration has a non-nullable annotation; this is not a runtime guarantee.</summary>
+    public bool HasNonNullableDeclaration =>
+        Domain == NullCheckDomain.Reference
+        && CheckedValue.DeclaredNullability == NullableAnnotation.NotAnnotated;
+
+    /// <summary>Whether the compiler knows the operand is non-null before this check; independent from its declaration annotation.</summary>
+    public bool IsKnownNotNullBeforeCheck => FlowStateBeforeCheck == NullableFlowState.NotNull;
 
     /// <summary>The complete normalized check, including ordinary negation.</summary>
     public CodeExpression Condition { get; }

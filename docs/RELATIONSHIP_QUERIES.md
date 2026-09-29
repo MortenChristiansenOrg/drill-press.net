@@ -51,3 +51,16 @@ uses the existing member identity rules.
 local-function declarations do. This is a syntax fact, not a claim that invoking
 an async or otherwise special method has no effects. Policies and diagnostics
 remain in consumer rule bundles.
+
+`Code.Interfaces.ImplementationViews().IgnoringTestProjects().ConcreteOnly()
+.WithExactlyOneImplementation()` requires exactly one selected definition in **every**
+compatible view of the same physical source interface/project across evaluated contexts.
+Counts `[1, 1]` qualify; `[1, 2]`, `[1, 0]`, and no views do not. Entry filtering preserves
+zero-count views. Returned declaration memberships retain their compilation contexts.
+`view.Interface` names the source interface directly. `DirectlyOverriding(member)` selects
+only an immediate edge; `Overriding(member)` keeps the complete ancestor-chain default.
+
+Null checks expose `Form`, `HasNonNullableDeclaration` and `IsKnownNotNullBeforeCheck`
+separately. The first is syntax classification, the second is annotation evidence, and
+the third is compiler incoming flow evidence. They are never ORed into a runtime
+non-null guarantee or used as automatic authority to delete guards.

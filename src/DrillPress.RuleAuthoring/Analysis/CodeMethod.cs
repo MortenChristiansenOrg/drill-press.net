@@ -1,9 +1,9 @@
-using DrillPress.Flow;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Analysis;
+namespace DrillPress;
 
 /// <summary>A source method with lazy symbol binding and reusable body analysis.</summary>
 public sealed class CodeMethod : ICodeElement
@@ -46,6 +46,15 @@ public sealed class CodeMethod : ICodeElement
 
     /// <summary>The declared identifier, available even when semantic binding fails.</summary>
     public string Name => Syntax.Identifier.ValueText;
+
+    /// <summary>Whether a block or expression body was written; abstract and extern declarations have no body.</summary>
+    public bool HasBody => Syntax.Body is not null || Syntax.ExpressionBody is not null;
+
+    /// <summary>Whether an existing block has no statements; a missing body is not empty.</summary>
+    public bool HasEmptyBody => Syntax.Body is { Statements.Count: 0 };
+
+    /// <summary>Whether the declaration has no body or an empty block; expression bodies always contain executable syntax.</summary>
+    public bool HasNoStatements => !HasBody || HasEmptyBody;
 
     /// <summary>Whether the bound declaration is asynchronous; false for unresolved declarations.</summary>
     public bool IsAsync => Symbol?.IsAsync == true;

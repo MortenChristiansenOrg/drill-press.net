@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Configurable static type discovery in method declarations and executable bodies.</summary>
 public sealed class TypeSeedSelector(Func<CodeMethod, IEnumerable<TypeSeed>> select)

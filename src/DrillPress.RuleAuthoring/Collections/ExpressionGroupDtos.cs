@@ -1,6 +1,6 @@
 using DrillPress;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>The bounded semantic equivalence used to form an extraction candidate.</summary>
 public enum ExpressionGroupKind

@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Declared-attribute discovery and distinct declaring-type projection, independent of framework discovery policies.</summary>
 public static class AttributeQueries

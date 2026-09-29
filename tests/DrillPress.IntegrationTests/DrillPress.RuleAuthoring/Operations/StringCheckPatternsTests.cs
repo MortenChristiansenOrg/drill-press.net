@@ -1,6 +1,5 @@
 using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
-using DrillPress.Queries;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Operations;

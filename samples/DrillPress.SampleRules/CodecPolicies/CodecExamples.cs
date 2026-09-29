@@ -1,6 +1,4 @@
-using DrillPress.Collections;
-using DrillPress.Facts;
-using DrillPress.Queries;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 

@@ -1,4 +1,4 @@
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Semantic conditions that match declarations, including aliases and qualified access.</summary>
 public static class Members

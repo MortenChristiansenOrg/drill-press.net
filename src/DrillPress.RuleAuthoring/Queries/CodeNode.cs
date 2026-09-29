@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>A syntax candidate with precise physical reporting and its original semantic context.</summary>
 public sealed class CodeNode<TSyntax>(AnalysisSource source, TSyntax syntax) : ICodeElement

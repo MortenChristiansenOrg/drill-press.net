@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 internal static class CompilerConstant
 {

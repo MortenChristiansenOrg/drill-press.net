@@ -1,4 +1,4 @@
-namespace DrillPress.Facts;
+namespace DrillPress;
 
 /// <summary>A typed, lazy fact owned by one solution. Reuse the same instance across rules; dependencies may read other facts, but cycles are rejected by lazy evaluation.</summary>
 public sealed class AnalysisFact<T>(Func<AnalysisSolution, T> compute)

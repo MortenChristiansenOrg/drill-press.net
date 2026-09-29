@@ -1,4 +1,4 @@
-namespace DrillPress.Facts;
+namespace DrillPress;
 
 /// <summary>A typed fact computed on demand once for each evaluated project within one analysis. Alternate frameworks never share values.</summary>
 public sealed class ProjectFact<T>(Func<AnalysisProject, T> compute)

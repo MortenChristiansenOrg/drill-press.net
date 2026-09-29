@@ -1,8 +1,8 @@
-using DrillPress.Queries;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Lazy declaration and named-reference roots, retaining each ordinary source occurrence and its compilation context.</summary>
 public static class SymbolQueries

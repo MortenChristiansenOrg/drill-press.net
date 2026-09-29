@@ -1,4 +1,4 @@
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>A custom fact or joined result anchored to an existing source candidate for context-aware reporting and fixes.</summary>
 public sealed class LocatedCandidate<T>(T value, ICodeElement anchor) : ICodeElement

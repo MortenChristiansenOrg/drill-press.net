@@ -1,5 +1,4 @@
 using DrillPress;
-using DrillPress.Configuration;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

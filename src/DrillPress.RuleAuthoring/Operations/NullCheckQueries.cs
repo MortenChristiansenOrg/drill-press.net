@@ -57,11 +57,14 @@ public static class NullCheckQueries
             condition,
             new(condition.Source, syntax),
             found.NotNull != negated ? NullCheckPolarity.IsNotNull : NullCheckPolarity.IsNull,
-            domain
+            domain,
+            found.Form
         );
     }
 
-    private static (IOperation Value, bool NotNull)? Operand(IOperation operation)
+    private static (IOperation Value, bool NotNull, NullCheckForm Form)? Operand(
+        IOperation operation
+    )
     {
         if (operation is IIsPatternOperation pattern)
         {
@@ -78,7 +81,7 @@ public static class NullCheckQueries
                     {
                         Value.ConstantValue: { HasValue: true, Value: null }
                     }
-                ? (pattern.Value, notNull)
+                ? (pattern.Value, notNull, NullCheckForm.Pattern)
                 : null;
         }
         if (
@@ -101,7 +104,8 @@ public static class NullCheckQueries
                     return (
                         inner.Value,
                         inner.NotNull
-                            ^ (!expected ^ (binary.OperatorKind == BinaryOperatorKind.NotEquals))
+                            ^ (!expected ^ (binary.OperatorKind == BinaryOperatorKind.NotEquals)),
+                        inner.Form
                     );
             }
             var value =
@@ -114,7 +118,11 @@ public static class NullCheckQueries
                 return null;
             while (value is IConversionOperation { Conversion.IsIdentity: true } conversion)
                 value = conversion.Operand;
-            return (value, binary.OperatorKind == BinaryOperatorKind.NotEquals);
+            return (
+                value,
+                binary.OperatorKind == BinaryOperatorKind.NotEquals,
+                NullCheckForm.Equality
+            );
         }
         if (
             operation is IPropertyReferenceOperation
@@ -127,7 +135,7 @@ public static class NullCheckQueries
                 Instance: { } instance
             }
         )
-            return (instance, true);
+            return (instance, true, NullCheckForm.NullableHasValue);
         return null;
     }
 

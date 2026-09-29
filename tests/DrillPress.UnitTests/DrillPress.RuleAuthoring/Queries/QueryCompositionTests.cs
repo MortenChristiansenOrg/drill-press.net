@@ -1,4 +1,4 @@
-using DrillPress.Facts;
+using DrillPress;
 using Xunit;
 
 namespace DrillPress.UnitTests.RuleAuthoring.Queries;

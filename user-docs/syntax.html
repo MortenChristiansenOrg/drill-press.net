@@ -32,10 +32,6 @@
 <p>Use file and declaration wrappers first. Reach for syntax when your convention is about an exact piece of source: a modifier, a switch expression, or a particular literal.</p>
 <h2 id="files">Files and path patterns</h2>
 <div class="codeblock"><div class="codehead"><span>Keep console output inside a tracing adapter</span></div><pre tabindex="0" data-check="program" id="example-13"><code>using DrillPress;
-using DrillPress.Configuration;
-using DrillPress.Projects;
-using DrillPress.Queries;
-using DrillPress.Semantics;
 
 var rules = new RuleSet();
 var adapters = new PathPattern(&quot;**/Tracing/*.cs&quot;);
@@ -55,9 +51,6 @@ rules.For(ProjectFacts.ProductionFiles.Invocations()
 <dt>Semantic model</dt><dd>The compiler’s bridge from written syntax to symbols, types, and other meaning.</dd></dl>
 <h2 id="nodes">Choose a syntax kind</h2>
 <div class="codeblock"><div class="codehead"><span>Find repeated format-dispatch expressions</span></div><pre tabindex="0" data-check="program" id="example-14"><code>using DrillPress;
-using DrillPress.Collections;
-using DrillPress.Projects;
-using DrillPress.Queries;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 var rules = new RuleSet();
@@ -73,7 +66,6 @@ rules.For(DuplicateSyntax.In(switches, minimumTokens: 20))
 <p><code>SymbolQueries.References</code> selects resolved simple-name references to types, namespaces, and members. <code>ReferencesTo(symbol)</code> follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries.</p>
 <h2 id="locations">Report the smallest useful location</h2>
 <div class="codeblock"><div class="codehead"><span>Report the internal keyword, not the entire type</span></div><pre tabindex="0" data-check="program" id="example-15"><code>using DrillPress;
-using DrillPress.Queries;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

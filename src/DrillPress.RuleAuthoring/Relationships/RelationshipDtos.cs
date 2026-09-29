@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Relationships;
+namespace DrillPress;
 
 /// <summary>A source definition implementing an interface in one evaluated project context.</summary>
 /// <param name="Project">The compilation owning the implementation.</param>
@@ -32,7 +32,11 @@ public sealed record ImplementationView(
     CodeDeclaration Owner,
     IReadOnlyList<AnalysisProject> Projects,
     IReadOnlyList<InterfaceImplementation> Implementations
-);
+)
+{
+    /// <summary>The interface declaration represented in this compatible project view.</summary>
+    public CodeDeclaration Interface => Owner;
+}
 
 /// <summary>Evidence for an actual override edge to a configured ancestor.</summary>
 /// <param name="Method">The ordinary source overriding method.</param>

@@ -36,7 +36,8 @@ public sealed class RuleSet
         CodeQuery<T> query,
         RuleDescriptor descriptor,
         Func<T, SourceLocation>? location,
-        Func<T, FixProposal?>? fix
+        Func<T, FixProposal?>? fix,
+        Func<T, object?>? reportKey = null
     )
     {
         var (id, message) = descriptor;
@@ -61,6 +62,6 @@ public sealed class RuleSet
             throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");
         }
 
-        _rules.Add(new CandidateRule<T>(query, descriptor, location, fix));
+        _rules.Add(new CandidateRule<T>(query, descriptor, location, fix, reportKey));
     }
 }

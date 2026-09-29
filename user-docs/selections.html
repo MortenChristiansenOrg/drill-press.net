@@ -39,7 +39,7 @@
 <tr><td><code>files.Invocations()</code></td><td>Bound calls inside an existing file selection.</td></tr>
 <tr><td><code>files.Nodes&lt;T&gt;()</code> / <code>files.Declarations()</code></td><td>Syntax of a chosen kind / resolved declarations, including locals and fields.</td></tr>
 </tbody></table></div>
-<p>The <code>Code</code> roots live in <code>DrillPress</code>; file and syntax helpers use <code>DrillPress.Queries</code>. See <a href="reference.html">the field guide</a> for all namespaces.</p>
+<p>The <code>Code</code> roots live in <code>DrillPress</code>; file and syntax helpers use <code>DrillPress</code>. See <a href="reference.html">the field guide</a> for all namespaces.</p>
 <h2 id="require">Forbid or require?</h2>
 <div class="codeblock"><div class="codehead"><span>Require a naming convention for async methods</span></div><pre tabindex="0" data-check="program" id="example-5"><code>using DrillPress;
 
@@ -53,8 +53,6 @@ rules.For(asyncMethods).Require(
 <p>This selects async methods, then reports the ones whose names lack the suffix. By contrast, <code>Forbid</code> reports every candidate already selected. Neither method throws away the useful source location.</p>
 <h2 id="conditions">Name conditions and exceptions</h2>
 <div class="codeblock"><div class="codehead"><span>Compose a convention and its exception</span></div><pre tabindex="0" data-check="program" id="example-6"><code>using DrillPress;
-using DrillPress.Analysis;
-using DrillPress.Semantics;
 
 var rules = new RuleSet();
 var asynchronous = new RuleCondition&lt;CodeMethod&gt;(method =&gt; method.IsAsync);

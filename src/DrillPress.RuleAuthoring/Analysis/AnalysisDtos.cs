@@ -1,4 +1,4 @@
-namespace DrillPress.Analysis;
+namespace DrillPress;
 
 /// <summary>Controls execution strategy and optional operational measurements without changing rule meaning.</summary>
 public sealed record AnalysisOptions

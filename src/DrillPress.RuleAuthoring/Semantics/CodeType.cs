@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>A metadata identity with optional assembly qualification and exact constructed arguments.</summary>
 /// <param name="MetadataName">Namespace-qualified metadata name, using + for nested types.</param>

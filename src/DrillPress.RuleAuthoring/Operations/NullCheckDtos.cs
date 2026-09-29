@@ -19,3 +19,16 @@ public enum NullCheckPolarity
     /// <summary>True means the operand is non-null or has a nullable value.</summary>
     IsNotNull,
 }
+
+/// <summary>The underlying bound syntax form, independent of normalized negation.</summary>
+public enum NullCheckForm
+{
+    /// <summary>Built-in equality or inequality with null.</summary>
+    Equality,
+
+    /// <summary>A null constant pattern, including negated patterns.</summary>
+    Pattern,
+
+    /// <summary>A nullable value's HasValue property.</summary>
+    NullableHasValue,
+}

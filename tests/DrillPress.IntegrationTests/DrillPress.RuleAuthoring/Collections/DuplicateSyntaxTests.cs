@@ -1,6 +1,5 @@
-using DrillPress.Collections;
+using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
-using DrillPress.Queries;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 

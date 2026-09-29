@@ -1,7 +1,7 @@
 using DrillPress;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Composable executable scopes sharing ordinary query lifetimes and generated-source boundaries.</summary>
 public static class BodyQueries

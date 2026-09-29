@@ -1,4 +1,4 @@
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>Compares inventories using caller-selected semantic keys and equality; duplicates do not affect membership.</summary>
 public sealed class SetComparison<T>
