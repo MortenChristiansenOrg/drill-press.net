@@ -1,5 +1,5 @@
+using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
-using DrillPress.Operations;
 using DrillPress.Queries;
 using Xunit;
 

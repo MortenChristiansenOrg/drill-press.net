@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>An immutable single-token edit with explicit declaration invariants and required behavior proof.</summary>
 public sealed class ModifierRemoval

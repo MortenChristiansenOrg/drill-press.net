@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A source expression and its compiler evidence; no expression evaluation or runtime inference is performed.</summary>
 public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax syntax) : ICodeElement

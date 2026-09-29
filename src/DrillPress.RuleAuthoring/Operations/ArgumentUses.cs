@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Source-value argument relationships; nested computations are not mistaken for passing the referenced value itself.</summary>
 public static class ArgumentUses

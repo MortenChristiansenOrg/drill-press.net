@@ -32,7 +32,6 @@
 <p>A method name alone does not tell you which overload is called, how named arguments map to parameters, or whether a value may be null. These APIs use the compiler’s answers.</p>
 <h2 id="invocations">Inspect calls and arguments</h2>
 <div class="codeblock"><div class="codehead"><span>Disallow an infinite timeout on a specific API</span></div><pre tabindex="0" data-check="program" id="example-16"><code>using DrillPress;
-using DrillPress.Operations;
 using DrillPress.Semantics;
 
 var rules = new RuleSet();
@@ -48,7 +47,6 @@ rules.For(OperationQueries.Invocations
 <h2 id="operations">Look beyond ordinary calls</h2>
 <p>An <em>operation</em> describes what bound code does. A <code>new</code> expression is an object-creation operation; a method call is an invocation operation. Operations can include things the compiler adds implicitly, such as conversions.</p>
 <div class="codeblock"><div class="codehead"><span>Flag a legacy serializer being constructed</span></div><pre tabindex="0" data-check="program" id="example-17"><code>using DrillPress;
-using DrillPress.Operations;
 using DrillPress.Semantics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -86,7 +84,6 @@ var methodsWithClosures = Code.Methods.Where(method =&gt;
 <p>This is evidence to build on, not a rule forbidding every closure. In the <a href="../samples/CodecExamples/PooledUtf8Decoder.cs">pooled-buffer example</a>, a captured local initialized by <code>ArrayPool&lt;T&gt;.Rent</code> indicates a concrete ownership concern. The rule does not claim to prove delegate escape or lease lifetime.</p>
 <h2 id="nullable">Read nullable state at a call site</h2>
 <div class="codeblock"><div class="codehead"><span>Find potentially null text receivers</span></div><pre tabindex="0" data-check="program" id="example-20"><code>using DrillPress;
-using DrillPress.Operations;
 using DrillPress.Semantics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;

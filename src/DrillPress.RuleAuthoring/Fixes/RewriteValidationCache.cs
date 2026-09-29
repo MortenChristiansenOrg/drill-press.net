@@ -1,7 +1,7 @@
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal sealed class RewriteValidationCache(AnalysisProject project)
 {

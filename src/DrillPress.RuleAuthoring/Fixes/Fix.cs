@@ -1,8 +1,8 @@
-using DrillPress.Operations;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Constructs contextual edit proposals; no files are written and a consumer semantic proof is required.</summary>
 public static class Fix

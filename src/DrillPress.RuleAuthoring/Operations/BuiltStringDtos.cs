@@ -1,4 +1,4 @@
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>The source origin of a string-building segment.</summary>
 public enum BuiltStringPartKind

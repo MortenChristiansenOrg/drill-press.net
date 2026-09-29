@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Evidence for one transformation after the complete atomic batch has been applied in one context.</summary>
 public sealed class RewriteEvidence

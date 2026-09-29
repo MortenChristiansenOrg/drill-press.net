@@ -1,10 +1,10 @@
-using DrillPress.Operations;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal static class ArgumentTransitionChecks
 {

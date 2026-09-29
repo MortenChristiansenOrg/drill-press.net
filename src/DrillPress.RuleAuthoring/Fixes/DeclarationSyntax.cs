@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal static class DeclarationSyntax
 {

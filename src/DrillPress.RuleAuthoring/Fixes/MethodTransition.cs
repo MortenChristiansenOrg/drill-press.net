@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>An exact contextual overload pair and explicit retained parameter map. A method-family predicate is not an exact pair.</summary>
 public sealed class MethodTransition

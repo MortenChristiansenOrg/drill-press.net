@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>The entire edit batch applied to one affected compilation, ready for a consumer's semantic equivalence proof.</summary>
 public sealed class RewriteContext(

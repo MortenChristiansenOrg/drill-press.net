@@ -1,10 +1,10 @@
-using DrillPress.Operations;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>An immutable bound argument-removal plan requiring separate value, evaluation-loss and overload-behavior proofs.</summary>
 public sealed class ArgumentRemoval

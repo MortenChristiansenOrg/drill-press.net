@@ -1,4 +1,4 @@
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Ordered string-building syntax with preserved reference provenance and interpolation formatting.</summary>
 public sealed class BuiltString

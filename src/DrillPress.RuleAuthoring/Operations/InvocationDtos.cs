@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>How the selected member obtains a receiver, independent of conditional-access spelling.</summary>
 public enum ReceiverKind

@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>A tracked original operand for constructing replacements without losing occurrence identity.</summary>
 public sealed class ExpressionInput

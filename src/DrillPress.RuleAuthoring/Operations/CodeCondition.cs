@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A complete if/conditional-expression test and its syntactic branches; presence is not guaranteed execution.</summary>
 public sealed class CodeCondition : ICodeElement

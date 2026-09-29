@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A named, bound Boolean-check recognizer. Names classify evidence; they do not imply validation policy.</summary>
 public sealed class ConditionPattern

@@ -1,5 +1,4 @@
-using DrillPress.Baselines;
-using DrillPress.Operations;
+using DrillPress;
 using DrillPress.Projects;
 using DrillPress.Queries;
 using Microsoft.CodeAnalysis;

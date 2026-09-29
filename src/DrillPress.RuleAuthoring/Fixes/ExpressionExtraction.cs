@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>An immutable extraction plan for a selected expression group. Grouping alone never proves a correction safe.</summary>
 public sealed class ExpressionExtraction

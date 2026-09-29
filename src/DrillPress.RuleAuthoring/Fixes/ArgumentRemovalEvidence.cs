@@ -1,7 +1,7 @@
-using DrillPress.Operations;
+using DrillPress;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Context-local evidence for one argument deletion and verified overload transition.</summary>
 public sealed class ArgumentRemovalEvidence

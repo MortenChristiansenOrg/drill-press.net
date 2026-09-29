@@ -1,4 +1,4 @@
-using DrillPress.Operations;
+using DrillPress;
 
 namespace DrillPress.Queries;
 

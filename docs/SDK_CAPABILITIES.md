@@ -45,7 +45,6 @@ root namespace. XML documentation is generated for authoring and testing APIs.
 ```csharp
 using DrillPress;
 using DrillPress.Configuration;
-using DrillPress.Operations;
 using DrillPress.Queries;
 using DrillPress.Semantics;
 

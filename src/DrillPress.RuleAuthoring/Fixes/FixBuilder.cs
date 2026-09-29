@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>An immutable expression-edit plan with default source/trivia/context gates and additive contextual proofs.</summary>
 public sealed class FixBuilder

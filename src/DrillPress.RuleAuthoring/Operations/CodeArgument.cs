@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A source argument value mapped to its declaration parameter; synthesized defaults have no editable location.</summary>
 public sealed class CodeArgument : ICodeElement

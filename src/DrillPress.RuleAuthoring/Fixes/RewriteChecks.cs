@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Bounded structural proofs over the actual fully rewritten compilation. These do not establish arbitrary behavioral equivalence.</summary>
 public static class RewriteChecks

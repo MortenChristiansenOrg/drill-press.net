@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Composable condition selection without framework-specific validation policy.</summary>
 public static class ConditionQueries

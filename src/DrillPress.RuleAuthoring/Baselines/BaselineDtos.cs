@@ -1,4 +1,4 @@
-namespace DrillPress.Baselines;
+namespace DrillPress;
 
 /// <summary>Comparison against an explicitly supplied accepted .NET source analysis.</summary>
 public enum SourceChange

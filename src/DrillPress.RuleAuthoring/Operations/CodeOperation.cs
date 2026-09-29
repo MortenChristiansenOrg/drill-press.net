@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A compiler operation with its original source membership and exact location.</summary>
 public sealed class CodeOperation<TOperation>(AnalysisSource source, TOperation operation)

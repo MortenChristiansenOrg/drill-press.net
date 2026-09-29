@@ -1,6 +1,6 @@
 using DrillPress.Manifest;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>A complete atomic edit batch with a proof evaluated in every affected loaded context.</summary>
 /// <param name="edits">All exact replacements required by this correction.</param>

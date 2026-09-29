@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>How a new private extraction member handles existing or inherited member names.</summary>
 public enum ExtractionNameCollision

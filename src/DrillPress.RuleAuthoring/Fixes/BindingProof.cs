@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Reusable compiler checks for source rewrites. Binding preservation does not establish evaluation order, side effects, lifetime or behavioral equivalence.</summary>
 public static class BindingProof

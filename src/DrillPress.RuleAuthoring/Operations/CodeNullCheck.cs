@@ -2,7 +2,7 @@ using DrillPress.Flow;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A recognized Boolean null test. Nullable facts describe the operand before this test refines its branches.</summary>
 public sealed class CodeNullCheck : ICodeElement
