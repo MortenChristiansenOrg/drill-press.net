@@ -11,7 +11,12 @@ internal sealed class SnapshotTreeOptions(Dictionary<SyntaxTree, DocumentSnapsho
     public override GeneratedKind IsGenerated(
         SyntaxTree tree,
         CancellationToken cancellationToken
-    ) => _documents[tree].IsGenerated ? GeneratedKind.MarkedGenerated : GeneratedKind.NotGenerated;
+    ) =>
+        _documents.TryGetValue(tree, out var document)
+            ? document.IsGenerated
+                ? GeneratedKind.MarkedGenerated
+                : GeneratedKind.NotGenerated
+            : GeneratedKind.Unknown;
 
     public override bool TryGetDiagnosticValue(
         SyntaxTree tree,
@@ -21,7 +26,8 @@ internal sealed class SnapshotTreeOptions(Dictionary<SyntaxTree, DocumentSnapsho
     )
     {
         if (
-            _documents[tree].Options is { } options
+            _documents.TryGetValue(tree, out var document)
+            && document.Options is { } options
             && options.DiagnosticOptions.TryGetValue(diagnosticId, out var value)
         )
         {

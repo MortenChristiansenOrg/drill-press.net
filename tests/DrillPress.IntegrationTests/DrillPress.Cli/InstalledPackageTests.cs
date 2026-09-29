@@ -9,6 +9,46 @@ public sealed class InstalledPackageTests(PackageFixture fixture)
     : IntegrationTest,
         IClassFixture<PackageFixture>
 {
+    [Theory]
+    [InlineData("string?", 0, "")]
+    [InlineData(
+        "string",
+        1,
+        """
+            NULL001 Unexpected non-null check.
+            nullable.cs
+              6:13
+
+            """
+    )]
+    public async Task Installed_bundle_reads_incoming_nullable_state_in_standalone_source(
+        string parameterType,
+        int exitCode,
+        string output
+    )
+    {
+        var target = FileSystem.Path.Combine(fixture.Root, "nullable.cs");
+        await FileSystem.File.WriteAllTextAsync(
+            target,
+            $$"""
+            #nullable enable
+            class Example
+            {
+                void Check({{parameterType}} value)
+                {
+                    if (value is null)
+                        return;
+                }
+            }
+            """,
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await fixture.GlobalAsync("check", "--rules", fixture.Bundle, target);
+
+        Assert.Equal((exitCode, output.ReplaceLineEndings("\n"), ""), result);
+    }
+
     [Fact]
     public async Task Installed_packages_build_rules_check_fix_and_recheck_an_external_project()
     {
