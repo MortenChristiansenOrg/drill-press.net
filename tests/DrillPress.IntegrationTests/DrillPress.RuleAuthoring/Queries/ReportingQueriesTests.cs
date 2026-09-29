@@ -1,4 +1,6 @@
+using DrillPress.Engine;
 using DrillPress.IntegrationTests.TestInfrastructure;
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
@@ -6,6 +8,79 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Queries;
 
 public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Fact]
+    public async Task Reporting_groups_connect_disjoint_contexts_transitively()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Reporter",
+            [
+                new("A1.cs", "class A1 {}"),
+                new("A2.cs", "class A2 {}"),
+                new("B1.cs", "class B1 {}"),
+                new("B2.cs", "class B2 {}"),
+            ]
+        );
+        workspace.AddProject("Left", [new("Left.cs", "class Left { int Value = 1; }")]);
+        workspace.AddProject("Middle", [new("Middle.cs", "class Middle { int Value = 1; }")]);
+        workspace.AddProject("Right", [new("Right.cs", "class Right { int Value = 1; }")]);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var targets = Code.Nodes<LiteralExpressionSyntax>()
+            .In(solution)
+            .ToDictionary(node => node.Source.Document.Path);
+        var destinations = new Dictionary<string, string>
+        {
+            ["A1.cs"] = "Left.cs",
+            ["A2.cs"] = "Middle.cs",
+            ["B1.cs"] = "Middle.cs",
+            ["B2.cs"] = "Right.cs",
+        };
+        var rules = new RuleSet();
+        rules
+            .For(Code.Files.InProject("Reporter"))
+            .ReportOncePer(file => file.Name[0])
+            .Forbid(
+                "GROUP",
+                "Update shared values.",
+                fix: file =>
+                {
+                    var target = targets[destinations[file.Name]];
+                    return SourceChanges.Propose(
+                        [SourceChanges.Replace(target.Source, target.Syntax.Span, "2")],
+                        _ => true
+                    );
+                }
+            );
+        var expected = targets
+            .Values.OrderBy(node => node.Source.Document.FileIdentity)
+            .Select(node => SourceChanges.Replace(node.Source, node.Syntax.Span, "2"))
+            .ToArray();
+        var snapshot = CompilationSnapshot.Create(
+            solution.Projects.Select(project => project.Snapshot).ToArray()
+        );
+
+        var response = await new AnalysisEngine().EvaluateAsync(
+            rules,
+            snapshot.RequestId,
+            solution
+                .Projects.Select(project => new CompilationContext(
+                    project.Snapshot,
+                    project.Compilation
+                ))
+                .ToArray(),
+            TestContext.Current.CancellationToken
+        );
+
+        var batch = Assert.Single(response.Batches);
+        Assert.Equal(expected, batch.Edits);
+        Assert.Equal(
+            [batch.Id, batch.Id],
+            response
+                .Contexts.SelectMany(context => context.Findings)
+                .Select(finding => finding.BatchId)
+        );
+    }
+
     [Fact]
     public async Task Hidden_proposals_still_require_successful_combined_compilation()
     {
