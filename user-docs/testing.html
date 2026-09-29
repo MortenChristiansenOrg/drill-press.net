@@ -86,7 +86,7 @@ workspace.AddProject(&quot;Product.Tests&quot;, [
 <p><code>CodeMethod</code> has no test-specific body property. Inspect <code>method.Syntax.Body</code> or create a cached consumer fact when several rules share body analysis. <code>DrillPress.Testing</code> is the framework-independent test kit for your rules.</p>
 <p>When a fixture's exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore.</p>
 <h2 id="baselines">Test an accepted baseline</h2>
-<div class="codeblock"><div class="codehead"><span>Compare two in-memory versions</span></div><pre tabindex="0" data-check="program" id="example-34"><code>using DrillPress.Baselines;
+<div class="codeblock"><div class="codehead"><span>Compare two in-memory versions</span></div><pre tabindex="0" data-check="program" id="example-34"><code>using DrillPress;
 using DrillPress.Testing;
 
 var before = new RuleTestWorkspace();

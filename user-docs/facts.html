@@ -94,7 +94,6 @@ rules.For(undocumented).Forbid(&quot;TEAM016&quot;, &quot;Document this type's p
 <p><code>At</code> produces a <code>LocatedCandidate&lt;T&gt;</code>: your calculated <code>Value</code> plus the existing anchor’s <code>Location</code> and <code>Source</code>. This also works for joined tuples and missing-counterpart checks.</p>
 <h2 id="baseline">Compare with accepted source</h2>
 <div class="codeblock"><div class="codehead"><span>Create a change-aware rule factory</span></div><pre tabindex="0" data-check="program" id="example-28"><code>using DrillPress;
-using DrillPress.Baselines;
 using DrillPress.Configuration;
 
 static RuleSet CreateRules(SourceBaseline accepted)

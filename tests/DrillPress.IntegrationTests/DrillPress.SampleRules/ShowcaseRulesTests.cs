@@ -1,4 +1,4 @@
-using DrillPress.Baselines;
+using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
 using DrillPress.Manifest;
 using DrillPress.SampleRules;

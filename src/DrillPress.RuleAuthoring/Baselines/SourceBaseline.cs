@@ -1,7 +1,7 @@
 using DrillPress.Queries;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Baselines;
+namespace DrillPress;
 
 /// <summary>An immutable accepted .NET source state supplied by the consumer. No Git dependency; compare analyses with stable project paths and evaluation properties.</summary>
 public sealed class SourceBaseline
