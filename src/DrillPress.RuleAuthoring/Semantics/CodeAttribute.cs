@@ -5,6 +5,17 @@ namespace DrillPress.Semantics;
 /// <summary>An applied attribute's compiler constants; arbitrary constructors and property defaults are never executed.</summary>
 public sealed class CodeAttribute(ISymbol owner, AttributeData data)
 {
+    /// <summary>Reads a compiler-recorded constructor value with exact parameter-name and type matching; absence and errors remain unavailable.</summary>
+    public Optional<T> ConstructorValue<T>(string name) =>
+        CompilerConstant.Read<T>(ConstructorArgument(name));
+
+    /// <summary>Reads an explicitly supplied named property/field value without executing attribute code.</summary>
+    public Optional<T> NamedValue<T>(string name) => CompilerConstant.Read<T>(NamedArgument(name));
+
+    /// <summary>Reads a named Boolean argument, using the caller's explicit fallback when no typed value is available.</summary>
+    public bool FlagOrDefault(string name, bool fallback) =>
+        NamedValue<bool>(name) is { HasValue: true } value ? value.Value : fallback;
+
     /// <summary>The declaration on which this attribute is applied, not a runtime descendant.</summary>
     public ISymbol Owner { get; } = owner;
 

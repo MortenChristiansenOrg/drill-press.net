@@ -121,6 +121,7 @@ public sealed class AnalysisEngine
                     .Select(context => new AnalysisProject(
                         context.Snapshot,
                         context.Compilation,
+                        _fileSystem,
                         cancellationToken
                     ))
                     .ToArray(),

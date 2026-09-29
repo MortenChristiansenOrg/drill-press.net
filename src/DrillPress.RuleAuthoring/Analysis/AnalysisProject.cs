@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -14,7 +15,17 @@ public sealed class AnalysisProject
         CSharpCompilation compilation,
         CancellationToken cancellationToken = default
     )
+        : this(snapshot, compilation, new FileSystem(), cancellationToken) { }
+
+    internal AnalysisProject(
+        ProjectSnapshot snapshot,
+        CSharpCompilation compilation,
+        IFileSystem fileSystem,
+        CancellationToken cancellationToken = default
+    )
     {
+        FileSystem = fileSystem;
+        InvocationDirectory = fileSystem.Directory.GetCurrentDirectory();
         var trees = compilation.SyntaxTrees.ToArray();
         if (
             trees.Length != snapshot.Documents.Length
@@ -48,6 +59,10 @@ public sealed class AnalysisProject
     }
 
     internal RewriteValidationCache RewriteValidation { get; }
+
+    internal IFileSystem FileSystem { get; }
+
+    internal string InvocationDirectory { get; }
 
     /// <summary>Stops candidate discovery and contextual compiler validation.</summary>
     public CancellationToken CancellationToken { get; }

@@ -3,6 +3,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="DrillPress.Engine" />
+    <InternalsVisibleTo Include="DrillPress.UnitTests" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <ProjectReference Include="../DrillPress.Manifest/DrillPress.Manifest.csproj" />
   </ItemGroup>

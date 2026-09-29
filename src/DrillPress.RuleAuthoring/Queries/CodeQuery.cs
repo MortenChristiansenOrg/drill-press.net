@@ -21,6 +21,18 @@ public sealed class CodeQuery<T>
     public CodeQuery<TResult> SelectMany<TResult>(Func<T, IEnumerable<TResult>> select) =>
         CodeQuery<TResult>.Create(solution => Evaluate(solution).SelectMany(select));
 
+    /// <summary>Combines selections in query order, retaining duplicate values.</summary>
+    public CodeQuery<T> Concat(CodeQuery<T> other) =>
+        Create(solution => In(solution).Concat(other.In(solution)));
+
+    /// <summary>Combines selections once per source occurrence and compilation membership; other values use their ordinary equality. An explicit comparer overrides this policy.</summary>
+    public CodeQuery<T> Union(CodeQuery<T> other, IEqualityComparer<T>? comparer = null) =>
+        Create(solution =>
+            In(solution)
+                .Concat(other.In(solution))
+                .Distinct(comparer ?? CandidateComparer<T>.Instance)
+        );
+
     /// <summary>Anchors synthetic facts or joined results to an existing reportable owner.</summary>
     public CodeQuery<LocatedCandidate<T>> At(Func<T, ICodeElement> anchor) =>
         Select(value => new LocatedCandidate<T>(value, anchor(value)));

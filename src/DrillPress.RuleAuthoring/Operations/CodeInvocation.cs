@@ -135,7 +135,7 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
             {
                 foreach (var element in initializer.ElementValues)
                     yield return new(
-                        Source,
+                        this,
                         parameter,
                         element,
                         argument.ArgumentKind,
@@ -149,7 +149,7 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
             {
                 foreach (var element in collection.Elements)
                     yield return new(
-                        Source,
+                        this,
                         parameter,
                         element,
                         argument.ArgumentKind,
@@ -158,7 +158,7 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
             }
             else
                 yield return new(
-                    Source,
+                    this,
                     parameter,
                     argument.Value,
                     argument.ArgumentKind,
@@ -170,7 +170,7 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
         }
         if (Target.ReducedFrom is not null && Operation.Instance is { } receiver)
             yield return new(
-                Source,
+                this,
                 Declaration.Parameters[0],
                 receiver,
                 ArgumentKind.Explicit,

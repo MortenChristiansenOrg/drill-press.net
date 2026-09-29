@@ -9,6 +9,18 @@ namespace DrillPress.Queries;
 /// <summary>An explicitly scoped executable body. Syntax discovery does not imply reachability or guaranteed execution.</summary>
 public sealed class CodeBody
 {
+    /// <summary>Tests for a resolved call in this body's configured nested-function scope.</summary>
+    public bool Calls(CodeMember member, Func<CodeInvocation, bool>? where = null) =>
+        Invocations()
+            .Any(call => call.IsResolved && call.Calls(member) && (where?.Invoke(call) ?? true));
+
+    /// <summary>Tests whether this scope passes a typed compiler constant to the specified method parameter.</summary>
+    public bool Calls<T>(CodeMember member, string withArgument, T equalTo) =>
+        Calls(
+            member,
+            call => call.ArgumentsFor(withArgument).Any(argument => argument.Is(equalTo))
+        );
+
     internal CodeBody(AnalysisSource source, SyntaxNode root, NestedFunctions nested)
     {
         Source = source;

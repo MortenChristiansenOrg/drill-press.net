@@ -5,10 +5,10 @@ using Microsoft.CodeAnalysis.Operations;
 namespace DrillPress.Operations;
 
 /// <summary>A source argument value mapped to its declaration parameter; synthesized defaults have no editable location.</summary>
-public sealed class CodeArgument
+public sealed class CodeArgument : ICodeElement
 {
     internal CodeArgument(
-        AnalysisSource source,
+        CodeInvocation invocation,
         IParameterSymbol parameter,
         IOperation value,
         ArgumentKind kind,
@@ -16,7 +16,7 @@ public sealed class CodeArgument
         bool receiver = false
     )
     {
-        Source = source;
+        Invocation = invocation;
         Parameter = parameter;
         Operation = value;
         Kind = kind;
@@ -25,7 +25,24 @@ public sealed class CodeArgument
     }
 
     /// <summary>The argument's compilation membership.</summary>
-    public AnalysisSource Source { get; }
+    public AnalysisSource Source => Invocation.Source;
+
+    /// <summary>The call containing this parameter-associated value.</summary>
+    public CodeInvocation Invocation { get; }
+
+    /// <summary>The compile-time string value, or null when unavailable.</summary>
+    public string? TextValue => ValueAs<string>() is { HasValue: true } value ? value.Value : null;
+
+    /// <summary>Reads a compiler constant, including optional defaults, with exact enum identity.</summary>
+    public Optional<T> ValueAs<T>() => CompilerConstant.Read<T>(Constant, Operation.Type);
+
+    /// <summary>Matches the effective typed constant, including compiler-supplied optional defaults.</summary>
+    public bool Is<T>(T value) =>
+        ValueAs<T>() is { HasValue: true } actual
+        && EqualityComparer<T>.Default.Equals(actual.Value, value);
+
+    /// <summary>Matches an omitted optional argument or an explicitly supplied typed value. This does not assert equivalence to the optional default.</summary>
+    public bool IsOmittedOr<T>(T value) => Kind == ArgumentKind.DefaultValue || Is(value);
 
     /// <summary>The parameter on the normalized extension declaration or ordinary selected method.</summary>
     public IParameterSymbol Parameter { get; }
@@ -53,6 +70,12 @@ public sealed class CodeArgument
 
     /// <summary>The explicit value's span. Callers must choose their own fallback for implicit values.</summary>
     public SourceLocation? Location => Value?.Location;
+
+    SourceLocation ICodeElement.Location =>
+        Location
+        ?? throw new InvalidOperationException(
+            "An implicit argument requires an explicit reporting location."
+        );
 
     /// <summary>The source name-colon, absent for positional, implicit and expanded element values.</summary>
     public string? Name =>

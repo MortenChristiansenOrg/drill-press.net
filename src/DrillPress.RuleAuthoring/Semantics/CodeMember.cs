@@ -5,6 +5,20 @@ namespace DrillPress.Semantics;
 /// <summary>A configured member identity. Omitted parameter types match fields, properties and every method overload; an empty list matches only parameterless methods.</summary>
 public sealed class CodeMember
 {
+    /// <summary>Matches this signature and the overload with one additional trailing parameter. Other signature constraints are retained.</summary>
+    public DrillPress.Configuration.ApiSet OptionallyFollowedBy(CodeType type)
+    {
+        if (_parameters is null)
+            throw new InvalidOperationException(
+                "Specify the required parameters before adding an optional trailing overload parameter."
+            );
+        return new(this, WithParameters([.. _parameters, type]));
+    }
+
+    /// <summary>Matches this exact signature or the overload with one additional parameter of the specified type.</summary>
+    public DrillPress.Configuration.ApiSet OptionallyFollowedBy<T>() =>
+        OptionallyFollowedBy(CodeType.Of<T>());
+
     private readonly CodeType[]? _parameters;
     private readonly Lazy<CodeQuery<MemberReference>> _references;
     private MethodSignature? _signature;

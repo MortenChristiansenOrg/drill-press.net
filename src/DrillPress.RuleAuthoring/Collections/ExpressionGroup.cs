@@ -35,5 +35,13 @@ public sealed class ExpressionGroup : ICodeElement
 
     /// <summary>The representative expression's diagnostic span.</summary>
     public SourceLocation Location => Representative.Location;
+
+    /// <summary>Tests source-occurrence identity within the same evaluated compilation.</summary>
+    public bool Contains(CodeExpression expression) =>
+        Occurrences.Any(occurrence =>
+            occurrence.Expression.Source == expression.Source
+            && occurrence.Expression.Syntax.Span == expression.Syntax.Span
+        );
+
     internal OneHoleTemplateOptions? Options { get; }
 }
