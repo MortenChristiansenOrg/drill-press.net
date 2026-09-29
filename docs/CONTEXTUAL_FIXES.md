@@ -76,7 +76,9 @@ of its conversion or evaluation.
 
 `Code.Literal` preserves primitive/enum C# types. `Code.Expression("{0} == {1}",
 leftInput, rightInput)` and `Code.Equal(leftInput, rightInput)` preserve syntax-bound
-holes, parentheses and occurrence mappings. `ReplaceWith(template)` registers
+holes and occurrence mappings. Input parentheses are omitted when reparsing
+preserves the expression structure, including precedence and associativity.
+`ReplaceWith(template)` registers
 all supplied inputs, including unused ones. `Keeping` registers inputs used in
 hand-built syntax. Add `MustPreserve(Behavior.EvaluationCounts |
 Behavior.EvaluationSequence)` where applicable. Repeated or missing holes fail
@@ -84,6 +86,12 @@ the count proof. `ReplaceWithEquality(left, right, absorbNegation: true)` can
 absorb an enclosing built-in Boolean `!` into `!=`; explicit operand selection
 and a transformation-specific behavior proof are still required. Construction
 never proves that a method call and an operator are equivalent.
+
+The evaluation-sequence proof ignores constant reads and treats built-in Boolean
+negation as a transparent wrapper around the replaced root. Other nested calls
+remain observable, and reordered operands still fail the proof. Receiver-null
+checks also look through built-in negation: absorbing `!receiver.Equals(...)`
+does not establish that `receiver` is non-null.
 
 `CodeExpression.Facts` exposes expression-tree and actual `nameof` context,
 interior comments, directives and disabled text. These explain default builder

@@ -92,7 +92,7 @@ public static class RewriteChecks
             ? ProofResult.Proven
         : ProofResult.Disproven;
 
-    /// <summary>Compares mapped inputs and remaining observable evaluations in straight-line expressions. Conditional/deferred shapes return unknown.</summary>
+    /// <summary>Compares mapped inputs and remaining observable evaluations in straight-line expressions, excluding constant reads and the replaced root through built-in Boolean negation. Conditional/deferred shapes return unknown.</summary>
     public static ProofResult SameEvaluationSequence(RewriteEvidence change)
     {
         var counts = SameEvaluationCounts(change);
@@ -131,13 +131,14 @@ public static class RewriteChecks
     /// <summary>Rejects loss of an instance null check unless the receiver is intrinsically non-null. Compiler annotations alone do not prove runtime non-nullness.</summary>
     public static ProofResult SameReceiverNullBehavior(RewriteEvidence change)
     {
-        if (
-            Operation(change.BeforeModel, change.Before) is IConditionalAccessOperation
-            || Operation(change.AfterModel, change.After) is IConditionalAccessOperation
-        )
+        var before = EvaluationTrace.UnwrapBooleanNegation(
+            Operation(change.BeforeModel, change.Before)
+        );
+        var after = EvaluationTrace.UnwrapBooleanNegation(
+            Operation(change.AfterModel, change.After)
+        );
+        if (before is IConditionalAccessOperation || after is IConditionalAccessOperation)
             return ProofResult.Unknown;
-        var before = Operation(change.BeforeModel, change.Before);
-        var after = Operation(change.AfterModel, change.After);
         var oldReceiver = Receiver(before);
         var newReceiver = Receiver(after);
         if (oldReceiver is null && newReceiver is null)
