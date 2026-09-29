@@ -173,8 +173,15 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
             using DrillPress.Engine;
             using DrillPress.Fixes;
             using DrillPress.Semantics;
+            using DrillPress.Operations;
+            using NullableFlowState = Microsoft.CodeAnalysis.NullableFlowState;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
 
             var rules = new RuleSet();
+            rules.For(OperationQueries.NullChecks.Where(check =>
+                check.Condition.Syntax is IsPatternExpressionSyntax &&
+                check.FlowStateBeforeCheck == NullableFlowState.NotNull))
+                .Forbid("NULL001", "Unexpected non-null check.");
             rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
                 .Forbid("EMPTY", "Use an empty literal.", fix: reference =>
                     SourceChanges.Propose(
