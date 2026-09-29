@@ -52,7 +52,19 @@ public sealed class ScopeQueriesTests
             files,
             TestContext.Current.CancellationToken
         );
-        var solution = new AnalysisSolution([parent, child], TestContext.Current.CancellationToken);
+        var outside = new AnalysisProject(
+            snapshot with
+            {
+                ProjectPath = "/repo/App/Test.csproj",
+            },
+            compilation,
+            files,
+            TestContext.Current.CancellationToken
+        );
+        var solution = new AnalysisSolution(
+            [parent, child, outside],
+            TestContext.Current.CancellationToken
+        );
 
         var selected = Sources.Files.InFolder("Endpoints").InFilesNamed("*Tests.cs").In(solution);
 

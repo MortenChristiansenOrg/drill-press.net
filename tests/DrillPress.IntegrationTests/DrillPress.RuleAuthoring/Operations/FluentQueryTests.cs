@@ -32,6 +32,16 @@ public sealed class FluentQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var calls = OperationQueries.Invocations.Calling(CodeType.Named("C").Member("Send"));
 
+        var union = calls
+            .ArgumentsFor("comparison")
+            .Union(
+                OperationQueries
+                    .Invocations.Calling(CodeType.Named("C").Member("Send"))
+                    .ArgumentsFor("comparison")
+            )
+            .In(solution)
+            .Select(argument => argument.IsExplicit)
+            .ToArray();
         var effective = calls
             .WhereArgumentOrMissing("comparison", argument => argument.Is(StringComparison.Ordinal))
             .In(solution)
@@ -46,6 +56,7 @@ public sealed class FluentQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
             .Select(call => call.Operation.Syntax.ToString())
             .ToArray();
 
+        Assert.Equal([false, true, true], union);
         Assert.Equal(["Send(\"x\")", "Send(2, StringComparison.Ordinal)"], effective);
         Assert.Equal(["Send(\"x\")", "Send(1)", "Send(2, StringComparison.Ordinal)"], omitted);
     }

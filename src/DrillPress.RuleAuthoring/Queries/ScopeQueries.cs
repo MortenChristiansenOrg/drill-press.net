@@ -86,10 +86,16 @@ public static class ScopeQueries
                 : path.GetDirectoryName(
                     path.GetFullPath(project.ProjectPath, project.InvocationDirectory)
                 )!;
-        return path.GetRelativePath(
+        var relative = path.GetRelativePath(
                 path.GetFullPath(root, project.InvocationDirectory),
                 path.GetFullPath(source.Document.Path, project.InvocationDirectory)
             )
             .Replace('\\', '/');
+        return
+            relative == ".."
+            || relative.StartsWith("../", StringComparison.Ordinal)
+            || path.IsPathRooted(relative)
+            ? ""
+            : relative;
     }
 }
