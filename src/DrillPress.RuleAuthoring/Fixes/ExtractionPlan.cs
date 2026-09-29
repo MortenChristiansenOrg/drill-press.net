@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal sealed class ExtractionPlan(
     ExpressionGroup group,

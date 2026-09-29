@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal sealed class BlockLayout(string newLine, string indent, string unit)
 {

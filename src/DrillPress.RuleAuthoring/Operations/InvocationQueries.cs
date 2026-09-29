@@ -1,7 +1,7 @@
 using DrillPress.Configuration;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Fluent selections over resolved calls, receivers and parameter-associated values.</summary>
 public static class InvocationQueries

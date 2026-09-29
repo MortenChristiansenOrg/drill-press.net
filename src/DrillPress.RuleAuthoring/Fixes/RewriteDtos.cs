@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>The result of a bounded proof. Unknown is not approval.</summary>
 public enum ProofResult

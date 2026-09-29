@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>A bound call site with overload identity and compiler-mapped arguments.</summary>
 public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation operation)

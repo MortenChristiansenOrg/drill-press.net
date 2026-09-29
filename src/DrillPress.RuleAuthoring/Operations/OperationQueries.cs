@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Cached compiler-operation selections covering method bodies, accessors, initializers and top-level statements.</summary>
 public static class OperationQueries

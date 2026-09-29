@@ -2,7 +2,7 @@ using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Builds exact source replacements and complete multi-file proposals. Compilation success is necessary but never sufficient proof of behavioral equivalence.</summary>
 public static class SourceChanges

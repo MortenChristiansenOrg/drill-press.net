@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>String source inspection and explicit constructor argument projection, independent of URL policy.</summary>
 public static class BuiltStringQueries

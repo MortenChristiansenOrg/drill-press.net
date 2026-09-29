@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Evidence for one configured check; it does not prove redundancy or authorize deleting a guard.</summary>
 public sealed class ConditionMatch : ICodeElement

@@ -1,11 +1,11 @@
+using DrillPress;
 using DrillPress.Collections;
-using DrillPress.Operations;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal static class ExtractionValidation
 {

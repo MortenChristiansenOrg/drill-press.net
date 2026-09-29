@@ -171,9 +171,7 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
             """
             using DrillPress;
             using DrillPress.Engine;
-            using DrillPress.Fixes;
             using DrillPress.Semantics;
-            using DrillPress.Operations;
             using NullableFlowState = Microsoft.CodeAnalysis.NullableFlowState;
             using Microsoft.CodeAnalysis.CSharp.Syntax;
 

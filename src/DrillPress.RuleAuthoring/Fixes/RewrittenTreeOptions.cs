@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 internal sealed class RewrittenTreeOptions(
     SyntaxTreeOptionsProvider original,

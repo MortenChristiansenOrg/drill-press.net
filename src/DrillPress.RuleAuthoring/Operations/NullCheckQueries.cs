@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Compiler-bound null-check recognition without deleting conditions or inferring runtime non-nullness.</summary>
 public static class NullCheckQueries

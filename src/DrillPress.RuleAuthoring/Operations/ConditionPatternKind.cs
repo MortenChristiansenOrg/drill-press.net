@@ -1,4 +1,4 @@
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>Validation-check classification, without asserting that different kinds have equivalent runtime behavior.</summary>
 public enum ConditionPatternKind

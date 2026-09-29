@@ -36,7 +36,7 @@
 <p>Replacing a field access with a constant can change an enclosing overload. Removing an argument can change behavior even when the resulting call compiles. Keep those proofs with the policy that needs them.</p>
 <h2 id="proposal">Build an exact edit proposal</h2>
 <div class="codeblock"><div class="codehead"><span>A helper that requires the caller to supply its proof</span></div><pre tabindex="0" data-check="program" id="example-30"><code>using DrillPress.Analysis;
-using DrillPress.Fixes;
+using DrillPress;
 using Microsoft.CodeAnalysis.Text;
 
 static FixProposal ProposeReplacement(

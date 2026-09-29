@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Wraps exactly one if/else embedded statement while preserving original syntax, branch ownership and bound references.</summary>
 public sealed class BlockWrapping

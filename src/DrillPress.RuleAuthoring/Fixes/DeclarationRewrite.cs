@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>The selected declaration and every affected declared symbol after a modifier edit.</summary>
 public sealed class DeclarationRewrite

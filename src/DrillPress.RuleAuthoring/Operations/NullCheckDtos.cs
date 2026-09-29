@@ -1,4 +1,4 @@
-namespace DrillPress.Operations;
+namespace DrillPress;
 
 /// <summary>The semantic domain of a bound null test; nullable value presence is not reference nullability.</summary>
 public enum NullCheckDomain

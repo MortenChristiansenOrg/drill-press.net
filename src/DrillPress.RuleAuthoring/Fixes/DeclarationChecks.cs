@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Fixes;
+namespace DrillPress;
 
 /// <summary>Separate declaration contracts. Equal identity/accessibility alone never proves arbitrary modifier-removal behavior.</summary>
 public static class DeclarationChecks

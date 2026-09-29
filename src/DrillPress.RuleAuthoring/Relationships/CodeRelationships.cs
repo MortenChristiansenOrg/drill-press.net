@@ -1,4 +1,4 @@
-using DrillPress.Operations;
+using DrillPress;
 using DrillPress.Semantics;
 using Microsoft.CodeAnalysis;
 
