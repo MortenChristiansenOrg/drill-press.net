@@ -15,6 +15,7 @@ public sealed class ExpressionExtraction
     private readonly string _parameter;
     private readonly bool _reuse;
     private readonly ExtractionNameCollision _collision;
+    private readonly CodeQuery<CodeExpression>? _coverage;
 
     internal ExpressionExtraction(ExpressionGroup group)
         : this(
@@ -34,7 +35,8 @@ public sealed class ExpressionExtraction
         string? name,
         string parameter,
         bool reuse,
-        ExtractionNameCollision collision
+        ExtractionNameCollision collision,
+        CodeQuery<CodeExpression>? coverage = null
     )
     {
         _group = group;
@@ -44,6 +46,7 @@ public sealed class ExpressionExtraction
         _parameter = parameter;
         _reuse = reuse;
         _collision = collision;
+        _coverage = coverage;
     }
 
     /// <summary>Chooses a private constant name. Reuse prefers an equivalent constant with that name, otherwise requires exactly one equivalent constant in the owner.</summary>
@@ -60,7 +63,16 @@ public sealed class ExpressionExtraction
         ValidateName(name);
         if (!Enum.IsDefined(collision))
             throw new ArgumentOutOfRangeException(nameof(collision));
-        return new(_group, _destination, _part, name, _parameter, reuseExisting, collision);
+        return new(
+            _group,
+            _destination,
+            _part,
+            name,
+            _parameter,
+            reuseExisting,
+            collision,
+            _coverage
+        );
     }
 
     /// <summary>Chooses a private static string helper with one explicitly typed value parameter. Existing helpers are never reused by text matching.</summary>
@@ -78,21 +90,92 @@ public sealed class ExpressionExtraction
         ValidateName(parameterName);
         if (!Enum.IsDefined(collision))
             throw new ArgumentOutOfRangeException(nameof(collision));
-        return new(_group, _destination, _part, name, parameterName, false, collision);
+        return new(_group, _destination, _part, name, parameterName, false, collision, _coverage);
+    }
+
+    /// <summary>Requires every selected expression in this owner, across all ordinary partial parts in each validated context, to belong to the extraction group. Include compliant uses in the supplied query; nested types are excluded.</summary>
+    public ExpressionExtraction OnlyWhenGroupCoversAll(CodeQuery<CodeExpression> expressions) =>
+        new(_group, _destination, _part, _name, _parameter, _reuse, _collision, expressions);
+
+    /// <summary>Names the helper parameter from the representative capture using camel case; ambiguous/keyword names fall back to value.</summary>
+    public ExpressionExtraction ToMethod(
+        string name,
+        ParameterName parameterName,
+        ExtractionNameCollision collision = ExtractionNameCollision.Refuse
+    )
+    {
+        if (parameterName != ParameterName.FromCapture)
+            throw new ArgumentOutOfRangeException(nameof(parameterName));
+        var capture = _group.Occurrences[0].Capture;
+        var selected = System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(
+            capture?.Symbol?.Name ?? "value"
+        );
+        if (
+            !SyntaxFacts.IsValidIdentifier(selected)
+            || SyntaxFacts.GetKeywordKind(selected) != SyntaxKind.None
+        )
+            selected = "value";
+        return ToMethod(name, selected, collision);
     }
 
     /// <summary>Selects the insertion part explicitly. It must be an editable ordinary part of the same source type and context.</summary>
     public ExpressionExtraction InPart(CodeNode<TypeDeclarationSyntax> part) =>
-        new(_group, part.Source, part.Syntax, _name, _parameter, _reuse, _collision);
+        new(_group, part.Source, part.Syntax, _name, _parameter, _reuse, _collision, _coverage);
+
+    /// <summary>Uses the restricted constant-extraction proof. Templates still require a consumer proof of formatting and moved-call behavior.</summary>
+    /// <remarks>Default gates validate editable ordinary partial parts, trivia and observable contexts, owner/group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context. Template formatting/culture, call effects and evaluation changes still require consumer proof. Only constant extraction has a library-owned no-argument proof.</remarks>
+    public FixProposal? Propose() =>
+        _group.Kind == ExpressionGroupKind.Constant ? Propose(_ => ProofResult.Proven) : null;
+
+    /// <summary>Provides the required extraction behavior proof; false is Unknown.</summary>
+    public FixProposal? SafeWhen(Func<ExtractionEvidence, bool> proof) =>
+        Propose(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
+
+    /// <summary>Provides a tri-state extraction behavior proof.</summary>
+    public FixProposal? SafeWhen(Func<ExtractionEvidence, ProofResult> proof) => Propose(proof);
 
     /// <summary>Proposes insertion plus all selected replacements atomically. The required consumer proof owns behavioral assumptions, including allowlisted call effects and formatting/culture.</summary>
+    /// <remarks>Default gates validate editable ordinary partial parts, trivia and observable contexts, owner/group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context. Template formatting/culture, call effects and evaluation changes still require consumer proof. Only constant extraction has a library-owned no-argument proof.</remarks>
     public FixProposal? Propose(Func<ExtractionEvidence, ProofResult> provesBehavior)
     {
-        if (_name is null || _part is null)
+        if (_name is null || _part is null || !Covers(_group.Owner.Source.Project))
             return null;
         return ExtractionPlan
             .Create(_group, _destination, _part, _name, _parameter, _reuse, _collision)
-            ?.Propose(provesBehavior);
+            ?.Propose(evidence =>
+                Covers(evidence.Context.Original) ? provesBehavior(evidence) : ProofResult.Unknown
+            );
+    }
+
+    private bool Covers(AnalysisProject project)
+    {
+        if (_coverage is null)
+            return true;
+        var selected = _group
+            .Occurrences.Select(occurrence =>
+                (
+                    occurrence.Expression.Source.Document.FileIdentity,
+                    occurrence.Expression.Syntax.Span
+                )
+            )
+            .ToHashSet();
+        var ownerIdentity = RewriteSymbols.Identity(_group.Owner.Symbol);
+        return _coverage
+            .In(_group.Owner.Solution)
+            .Where(expression => expression.Source.Project == project)
+            .Where(expression =>
+                RewriteSymbols.Identity(
+                    expression
+                        .Source.Model.GetEnclosingSymbol(
+                            expression.Syntax.SpanStart,
+                            project.CancellationToken
+                        )
+                        ?.ContainingType
+                ) == ownerIdentity
+            )
+            .All(expression =>
+                selected.Contains((expression.Source.Document.FileIdentity, expression.Syntax.Span))
+            );
     }
 
     private static void ValidateName(string name)

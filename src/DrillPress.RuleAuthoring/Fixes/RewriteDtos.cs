@@ -32,3 +32,13 @@ public sealed record NodeRewrite(
 /// <param name="Before">The original operand within the replaced expression.</param>
 /// <param name="After">Every annotated use in the replacement; empty or multiple entries can disprove count preservation.</param>
 public sealed record InputRewrite(ExpressionSyntax Before, IReadOnlyList<ExpressionSyntax> After);
+
+/// <summary>The same expression's before/after semantic evidence, bound to different compilations.</summary>
+/// <param name="Before">The original expression.</param>
+/// <param name="After">The fully rewritten expression.</param>
+public sealed record ExpressionRewrite(CodeExpression Before, CodeExpression After);
+
+/// <summary>A retained capture with every corresponding rewritten occurrence.</summary>
+/// <param name="Before">The original capture.</param>
+/// <param name="After">All mapped uses; zero or multiple uses do not imply count preservation.</param>
+public sealed record RetainedExpression(CodeExpression Before, IReadOnlyList<CodeExpression> After);

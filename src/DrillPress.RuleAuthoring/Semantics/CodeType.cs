@@ -6,6 +6,7 @@ namespace DrillPress;
 /// <param name="MetadataName">Namespace-qualified metadata name, using + for nested types.</param>
 public readonly record struct CodeType(string MetadataName)
 {
+    private bool RequireFramework { get; init; }
     private bool AllowFrameworkFacades { get; init; }
     private Type? RuntimeType { get; init; }
 
@@ -68,6 +69,13 @@ public readonly record struct CodeType(string MetadataName)
         return new(GenericTypeName.Normalize(metadataName)) { AssemblyName = assemblyName };
     }
 
+    /// <summary>Names a type only in signed framework runtime/reference metadata. Source-defined lookalikes never match; Named remains a name-only descriptor.</summary>
+    public static CodeType Framework(string metadataName) =>
+        Named(metadataName) with
+        {
+            RequireFramework = true,
+        };
+
     /// <summary>Matches semantic identity, allowing the standard framework reference-assembly facades.</summary>
     public bool Matches(INamedTypeSymbol symbol)
     {
@@ -78,6 +86,7 @@ public readonly record struct CodeType(string MetadataName)
 
         var actual = FromSymbol(symbol);
         return MetadataName == actual.MetadataName
+            && (!(RequireFramework || AllowFrameworkFacades) || IsFrameworkSymbol(symbol))
             && (TypeArguments.Length == 0 || TypeArguments == actual.TypeArguments)
             && (
                 AssemblyName is null
@@ -126,7 +135,9 @@ public readonly record struct CodeType(string MetadataName)
     internal static bool IsFrameworkSymbol(INamedTypeSymbol symbol)
     {
         var token = Convert.ToHexString(symbol.ContainingAssembly.Identity.PublicKeyToken.AsSpan());
-        return IsFrameworkAssembly(symbol.ContainingAssembly.Name)
+        return symbol.DeclaringSyntaxReferences.Length == 0
+            && !symbol.Locations.Any(location => location.IsInSource)
+            && IsFrameworkAssembly(symbol.ContainingAssembly.Name)
             && token is "B03F5F7F11D50A3A" or "B77A5C561934E089" or "7CEC85D7BEA7798E";
     }
 

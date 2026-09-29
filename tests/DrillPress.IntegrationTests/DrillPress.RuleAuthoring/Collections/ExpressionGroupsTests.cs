@@ -178,9 +178,9 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
 
     [Theory]
     [InlineData("$\"{a}\"", "$\"{b}\"", 1)]
-    [InlineData("$\"{P}\"", "$\"{P}\"", 0)]
+    [InlineData("$\"{P}\"", "$\"{P}\"", 1)]
     [InlineData("$\"{Encode(a)}\"", "$\"{Encode(b)}\"", 0)]
-    public void Hidden_dependencies_and_unapproved_calls_are_not_template_captures(
+    public void Member_values_are_captures_but_unapproved_calls_are_not(
         string first,
         string second,
         int expectedCount

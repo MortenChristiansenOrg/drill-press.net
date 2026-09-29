@@ -33,6 +33,9 @@ public sealed class ArgumentRemovalEvidence
     /// <summary>The removed bound value, with its property/getter, type, conversion and source evidence available through Operation.</summary>
     public CodeArgument Removed { get; }
 
+    /// <summary>The removed source expression with semantic helpers; implicit conversion evidence remains on Removed.Operation.</summary>
+    public CodeExpression? RemovedValue => Removed.Value;
+
     /// <summary>The configured exact pair as resolved in this original context.</summary>
     public MethodPair Expected { get; }
 }

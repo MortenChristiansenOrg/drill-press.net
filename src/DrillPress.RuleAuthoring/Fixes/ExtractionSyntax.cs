@@ -49,53 +49,33 @@ internal static class ExtractionSyntax
 
     internal static ExpressionSyntax? Constant(ITypeSymbol type, object? value)
     {
-        ExpressionSyntax? expression = value switch
-        {
-            null => SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression),
-            bool boolean => SyntaxFactory.LiteralExpression(
-                boolean ? SyntaxKind.TrueLiteralExpression : SyntaxKind.FalseLiteralExpression
-            ),
-            string text => SyntaxFactory.LiteralExpression(
-                SyntaxKind.StringLiteralExpression,
-                SyntaxFactory.Literal(text)
-            ),
-            char character => SyntaxFactory.LiteralExpression(
-                SyntaxKind.CharacterLiteralExpression,
-                SyntaxFactory.Literal(character)
-            ),
-            sbyte number => Number(SyntaxFactory.Literal(number)),
-            byte number => Number(SyntaxFactory.Literal(number)),
-            short number => Number(SyntaxFactory.Literal(number)),
-            ushort number => Number(SyntaxFactory.Literal(number)),
-            int number => Number(SyntaxFactory.Literal(number)),
-            uint number => Number(SyntaxFactory.Literal(number)),
-            long number => Number(SyntaxFactory.Literal(number)),
-            ulong number => Number(SyntaxFactory.Literal(number)),
-            float number when float.IsNaN(number) => SyntaxFactory.ParseExpression(
-                "global::System.Single.NaN"
-            ),
-            float number when float.IsPositiveInfinity(number) => SyntaxFactory.ParseExpression(
-                "global::System.Single.PositiveInfinity"
-            ),
-            float number when float.IsNegativeInfinity(number) => SyntaxFactory.ParseExpression(
-                "global::System.Single.NegativeInfinity"
-            ),
-            float number => Number(SyntaxFactory.Literal(number)),
-            double number when double.IsNaN(number) => SyntaxFactory.ParseExpression(
-                "global::System.Double.NaN"
-            ),
-            double number when double.IsPositiveInfinity(number) => SyntaxFactory.ParseExpression(
-                "global::System.Double.PositiveInfinity"
-            ),
-            double number when double.IsNegativeInfinity(number) => SyntaxFactory.ParseExpression(
-                "global::System.Double.NegativeInfinity"
-            ),
-            double number => Number(SyntaxFactory.Literal(number)),
-            decimal number => Number(SyntaxFactory.Literal(number)),
-            _ => null,
-        };
-        return expression is not null && type.TypeKind == TypeKind.Enum
-            ? SyntaxFactory.CastExpression(TypeName(type), expression)
+        if (
+            value
+            is not (
+                null
+                or string
+                or char
+                or bool
+                or sbyte
+                or byte
+                or short
+                or ushort
+                or int
+                or uint
+                or long
+                or ulong
+                or float
+                or double
+                or decimal
+            )
+        )
+            return null;
+        var expression = LiteralSyntax.Create(value);
+        return type.TypeKind == TypeKind.Enum
+            ? SyntaxFactory.CastExpression(
+                TypeName(type),
+                SyntaxFactory.ParenthesizedExpression(expression)
+            )
             : expression;
     }
 
@@ -143,7 +123,4 @@ internal static class ExtractionSyntax
                 + (ownLine ? "" : indent)
         );
     }
-
-    private static ExpressionSyntax Number(SyntaxToken token) =>
-        SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, token);
 }

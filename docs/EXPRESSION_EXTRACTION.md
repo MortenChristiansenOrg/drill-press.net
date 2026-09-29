@@ -90,3 +90,33 @@ whether it was reused, per-occurrence rewrite evidence and the whole rewrite
 context. It owns domain equivalence, effects of configured calls, evaluation timing,
 culture/formatting assumptions and allocation observability. Structural matching
 never replaces that proof. Unsupported cases retain their diagnostics without fixes.
+
+## Member captures and complete owner coverage
+
+One-hole templates support locals, parameters, non-indexer properties and fields.
+The capture remains evaluated once at the original call site. For example,
+`$"/api/{Encode(item.ExternalId)}"` becomes `CreateUrl(item.ExternalId)`;
+`Encode(externalId)` remains inside the helper. An optional
+`OneHoleTemplateOptions(..., allowingCalls: call => ...)` predicate admits static
+wrappers such as class-local/base-class encoders. `ISymbol.IsDeclaredInOrAbove`
+can match the owner/base hierarchy. The moved call must still bind to the same
+method, and a consumer proof must approve its effects and ordering.
+
+```csharp
+Fix.Extract(group)
+    .OnlyWhenGroupCoversAll(allRequestUrlValues)
+    .ToMethod("CreateUrl", ParameterName.FromCapture)
+    .SafeWhen(ProvesUrlTemplate);
+```
+
+Coverage includes every selected value across ordinary partial parts in each
+validated context, excludes nested types, and must include already-compliant
+`_url` or `CreateUrl(...)` uses in the supplied query. Filtering that query to
+violations weakens the intended policy. A mismatching or uncovered use withholds
+the whole extraction. Parameter names use the deterministic representative
+capture (`ExternalId` → `externalId`); an explicit string name overrides it.
+
+Constant groups support `Fix.Extract(group).ToConstant("_url").Propose()` under
+the library's restricted constant proof. Templates still require `SafeWhen` or
+an explicit `Propose` proof. Attaching the same extraction to every occurrence
+produces one deduplicated atomic edit batch.
