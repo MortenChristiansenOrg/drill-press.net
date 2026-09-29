@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>A source-rooted, symbol-bound member path with conservative structural comparison.</summary>
 public sealed class BoundMemberPath

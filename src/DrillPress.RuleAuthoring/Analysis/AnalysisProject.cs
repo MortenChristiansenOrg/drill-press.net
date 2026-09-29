@@ -2,7 +2,7 @@ using System.IO.Abstractions;
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace DrillPress.Analysis;
+namespace DrillPress;
 
 /// <summary>One evaluated compilation context; alternate target frameworks remain separate.</summary>
 public sealed class AnalysisProject

@@ -35,8 +35,7 @@
 <p>The SDK provides generic edit construction and compiler checks. It does not choose between <code>string.Empty</code> and <code>""</code>, explicit and implicit accessibility, or explicit and default comparers. The <a href="../samples/DrillPress.SampleRules/Fixes/EmptyStringFix.cs">sample spelling fix</a> and <a href="../samples/DrillPress.SampleRules/Fixes/OrdinalComparerFix.cs">sample comparer fix</a> show consumer-owned policies and their conservative proofs.</p>
 <p>Replacing a field access with a constant can change an enclosing overload. Removing an argument can change behavior even when the resulting call compiles. Keep those proofs with the policy that needs them.</p>
 <h2 id="proposal">Build an exact edit proposal</h2>
-<div class="codeblock"><div class="codehead"><span>A helper that requires the caller to supply its proof</span></div><pre tabindex="0" data-check="program" id="example-30"><code>using DrillPress.Analysis;
-using DrillPress;
+<div class="codeblock"><div class="codehead"><span>A helper that requires the caller to supply its proof</span></div><pre tabindex="0" data-check="program" id="example-30"><code>using DrillPress;
 using Microsoft.CodeAnalysis.Text;
 
 static FixProposal ProposeReplacement(

@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>A source-anchored static type observation; an unresolved type remains a seed so incompleteness is visible.</summary>
 public sealed class TypeSeed(ICodeElement anchor, ITypeSymbol? type, object? evidence = null)

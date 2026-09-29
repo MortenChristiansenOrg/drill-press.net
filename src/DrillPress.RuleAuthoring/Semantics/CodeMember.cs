@@ -1,12 +1,12 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>A configured member identity. Omitted parameter types match fields, properties and every method overload; an empty list matches only parameterless methods.</summary>
 public sealed class CodeMember
 {
     /// <summary>Matches this signature and the overload with one additional trailing parameter. Other signature constraints are retained.</summary>
-    public DrillPress.Configuration.ApiSet OptionallyFollowedBy(CodeType type)
+    public DrillPress.ApiSet OptionallyFollowedBy(CodeType type)
     {
         if (_parameters is null)
             throw new InvalidOperationException(
@@ -16,8 +16,7 @@ public sealed class CodeMember
     }
 
     /// <summary>Matches this exact signature or the overload with one additional parameter of the specified type.</summary>
-    public DrillPress.Configuration.ApiSet OptionallyFollowedBy<T>() =>
-        OptionallyFollowedBy(CodeType.Of<T>());
+    public DrillPress.ApiSet OptionallyFollowedBy<T>() => OptionallyFollowedBy(CodeType.Of<T>());
 
     private readonly CodeType[]? _parameters;
     private readonly Lazy<CodeQuery<MemberReference>> _references;

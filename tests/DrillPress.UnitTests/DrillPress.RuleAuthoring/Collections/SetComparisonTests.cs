@@ -1,4 +1,4 @@
-using DrillPress.Collections;
+using DrillPress;
 using Xunit;
 
 namespace DrillPress.UnitTests.RuleAuthoring.Collections;

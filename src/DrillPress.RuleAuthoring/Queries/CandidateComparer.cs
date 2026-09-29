@@ -1,6 +1,6 @@
 using DrillPress;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 internal sealed class CandidateComparer<T> : IEqualityComparer<T>
 {

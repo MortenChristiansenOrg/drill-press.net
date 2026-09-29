@@ -224,8 +224,7 @@ source and operation analysis, shared facts, project relationships, accepted
 source baselines, safe edit construction, and the consumer test kit. The
 [codec example](samples/CodecExamples/README.md) exercises the expanded API with
 independent architecture and source policies. Authoring types now live in
-responsibility-specific namespaces such as `DrillPress.Analysis`,
-`DrillPress.Semantics`, and `DrillPress.Fixes`.
+the single `DrillPress` namespace, including queries, semantic facts and fix builders.
 
 The base rules SDK contains general analysis, query, diagnostic, and edit APIs.
 The xUnit layout, single-implementation interface, empty-string, ordinal-comparer,

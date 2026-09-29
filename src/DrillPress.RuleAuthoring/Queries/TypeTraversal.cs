@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>An immutable static graph policy. Output filtering is independent from explicit traversal pruning.</summary>
 public sealed class TypeTraversal

@@ -70,7 +70,7 @@ when your bundle can prove the replacement safe:
 ```csharp
 using DrillPress;
 using DrillPress.Engine;
-using DrillPress.Semantics;
+using DrillPress;
 
 var rules = new RuleSet();
 rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)

@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Relationships;
+namespace DrillPress;
 
 /// <summary>Discovers source implementations separately within compatible evaluated source graphs.</summary>
 public sealed class InterfaceImplementations(AnalysisSolution solution)

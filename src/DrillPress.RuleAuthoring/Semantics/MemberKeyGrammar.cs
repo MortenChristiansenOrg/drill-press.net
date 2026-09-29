@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Opt-in, bounded member-key grammars. Custom serialized names and indices can use a parser delegate instead.</summary>
 public static class MemberKeyGrammar

@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Semantic predicates that avoid spelling-based matches and reject unresolved types.</summary>
 public static class Symbols

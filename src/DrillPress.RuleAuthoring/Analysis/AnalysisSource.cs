@@ -2,7 +2,7 @@ using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DrillPress.Analysis;
+namespace DrillPress;
 
 /// <summary>Shares one lazy semantic model among all rules inspecting a captured document.</summary>
 public sealed class AnalysisSource

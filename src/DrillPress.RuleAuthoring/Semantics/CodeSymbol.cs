@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>A resolved source declaration or reference, including declarations beyond ordinary methods and named types.</summary>
 public sealed class CodeSymbol(AnalysisSource source, SyntaxNode syntax, ISymbol symbol)

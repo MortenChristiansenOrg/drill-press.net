@@ -42,6 +42,13 @@ public sealed class FixBuilder
     public FixBuilder Require(Func<RewriteEvidence, ProofResult> check) =>
         new(_source, _original, _replacement, _inputs, [.. _checks, check]);
 
+    /// <summary>Selects a written modifier for removal under declaration-specific proofs.</summary>
+    public ModifierRemoval RemoveModifier(Modifier modifier) =>
+        RemoveModifier((SyntaxKind)modifier);
+
+    /// <summary>Adds braces to an existing if/else branch under the restricted structural proof.</summary>
+    public BlockWrapping AddBraces() => WrapInBlock();
+
     /// <summary>Selects one actual declaration modifier token for removal. Declaration and behavior invariants remain explicit.</summary>
     public ModifierRemoval RemoveModifier(SyntaxKind kind) =>
         new(_source, _original, kind, _checks);

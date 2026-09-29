@@ -9,7 +9,8 @@ internal static class CombinedFixValidation
     internal static (FixBatch[] Batches, Dictionary<string, string> Ids) Combine(
         AnalysisSolution solution,
         Dictionary<string, FixBatch> batches,
-        Dictionary<string, List<FixProposal>> proposals
+        Dictionary<string, List<FixProposal>> proposals,
+        IReadOnlyList<List<string>> reportingGroups
     )
     {
         var candidates = batches.Values.ToArray();
@@ -33,6 +34,9 @@ internal static class CombinedFixValidation
                 conflicted.Add(candidates[second].Id);
             }
 
+        var reportingMemberships = reportingGroups
+            .SelectMany((members, index) => members.Select(id => (Id: id, Group: index)))
+            .ToLookup(membership => membership.Id, membership => membership.Group);
         var remaining = candidates.Where(batch => !conflicted.Contains(batch.Id)).ToList();
         var result = new List<FixBatch>();
         var ids = new Dictionary<string, string>();
@@ -41,18 +45,23 @@ internal static class CombinedFixValidation
             solution.CancellationToken.ThrowIfCancellationRequested();
             var group = new List<FixBatch> { remaining[0] };
             remaining.RemoveAt(0);
+            var reachedReportingGroups = reportingMemberships[group[0].Id].ToHashSet();
             var contexts = group[0]
                 .Validations.Select(validation => validation.ContextId)
                 .ToHashSet();
             for (var index = 0; index < remaining.Count; )
             {
                 var next = remaining[index];
-                if (!next.Validations.Any(validation => contexts.Contains(validation.ContextId)))
+                if (
+                    !next.Validations.Any(validation => contexts.Contains(validation.ContextId))
+                    && !reportingMemberships[next.Id].Any(reachedReportingGroups.Contains)
+                )
                 {
                     index++;
                     continue;
                 }
                 group.Add(next);
+                reachedReportingGroups.UnionWith(reportingMemberships[next.Id]);
                 contexts.UnionWith(next.Validations.Select(validation => validation.ContextId));
                 remaining.RemoveAt(index);
                 index = 0;

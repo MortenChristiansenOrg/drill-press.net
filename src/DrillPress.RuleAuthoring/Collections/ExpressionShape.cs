@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 internal sealed record ExpressionShape(string Key, CodeExpression? Capture)
 {

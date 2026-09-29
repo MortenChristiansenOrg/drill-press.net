@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 internal sealed class MemberCandidateIndex
 {

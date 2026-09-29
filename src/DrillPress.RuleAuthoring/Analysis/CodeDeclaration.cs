@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Analysis;
+namespace DrillPress;
 
 /// <summary>One distinct named type definition, with a deterministic ordinary-source declaration.</summary>
 public sealed class CodeDeclaration : ICodeElement

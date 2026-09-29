@@ -31,7 +31,7 @@
 
 <p>Code can spell the same operation in different ways: a fully qualified name, a <code>using</code> alias, or a static import. Semantic identity means matching the actual type or member chosen by the compiler.</p>
 <h2 id="types">Describe a type</h2>
-<div class="codeblock"><div class="codehead"><span>Types you know—and types your rule project does not reference</span></div><pre tabindex="0" data-check="program" id="example-9"><code>using DrillPress.Semantics;
+<div class="codeblock"><div class="codehead"><span>Types you know—and types your rule project does not reference</span></div><pre tabindex="0" data-check="program" id="example-9"><code>using DrillPress;
 
 var text = CodeType.Of&lt;string&gt;();
 var textLists = CodeType.Of&lt;List&lt;string&gt;&gt;();
@@ -40,7 +40,7 @@ var contract = CodeType.Named(&quot;Product.IStorage&quot;, &quot;Product.Contra
 <p><code>Of&lt;T&gt;()</code> records a type your rule project can reference, including exact generic arguments. <code>Named</code> describes a target type by its namespace-qualified name, without taking a project dependency on it. The optional second argument restricts the declaring assembly; omitting it permits any assembly.</p>
 <p><code>CodeType</code> exposes <code>MetadataName</code>, <code>AssemblyName</code>, and <code>TypeArguments</code>. These describe compiler identity, not a display name. Use <code>Matches</code> to test a compiler type; record equality is not a substitute for its optional-assembly and framework-facade matching rules.</p>
 <h2 id="generics">Open and constructed generics</h2>
-<div class="codeblock"><div class="codehead"><span>Empty slots match any constructed arguments</span></div><pre tabindex="0" data-check="program" id="example-10"><code>using DrillPress.Semantics;
+<div class="codeblock"><div class="codehead"><span>Empty slots match any constructed arguments</span></div><pre tabindex="0" data-check="program" id="example-10"><code>using DrillPress;
 
 var anyPool = CodeType.Named(&quot;System.Buffers.ArrayPool&lt;&gt;&quot;);
 var dictionaries = CodeType.Named(&quot;System.Collections.Generic.Dictionary&lt;,&gt;&quot;);
@@ -53,7 +53,7 @@ var onlyTwoDimensionalArrays = CodeType.Of&lt;List&lt;string&gt;[,]&gt;();</code
 <p>After an open generic type, use dots for nested types: <code>Product.Outer&lt;&gt;.Inner&lt;,&gt;</code> selects <code>Inner&lt;U, V&gt;</code> declared inside <code>Outer&lt;T&gt;</code>, regardless of their type arguments. This is not <code>Outer&lt;Inner&lt;,&gt;&gt;</code>, which puts a type argument inside <code>Outer</code>. Existing metadata names using <code>+</code> still work. If the first containing type is not generic, use <code>+</code> to distinguish it from a namespace, as in <code>Product.Container+Item&lt;&gt;</code>.</p>
 <div class="note"><strong>Names are not C# type expressions</strong><p><code>Named("List&lt;string&gt;")</code> and <code>Named("List&lt;T&gt;")</code> are not accepted. Use a fully qualified open name, or <code>Of&lt;List&lt;string&gt;&gt;()</code> for an exact constructed type.</p></div>
 <h2 id="members">Build members from their declaring type</h2>
-<div class="codeblock"><div class="codehead"><span>A family, a parameterless overload, and an exact overload</span></div><pre tabindex="0" data-check="program" id="example-11"><code>using DrillPress.Semantics;
+<div class="codeblock"><div class="codehead"><span>A family, a parameterless overload, and an exact overload</span></div><pre tabindex="0" data-check="program" id="example-11"><code>using DrillPress;
 
 var console = CodeType.Named(&quot;System.Console&quot;);
 var allWriteLines = console.Member(&quot;WriteLine&quot;);
@@ -69,10 +69,6 @@ var emptyStringReferences = CodeType.Of&lt;string&gt;().Member(nameof(string.Emp
 <p>The lower-level <code>Members.Are&lt;T&gt;(name)</code> and <code>Members.Are(type, name)</code> return reusable conditions for <code>Code.MemberReferences</code>. These and <code>member.References</code> preserve name-based discovery optimizations. A <code>MemberReference</code> exposes <code>ContainingType</code>, <code>MemberName</code>, <code>Location</code>, and optional <code>Source</code>, <code>Syntax</code>, and <code>Symbol</code>.</p>
 <h2 id="sets">Configure a family of restricted APIs</h2>
 <div class="codeblock"><div class="codehead"><span>Keep non-repeatable values out of production code</span></div><pre tabindex="0" data-check="program" id="example-12"><code>using DrillPress;
-using DrillPress.Configuration;
-using DrillPress.Projects;
-using DrillPress.Queries;
-using DrillPress.Semantics;
 
 var rules = new RuleSet();
 var randomValues = new ApiSet(

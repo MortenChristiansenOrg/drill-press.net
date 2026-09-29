@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>The bounded static discovery result for one seed, retaining completeness even when no reportable type was found.</summary>
 public sealed class TypeReachability

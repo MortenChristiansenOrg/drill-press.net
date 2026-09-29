@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FlowAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Flow;
+namespace DrillPress;
 
 /// <summary>Compiler flow facts for one method, cached within its solution when used through For. These facts do not prove behavioral equivalence of edits.</summary>
 public sealed class MethodFlow

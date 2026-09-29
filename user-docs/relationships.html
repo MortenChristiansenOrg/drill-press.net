@@ -32,7 +32,6 @@
 <p>Some policies depend on more than one code fragment: a codec needs tests, an interface has implementations, or a production project references an unwanted package. Keep project identity explicit.</p>
 <h2 id="projects">Read evaluated project facts</h2>
 <div class="codeblock"><div class="codehead"><span>Keep a legacy package out of production projects</span></div><pre tabindex="0" data-check="program" id="example-21"><code>using DrillPress;
-using DrillPress.Projects;
 
 var rules = new RuleSet();
 
@@ -44,7 +43,6 @@ rules.For(ProjectFacts.ProductionFiles.Where(file =&gt;
 <p><code>AnalysisProject</code> offers <code>Name</code>, <code>ProjectPath</code>, <code>TargetFramework</code>, <code>IsTestProject</code>, <code>Packages</code>, <code>Properties</code>, and <code>SourceRoots</code>. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment.</p>
 <h2 id="counterparts">Require a counterpart</h2>
 <div class="codeblock"><div class="codehead"><span>Require a named xUnit round-trip test for each concrete codec</span></div><pre tabindex="0" data-check="program" id="example-22"><code>using DrillPress;
-using DrillPress.Semantics;
 using TypeKind = Microsoft.CodeAnalysis.TypeKind;
 
 var rules = new RuleSet();

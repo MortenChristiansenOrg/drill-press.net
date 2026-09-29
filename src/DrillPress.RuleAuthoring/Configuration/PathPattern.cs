@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace DrillPress.Configuration;
+namespace DrillPress;
 
 /// <summary>A case-sensitive slash-normalized path glob. * stays within a segment, ** crosses segments, and **/ also matches no directory.</summary>
 public sealed class PathPattern

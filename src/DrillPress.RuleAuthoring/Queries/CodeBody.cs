@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>An explicitly scoped executable body. Syntax discovery does not imply reachability or guaranteed execution.</summary>
 public sealed class CodeBody

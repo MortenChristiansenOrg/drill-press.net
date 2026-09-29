@@ -1,8 +1,7 @@
 using DrillPress;
-using DrillPress.Semantics;
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Relationships;
+namespace DrillPress;
 
 /// <summary>Solution-scoped source relationships. Call paths follow statically bound targets, not possible runtime implementations, reflection or dependency injection.</summary>
 public sealed class CodeRelationships

@@ -1,4 +1,4 @@
-using DrillPress.Facts;
+using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
 using Xunit;
 

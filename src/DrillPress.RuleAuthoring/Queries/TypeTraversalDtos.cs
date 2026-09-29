@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Why a finite traversal cannot establish absence/exact inventory. Complete is relative to the configured static graph.</summary>
 [Flags]

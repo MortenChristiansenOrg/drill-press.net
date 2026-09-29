@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Additional overload constraints. Unspecified components remain wildcards; matching never asserts behavioral equivalence.</summary>
 public sealed class MethodSignature

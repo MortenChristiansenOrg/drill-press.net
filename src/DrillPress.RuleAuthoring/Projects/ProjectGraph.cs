@@ -1,4 +1,4 @@
-namespace DrillPress.Projects;
+namespace DrillPress;
 
 /// <summary>Context-aware project relationships using captured MSBuild source edges, not project or assembly names.</summary>
 public sealed class ProjectGraph(AnalysisSolution solution)

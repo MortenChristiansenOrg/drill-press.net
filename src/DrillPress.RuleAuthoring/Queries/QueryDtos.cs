@@ -1,4 +1,4 @@
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 internal readonly record struct MemberSyntaxCandidate(
     AnalysisSource Source,

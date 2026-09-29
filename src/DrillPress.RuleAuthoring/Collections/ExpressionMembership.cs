@@ -1,6 +1,6 @@
 using DrillPress;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>An expression and every selected group containing that occurrence in the same compilation.</summary>
 public sealed class ExpressionMembership : ICodeElement

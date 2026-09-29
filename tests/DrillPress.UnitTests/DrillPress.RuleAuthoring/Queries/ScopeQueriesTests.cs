@@ -1,6 +1,6 @@
 using System.IO.Abstractions.TestingHelpers;
+using DrillPress;
 using DrillPress.Manifest;
-using DrillPress.Queries;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;

@@ -1,7 +1,6 @@
 using DrillPress;
-using DrillPress.Configuration;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>Explicit string-template boundaries. Allowed calls retain their bindings; allowlisting does not establish purity or extraction safety.</summary>
 public sealed class OneHoleTemplateOptions

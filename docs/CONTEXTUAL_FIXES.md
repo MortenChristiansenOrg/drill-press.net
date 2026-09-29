@@ -1,6 +1,6 @@
 # Contextual expression fixes
 
-`DrillPress.Fixes.Fix.For(candidate)` creates an immutable plan. `ReplaceWith`
+`DrillPress.Fix.For(candidate)` creates an immutable plan. `ReplaceWith`
 accepts Roslyn expression syntax, preserves exterior trivia, and parenthesizes
 compound replacements. Interior comments/directives, generated/noneditable
 source, `nameof`, expression trees and unresolved compilation errors withhold

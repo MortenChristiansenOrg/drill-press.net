@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>A reportable C# document. Linked memberships and alternate frameworks remain distinct.</summary>
 public sealed class CodeFile(AnalysisSource source) : ICodeElement

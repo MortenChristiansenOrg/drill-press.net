@@ -1,4 +1,4 @@
-namespace DrillPress.Relationships;
+namespace DrillPress;
 
 internal sealed class CompilationViews(AnalysisSolution solution)
 {

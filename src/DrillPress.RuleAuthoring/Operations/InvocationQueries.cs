@@ -1,4 +1,4 @@
-using DrillPress.Configuration;
+using DrillPress;
 using Microsoft.CodeAnalysis;
 
 namespace DrillPress;

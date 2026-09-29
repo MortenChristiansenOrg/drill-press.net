@@ -1,4 +1,4 @@
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Describes a source expression bound to a member on a specific CLR type.</summary>
 /// <param name="ContainingType">The declaring type resolved by semantic analysis.</param>

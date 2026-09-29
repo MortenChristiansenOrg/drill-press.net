@@ -20,7 +20,6 @@ sample bundle, not shipped as SDK APIs.
 
 ```csharp
 using DrillPress;
-using DrillPress.Semantics;
 
 var rules = new RuleSet();
 var legacyRead = CodeType.Named("Product.LegacyStore").Member("Read");
@@ -42,7 +41,6 @@ custom-root discovery; different conditions remain independent selections.
 
 ```csharp
 using DrillPress;
-using DrillPress.Analysis;
 
 var shortName = new RuleCondition<CodeMethod>(method => method.Symbol?.Name.Length < 3);
 var constructorLike = new RuleCondition<CodeMethod>(method => method.Symbol?.Name == "New");
@@ -129,3 +127,51 @@ and [ordinal string equality](https://learn.microsoft.com/en-us/dotnet/csharp/fu
 Ordering APIs can default to culture-sensitive comparison, and collection
 constructors can expose comparer object identity, so successful rebinding alone
 does not justify extending the allowlist.
+
+### Declaration parts and reporting policies
+
+The complete fluent authoring surface is available with `using DrillPress;`. This preview
+consolidates the former authoring namespaces; update imports when upgrading. `Code` is
+the discovery root for files, projects, calls, null checks, arbitrary syntax, semantic
+types, methods and xUnit tests. Lower-level selection classes remain usable explicitly.
+
+`Code.Types` identifies semantic type definitions once per compilation. Use
+`Code.TypeDeclarations.TopLevel().WithExplicitModifier(Modifier.Internal)` to inspect
+every written partial part's actual modifiers and physical path. Fixes on these
+candidates target that part, not an arbitrary representative declaration.
+
+`Code.LocalVariables` preserves local/for/using declaration groups. `Variables` exposes
+all written declarators; `WithInitializer()` requires every declarator to have an
+initializer and never splits a multi-variable declaration. `WithExplicitType()` is
+semantic: a real type or alias named `var` is explicit. `Code.ForEachLoops` handles
+ordinary iteration variables and `Code.OutVariables` handles out declarations;
+deconstruction syntax remains available through `Code.Nodes<T>()`.
+
+`Code.IfStatements.WithElse()` includes else-if chains, marked by `Else.IsElseIf`.
+`BranchWithoutBraces` selects the unbraced side only when one ordinary branch has braces
+and the other does not. `Fix.For(branch).AddBraces().Propose()` uses the existing
+restricted block-wrapping proof.
+
+```csharp
+rules.For(Code.LocalVariables.WithExplicitType().WithInitializer())
+    .Forbid("VAR", "Use var.", at: local => local.TypeName);
+
+rules.For(Code.TestMethods.Body().ControlFlowNodes(ControlFlowKinds.AnyBranchOrLoop))
+    .ReportOncePer(node => node.ContainingSymbol)
+    .Forbid("BRANCH", "Remove conditional logic from test methods.");
+```
+
+`at:` accepts a source element, original syntax node/token, or physical source location.
+It validates that the selection belongs to the candidate's compilation; synthetic syntax
+is not a location. `AnyBranchOrLoop` includes if, switch statement/expression, conditional
+expression, loops and catch filters, excluding `&&`, `||`, `??` and conditional access.
+`ReportOncePer` chooses the first violation in file/span order within each compilation
+and key. It evaluates every candidate and fix factory first. `RuleDiagnostic.Fixes`
+retains every proposed correction; the engine still checks conflicts and compiles/proves
+the combined edit set before exposing an atomic batch.
+
+Requirements may put identity first with `Require("NAME", "Use the suffix.", when:
+method => method.NameEndsWith("Async"))`. `NameStartsWith`, `NameEndsWith` and `NameMatches`
+use ordinal/case-sensitive matching. `HasBody`, `HasEmptyBody` and `HasNoStatements`
+distinguish missing bodies, empty blocks and expression bodies; an unresolved method
+retains its syntax and has no fabricated `ContainingType`.

@@ -15,6 +15,9 @@ internal sealed class RuleResponseBuilder
     {
         var batches = new Dictionary<string, FixBatch>();
         var proposals = new Dictionary<string, List<FixProposal>>();
+        var findingBatches = new Dictionary<Finding, List<string>>(
+            ReferenceEqualityComparer.Instance
+        );
         var findings = solution.Projects.ToDictionary(
             project => project.Snapshot.ContextId,
             _ => new List<Finding>()
@@ -40,65 +43,43 @@ internal sealed class RuleResponseBuilder
                 ?? throw new InvalidOperationException(
                     "A selected diagnostic location is outside its compilation context."
                 );
-            string? batchId = null;
-            if (
-                diagnostic.Fix is { Edits.Count: > 0 } proposal
-                && proposal.Edits.All(edit => targetFiles.Contains(edit.FileIdentity))
+            var batchIds = new List<string>();
+            foreach (
+                var proposal in diagnostic.Fixes.Count > 0 ? diagnostic.Fixes
+                : diagnostic.Fix is { } single ? [single]
+                : []
             )
             {
-                var edits = proposal
-                    .Edits.OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
-                    .ThenBy(edit => edit.Start)
-                    .ToArray();
-                var affected = solution
-                    .Projects.Where(project =>
-                        project.Snapshot.Documents.Any(document =>
-                            edits.Any(edit => edit.FileIdentity == document.FileIdentity)
-                        )
-                    )
-                    .ToArray();
-                var validations = affected
-                    .Select(project => new FixValidation(project.Snapshot.ContextId, false))
-                    .ToArray();
-                if (validations.Length > 0)
-                {
-                    var signature = string.Join(
-                        "|",
-                        edits.Select(edit =>
-                            $"{edit.FileIdentity.Length}:{edit.FileIdentity}{edit.Fingerprint}:{edit.Start}:{edit.Length}:{edit.Replacement.Length}:{edit.Replacement}"
-                        )
-                    );
-                    batchId = Convert.ToHexString(
-                        SHA256.HashData(Encoding.UTF8.GetBytes(signature))
-                    );
-                    batches.TryAdd(batchId, new FixBatch(batchId, edits, validations));
-                    if (!proposals.TryGetValue(batchId, out var proofs))
-                        proposals.Add(batchId, proofs = []);
-                    proofs.Add(proposal);
-                }
+                if (RegisterProposal(solution, proposal, targetFiles, batches, proposals) is { } id)
+                    batchIds.Add(id);
             }
 
-            findings[source.Project.Snapshot.ContextId]
-                .Add(
-                    new Finding(
-                        diagnostic.Descriptor.Id,
-                        diagnostic.Descriptor.Message,
-                        reportDocument.DocumentId,
-                        diagnostic.Location.Start,
-                        diagnostic.Location.Length,
-                        batchId
-                    )
-                );
+            var finding = new Finding(
+                diagnostic.Descriptor.Id,
+                diagnostic.Descriptor.Message,
+                reportDocument.DocumentId,
+                diagnostic.Location.Start,
+                diagnostic.Location.Length,
+                null
+            );
+            findings[source.Project.Snapshot.ContextId].Add(finding);
+            findingBatches.Add(finding, batchIds);
         }
 
-        var combined = CombinedFixValidation.Combine(solution, batches, proposals);
+        var combined = CombinedFixValidation.Combine(
+            solution,
+            batches,
+            proposals,
+            findingBatches.Values.ToArray()
+        );
         foreach (var list in findings.Values)
             for (var index = 0; index < list.Count; index++)
-                if (list[index].BatchId is { } originalId)
-                    list[index] = list[index] with
-                    {
-                        BatchId = combined.Ids.GetValueOrDefault(originalId),
-                    };
+                list[index] = list[index] with
+                {
+                    BatchId = findingBatches[list[index]]
+                        .Select(id => combined.Ids.GetValueOrDefault(id))
+                        .FirstOrDefault(id => id is not null),
+                };
 
         return new(
             BundleResponseProtocol.CurrentVersion,
@@ -112,5 +93,54 @@ internal sealed class RuleResponseBuilder
                 .ToArray(),
             combined.Batches
         );
+    }
+
+    private static string? RegisterProposal(
+        AnalysisSolution solution,
+        FixProposal proposal,
+        HashSet<string> targetFiles,
+        Dictionary<string, FixBatch> batches,
+        Dictionary<string, List<FixProposal>> proposals
+    )
+    {
+        if (
+            proposal.Edits.Count > 0
+            && proposal.Edits.All(edit => targetFiles.Contains(edit.FileIdentity))
+        )
+        {
+            var edits = proposal
+                .Edits.OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
+                .ThenBy(edit => edit.Start)
+                .ToArray();
+            var affected = solution
+                .Projects.Where(project =>
+                    project.Snapshot.Documents.Any(document =>
+                        edits.Any(edit => edit.FileIdentity == document.FileIdentity)
+                    )
+                )
+                .ToArray();
+            var validations = affected
+                .Select(project => new FixValidation(project.Snapshot.ContextId, false))
+                .ToArray();
+            if (validations.Length > 0)
+            {
+                var signature = string.Join(
+                    "|",
+                    edits.Select(edit =>
+                        $"{edit.FileIdentity.Length}:{edit.FileIdentity}{edit.Fingerprint}:{edit.Start}:{edit.Length}:{edit.Replacement.Length}:{edit.Replacement}"
+                    )
+                );
+                var batchId = Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(signature))
+                );
+                batches.TryAdd(batchId, new FixBatch(batchId, edits, validations));
+                if (!proposals.TryGetValue(batchId, out var proofs))
+                    proposals.Add(batchId, proofs = []);
+                proofs.Add(proposal);
+                return batchId;
+            }
+        }
+
+        return null;
     }
 }

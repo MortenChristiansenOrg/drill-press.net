@@ -1,6 +1,6 @@
 using DrillPress;
 
-namespace DrillPress.Collections;
+namespace DrillPress;
 
 /// <summary>A stable set of selected semantic occurrences within one source type definition and evaluated context. Grouping does not authorize a fix.</summary>
 public sealed class ExpressionGroup : ICodeElement

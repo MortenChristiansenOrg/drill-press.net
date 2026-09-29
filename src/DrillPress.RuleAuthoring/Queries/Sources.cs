@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Reusable roots over ordinary C# source. Generated code supplies semantics but is excluded from these reportable selections.</summary>
 public static class Sources

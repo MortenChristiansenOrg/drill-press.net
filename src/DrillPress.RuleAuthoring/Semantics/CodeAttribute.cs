@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>An applied attribute's compiler constants; arbitrary constructors and property defaults are never executed.</summary>
 public sealed class CodeAttribute(ISymbol owner, AttributeData data)

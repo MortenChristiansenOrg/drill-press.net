@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace DrillPress.Semantics;
+namespace DrillPress;
 
 /// <summary>Resolves explicit constant/name-of keys against a selected model root. Naming, grammar and visibility remain configurable.</summary>
 public sealed class MemberKeyResolver

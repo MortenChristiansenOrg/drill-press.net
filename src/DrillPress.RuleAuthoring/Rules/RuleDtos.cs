@@ -23,4 +23,7 @@ public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Lo
 
     /// <summary>An optional complete correction and its cross-context proof.</summary>
     public FixProposal? Fix { get; init; }
+
+    /// <summary>All proposals retained by a reporting group, including candidates whose displayed diagnostics were deduplicated. The engine validates their complete union and conflicts before offering a correction.</summary>
+    public IReadOnlyList<FixProposal> Fixes { get; init; } = [];
 }

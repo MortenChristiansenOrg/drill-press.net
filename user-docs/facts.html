@@ -32,7 +32,6 @@
 <p>When several rules need the same calculated information, give it a name and compute it once. When a policy compares two inventories or an accepted version of source, make the comparison explicit.</p>
 <h2 id="custom">Create a custom query</h2>
 <div class="codeblock"><div class="codehead"><span>Choose one reportable file per production project</span></div><pre tabindex="0" data-check="program" id="example-24"><code>using DrillPress;
-using DrillPress.Queries;
 
 var files = Sources.Files.Where(file =&gt; !file.Source.Project.IsTestProject);
 var firstFilePerProject = CodeQuery&lt;CodeFile&gt;.Create(solution =&gt;
@@ -48,7 +47,6 @@ rules.For(firstFilePerProject).Require(
 <p><code>Create</code> takes a function from <code>AnalysisSolution</code> to candidates. <code>In(solution)</code> reads an existing query. Reuse these instances and keep selection functions pure. For long custom loops, observe <code>solution.CancellationToken</code>. Missing captured properties are not the same as a complete MSBuild evaluation; choose conservative policy behavior.</p>
 <h2 id="facts">Cache reusable facts</h2>
 <div class="codeblock"><div class="codehead"><span>Share an inventory of public type names</span></div><pre tabindex="0" data-check="program" id="example-25"><code>using DrillPress;
-using DrillPress.Facts;
 using Microsoft.CodeAnalysis;
 
 var publicTypes = Code.Types.Where(type =&gt;
@@ -66,7 +64,7 @@ var repeatedTypes = publicTypes.Join(
 <p><code>AnalysisFact&lt;T&gt;.In(solution)</code> computes once per fact instance per analysis. <code>SelectMany</code> turns part of its value into a query. Values should be treated as immutable.</p>
 <p><code>ProjectFact&lt;T&gt;</code> instead takes a function of <code>AnalysisProject</code>. Read it with <code>In(solution, project)</code>; the project must belong to that solution. Alternative frameworks do not share values. Fact dependencies may read other facts, but cycles fail, and computation failures remain cached for that analysis. None of these caches persist across runs.</p>
 <h2 id="sets">Compare inventories and repeated syntax</h2>
-<div class="codeblock"><div class="codehead"><span>Understand missing and unexpected items</span></div><pre tabindex="0" data-check="program" id="example-26"><code>using DrillPress.Collections;
+<div class="codeblock"><div class="codehead"><span>Understand missing and unexpected items</span></div><pre tabindex="0" data-check="program" id="example-26"><code>using DrillPress;
 
 var formats = new SetComparison&lt;string&gt;(
     expected: [&quot;json&quot;, &quot;xml&quot;],
@@ -94,7 +92,6 @@ rules.For(undocumented).Forbid(&quot;TEAM016&quot;, &quot;Document this type's p
 <p><code>At</code> produces a <code>LocatedCandidate&lt;T&gt;</code>: your calculated <code>Value</code> plus the existing anchor’s <code>Location</code> and <code>Source</code>. This also works for joined tuples and missing-counterpart checks.</p>
 <h2 id="baseline">Compare with accepted source</h2>
 <div class="codeblock"><div class="codehead"><span>Create a change-aware rule factory</span></div><pre tabindex="0" data-check="program" id="example-28"><code>using DrillPress;
-using DrillPress.Configuration;
 
 static RuleSet CreateRules(SourceBaseline accepted)
 {

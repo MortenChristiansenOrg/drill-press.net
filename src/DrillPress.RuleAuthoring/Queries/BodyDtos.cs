@@ -1,4 +1,4 @@
-namespace DrillPress.Queries;
+namespace DrillPress;
 
 /// <summary>Controls whether traversal crosses a separately executable function body.</summary>
 public enum NestedFunctions
@@ -16,6 +16,10 @@ public enum ControlFlowKinds
 {
     /// <summary>No control-flow constructs.</summary>
     None = 0,
+
+    /// <summary>If, both switch forms, conditional expressions, loops and catch filters; excludes short-circuit and null-propagating operators.</summary>
+    AnyBranchOrLoop =
+        If | SwitchStatement | SwitchExpression | ConditionalExpression | Loop | CatchFilter,
 
     /// <summary>If statements, including else-if continuations.</summary>
     If = 1,

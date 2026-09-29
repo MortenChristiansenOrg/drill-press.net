@@ -1,6 +1,6 @@
 using System.IO.Abstractions;
 using System.Text;
-using DrillPress.Analysis;
+using DrillPress;
 using DrillPress.Engine;
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
