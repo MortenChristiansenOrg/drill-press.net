@@ -8,17 +8,19 @@ public sealed class TypeTraversal
     private readonly Func<ITypeSymbol, IEnumerable<TypeEdge>>[] _edges;
     private readonly Func<ITypeSymbol, bool>[] _hidden;
     private readonly Func<ITypeSymbol, bool> _stop;
+    private readonly (CodeType Wrapper, int[] Arguments)[] _opaque;
 
     /// <summary>Creates a finite traversal with no implicit wrapper/property edges.</summary>
     public TypeTraversal(int maxDepth = 32, int maxStates = 1024)
-        : this(maxDepth, maxStates, [], [], _ => false) { }
+        : this(maxDepth, maxStates, [], [], _ => false, []) { }
 
     private TypeTraversal(
         int maxDepth,
         int maxStates,
         Func<ITypeSymbol, IEnumerable<TypeEdge>>[] edges,
         Func<ITypeSymbol, bool>[] hidden,
-        Func<ITypeSymbol, bool> stop
+        Func<ITypeSymbol, bool> stop,
+        (CodeType Wrapper, int[] Arguments)[] opaque
     )
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxDepth);
@@ -28,6 +30,7 @@ public sealed class TypeTraversal
         _edges = edges;
         _hidden = hidden;
         _stop = stop;
+        _opaque = opaque;
     }
 
     /// <summary>The maximum shortest-path depth, including the seed at zero.</summary>
@@ -38,11 +41,11 @@ public sealed class TypeTraversal
 
     /// <summary>Adds finite consumer-selected edges. Null/error destination types preserve incompleteness.</summary>
     public TypeTraversal Follow(Func<ITypeSymbol, IEnumerable<TypeEdge>> edges) =>
-        new(MaxDepth, MaxStates, [.. _edges, edges], _hidden, _stop);
+        new(MaxDepth, MaxStates, [.. _edges, edges], _hidden, _stop, _opaque);
 
     /// <summary>Prunes outgoing edges at explicitly selected boundaries; excluded nodes may still be emitted.</summary>
     public TypeTraversal StopAt(Func<ITypeSymbol, bool> stop) =>
-        new(MaxDepth, MaxStates, _edges, _hidden, type => _stop(type) || stop(type));
+        new(MaxDepth, MaxStates, _edges, _hidden, type => _stop(type) || stop(type), _opaque);
 
     /// <summary>Traverses array elements; arrays are omitted from emitted models unless requested.</summary>
     public TypeTraversal UnwrapArrays(bool emitWrapper = false) =>
@@ -98,10 +101,48 @@ public sealed class TypeTraversal
                 .Select(property => new TypeEdge(property.Type, property))
         );
 
-    internal bool Emit(ITypeSymbol type) => !_hidden.Any(hidden => hidden(type));
+    /// <summary>Overrides finite traversal bounds without changing edges or wrapper policies.</summary>
+    public TypeTraversal WithinLimits(int maxDepth, int maxTypes) =>
+        new(maxDepth, maxTypes, _edges, _hidden, _stop, _opaque);
 
-    internal IEnumerable<TypeEdge> Edges(ITypeSymbol type) =>
-        _stop(type) ? [] : _edges.SelectMany(edges => edges(type));
+    /// <summary>Follows all generic type arguments, retaining the generic definition as edge evidence.</summary>
+    public TypeTraversal ThroughGenericArguments() =>
+        Follow(type =>
+            type is INamedTypeSymbol named
+                ? named.TypeArguments.Select(argument => new TypeEdge(
+                    argument,
+                    named.OriginalDefinition
+                ))
+                : []
+        );
+
+    /// <summary>Omits an opaque wrapper and follows only selected generic arguments at that node. Property and custom edges are suppressed regardless of call order; selected item types resume the ordinary policy. StopAt still prunes all edges.</summary>
+    public TypeTraversal SkippingTypes(CodeType wrapper, params int[] arguments)
+    {
+        var selected = arguments.Length == 0 ? new[] { 0 } : arguments.ToArray();
+        if (selected.Any(index => index < 0))
+            throw new ArgumentOutOfRangeException(nameof(arguments));
+        return new(MaxDepth, MaxStates, _edges, _hidden, _stop, [.. _opaque, (wrapper, selected)]);
+    }
+
+    internal bool Emit(ITypeSymbol type) =>
+        !_hidden.Any(hidden => hidden(type))
+        && !_opaque.Any(policy => policy.Wrapper.Matches(type));
+
+    internal IEnumerable<TypeEdge> Edges(ITypeSymbol type)
+    {
+        if (_stop(type))
+            return [];
+        var policies = _opaque.Where(policy => policy.Wrapper.Matches(type)).ToArray();
+        return policies.Length > 0 && type is INamedTypeSymbol named
+            ? policies.SelectMany(policy =>
+                policy.Arguments.Select(index => new TypeEdge(
+                    index < named.TypeArguments.Length ? named.TypeArguments[index] : null,
+                    policy.Wrapper
+                ))
+            )
+            : _edges.SelectMany(edges => edges(type));
+    }
 
     private TypeTraversal Unwrap(
         Func<ITypeSymbol, bool> matches,
@@ -113,7 +154,8 @@ public sealed class TypeTraversal
             MaxStates,
             [.. _edges, type => matches(type) ? edges(type) : []],
             emitWrapper ? _hidden : [.. _hidden, matches],
-            _stop
+            _stop,
+            _opaque
         );
 
     private static IEnumerable<IPropertySymbol> Properties(ITypeSymbol type, bool inherited)

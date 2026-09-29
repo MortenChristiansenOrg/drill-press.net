@@ -143,3 +143,19 @@ attribute code or reads runtime property initializers.
 `expressions.WithGroupsFrom(groups)` retains every expression with all matching groups.
 `UniqueGroup` is null for zero or multiple matches, allowing the finding to remain while
 a fix is withheld. Group selection never chooses the first match implicitly.
+
+### Inspecting string construction
+
+`expression.AsBuiltString()` exposes ordered `Parts` and decoded `LiteralParts` for
+literals (including raw/verbatim strings), interpolations and built-in concatenation.
+Constant references remain holes even if the entire expression has a compiler constant;
+`expandConstants: true` explicitly expands constant string references. Each hole keeps
+its source expression, alignment and format. User-defined concatenation stays opaque.
+`StartsWith(hole => ...)` tests the first nonempty source segment without evaluating it.
+
+Constructor projection is explicit: `uri.ConstructorArgument("relativeUri")` inspects
+the bound source argument before calling `AsBuiltString()`. For a single-string URI
+constructor use its `uriString` parameter. No URL-specific policy, overload guessing,
+culture formatting or runtime value inference is built into this model. A rule can
+therefore distinguish a literal `/details` suffix from `?next=/details`, and inspect
+relative URI text without accidentally treating its base URI as the selected value.
