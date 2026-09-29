@@ -1,3 +1,6 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Operations;
+
 namespace DrillPress.Operations;
 
 /// <summary>Evidence for one configured check; it does not prove redundancy or authorize deleting a guard.</summary>
@@ -14,6 +17,27 @@ public sealed class ConditionMatch : ICodeElement
         Pattern = pattern;
         CheckedValue = value;
         MatchingOutcome = outcome;
+    }
+
+    /// <summary>Tests the configured pattern instance rather than comparing display names.</summary>
+    public bool Is(ConditionPattern pattern) => ReferenceEquals(Pattern, pattern);
+
+    /// <summary>The checked property through parentheses and implicit built-in conversions, if the value directly refers to a property.</summary>
+    public IPropertySymbol? CheckedProperty
+    {
+        get
+        {
+            var operation = CheckedValue.Operation;
+            while (
+                operation
+                    is IConversionOperation { IsImplicit: true, Conversion.IsUserDefined: false }
+                        or IParenthesizedOperation
+            )
+                operation = operation is IConversionOperation conversion
+                    ? conversion.Operand
+                    : ((IParenthesizedOperation)operation).Operand;
+            return (operation as IPropertyReferenceOperation)?.Property;
+        }
     }
 
     /// <summary>The complete conditional construct.</summary>

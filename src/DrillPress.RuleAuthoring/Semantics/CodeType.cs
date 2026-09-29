@@ -38,6 +38,10 @@ public readonly record struct CodeType(string MetadataName)
             : null;
     }
 
+    /// <summary>Describes instance constructors without exposing their metadata name.</summary>
+    public CodeMember Constructor(params CodeType[] parameters) =>
+        new(this, ".ctor", parameters.Length == 0 ? null : parameters);
+
     /// <summary>Optional assembly simple name or full display identity; null permits any declaring assembly.</summary>
     public string? AssemblyName { get; init; }
 
