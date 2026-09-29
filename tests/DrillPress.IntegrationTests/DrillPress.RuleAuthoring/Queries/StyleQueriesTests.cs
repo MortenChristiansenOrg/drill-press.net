@@ -118,7 +118,7 @@ public sealed class StyleQueriesTests(SdkFixture fixture) : IClassFixture<SdkFix
             class C { void M(bool flag) { if (flag) { } else {
                 M(false);
             } if (flag) {} else if (flag) {} } }
-            """,
+            """.ReplaceLineEndings("\n"),
             result.FixedText("B.cs")
         );
         Assert.Equal([false, true], elseKinds);
