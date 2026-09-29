@@ -8,6 +8,20 @@ namespace DrillPress.Operations;
 /// <summary>A source expression and its compiler evidence; no expression evaluation or runtime inference is performed.</summary>
 public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax syntax) : ICodeElement
 {
+    /// <summary>The compile-time string value, or null when unavailable or a constant null.</summary>
+    public string? TextValue => ValueAs<string>() is { HasValue: true } value ? value.Value : null;
+
+    /// <summary>Reads a typed compiler constant, preserving absence separately from zero, false or null.</summary>
+    public Optional<T> ValueAs<T>() => CompilerConstant.Read<T>(Constant, Type);
+
+    /// <summary>Tests a typed constant; enum comparisons require the same enum identity.</summary>
+    public bool Is<T>(T value) =>
+        ValueAs<T>() is { HasValue: true } actual
+        && EqualityComparer<T>.Default.Equals(actual.Value, value);
+
+    /// <summary>Tests constant string contents, including nameof results.</summary>
+    public bool IsText(string text) => Is(text);
+
     private IOperation? _implicitReceiver;
     private readonly Lazy<bool> _resolved = new(() =>
         BoundOperation(source, syntax) is { Kind: not OperationKind.Invalid }

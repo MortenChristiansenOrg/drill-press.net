@@ -95,3 +95,51 @@ Neither annotations nor compiler flow establish runtime non-nullness in a progra
 violating its contracts. None of these queries authorizes deleting an expression,
 getter evaluation or branch. Generated code follows the selected query root;
 ordinary method/source roots exclude generated declarations from findings.
+
+### Composing scoped invocation rules
+
+Method and source-element queries accept `InProject("Api")`, `InFolder("Endpoints")`,
+`InFilesNamed("*Tests.cs")` and `InNamespace("Contoso.Api.**")`. Folder matching uses
+whole physical path segments relative to each project, at any depth; it does not use
+MSBuild `Link` folders. Loose-source rules can pass `sourceRoot` to `InFolder`, which
+otherwise uses the invocation directory. Namespace `**` includes its root namespace.
+`Named("HandleAsync").DeclaredInTypesDerivedFrom(baseType)` excludes the base itself;
+`ContainingType?.IsOrDerivesFrom(baseType)` includes it. Open generic bases match
+constructed ancestors. `Code.Types.ImplementingInterface(contract)` includes inherited
+interfaces.
+
+```csharp
+var urls = OperationQueries.Invocations
+    .InProject("Api.Tests")
+    .OnReceiverOfType<HttpClient>()
+    .ToMethodsNamed("GetAsync", "PostAsync")
+    .ArgumentsOfTypes([CodeType.Of<string>(), CodeType.Of<Uri>()], "url", "requestUri")
+    .SourceValues();
+```
+
+Receivers include derived classes, both extension spellings, conditional calls and
+calls inside lambdas. Argument selectors use bound parameters, not source positions.
+`references.PassedAs("comparer").To(distinct)` follows a directly passed member through
+parentheses and implicit built-in conversions; a member nested inside another
+computation does not match. Each selected argument exposes its `Invocation`.
+
+`member.WithParameters(...).OptionallyFollowedBy<StringComparison>()` describes two
+exact overload signatures. Combine families with `Union`. Use
+`WhereArgumentOrMissing("comparisonType", argument => argument.Is(StringComparison.Ordinal))`
+when the parameterless family member should match. Omitted optional arguments retain
+their effective compiler constant; `IsOmittedOr(value)` explicitly accepts omission
+regardless of that default. None of these selections proves replacement equivalence.
+
+`CodeBody.Calls(member, withArgument: "key", equalTo: property.Name)` uses typed
+compiler constants (including `nameof`) and respects the body's nested-function policy.
+Missing bodies contribute no scope. Attributes expose `ConstructorValue<T>(name)` and
+`NamedValue<T>(name)` as optional typed constants, preserving missing values separately
+from false/zero/null. Enum reads require enum identity; arrays are not scalar constants.
+`FlagOrDefault(name, fallback)` requires an explicit fallback and never executes
+attribute code or reads runtime property initializers.
+
+`Union` retains one candidate per physical occurrence and evaluated source membership;
+`Concat` preserves duplicates. An explicit equality comparer can override union identity.
+`expressions.WithGroupsFrom(groups)` retains every expression with all matching groups.
+`UniqueGroup` is null for zero or multiple matches, allowing the finding to remain while
+a fix is withheld. Group selection never chooses the first match implicitly.

@@ -7,7 +7,7 @@ public static class Symbols
 {
     /// <summary>Tests resolved attributes, optionally accepting derived attribute classes.</summary>
     public static bool HasAttribute(
-        ISymbol symbol,
+        this ISymbol symbol,
         CodeType attribute,
         bool includeDerived = true
     ) =>
@@ -19,7 +19,7 @@ public static class Symbols
             );
 
     /// <summary>Tests the named type and its base-class chain.</summary>
-    public static bool IsOrDerivesFrom(INamedTypeSymbol type, CodeType target)
+    public static bool IsOrDerivesFrom(this INamedTypeSymbol type, CodeType target)
     {
         for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
         {
@@ -31,6 +31,17 @@ public static class Symbols
 
         return false;
     }
+
+    /// <summary>Tests the strict base-class chain, excluding the type itself.</summary>
+    public static bool DerivesFrom(this INamedTypeSymbol type, CodeType target) =>
+        type.BaseType is { } parent && parent.IsOrDerivesFrom(target);
+
+    /// <summary>Matches an applied marker and a predicate over its compiler-recorded values.</summary>
+    public static bool HasAttribute(
+        this ISymbol symbol,
+        CodeType marker,
+        Func<CodeAttribute, bool> where
+    ) => symbol.Attributes().Any(attribute => attribute.Matches(marker) && where(attribute));
 
     /// <summary>Tests all implemented interfaces, including inherited and constructed interfaces.</summary>
     public static bool Implements(INamedTypeSymbol type, CodeType contract) =>

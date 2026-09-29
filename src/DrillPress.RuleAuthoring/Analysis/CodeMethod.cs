@@ -54,6 +54,19 @@ public sealed class CodeMethod : ICodeElement
     public bool HasAttribute(CodeType attribute) =>
         Symbol is { } symbol && Symbols.HasAttribute(symbol, attribute);
 
+    /// <summary>Matches an applied attribute and its recorded values; unresolved methods do not match.</summary>
+    public bool HasAttribute(CodeType attribute, Func<CodeAttribute, bool> where) =>
+        Symbol?.HasAttribute(attribute, where) == true;
+
+    /// <summary>The containing source type when binding succeeds; malformed declarations retain their syntax candidate.</summary>
+    public CodeDeclaration? ContainingType =>
+        Symbol?.ContainingType is { } type
+            ? Solution.Types.FirstOrDefault(candidate =>
+                candidate.Source.Project == Source.Project
+                && SymbolEqualityComparer.Default.Equals(candidate.Symbol, type.OriginalDefinition)
+            )
+            : null;
+
     /// <summary>The method identifier's physical span.</summary>
     public SourceLocation Location => Source.Locate(Syntax.Identifier.Span);
 }

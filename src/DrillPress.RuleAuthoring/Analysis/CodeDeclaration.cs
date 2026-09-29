@@ -57,6 +57,16 @@ public sealed class CodeDeclaration : ICodeElement
     /// <summary>Tests semantic attributes, including derived attribute types.</summary>
     public bool HasAttribute(CodeType attribute) => Symbols.HasAttribute(Symbol, attribute);
 
+    /// <summary>Matches an attribute's marker identity and compiler-recorded values.</summary>
+    public bool HasAttribute(CodeType attribute, Func<CodeAttribute, bool> where) =>
+        Symbol.HasAttribute(attribute, where);
+
+    /// <summary>Tests the strict base-class chain, excluding this definition.</summary>
+    public bool DerivesFrom(CodeType type) => Symbol.DerivesFrom(type);
+
+    /// <summary>Tests this definition and its base-class chain.</summary>
+    public bool IsOrDerivesFrom(CodeType type) => Symbol.IsOrDerivesFrom(type);
+
     /// <summary>The selected type identifier's physical span.</summary>
     public SourceLocation Location { get; }
 }

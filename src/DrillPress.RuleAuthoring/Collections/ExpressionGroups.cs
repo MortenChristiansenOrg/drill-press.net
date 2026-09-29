@@ -6,6 +6,36 @@ namespace DrillPress.Collections;
 /// <summary>Bounded grouping over explicitly selected expressions, cached once per analysis/query.</summary>
 public static class ExpressionGroups
 {
+    /// <summary>Associates each expression with all selected groups; an absent or ambiguous group never removes the finding.</summary>
+    public static CodeQuery<ExpressionMembership> WithGroupsFrom(
+        this CodeQuery<CodeExpression> expressions,
+        CodeQuery<ExpressionGroup> groups
+    ) =>
+        CodeQuery<ExpressionMembership>.Create(solution =>
+        {
+            var memberships = groups
+                .In(solution)
+                .SelectMany(group =>
+                    group.Occurrences.Select(occurrence =>
+                        (
+                            Key: (occurrence.Expression.Source, occurrence.Expression.Syntax.Span),
+                            Group: group
+                        )
+                    )
+                )
+                .ToLookup(item => item.Key, item => item.Group);
+            return expressions
+                .In(solution)
+                .Select(expression => new ExpressionMembership(
+                    expression,
+                    Array.AsReadOnly(
+                        memberships[(expression.Source, expression.Syntax.Span)]
+                            .Distinct()
+                            .ToArray()
+                    )
+                ));
+        });
+
     /// <summary>Groups equal typed compiler constants within each containing type/context, including partial declarations and present null values.</summary>
     /// <param name="expressions">Only these selected occurrences participate; duplicate inputs are removed.</param>
     /// <param name="minimumOccurrences">The minimum number of distinct selected occurrences per group.</param>
