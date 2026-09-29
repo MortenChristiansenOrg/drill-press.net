@@ -31,13 +31,7 @@ internal static class ModifierFix
             return null;
         return Fix.For(candidate)
             .RemoveModifier(access[0].Kind())
-            .Require(DeclarationChecks.SameDeclaredAccessibility)
-            .Require(DeclarationChecks.SameIdentity)
-            .Require(DeclarationChecks.SameContract)
-            .Propose(change =>
-                change.Removed.Kind() is SyntaxKind.InternalKeyword or SyntaxKind.PrivateKeyword
-                    ? ProofResult.Proven
-                    : ProofResult.Unknown
-            );
+            .MustPreserve(Behavior.Accessibility | Behavior.Identity | Behavior.Contract)
+            .SafeWhen(change => change.RemovedModifier is Modifier.Internal or Modifier.Private);
     }
 }
