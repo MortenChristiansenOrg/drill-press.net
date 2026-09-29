@@ -21,7 +21,9 @@ public sealed class StringCheckPatternsTests(SdkFixture fixture) : IClassFixture
                         string Value => "";
                         static void Bad() {}
                         void M() {
-                            if (Value == "") Bad(); if ("" == Value) Bad();
+                            if (Value == string.Empty) Bad(); if (string.Empty == Value) Bad();
+                    if (Value != string.Empty) {} else Bad();
+                    if (Value == "") Bad(); if ("" == Value) Bad();
                             if (Value != "") {} else Bad(); if (Value is "") Bad();
                             if (Value is not "") {} else Bad(); if (Value.Length == 0) Bad();
                             if (0 != Value.Length) {} else Bad();
@@ -57,6 +59,9 @@ public sealed class StringCheckPatternsTests(SdkFixture fixture) : IClassFixture
 
         Assert.Equal(
             [
+                "EmptyString:Value:True:True:True",
+                "EmptyString:Value:True:True:True",
+                "EmptyString:Value:False:True:True",
                 "EmptyString:Value:True:True:True",
                 "EmptyString:Value:True:True:True",
                 "EmptyString:Value:False:True:True",

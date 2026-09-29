@@ -106,15 +106,18 @@ public sealed class TypeTraversal
         new(maxDepth, maxTypes, _edges, _hidden, _stop, _opaque);
 
     /// <summary>Follows all generic type arguments, retaining the generic definition as edge evidence.</summary>
-    public TypeTraversal ThroughGenericArguments() =>
-        Follow(type =>
-            type is INamedTypeSymbol named
-                ? named.TypeArguments.Select(argument => new TypeEdge(
-                    argument,
-                    named.OriginalDefinition
-                ))
-                : []
-        );
+    public TypeTraversal ThroughGenericArguments() => Follow(GenericArguments);
+
+    private static IEnumerable<TypeEdge> GenericArguments(ITypeSymbol type)
+    {
+        for (
+            var current = type as INamedTypeSymbol;
+            current is not null;
+            current = current.ContainingType
+        )
+            foreach (var argument in current.TypeArguments)
+                yield return new(argument, current.OriginalDefinition);
+    }
 
     /// <summary>Omits an opaque wrapper and follows only selected generic arguments at that node. Property and custom edges are suppressed regardless of call order; selected item types resume the ordinary policy. StopAt still prunes all edges.</summary>
     public TypeTraversal SkippingTypes(CodeType wrapper, params int[] arguments)

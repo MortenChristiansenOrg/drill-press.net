@@ -141,3 +141,11 @@ are separate candidates when marker inheritance is permitted by `AttributeUsage`
 inheriting those methods. `TestDiscovery.Classes(includeAbstract: true)` includes test
 base classes. This is static source discovery, not runtime test enumeration, and does
 not expand theory data or claim discovery rules for other test frameworks.
+
+Empty-string comparisons also recognize the bound framework `string.Empty` field.
+Generic-argument traversal includes arguments on containing types of nested types.
+The xUnit preset includes `xunit.v3.core.aot` markers. Reflection-mode v3 discovery
+also recognizes default interface test bodies and custom `IFactAttribute` implementations
+with a discoverer registration; these reflection-only forms are not inferred from AOT
+marker identities. See the [xUnit v3 discovery contract](https://api.xunit.net/v3/4.0.0/Xunit.v3.IFactAttribute.html)
+and [AOT differences](https://xunit.net/docs/getting-started/v3/native-aot).

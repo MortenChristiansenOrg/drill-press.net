@@ -50,7 +50,16 @@ internal static class StringCheckPatterns
     private static IOperation? Compared(IOperation value, IOperation constant)
     {
         if (
-            constant.ConstantValue is { HasValue: true, Value: "" }
+            (
+                constant.ConstantValue is { HasValue: true, Value: "" }
+                || constant
+                    is IFieldReferenceOperation
+                    {
+                        Field.Name: "Empty",
+                        Field.IsStatic: true,
+                        Field.ContainingType.SpecialType: SpecialType.System_String
+                    }
+            )
             && value.Type?.SpecialType == SpecialType.System_String
         )
             return value;

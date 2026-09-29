@@ -9,6 +9,7 @@ public static class TestDiscovery
     [
         CodeType.Named("Xunit.FactAttribute", "xunit.core"),
         CodeType.Named("Xunit.FactAttribute", "xunit.v3.core"),
+        CodeType.Named("Xunit.FactAttribute", "xunit.v3.core.aot"),
     ];
 
     /// <summary>Written methods bearing an xUnit marker, including derived attributes and inherited markers on overrides. A base method is emitted once at its own declaration.</summary>
@@ -42,10 +43,17 @@ public static class TestDiscovery
                 )
                     overridden.Add(ancestor.OriginalDefinition);
             }
-        return false;
+        return type
+            .AllInterfaces.SelectMany(contract => contract.GetMembers().OfType<IMethodSymbol>())
+            .Any(method =>
+                !method.IsAbstract
+                && !method.IsStatic
+                && method.DeclaredAccessibility == Accessibility.Public
+                && IsTest(method, reflectionOnly: true)
+            );
     }
 
-    private static bool IsTest(IMethodSymbol method)
+    private static bool IsTest(IMethodSymbol method, bool reflectionOnly = false)
     {
         var inherited = false;
         for (var current = method; current is not null; current = current.OverriddenMethod)
@@ -53,12 +61,32 @@ public static class TestDiscovery
             foreach (var attribute in current.GetAttributes())
                 if (
                     attribute.AttributeClass is { } type
-                    && _markers.Any(type.IsOrDerivesFrom)
+                    && IsMarker(type, reflectionOnly)
                     && (!inherited || IsInherited(type))
                 )
                     return true;
             inherited = true;
         }
+        return false;
+    }
+
+    private static bool IsMarker(INamedTypeSymbol type, bool reflectionOnly)
+    {
+        if (
+            reflectionOnly
+                ? type.IsOrDerivesFrom(CodeType.Named("Xunit.FactAttribute", "xunit.v3.core"))
+                : _markers.Any(type.IsOrDerivesFrom)
+        )
+            return true;
+        if (!Symbols.Implements(type, CodeType.Named("Xunit.v3.IFactAttribute", "xunit.v3.core")))
+            return false;
+        for (var current = type; current is not null; current = current.BaseType)
+            if (
+                current.HasAttribute(
+                    CodeType.Named("Xunit.v3.XunitTestCaseDiscovererAttribute", "xunit.v3.core")
+                )
+            )
+                return true;
         return false;
     }
 

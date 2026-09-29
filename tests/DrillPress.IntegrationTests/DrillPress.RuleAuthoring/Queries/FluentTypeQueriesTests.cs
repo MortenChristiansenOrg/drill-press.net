@@ -8,6 +8,32 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Queries;
 public sealed class FluentTypeQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Generic_arguments_include_containing_constructed_types()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Models",
+            [
+                new(
+                    "Models.cs",
+                    "class Outer<T> { public class Inner<U> {} } class Sensitive {} class Safe {} class C { void Send(object value) {} void M() { Send(new Outer<Sensitive>.Inner<Safe>()); } }"
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var names = Code
+            .Methods.TypesPassedAs("value", [CodeType.Named("C").Member("Send")])
+            .TraverseTypes(new TypeTraversal().ThroughGenericArguments())
+            .In(solution)
+            .Single()
+            .Types.Select(type => type.Type.Name)
+            .ToArray();
+
+        Assert.Equal(["Inner", "Safe", "Sensitive"], names);
+    }
+
+    [Fact]
     public void Opaque_wrapper_suppresses_property_and_custom_edges_in_either_configuration_order()
     {
         var workspace = fixture.Workspace();
