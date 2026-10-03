@@ -84,7 +84,8 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
             new RuleDescriptor(id, message),
             location,
             fix,
-            _reportKey
+            _reportKey,
+            condition.Detail
         );
         return this;
     }

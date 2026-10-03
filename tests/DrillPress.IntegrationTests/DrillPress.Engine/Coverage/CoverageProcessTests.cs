@@ -1,0 +1,64 @@
+using DrillPress.Engine;
+using DrillPress.IntegrationTests.TestInfrastructure;
+using DrillPress.Testing;
+using Xunit;
+
+namespace DrillPress.IntegrationTests.Engine.Coverage;
+
+public sealed class CoverageProcessTests : IntegrationTest
+{
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public async Task Large_build_queries_and_successful_test_logs_do_not_fail_coverage(
+        bool hasTests,
+        int collections
+    )
+    {
+        var directory = CreateTemporaryDirectory("drillpress-coverage-output-");
+        var target = FileSystem.Path.Combine(directory.FullName, "Target.csproj");
+        await FileSystem.File.WriteAllTextAsync(
+            target,
+            "<Project />",
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(directory.FullName, "Tests.csproj"),
+            "<Project />",
+            TestContext.Current.CancellationToken
+        );
+        var project = new RuleTestWorkspace().AddProject(
+            "Target",
+            [new("Target.cs", "class C { }")]
+        );
+        var context = new CompilationContext(
+            project.Snapshot with
+            {
+                ProjectPath = target,
+            },
+            project.Compilation
+        );
+        var executable = FileSystem.Path.ChangeExtension(
+            GetOutputPath("DrillPress.TestProcess", "tests"),
+            OperatingSystem.IsWindows() ? ".exe" : null
+        );
+        var process = new VerboseCoverageProcess(FileSystem, executable, hasTests);
+        var rules = new RuleSet();
+        rules
+            .For(Code.Files)
+            .Require(global::DrillPress.Coverage.Line.AtLeast(0), "COV001", "Exercise file.");
+
+        var response = await new AnalysisEngine(FileSystem, process).EvaluateAsync(
+            rules,
+            "large-output",
+            [context],
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(collections, process.Collections);
+        Assert.Equal(
+            "line coverage: unknown (missing or zero coverable lines)",
+            Assert.Single(Assert.Single(response.Contexts).Findings).Evidence
+        );
+    }
+}

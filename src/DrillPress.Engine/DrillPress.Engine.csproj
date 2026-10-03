@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <AssemblyMetadata Include="DrillPressCoverageVersion" Value="$(DotNetCoverageVersion)" />
     <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <ProjectReference Include="../DrillPress.Manifest/DrillPress.Manifest.csproj" />
@@ -7,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DrillPress.UnitTests" />
+    <InternalsVisibleTo Include="DrillPress.IntegrationTests" />
   </ItemGroup>
 </Project>

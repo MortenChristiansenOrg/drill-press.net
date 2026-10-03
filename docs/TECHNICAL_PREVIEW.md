@@ -184,7 +184,7 @@ bytes for all target shapes, and applies real fixes. Publication requires all
 these jobs to pass. Run native verification locally with a new output directory:
 
 ```sh
-dotnet run --file scripts/VerifyNativeBundles.cs -c Release -- --output artifacts/preview-native
+dotnet run --no-cache --file scripts/VerifyNativeBundles.cs -c Release -- --output artifacts/preview-native
 ```
 
 Native verification retains logs and byte-level parity evidence in

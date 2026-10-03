@@ -37,7 +37,14 @@ public sealed record Finding(
     int Start,
     int Length,
     string? BatchId
-);
+)
+{
+    /// <summary>Single-line evidence for this occurrence; omitted when the rule supplies only remediation.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string? Evidence { get; init; }
+}
 
 /// <summary>All edits for a correction; conflicts withhold the entire batch.</summary>
 /// <param name="Id">Response-local batch identity.</param>
@@ -86,7 +93,14 @@ public sealed record AggregatedFinding(
     int Line,
     int Column,
     string? BatchId
-);
+)
+{
+    /// <summary>Single-line evidence for this occurrence; omitted when the rule supplies only remediation.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string? Evidence { get; init; }
+}
 
 /// <summary>Validated diagnostics and the same conflict-filtered plan used for automatic writes.</summary>
 /// <param name="Findings">Aggregated physical diagnostics.</param>

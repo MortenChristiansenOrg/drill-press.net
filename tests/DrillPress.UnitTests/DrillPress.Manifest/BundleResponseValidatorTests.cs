@@ -9,6 +9,81 @@ public sealed class BundleResponseValidatorTests
     private readonly ContractFixture _fixture = new();
 
     [Fact]
+    public void Context_evidence_is_combined_without_changing_the_registered_remediation()
+    {
+        var finding = _fixture.Response.Contexts[0].Findings[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                _fixture.Response.Contexts[0] with
+                {
+                    Findings = [finding with { Evidence = "coverage: uncovered" }],
+                },
+                _fixture.Response.Contexts[1] with
+                {
+                    Findings =
+                    [
+                        finding with
+                        {
+                            DocumentId = "linked",
+                            BatchId = null,
+                            Evidence = "coverage: unknown",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var result = new BundleResponseValidator().Validate(_fixture.Snapshot, response);
+
+        Assert.Equal(
+            new AggregatedFinding(
+                "DP1004",
+                "Replace alpha.",
+                "Shared.cs",
+                "Shared.cs",
+                2,
+                5,
+                1,
+                3,
+                null
+            )
+            {
+                Evidence = "coverage: uncovered; coverage: unknown",
+            },
+            Assert.Single(result.Findings)
+        );
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("coverage: unknown\nextra")]
+    [InlineData("coverage: unknown\u2028extra")]
+    public void Occurrence_evidence_must_be_a_nonempty_single_line(string evidence)
+    {
+        var context = _fixture.Response.Contexts[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                context with
+                {
+                    Findings = [context.Findings[0] with { Evidence = evidence }],
+                },
+                _fixture.Response.Contexts[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(_fixture.Snapshot, response)
+        );
+
+        Assert.Equal("Finding evidence must be a non-empty single line.", error.Message);
+    }
+
+    [Fact]
     public void Findings_from_dependency_only_contexts_are_rejected()
     {
         var snapshot = _fixture.Snapshot with

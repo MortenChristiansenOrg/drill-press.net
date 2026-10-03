@@ -61,7 +61,10 @@ internal sealed class RuleResponseBuilder
                 diagnostic.Location.Start,
                 diagnostic.Location.Length,
                 null
-            );
+            )
+            {
+                Evidence = diagnostic.Evidence,
+            };
             findings[source.Project.Snapshot.ContextId].Add(finding);
             findingBatches.Add(finding, batchIds);
         }

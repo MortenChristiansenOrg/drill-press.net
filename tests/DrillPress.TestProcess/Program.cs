@@ -23,6 +23,61 @@ if (args is ["bytes"])
     return 2;
 }
 
+if (args is ["msbuild", var coverageProject, var discoverTests])
+{
+    var test =
+        bool.Parse(discoverTests)
+        && fileSystem.Path.GetFileNameWithoutExtension(coverageProject).EndsWith("Tests");
+    Console.Write(
+        System.Text.Json.JsonSerializer.Serialize(
+            new
+            {
+                Properties = new
+                {
+                    IsTestProject = test ? "true" : "false",
+                    TargetFramework = "net10.0",
+                    TargetFrameworks = "",
+                    MSBuildAllProjects = "",
+                },
+                Items = new
+                {
+                    ProjectReference = test
+                        ? new[]
+                        {
+                            new
+                            {
+                                FullPath = fileSystem.Path.Combine(
+                                    fileSystem.Path.GetDirectoryName(coverageProject)!,
+                                    "Target.csproj"
+                                ),
+                            },
+                        }
+                        : [],
+                    PackageReference = Array.Empty<object>(),
+                    None = Enumerable
+                        .Range(0, 1200)
+                        .Select(index => new
+                        {
+                            Identity = index.ToString(),
+                            Description = new string('x', 1024),
+                        })
+                        .ToArray(),
+                },
+            }
+        )
+    );
+    return 0;
+}
+
+if (args is ["collect"])
+{
+    await Task.WhenAll(
+        Console.Out.WriteAsync(new string('x', 2 * 1024 * 1024)),
+        Console.Error.WriteAsync(new string('y', 2 * 1024 * 1024))
+    );
+    return 0;
+}
+
 if (args is ["limited-output", var pipe])
 {
     var stream = pipe == "stdout" ? Console.OpenStandardOutput() : Console.OpenStandardError();

@@ -111,9 +111,10 @@ applying fixes.
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
-BuildHost, and rule-bundle package versions; snapshot format 4 records analysis
-scope, binds responses to a unique request, and preserves individual compilation
-and document identities. Captured child
+BuildHost, and rule-bundle package versions. Snapshot format 5 records analysis
+scope and build overrides; response protocol 3 carries per-occurrence evidence.
+The contracts bind responses to a unique request and preserve compilation and
+document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
 child and fails the check before rendering diagnostics.
 
@@ -211,6 +212,9 @@ scheduled workflows. See [release validation](docs/DISTRIBUTION.md#automatic-pub
 
 See [profiling](docs/PROFILING.md) for phase measurements on stderr during
 ordinary CLI checks and fixes with `--profile`.
+
+See [test-backed coverage requirements](docs/COVERAGE.md) for transparent execution
+and line-threshold rules, conservative occurrence evidence, and report reuse.
 
 See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
 rules, semantic type identities, and the exact automatic-fix contracts.

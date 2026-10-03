@@ -29,7 +29,7 @@ public sealed class CompilationSnapshotFileTests
         await storage.WriteAsync(SnapshotPath, snapshot, TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":5,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             _fileSystem.File.ReadAllText(SnapshotPath)
         );
     }
@@ -47,7 +47,7 @@ public sealed class CompilationSnapshotFileTests
         );
 
         Assert.Equal(
-            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":5,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             _fileSystem.File.ReadAllText(SnapshotPath)
         );
         Assert.Equal([_fileSystem.Path.GetFullPath(SnapshotPath)], _fileSystem.AllFiles);
@@ -171,10 +171,10 @@ public sealed class CompilationSnapshotFileTests
 
     [Theory]
     [InlineData(
-        """{"fileIdentifier":"drillpress-compilation","formatVersion":4,"productVersion":"0.0.1","requestId":"request"}"""
+        """{"fileIdentifier":"drillpress-compilation","formatVersion":5,"productVersion":"0.0.1","requestId":"request"}"""
     )]
     [InlineData(
-        """{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":null,"productVersion":"0.0.1","requestId":"request"}"""
+        """{"fileIdentifier":"drillpress-compilation","formatVersion":5,"projects":null,"productVersion":"0.0.1","requestId":"request"}"""
     )]
     public async Task Read_rejects_missing_or_null_projects(string json)
     {
@@ -229,7 +229,7 @@ public sealed class CompilationSnapshotFileTests
         );
 
         Assert.Equal(
-            "Compilation snapshot format 99 is not supported; expected 4. Use matching Drill Press components.",
+            "Compilation snapshot format 99 is not supported; expected 5. Use matching Drill Press components.",
             exception.Message
         );
     }
@@ -252,7 +252,7 @@ public sealed class CompilationSnapshotFileTests
         );
 
         Assert.Equal(
-            "Compilation snapshot format -1 is not supported; expected 4. Use matching Drill Press components.",
+            "Compilation snapshot format -1 is not supported; expected 5. Use matching Drill Press components.",
             exception.Message
         );
     }
@@ -300,7 +300,7 @@ public sealed class CompilationSnapshotFileTests
         );
 
         Assert.Equal(
-            "Compilation snapshot format -1 is not supported; expected 4. Use matching Drill Press components.",
+            "Compilation snapshot format -1 is not supported; expected 5. Use matching Drill Press components.",
             exception.Message
         );
     }

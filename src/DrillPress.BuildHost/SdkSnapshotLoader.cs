@@ -216,6 +216,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             TargetFramework = metadata.TargetFramework,
             IsTestProject = metadata.IsTestProject,
             Properties = metadata.Properties,
+            BuildProperties = new(options.Properties, StringComparer.OrdinalIgnoreCase),
             SdkVersion = sdkVersion,
             Packages = metadata.Packages,
             SourceRoots = metadata.SourceRoots,

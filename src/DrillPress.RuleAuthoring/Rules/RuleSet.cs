@@ -5,6 +5,8 @@ public sealed class RuleSet
 {
     private readonly List<CompiledRule> _rules = [];
 
+    internal bool RequiresCoverage { get; private set; }
+
     /// <summary>Begins a rule declaration over candidates selected by <paramref name="query"/>.</summary>
     public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
 
@@ -37,7 +39,8 @@ public sealed class RuleSet
         RuleDescriptor descriptor,
         Func<T, SourceLocation>? location,
         Func<T, FixProposal?>? fix,
-        Func<T, object?>? reportKey = null
+        Func<T, object?>? reportKey = null,
+        Func<T, string>? detail = null
     )
     {
         var (id, message) = descriptor;
@@ -62,6 +65,7 @@ public sealed class RuleSet
             throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");
         }
 
-        _rules.Add(new CandidateRule<T>(query, descriptor, location, fix, reportKey));
+        RequiresCoverage |= query.RequiresCoverage;
+        _rules.Add(new CandidateRule<T>(query, descriptor, location, fix, reportKey, detail));
     }
 }

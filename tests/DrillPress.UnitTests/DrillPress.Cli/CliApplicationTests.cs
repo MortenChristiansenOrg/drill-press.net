@@ -59,6 +59,7 @@ public sealed class CliApplicationTests
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
             --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
+            --refresh-coverage  Rerun tests even when cached coverage inputs match.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
             Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
@@ -91,7 +92,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 4, response 2)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 3)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());
@@ -258,7 +259,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage]{Environment.NewLine}",
             error.ToString()
         );
     }

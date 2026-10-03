@@ -126,7 +126,7 @@ public sealed class RuleApplicationTests
         Assert.Equal(RuleExitCode.Failure, result);
         Assert.Equal("", output.ToString());
         Assert.Equal(
-            $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 4. Use matching Drill Press components.{Environment.NewLine}",
+            $"drillpress-rules: Compilation snapshot format -1 is not supported; expected 5. Use matching Drill Press components.{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -146,7 +146,7 @@ public sealed class RuleApplicationTests
 
         Assert.Equal(RuleExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]{Environment.NewLine}",
+            $"Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage]{Environment.NewLine}",
             error.ToString()
         );
     }

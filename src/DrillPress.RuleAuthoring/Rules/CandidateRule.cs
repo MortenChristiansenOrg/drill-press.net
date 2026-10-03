@@ -5,7 +5,8 @@ internal sealed class CandidateRule<T>(
     RuleDescriptor descriptor,
     Func<T, SourceLocation>? location,
     Func<T, FixProposal?>? fix,
-    Func<T, object?>? reportKey
+    Func<T, object?>? reportKey,
+    Func<T, string>? detail
 ) : CompiledRule(descriptor.Id)
 {
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
@@ -24,6 +25,11 @@ internal sealed class CandidateRule<T>(
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();
                 var element = candidate as ICodeElement;
+                if (candidate is AnalysisProject project)
+                    element = project
+                        .Sources.Where(source => !source.Document.IsGenerated)
+                        .Select(source => new CodeFile(source))
+                        .FirstOrDefault();
                 var span = location is not null
                     ? location(candidate)
                     : element?.Location
@@ -35,6 +41,7 @@ internal sealed class CandidateRule<T>(
                     Key: reportKey?.Invoke(candidate),
                     Diagnostic: new RuleDiagnostic(descriptor, span)
                     {
+                        Evidence = detail?.Invoke(candidate),
                         Source = element?.Source,
                         Fix = proposal,
                         Fixes = proposal is null ? [] : [proposal],
