@@ -10,9 +10,11 @@ public sealed class CoverageCancellationTests : IntegrationTest
     [Fact]
     public async Task Cancellation_stops_external_collection_work_before_returning()
     {
-        var directory = CreateTemporaryDirectory("drillpress-coverage-cancellation-");
-        var readyPath = FileSystem.Path.Combine(directory.FullName, "ready");
-        var targetPath = FileSystem.Path.Combine(directory.FullName, "Target.csproj");
+        var root = CreateTemporaryDirectory("drillpress-coverage-cancellation-");
+        var directory = FileSystem.Path.Combine(root.FullName, "collection");
+        FileSystem.Directory.CreateDirectory(directory);
+        var readyPath = FileSystem.Path.Combine(directory, "ready");
+        var targetPath = FileSystem.Path.Combine(directory, "Target.csproj");
         await FileSystem.File.WriteAllTextAsync(
             targetPath,
             "<Project />",
@@ -50,7 +52,9 @@ public sealed class CoverageCancellationTests : IntegrationTest
 
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        FileSystem.Directory.Delete(directory, recursive: true);
 
         Assert.True(process.HasExited);
+        Assert.False(FileSystem.Directory.Exists(directory));
     }
 }
