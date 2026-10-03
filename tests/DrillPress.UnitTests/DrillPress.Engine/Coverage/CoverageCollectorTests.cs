@@ -258,8 +258,12 @@ public sealed class CoverageCollectorTests
     public async Task Changes_to_sources_in_external_project_dependencies_invalidate_the_cache()
     {
         var fixture = new CoverageFixture();
-        fixture.Process.ExternalProject = "/external/Dependency.csproj";
-        fixture.Process.ExternalSource = "/external/Dependency.cs";
+        fixture.Process.ExternalProject = fixture.FileSystem.Path.GetFullPath(
+            "/external/Dependency.csproj"
+        );
+        fixture.Process.ExternalSource = fixture.FileSystem.Path.GetFullPath(
+            "/external/Dependency.cs"
+        );
         fixture.FileSystem.AddFile("/external/Dependency.csproj", new("<Project />"));
         fixture.FileSystem.AddFile("/external/Dependency.cs", new("original"));
         var rules = CoverageFixture.ExecutionRules();

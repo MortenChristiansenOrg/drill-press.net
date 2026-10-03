@@ -78,6 +78,8 @@ internal class CoverageProcess
             // The process can exit between inspection and termination.
         }
         await process.WaitForExitAsync(CancellationToken.None);
+        // On Windows, the exit code can be visible before the process handle signals cleanup.
+        process.WaitForExit();
     }
 
     private static async Task<string> ReadAsync(
