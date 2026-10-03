@@ -49,22 +49,29 @@ internal sealed class ProjectCoverage
             if (range.Span == span)
                 return ExecutionCoverage.Covered;
             var anchor = source.Tree.GetRoot().FindNode(range.Span, getInnermostNodeForTie: true);
-            if (DirectExpression(anchor) is { } expression && expression.Span == span)
-                return ExecutionCoverage.Covered;
-            // Member-reference selectors omit the invocation arguments; accept only an argument-free direct call.
-            if (
-                DirectExpression(anchor) is InvocationExpressionSyntax invocation
-                && invocation.Expression.Span == node.Span
-                && invocation.ArgumentList.Arguments.Count == 0
-            )
-                return ExecutionCoverage.Covered;
+            foreach (var expression in DirectExpressions(anchor))
+            {
+                if (expression.Span == span)
+                    return ExecutionCoverage.Covered;
+                // Member-reference selectors omit the invocation arguments; accept only an argument-free direct call.
+                if (
+                    expression is InvocationExpressionSyntax invocation
+                    && invocation.Expression.Span == node.Span
+                    && invocation.ArgumentList.Arguments.Count == 0
+                )
+                    return ExecutionCoverage.Covered;
+            }
         }
         return ExecutionCoverage.Unknown;
     }
 
-    private static ExpressionSyntax? DirectExpression(Microsoft.CodeAnalysis.SyntaxNode anchor) =>
-        anchor switch
+    private static IEnumerable<ExpressionSyntax> DirectExpressions(
+        Microsoft.CodeAnalysis.SyntaxNode anchor
+    )
+    {
+        ExpressionSyntax? expression = anchor switch
         {
+            ExpressionSyntax value => value,
             ExpressionStatementSyntax statement => statement.Expression,
             ReturnStatementSyntax statement => statement.Expression,
             ThrowStatementSyntax statement => statement.Expression,
@@ -72,6 +79,18 @@ internal sealed class ProjectCoverage
                 statement.Declaration.Variables[0].Initializer?.Value,
             _ => null,
         };
+        while (expression is not null)
+        {
+            yield return expression;
+            expression = expression switch
+            {
+                AwaitExpressionSyntax awaited => awaited.Expression,
+                ParenthesizedExpressionSyntax parentheses => parentheses.Expression,
+                CheckedExpressionSyntax checkedExpression => checkedExpression.Expression,
+                _ => null,
+            };
+        }
+    }
 
     internal CoverageMeasurement Measure(
         IEnumerable<AnalysisSource> sources,

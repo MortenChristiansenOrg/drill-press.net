@@ -55,7 +55,8 @@ rule scope.
 The integration reads instrumented ranges with both line and column coordinates;
 it does not equate a covered line with an executed call. A range hit identifies an
 exact expression or a direct expression in an expression statement, return, throw,
-or single-variable initializer. Broader ranges and partially
+or single-variable initializer, including parentheses, direct awaits, and checked
+expressions. Broader ranges and partially
 covered ranges are conservative. For example:
 
 ```csharp
@@ -94,6 +95,9 @@ build overrides, repository source and test inputs, metadata dependencies, and
 build outputs, discovered imported and declared inputs, and SDK versions. Applicable
 tests are restored and imports re-evaluated before capturing collection inputs.
 MSBuild discovery runs on each check to validate inputs without rerunning tests.
+Within an analysis, root inventories, file digests, and build queries are shared
+across projects. Restore and test execution discard those memoized inputs before
+fresh validation; timestamp-preserving changes during tests are still detected.
 Changes invalidate the report; incomplete and failed runs are
 never published to the cache. Publication is atomic and concurrent checks share
 an exclusive collection lock per source root; independent roots can run concurrently.

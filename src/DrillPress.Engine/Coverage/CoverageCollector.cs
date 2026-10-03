@@ -8,6 +8,13 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
     private readonly CoverageProcess _process = process;
     private readonly CoverageInputs _inputs = new(fileSystem);
     private readonly CoverageCache _cache = new(fileSystem);
+    private readonly CoverageEvaluations _evaluations = new();
+
+    private void RefreshInputs()
+    {
+        _inputs.Refresh();
+        _evaluations.Refresh();
+    }
 
     internal async Task PrepareAsync(AnalysisSolution solution, CancellationToken cancellationToken)
     {
@@ -65,7 +72,10 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
         )
             return;
         // Evaluate restored imports before capturing the inputs that the test build will consume.
+        var revision = session.InputRevision;
         await session.RestoreAsync(project, plan.Tests, cancellationToken);
+        if (session.InputRevision != revision)
+            RefreshInputs();
         plan = await DiscoverAsync(project, root, cancellationToken);
         if (
             plan.Tests.Length == 0
@@ -93,7 +103,7 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
                 && !path.Replace('\\', '/').Split('/').Any(component => component is "bin" or "obj")
             )
             .ToArray();
-        return await new CoverageDiscovery(_fileSystem, _process).PlanAsync(
+        return await new CoverageDiscovery(_fileSystem, _process, _evaluations).PlanAsync(
             paths,
             project,
             root,
@@ -143,7 +153,10 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
             plan,
             cancellationToken
         );
+        var revision = session.InputRevision;
         var collected = await session.CollectAsync(project, plan.Tests, root, cancellationToken);
+        if (session.InputRevision != revision)
+            RefreshInputs();
         plan = await DiscoverAsync(project, root, cancellationToken);
         var after = TrackedInputs(root, plan);
         if (sourceIdentity != _inputs.Identity(after, project, false, plan, cancellationToken))

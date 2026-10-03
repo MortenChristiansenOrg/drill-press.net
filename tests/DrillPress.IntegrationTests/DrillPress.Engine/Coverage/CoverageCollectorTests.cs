@@ -83,6 +83,8 @@ public sealed class CoverageCollectorTests : IntegrationTest
             {
                 public static void Tick() { }
                 public static string Hit() => "hit";
+                public static System.Threading.Tasks.Task<string> LoadAsync() => System.Threading.Tasks.Task.FromResult("loaded");
+                public static async System.Threading.Tasks.Task<string> Awaited() => await (LoadAsync());
                 public static string Run(string? cached)
                 {
                     Tick();
@@ -119,6 +121,8 @@ public sealed class CoverageCollectorTests : IntegrationTest
                 public void ArgumentFails() => Xunit.Assert.Throws<System.InvalidOperationException>(Target.ArgumentThrows);
                 [Xunit.Fact]
                 public void ReceiverFails() => Xunit.Assert.Throws<System.InvalidOperationException>(Target.ReceiverThrows);
+                [Xunit.Fact]
+                public async System.Threading.Tasks.Task Awaits() => Xunit.Assert.Equal("loaded", await Target.Awaited());
             }
             """,
             TestContext.Current.CancellationToken
@@ -142,7 +146,7 @@ public sealed class CoverageCollectorTests : IntegrationTest
         rules
             .For(
                 Code.Calls.Where(call =>
-                    call.Target.Name is "Tick" or "Hit" or "Consume" or "ToString"
+                    call.Target.Name is "Tick" or "Hit" or "Consume" or "ToString" or "LoadAsync"
                 )
             )
             .Require(global::DrillPress.Coverage.Executed, "COV001", "Exercise call.");
@@ -191,7 +195,7 @@ public sealed class CoverageCollectorTests : IntegrationTest
                 .Select(diagnostic => diagnostic.Evidence)
         );
         Assert.Equal(
-            "line coverage: 57.14% (8/14), required 70%",
+            "line coverage: 62.5% (10/16), required 70%",
             Assert.Single(first, diagnostic => diagnostic.Descriptor.Id == "COV003").Evidence
         );
     }

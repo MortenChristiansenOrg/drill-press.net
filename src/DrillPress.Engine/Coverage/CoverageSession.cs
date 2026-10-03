@@ -10,6 +10,7 @@ internal sealed class CoverageSession : IDisposable
     private readonly string _directory;
     private readonly Dictionary<string, string> _executed = [];
     private readonly HashSet<string> _restored = [];
+    internal int InputRevision { get; private set; }
 
     internal CoverageSession(IFileSystem fileSystem, CoverageProcess process, CoverageCache cache)
     {
@@ -38,6 +39,7 @@ internal sealed class CoverageSession : IDisposable
                 cancellationToken
             );
             _restored.Add(key);
+            InputRevision++;
         }
     }
 
@@ -49,7 +51,7 @@ internal sealed class CoverageSession : IDisposable
     )
     {
         var tool = await EnsureToolAsync(root, cancellationToken);
-        var discovery = new CoverageDiscovery(_fileSystem, _process);
+        var discovery = new CoverageDiscovery(_fileSystem, _process, new CoverageEvaluations());
         var reports = new List<string>();
         foreach (var test in tests)
         {
@@ -83,6 +85,7 @@ internal sealed class CoverageSession : IDisposable
                     cancellationToken
                 );
                 _executed.Add(runKey, output);
+                InputRevision++;
             }
             reports.Add(output);
         }

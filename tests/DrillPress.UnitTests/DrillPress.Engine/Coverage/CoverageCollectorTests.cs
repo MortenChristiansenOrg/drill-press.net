@@ -32,6 +32,50 @@ public sealed class CoverageCollectorTests
     }
 
     [Fact]
+    public async Task Matching_project_contexts_share_discovery_within_an_analysis()
+    {
+        var single = new CoverageFixture();
+        var multiple = new CoverageFixture();
+        var project = multiple.Snapshot.Projects[0];
+        single.FileSystem.AddFile("/coverage/Second.csproj", new("<Project />"));
+        multiple.FileSystem.AddFile("/coverage/Second.csproj", new("<Project />"));
+        single.Process.ReferencingTargets =
+        [
+            single.Snapshot.Projects[0].ProjectPath,
+            multiple.FileSystem.Path.GetFullPath("/coverage/Second.csproj"),
+        ];
+        multiple.Process.ReferencingTargets =
+        [
+            project.ProjectPath,
+            multiple.FileSystem.Path.GetFullPath("/coverage/Second.csproj"),
+        ];
+        var snapshot = CompilationSnapshot.Create(
+            project,
+            project with
+            {
+                ContextId = "second-context",
+                ProjectPath = multiple.FileSystem.Path.GetFullPath("/coverage/Second.csproj"),
+                Documents = [project.Documents[0] with { DocumentId = "second-document" }],
+            }
+        );
+        var rules = CoverageFixture.ExecutionRules();
+
+        await single
+            .Engine()
+            .AnalyzeAsync(rules, single.Snapshot, TestContext.Current.CancellationToken);
+        var diagnostics = await multiple
+            .Engine()
+            .AnalyzeAsync(rules, snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(single.Process.Evaluations, multiple.Process.Evaluations);
+        Assert.Equal(1, multiple.Process.Collections);
+        Assert.Equal(
+            ["coverage: unknown", "coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            diagnostics.Select(diagnostic => diagnostic.Evidence)
+        );
+    }
+
+    [Fact]
     public async Task Bundle_protocol_preserves_stable_remediation_and_renders_each_occurrences_evidence()
     {
         var fixture = new CoverageFixture();
@@ -237,8 +281,12 @@ public sealed class CoverageCollectorTests
         var fixture = new CoverageFixture();
         fixture.Process.ImportedInputs = ["/external/package.targets"];
         fixture.FileSystem.AddFile("/external/package.targets", new("original"));
+        var timestamp = fixture.FileSystem.File.GetLastWriteTimeUtc("/external/package.targets");
         fixture.Process.DuringCollection = () =>
-            fixture.FileSystem.AddFile("/external/package.targets", new("changed"));
+        {
+            fixture.FileSystem.File.WriteAllText("/external/package.targets", "modified");
+            fixture.FileSystem.File.SetLastWriteTimeUtc("/external/package.targets", timestamp);
+        };
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture
@@ -520,6 +568,36 @@ public sealed class CoverageCollectorTests
         var diagnostics = await fixture
             .Engine()
             .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
+    [Fact]
+    public async Task Parentheses_and_checked_expressions_preserve_direct_call_execution()
+    {
+        var fixture = new CoverageFixture(
+            """
+            namespace System { public class Object {} public struct Void {} }
+            class C
+            {
+                static C HitValue() => null;
+                void Run()
+                {
+                    var value = (HitValue());
+                    var other = checked(HitValue());
+                }
+            }
+            """
+        );
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(
+                CoverageFixture.ExecutionRules(),
+                fixture.Snapshot,
+                TestContext.Current.CancellationToken
+            );
 
         Assert.Empty(diagnostics);
         Assert.Equal(1, fixture.Process.Collections);

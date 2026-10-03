@@ -7,6 +7,15 @@ namespace DrillPress.Engine;
 internal sealed class CoverageInputs(IFileSystem fileSystem)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
+    private readonly Dictionary<string, string[]> _files = [];
+    private readonly Dictionary<string, (long Length, DateTime LastWrite, string Hash)> _hashes =
+    [];
+
+    internal void Refresh()
+    {
+        _files.Clear();
+        _hashes.Clear();
+    }
 
     internal string Root(AnalysisProject project)
     {
@@ -31,7 +40,15 @@ internal sealed class CoverageInputs(IFileSystem fileSystem)
         return directory;
     }
 
-    internal string[] Files(string root) => Enumerate(root).Order(StringComparer.Ordinal).ToArray();
+    internal string[] Files(string root)
+    {
+        if (!_files.TryGetValue(root, out var files))
+        {
+            files = Enumerate(root).Order(StringComparer.Ordinal).ToArray();
+            _files.Add(root, files);
+        }
+        return files;
+    }
 
     private IEnumerable<string> Enumerate(string directory)
     {
@@ -120,11 +137,27 @@ internal sealed class CoverageInputs(IFileSystem fileSystem)
                 Append("missing");
                 continue;
             }
-            using var stream = _fileSystem.File.OpenRead(file);
-            Append(Convert.ToHexString(SHA256.HashData(stream)));
+            Append(Fingerprint(file));
         }
         return Convert.ToHexString(hash.GetHashAndReset());
 
         void Append(string value) => hash.AppendData(Encoding.UTF8.GetBytes(value + "\0"));
+    }
+
+    private string Fingerprint(string path)
+    {
+        var info = _fileSystem.FileInfo.New(path);
+        var length = info.Length;
+        var lastWrite = info.LastWriteTimeUtc;
+        if (
+            _hashes.TryGetValue(path, out var cached)
+            && cached.Length == length
+            && cached.LastWrite == lastWrite
+        )
+            return cached.Hash;
+        using var stream = _fileSystem.File.OpenRead(path);
+        var hash = Convert.ToHexString(SHA256.HashData(stream));
+        _hashes[path] = (length, lastWrite, hash);
+        return hash;
     }
 }

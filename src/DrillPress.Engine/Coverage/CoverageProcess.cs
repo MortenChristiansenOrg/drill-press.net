@@ -26,8 +26,14 @@ internal class CoverageProcess
             Process.Start(info)
             ?? throw new InvalidOperationException("Coverage process could not start.");
         using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var output = ReadAsync(process.StandardOutput, shutdown.Token);
-        var error = ReadAsync(process.StandardError, shutdown.Token);
+        var query = arguments[0] == "msbuild";
+        var output = ReadAsync(
+            process.StandardOutput,
+            query ? 64 * 1024 * 1024 : 64 * 1024,
+            query,
+            shutdown.Token
+        );
+        var error = ReadAsync(process.StandardError, 64 * 1024, false, shutdown.Token);
         var exit = process.WaitForExitAsync(shutdown.Token);
         try
         {
@@ -49,10 +55,13 @@ internal class CoverageProcess
         }
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
-                $"Coverage collection failed ({process.ExitCode}): {(await error + await output).ReplaceLineEndings(" ")}"
+                $"Coverage collection failed ({process.ExitCode}): {(await error + Tail(await output)).ReplaceLineEndings(" ")}"
             );
         return await output;
     }
+
+    private static string Tail(string output) =>
+        output.Length <= 64 * 1024 ? output : output[^(64 * 1024)..];
 
     private static async Task StopAsync(Process process)
     {
@@ -73,6 +82,8 @@ internal class CoverageProcess
 
     private static async Task<string> ReadAsync(
         StreamReader reader,
+        int maximum,
+        bool complete,
         CancellationToken cancellationToken
     )
     {
@@ -81,9 +92,11 @@ internal class CoverageProcess
         int count;
         while ((count = await reader.ReadAsync(buffer.AsMemory(), cancellationToken)) > 0)
         {
-            if (output.Length + count > 1024 * 1024)
-                throw new InvalidDataException("Coverage process output exceeded 1 MiB.");
+            if (complete && output.Length + count > maximum)
+                throw new InvalidDataException("Coverage build-query output exceeded 64 MiB.");
             output.Append(buffer, 0, count);
+            if (output.Length > maximum)
+                output.Remove(0, output.Length - maximum);
         }
         return output.ToString();
     }

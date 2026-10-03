@@ -3,10 +3,15 @@ using System.Text.Json;
 
 namespace DrillPress.Engine;
 
-internal sealed class CoverageDiscovery(IFileSystem fileSystem, CoverageProcess process)
+internal sealed class CoverageDiscovery(
+    IFileSystem fileSystem,
+    CoverageProcess process,
+    CoverageEvaluations evaluations
+)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
     private readonly CoverageProcess _process = process;
+    private readonly CoverageEvaluations _evaluations = evaluations;
     private readonly HashSet<string> _inputs = [];
     private readonly HashSet<string> _sdks = [];
 
@@ -250,7 +255,10 @@ internal sealed class CoverageDiscovery(IFileSystem fileSystem, CoverageProcess 
             arguments.Add("-p:TargetFramework=" + framework);
         var directory = _fileSystem.Path.GetDirectoryName(path)!;
         var json = JsonDocument.Parse(
-            await _process.RunAsync("dotnet", arguments, directory, cancellationToken)
+            await _evaluations.GetAsync(
+                directory + "\0" + string.Join("\0", arguments),
+                () => _process.RunAsync("dotnet", arguments, directory, cancellationToken)
+            )
         );
         RecordInputs(path, json.RootElement);
         return json;

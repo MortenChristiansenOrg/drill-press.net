@@ -21,6 +21,8 @@ internal sealed class FakeCoverageProcess(
     private readonly ProjectSnapshot _project = project;
     private readonly string _symbolIdentity = symbolIdentity;
     public int Collections { get; private set; }
+    public int Evaluations { get; private set; }
+    public string[]? ReferencingTargets { get; set; }
     public bool Fail { get; set; }
     public bool HasTests { get; set; } = true;
     public bool Unrestored { get; set; }
@@ -80,6 +82,7 @@ internal sealed class FakeCoverageProcess(
             var test =
                 HasTests
                 && _fileSystem.Path.GetFileNameWithoutExtension(arguments[1]).EndsWith("Tests");
+            Evaluations++;
             return Task.FromResult(
                 JsonSerializer.Serialize(
                     new
@@ -98,7 +101,9 @@ internal sealed class FakeCoverageProcess(
                         {
                             PackageReference = test ? new[] { new { Identity = "xunit.v3" } } : [],
                             ProjectReference = test
-                                ? new[] { new { FullPath = _project.ProjectPath } }
+                                ? (ReferencingTargets ?? [_project.ProjectPath])
+                                    .Select(path => new { FullPath = path })
+                                    .ToArray()
                             : arguments[1] == _project.ProjectPath
                             && ExternalProject is { } externalProject
                                 ? new[] { new { FullPath = externalProject } }
