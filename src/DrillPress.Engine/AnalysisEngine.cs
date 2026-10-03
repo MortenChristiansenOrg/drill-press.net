@@ -11,14 +11,19 @@ namespace DrillPress.Engine;
 public sealed class AnalysisEngine
 {
     private readonly IFileSystem _fileSystem;
+    private readonly CoverageProcess _coverageProcess;
 
     /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
     public AnalysisEngine()
         : this(new FileSystem()) { }
 
     internal AnalysisEngine(IFileSystem fileSystem)
+        : this(fileSystem, new CoverageProcess()) { }
+
+    internal AnalysisEngine(IFileSystem fileSystem, CoverageProcess coverageProcess)
     {
         _fileSystem = fileSystem;
+        _coverageProcess = coverageProcess;
     }
 
     /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
@@ -50,7 +55,10 @@ public sealed class AnalysisEngine
                             position.Line + 1,
                             position.Character + 1
                         )
-                    );
+                    )
+                    {
+                        Evidence = finding.Evidence,
+                    };
                 })
             )
             .OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
@@ -104,7 +112,7 @@ public sealed class AnalysisEngine
     ) => EvaluateAsync(rules, requestId, compilations, new AnalysisOptions(), cancellationToken);
 
     /// <summary>Evaluates prepared contexts with the same options used for snapshot-based execution.</summary>
-    public Task<BundleResponse> EvaluateAsync(
+    public async Task<BundleResponse> EvaluateAsync(
         RuleSet rules,
         string requestId,
         IReadOnlyList<CompilationContext> compilations,
@@ -130,10 +138,16 @@ public sealed class AnalysisEngine
             );
         }
 
+        if (rules.RequiresCoverage)
+        {
+            using var collection = options.Profile.Measure("coverage.collection");
+            await new CoverageCollector(_fileSystem, _coverageProcess).PrepareAsync(
+                solution,
+                cancellationToken
+            );
+        }
         var diagnostics = rules.Evaluate(solution);
         using var validation = options.Profile.Measure("fix.validation");
-        return Task.FromResult(
-            new RuleResponseBuilder().Build(requestId, solution, diagnostics, cancellationToken)
-        );
+        return new RuleResponseBuilder().Build(requestId, solution, diagnostics, cancellationToken);
     }
 }

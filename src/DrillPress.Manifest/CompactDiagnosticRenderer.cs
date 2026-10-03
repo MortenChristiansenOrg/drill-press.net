@@ -52,6 +52,8 @@ public sealed class CompactDiagnosticRenderer
                             .Append(finding.Column.ToString(CultureInfo.InvariantCulture));
                     }
 
+                    if (finding.Evidence is not null)
+                        output.Append(" [").Append(finding.Evidence).Append(']');
                     output.Append('\n');
                 }
             }

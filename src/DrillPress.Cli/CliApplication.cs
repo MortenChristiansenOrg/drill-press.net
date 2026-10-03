@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization]";
+        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage]";
     private const string Help = """
         drillpress check|fix --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck.
@@ -19,6 +19,7 @@ public sealed class CliApplication
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
+        --refresh-coverage  Rerun tests even when cached coverage inputs match.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
         --version  Show the package and protocol versions.
         Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
@@ -204,6 +205,8 @@ public sealed class CliApplication
             ruleArguments.Add("--profile");
         if (!options.EnableOptimizations)
             ruleArguments.Add("--no-optimization");
+        if (options.RefreshCoverage)
+            ruleArguments.Add("--refresh-coverage");
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {

@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <DotNetCoverageVersion>18.11.2</DotNetCoverageVersion>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>

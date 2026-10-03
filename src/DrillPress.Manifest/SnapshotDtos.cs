@@ -39,6 +39,9 @@ public sealed record ProjectSnapshot(
     /// <summary>Records effective MSBuild property overrides for this context.</summary>
     public Dictionary<string, string> Properties { get; init; } = [];
 
+    /// <summary>Explicit global MSBuild overrides used to reproduce this compilation during test collection.</summary>
+    public Dictionary<string, string> BuildProperties { get; init; } = [];
+
     /// <summary>Direct evaluated NuGet references; versions may be ranges or empty when supplied by restore tooling.</summary>
     public PackageReferenceSnapshot[] Packages { get; init; } = [];
 

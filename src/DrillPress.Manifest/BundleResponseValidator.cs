@@ -118,6 +118,10 @@ public sealed class BundleResponseValidator
                 );
                 messages[finding.RuleId] = finding.Message;
                 Require(
+                    finding.Evidence is null || IsSingleLine(finding.Evidence),
+                    "Finding evidence must be a non-empty single line."
+                );
+                Require(
                     documents.TryGetValue(finding.DocumentId, out var document)
                         && !document.IsGenerated,
                     "Finding references an unknown or generated document."
@@ -227,13 +231,27 @@ public sealed class BundleResponseValidator
                     line,
                     column,
                     batch
-                );
+                )
+                {
+                    Evidence = CombineEvidence(group),
+                };
             })
             .OrderBy(finding => finding.RuleId, StringComparer.Ordinal)
             .ThenBy(finding => finding.Path, StringComparer.Ordinal)
             .ThenBy(finding => finding.Start)
             .ThenBy(finding => finding.Length)
             .ToArray();
+    }
+
+    private static string? CombineEvidence(IEnumerable<Finding> findings)
+    {
+        var evidence = findings
+            .Select(finding => finding.Evidence)
+            .OfType<string>()
+            .Distinct()
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return evidence.Length == 0 ? null : string.Join("; ", evidence);
     }
 
     private static HashSet<string> FindConflicts(FixBatch[] batches)

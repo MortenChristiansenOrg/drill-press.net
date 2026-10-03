@@ -623,5 +623,10 @@ window.DRILLPRESS_SEARCH = [
     "title": "When you need the compiler directly · API field guide",
     "url": "reference.html#compiler",
     "text": "Microsoft.CodeAnalysis contains symbols, operations, and compiler result types. Microsoft.CodeAnalysis.CSharp.Syntax contains C# syntax node types. Microsoft.CodeAnalysis.Operations contains typed operation interfaces; Microsoft.CodeAnalysis.Text.TextSpan describes a character range. Use the existing Source.Model , Source.Tree , and Project.Compilation rather than making a second compiler view of the same source. Compare symbols using compiler identity, not display strings. Keep unavailable or ambiguous facts distinct from a confirmed policy violation."
-  }
+  },
+  {
+  "title": "Require test execution \u00b7 Calls and flow",
+  "url": "analysis.html#coverage",
+  "text": "Coverage.Executed Coverage.Line.AtLeast line thresholds test execution covered uncovered unknown transparent collection report cache refresh-coverage source checksum portable PDB"
+}
 ];

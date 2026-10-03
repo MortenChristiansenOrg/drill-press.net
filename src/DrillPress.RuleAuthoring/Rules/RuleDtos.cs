@@ -18,6 +18,9 @@ public sealed record RuleDescriptor(string Id, string Message);
 /// <param name="Location">The violating source expression.</param>
 public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Location)
 {
+    /// <summary>Optional single-line occurrence evidence, separate from the stable remediation shared by a rule.</summary>
+    public string? Evidence { get; init; }
+
     /// <summary>Document membership used for context-specific aggregation.</summary>
     public AnalysisSource? Source { get; init; }
 

@@ -97,13 +97,26 @@ rules.For(OperationQueries.Invocations.Where(call =&gt;
     .Forbid(&quot;TEAM011&quot;, &quot;Handle missing input before trimming text.&quot;);</code></pre></div>
 <p>Here the semantic model connects the receiver’s written expression to its compiler type information. The pattern check handles static calls or other cases without a receiver. Keep these details in a named helper when the registration becomes difficult to read.</p>
 <p>The <code>RuleSet</code> alias is deliberate: <code>Microsoft.CodeAnalysis</code> also has a type with that name. The alias selects Drill Press’s rule set while making the compiler’s extension methods available.</p>
+<h2 id="coverage">Require test execution</h2>
+<p>Use <code>Coverage.Executed</code> to require execution of selected calls, member references, or other source expressions. Use <code>Coverage.Line.AtLeast(90)</code> for percentage requirements over files, methods, types, or projects.</p>
+<div class="codeblock"><div class="codehead"><span>Require tests for critical code</span></div><pre tabindex="0" data-check="program" id="example-coverage"><code>using DrillPress;
+
+var rules = new RuleSet();
+rules.For(Code.Calls.Where(call =&gt; call.Target.Name == &quot;Commit&quot;))
+    .Require(Coverage.Executed, &quot;TEAM013&quot;, &quot;Exercise each commit in tests.&quot;);
+rules.For(Code.Files.Where(file =&gt; file.Folder.EndsWith(&quot;/Domain&quot;)))
+    .Require(Coverage.Line.AtLeast(90), &quot;TEAM014&quot;, &quot;Exercise domain code.&quot;);
+</code></pre></div>
+<p>The analysis engine discovers referencing test projects, arranges collection before evaluation, and reuses successful reports while source, build, test inputs, and environment match. No collector package or report configuration belongs in your rules. The first check needs NuGet access to install the tool automatically.</p>
+<p>Evidence has three states: covered, uncovered, and unknown. A covered line containing <code>cached ?? store.Load()</code> does not prove that <code>Load</code> ran. Missing, excluded, stale, or ambiguous evidence fails the requirement; findings identify the occurrence and state. Line findings include measured percentages and counts. Zero coverable lines fail. Direct in-memory rule evaluation without prepared evidence returns unknown.</p>
+<p>Use <code>--refresh-coverage</code> when tests depend on changing external state. See the <a href="../docs/COVERAGE.md">coverage integration guide</a> for discovery boundaries, symbol matching, conservative expression mapping, and cache inputs.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="syntax.html"><small>← PREVIOUS</small>Inspect source code</a>
 <a href="relationships.html"><small>NEXT →</small>Projects and relationships</a>
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#invocations">Inspect calls and arguments</a><a href="#operations">Look beyond ordinary calls</a><a href="#paths">Follow a call path</a><a href="#flow">Use method-local flow facts</a><a href="#nullable">Read nullable state at a call site</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#invocations">Inspect calls and arguments</a><a href="#operations">Look beyond ordinary calls</a><a href="#paths">Follow a call path</a><a href="#flow">Use method-local flow facts</a><a href="#nullable">Read nullable state at a call site</a><a href="#coverage">Require test execution</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

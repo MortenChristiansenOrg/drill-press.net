@@ -58,6 +58,8 @@ public sealed class AnalysisProject
         );
     }
 
+    internal ProjectCoverage Coverage { get; set; } = new();
+
     internal RewriteValidationCache RewriteValidation { get; }
 
     internal IFileSystem FileSystem { get; }

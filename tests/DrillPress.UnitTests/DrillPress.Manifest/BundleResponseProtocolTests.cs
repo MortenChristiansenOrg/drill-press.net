@@ -20,7 +20,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":2,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":3,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -49,7 +49,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":2,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":3,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -69,7 +69,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":2,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":3,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );

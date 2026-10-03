@@ -7,7 +7,8 @@ internal sealed record CliOptions(
     string Target,
     string[] ExportArguments,
     bool Profile,
-    bool EnableOptimizations
+    bool EnableOptimizations,
+    bool RefreshCoverage
 )
 {
     public static bool TryParse(string[] args, out CliOptions options)
@@ -24,6 +25,7 @@ internal sealed record CliOptions(
         var exportArguments = new List<string>();
         var profile = false;
         var optimize = true;
+        var refreshCoverage = false;
         for (var index = 1; index < args.Length; index++)
         {
             switch (args[index])
@@ -41,6 +43,9 @@ internal sealed record CliOptions(
                 case "--profile":
                     profile = true;
                     exportArguments.Add(args[index]);
+                    break;
+                case "--refresh-coverage":
+                    refreshCoverage = true;
                     break;
                 case "--no-optimization":
                     optimize = false;
@@ -76,7 +81,8 @@ internal sealed record CliOptions(
             target,
             exportArguments.ToArray(),
             profile,
-            optimize
+            optimize,
+            refreshCoverage
         );
         return true;
     }

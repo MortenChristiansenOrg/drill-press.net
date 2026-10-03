@@ -52,7 +52,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(_fileSystem.Path.GetFullPath("Target.csproj"), loader.ProjectPath);
         Assert.Equal(
-            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":5,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             _fileSystem.File.ReadAllText("nested/output/snapshot.json")
         );
     }
@@ -196,7 +196,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(BuildHostExitCode.Success, result);
         Assert.Equal(
-            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":4,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
+            $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":5,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             fileSystem.File.ReadAllText("snapshot.json")
         );
         Assert.Equal(

@@ -7,14 +7,19 @@ namespace DrillPress.Engine;
 public sealed class RuleApplication
 {
     private readonly IFileSystem _fileSystem;
+    private readonly CoverageProcess _coverageProcess;
 
     /// <summary>Creates a rule-bundle host for local compilation snapshots.</summary>
     public RuleApplication()
         : this(new FileSystem()) { }
 
     internal RuleApplication(IFileSystem fileSystem)
+        : this(fileSystem, new CoverageProcess()) { }
+
+    internal RuleApplication(IFileSystem fileSystem, CoverageProcess coverageProcess)
     {
         _fileSystem = fileSystem;
+        _coverageProcess = coverageProcess;
     }
 
     /// <summary>
@@ -34,11 +39,14 @@ public sealed class RuleApplication
         if (
             args.Length < 2
             || args[0] != "check"
-            || args.Skip(2).Any(argument => argument is not ("--profile" or "--no-optimization"))
+            || args.Skip(2)
+                .Any(argument =>
+                    argument is not ("--profile" or "--no-optimization" or "--refresh-coverage")
+                )
         )
         {
             await standardError.WriteLineAsync(
-                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization]"
+                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage]"
             );
             return RuleExitCode.Failure;
         }
@@ -64,8 +72,9 @@ public sealed class RuleApplication
             {
                 EnableOptimizations = !args.Skip(2).Contains("--no-optimization"),
                 Profile = profile,
+                RefreshCoverage = args.Skip(2).Contains("--refresh-coverage"),
             };
-            var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
+            var response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(
                 rules,
                 snapshot,
                 options,
