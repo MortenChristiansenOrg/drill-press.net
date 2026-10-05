@@ -1,8 +1,8 @@
 # Windows and Linux technical preview
 
 This preview supports `linux-x64` and `win-x64`. Commands and authoring APIs can
-still change. Build and run from source; there is no package installation or
-project template. Run the commands below from the repository root.
+still change. For package installation, see [distribution](DISTRIBUTION.md).
+The commands below build and run from source; run them from the repository root.
 
 ## Fresh checkout
 
@@ -75,9 +75,9 @@ dotnet $cli fix --build-host $buildHost --rules $rules $target
 dotnet build $target -c Release --no-restore
 ```
 
-The sample deliberately has findings, so a successful `check` exits **1**.
+The sample deliberately has violations, so a successful `check` exits **1**.
 The `fix` commands above modify the original sample files. They apply eligible
-string/comparer corrections and can still exit 1 for findings needing manual
+string/comparer corrections and can still exit 1 for violations needing manual
 changes. Both commands use **0** when there are no violations, including visible
 review-only findings, and **2** for operational failure. Help exits 0 without
 loading a target.
@@ -86,7 +86,7 @@ Output groups a remediation once per rule, then relative paths and physical
 one-based `line:column` locations. Columns count UTF-16 code units; a default
 column of 1 is omitted. A `+` before the line marks a retained common-safe fix.
 Paths needing escaping use JSON string escaping. Output is deterministic UTF-8
-without a BOM, with LF line endings; a clean result prints nothing. Operational
+without a BOM, with LF line endings; a run with no findings prints nothing. Operational
 errors and opt-in profiling go to stderr. Direct bundle JSON is an internal
 transport, not an additional public output format.
 
