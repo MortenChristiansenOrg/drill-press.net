@@ -8,6 +8,93 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Operations;
 public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Bound_owner_families_distinguish_inheritance_overrides_and_extension_receivers()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Calls",
+            [
+                new(
+                    "Calls.cs",
+                    """
+                    class Base { public virtual void FindAsync() {} public void Load() {} }
+                    class Derived : Base { public override void FindAsync() {} }
+                    class Other { public void FindAsync() {} }
+                    static class Extensions { public static void FindAsync(this Base source) {} }
+                    class C {
+                        void M(Base b, Derived d, Other other) {
+                            b.FindAsync(); d.FindAsync(); d.Load(); other.FindAsync();
+                            Extensions.FindAsync(d);
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var owner = CodeType.Named("Base", "Calls");
+
+        var exact = Code
+            .Calls.ToMethodsDeclaredOn(owner)
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+        var hierarchy = Code
+            .Calls.ToMethodsDeclaredOnOrDerivedFrom(owner)
+            .ToMethodsMatchingName("*Async")
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+        var extensions = Code
+            .Calls.ToMethodsDeclaredOn(CodeType.Named("Extensions", "Calls"))
+            .In(solution);
+
+        Assert.Equal(["b.FindAsync()", "d.Load()"], exact);
+        Assert.Equal(["b.FindAsync()", "d.FindAsync()"], hierarchy);
+        Assert.True(Assert.Single(extensions).IsDeclaredOn(CodeType.Named("Extensions", "Calls")));
+        Assert.False(Assert.Single(extensions).IsDeclaredOnOrDerivedFrom(owner));
+    }
+
+    [Fact]
+    public void Bound_owner_filters_preserve_metadata_generic_identity_and_both_extension_spellings()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Calls",
+            [
+                new(
+                    "Calls.cs",
+                    """
+                    using System.Linq;
+                    class C {
+                        void M(System.Collections.Generic.List<string> strings, System.Collections.Generic.List<int> numbers) {
+                            strings.Clear(); numbers.Clear(); strings.Count(); Enumerable.Count(strings); unknown.Count();
+                        }
+                    }
+                    """
+                ),
+            ],
+            allowErrors: true
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var lists = Code
+            .Calls.ToMethodsDeclaredOn(CodeType.Of<List<string>>())
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+        var counts = Code
+            .Calls.ToMethodsDeclaredOn(CodeType.Framework("System.Linq.Enumerable"))
+            .ToMethodsNamed("Count")
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+
+        Assert.Equal(["strings.Clear()"], lists);
+        Assert.Equal(["strings.Count()", "Enumerable.Count(strings)"], counts);
+    }
+
+    [Fact]
     public void Expanded_params_collections_expose_each_input_and_keep_empty_groups()
     {
         var workspace = fixture.Workspace();

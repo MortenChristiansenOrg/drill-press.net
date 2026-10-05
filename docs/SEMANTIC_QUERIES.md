@@ -159,3 +159,16 @@ constructor use its `uriString` parameter. No URL-specific policy, overload gues
 culture formatting or runtime value inference is built into this model. A rule can
 therefore distinguish a literal `/details` suffix from `?next=/details`, and inspect
 relative URI text without accidentally treating its base URI as the selected value.
+
+## Bound call families
+
+`ToMethodsDeclaredOn(type)` matches the call's normalized declaration owner;
+`ToMethodsDeclaredOnOrDerivedFrom(type)` additionally follows the owner's nominal
+base classes. These differ from receiver filtering: an inherited member stays
+owned by its base type, an override is owned by the overriding type, and an
+extension stays owned by its static class in either call spelling. Metadata and
+constructed generic owners retain their identity. `ToMethodsMatchingName("*Async")`
+uses the existing case-sensitive glob semantics; `ToMethodsNamed` still means
+exact names. Equivalent element predicates are `IsDeclaredOn`,
+`IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `Calling` to
+retain configured signature constraints. Invalid calls never match.
