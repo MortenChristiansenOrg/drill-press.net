@@ -159,3 +159,16 @@ constructor use its `uriString` parameter. No URL-specific policy, overload gues
 culture formatting or runtime value inference is built into this model. A rule can
 therefore distinguish a literal `/details` suffix from `?next=/details`, and inspect
 relative URI text without accidentally treating its base URI as the selected value.
+
+## Contextual project scopes
+
+`Code.Calls.InNonTestProjects().InProjectsWithType(contract)` shares evaluated
+project classification and contextual type availability with other source queries.
+`project.HasType(contract)` requires one match; `project.InspectType(contract)`
+retains missing, available and ambiguous outcomes and caches them per context.
+Assembly-qualified descriptors can distinguish same-named types. Availability
+includes references exposed through extern aliases; it does not imply an
+unqualified source name can bind, source usage, or a direct package reference.
+Open generic names select definitions; `CodeType.Of<T>()` also resolves ordinary
+constructed types and arrays. Nested constructed runtime types remain unavailable
+when their outer substitutions cannot be resolved.
