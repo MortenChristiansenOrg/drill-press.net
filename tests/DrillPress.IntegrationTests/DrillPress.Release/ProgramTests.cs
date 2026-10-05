@@ -45,7 +45,7 @@ public sealed class ProgramTests : IntegrationTest
             (
                 1,
                 "",
-                $"Release must contain exactly the five Drill Press packages.{Environment.NewLine}"
+                $"Release must contain exactly the six Drill Press packages.{Environment.NewLine}"
             ),
             (result.ExitCode, result.StandardOutput, result.StandardError)
         );

@@ -3,6 +3,7 @@
     <Project Path="src/DrillPress.BuildHost/DrillPress.BuildHost.csproj" />
     <Project Path="src/DrillPress.Cli/DrillPress.Cli.csproj" />
     <Project Path="src/DrillPress.Engine/DrillPress.Engine.csproj" />
+    <Project Path="src/DrillPress.Linq/DrillPress.Linq.csproj" />
     <Project Path="src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <Project Path="src/DrillPress.RuleAuthoring/DrillPress.RuleAuthoring.csproj" />
     <Project Path="src/DrillPress.Testing/DrillPress.Testing.csproj" />
@@ -18,6 +19,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/DrillPress.CoverageReader/DrillPress.CoverageReader.csproj" />
+    <Project Path="tools/DrillPress.LinqCatalogue/DrillPress.LinqCatalogue.csproj" />
     <Project Path="tools/DrillPress.Release/DrillPress.Release.csproj" />
     <Project Path="tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />
     <Project Path="tools/DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />

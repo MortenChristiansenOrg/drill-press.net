@@ -10,7 +10,7 @@ public sealed class PackageInventoryTests
     private readonly ReleasePackageFixture _fixture = new();
 
     [Fact]
-    public void Accepts_exactly_five_matching_packages_in_dependency_order()
+    public void Accepts_exactly_six_matching_packages_in_dependency_order()
     {
         var inventory = _fixture.CreateInventory();
 
@@ -18,7 +18,7 @@ public sealed class PackageInventoryTests
 
         Assert.Equal(PackageInventory.PackageIds, packages.Select(package => package.Id));
         Assert.Equal(
-            Enumerable.Repeat("1.0.0-rc.1", 5),
+            Enumerable.Repeat("1.0.0-rc.1", 6),
             packages.Select(package => package.Version)
         );
     }
@@ -59,7 +59,7 @@ public sealed class PackageInventoryTests
             inventory.Read(_fixture.Directory, _fixture.Version)
         );
 
-        Assert.Equal("Release must contain exactly the five Drill Press packages.", error.Message);
+        Assert.Equal("Release must contain exactly the six Drill Press packages.", error.Message);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public sealed class PackageInventoryTests
             inventory.Read(_fixture.Directory, _fixture.Version)
         );
 
-        Assert.Equal("Release must contain exactly the five Drill Press packages.", error.Message);
+        Assert.Equal("Release must contain exactly the six Drill Press packages.", error.Message);
     }
 
     [Fact]

@@ -157,8 +157,9 @@ comma-separated list; names are case-insensitive and surrounding spaces are
 ignored. Unknown or empty values fail with exit code 2.
 
 Without a filter all rules are included. With a filter `check` and `fix` report
-only selected findings, and only those findings cause exit code 1. A selected
-clean result exits 0 even if excluded rules have findings. `fix` applies only
+only selected findings, and only selected violations cause exit code 1. A result
+without selected violations exits 0, including visible review-only findings,
+even if excluded rules have violations. `fix` applies only
 selected safe batches and rechecks with the same selection. All findings and
 fixes are validated before selection: filtering cannot hide malformed responses,
 remove conflicts, or bypass cross-context agreement. Atomic batches shared with
