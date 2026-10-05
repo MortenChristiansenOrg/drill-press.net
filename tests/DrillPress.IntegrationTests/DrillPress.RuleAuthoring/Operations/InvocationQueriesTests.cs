@@ -8,6 +8,108 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Operations;
 public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Multi_role_value_filters_include_either_extension_input_and_preserve_evaluation_order()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Calls",
+            [
+                new(
+                    "Calls.cs",
+                    """
+                    using System.Collections.Generic;
+                    class Query : List<int> {}
+                    static class Ops { public static bool Compare(this IEnumerable<int> first, IEnumerable<int> second) => true; }
+                    class C { void M(List<int> items, Query query) {
+                        items.Compare(query); query.Compare(items); Ops.Compare(second: query, first: items);
+                        query.Compare(query); items.Compare(items); unknown.Compare(query);
+                    } }
+                    """
+                ),
+            ],
+            allowErrors: true
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var selected = Code.Calls.WhereAnyArgument(
+            named: ["first", "second"],
+            value: expression => expression.TypeIsAssignableTo(CodeType.Named("Query"))
+        );
+
+        var calls = selected
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+        var values = selected
+            .ArgumentsFor("first", "second", "first")
+            .SourceValues(includeReceivers: true)
+            .In(solution)
+            .Select(expression => expression.Syntax.ToString())
+            .ToArray();
+        var roles = selected
+            .In(solution)[2]
+            .ArgumentsFor("first", "second")
+            .Select(argument => argument.Parameter.Name)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "items.Compare(query)",
+                "query.Compare(items)",
+                "Ops.Compare(second: query, first: items)",
+                "query.Compare(query)",
+            ],
+            calls
+        );
+        Assert.Equal(
+            ["items", "query", "query", "items", "query", "items", "query", "query"],
+            values
+        );
+        Assert.Equal(["second", "first"], roles);
+    }
+
+    [Fact]
+    public void Multi_role_selection_distinguishes_defaults_empty_params_and_expanded_source_values()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Calls",
+            [
+                new(
+                    "Calls.cs",
+                    """
+                    using System.Collections.Generic;
+                    class Query : List<int> {}
+                    class C {
+                        static void P(params IEnumerable<int>[] source) {}
+                        static void D(IEnumerable<int>? source = null) {}
+                        void M(Query query, List<int> items) { P(query, items); P(); D(); D(query); }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var calls = Code
+            .Calls.WhereAnyArgument(
+                ["source", "missing"],
+                expression => expression.TypeIsAssignableTo(CodeType.Named("Query"))
+            )
+            .In(solution)
+            .Select(call => call.Operation.Syntax.ToString())
+            .ToArray();
+        var values = Code
+            .Calls.ArgumentsFor("source", "missing")
+            .SourceValues(includeReceivers: true)
+            .In(solution)
+            .Select(expression => expression.Syntax.ToString())
+            .ToArray();
+
+        Assert.Equal(["P(query, items)", "D(query)"], calls);
+        Assert.Equal(["query", "items", "query"], values);
+    }
+
+    [Fact]
     public void Bound_owner_families_distinguish_inheritance_overrides_and_extension_receivers()
     {
         var workspace = fixture.Workspace();

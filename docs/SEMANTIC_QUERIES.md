@@ -172,3 +172,16 @@ uses the existing case-sensitive glob semantics; `ToMethodsNamed` still means
 exact names. Equivalent element predicates are `IsDeclaredOn`,
 `IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `Calling` to
 retain configured signature constraints. Invalid calls never match.
+
+## Multiple argument roles
+
+`calls.WhereAnyArgument(named: ["source", "first", "second"], value: predicate)`
+tests original source expressions associated with bound declaration parameters,
+including normalized extension receivers. Each matching invocation appears once;
+missing roles, omitted defaults, empty params and invalid calls do not match.
+`calls.ArgumentsFor("first", "second")` projects every selected value in source
+evaluation order, retaining expanded params and defaults. Repeated role names
+never duplicate a value. `SourceValues(includeReceivers: true)` includes the
+written extension receiver once in both extension spellings; its default remains
+false, preserving the existing explicit-argument-only projection. Original type,
+contextual conversion, source/context identity and collection metadata survive.
