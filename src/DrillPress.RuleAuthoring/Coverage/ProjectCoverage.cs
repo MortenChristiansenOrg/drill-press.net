@@ -6,10 +6,12 @@ namespace DrillPress;
 internal sealed class ProjectCoverage
 {
     private readonly Dictionary<string, CoverageRange[]> _documents = [];
+    private readonly Dictionary<string, CoverageRange[]> _functionRanges = [];
+    private readonly HashSet<(string Document, TextSpan Span, int Token)> _advancements = [];
     private readonly Dictionary<string, CoverageReason> _documentReasons = [];
     private CoverageReason _unavailableReason = CoverageReason.EvidenceNotPrepared;
     private readonly Dictionary<
-        (string Document, TextSpan Span),
+        (string Document, TextSpan Span, CoverageMetric Metric),
         (ExecutionCoverage State, CoverageReason[] Reasons)
     > _fixtureExecutions = [];
     private readonly Dictionary<string, LineCoverageMeasurement> _fixtureLines = [];
@@ -18,8 +20,103 @@ internal sealed class ProjectCoverage
         string document,
         TextSpan span,
         ExecutionCoverage state,
-        CoverageReason[] reasons
-    ) => _fixtureExecutions.Add((document, span), (state, reasons.ToArray()));
+        CoverageReason[] reasons,
+        CoverageMetric metric = CoverageMetric.Execution
+    ) => _fixtureExecutions.Add((document, span, metric), (state, reasons.ToArray()));
+
+    internal void AdvancementPoint(string document, TextSpan span, int methodToken) =>
+        _advancements.Add((document, span, methodToken));
+
+    internal CoverageEvidence InspectEnumeration(ICodeElement element)
+    {
+        var result = InspectAdvancement(element);
+        return result with { Metric = CoverageMetric.Enumeration };
+    }
+
+    private CoverageEvidence InspectAdvancement(ICodeElement element)
+    {
+        var source = element.Source;
+        if (
+            element is CodeEnumeration loop
+            && source is not null
+            && _fixtureExecutions.TryGetValue(
+                (source.Document.DocumentId, loop.Syntax.Span, CoverageMetric.Enumeration),
+                out var fixture
+            )
+        )
+            return Evidence(source, fixture.State, fixture.Reasons);
+        if (
+            source is null
+            || !_functionRanges.TryGetValue(source.Document.DocumentId, out var ranges)
+        )
+            return Evidence(
+                source,
+                ExecutionCoverage.Unknown,
+                [
+                    source is null
+                        ? CoverageReason.EvidenceNotPrepared
+                        : MissingReason(source.Document.DocumentId),
+                ]
+            );
+        if (
+            element is not CodeEnumeration enumeration
+            || !enumeration.IsResolved
+            || enumeration.MoveNextMethod is null
+        )
+            return Evidence(
+                source,
+                ExecutionCoverage.Unknown,
+                [CoverageReason.UnsupportedEnumerationMapping]
+            );
+        var points = _advancements
+            .Where(point =>
+                point.Document == source.Document.DocumentId
+                && point.Span == enumeration.Syntax.InKeyword.Span
+            )
+            .ToArray();
+        if (points.Length == 0)
+            return Evidence(
+                source,
+                ExecutionCoverage.Unknown,
+                [CoverageReason.UnsupportedEnumerationMapping]
+            );
+        var matching = ranges
+            .Where(range =>
+                points.Any(point =>
+                    point.Span == range.Span && Token(range.FunctionIdentity) == point.Token
+                )
+            )
+            .ToArray();
+        if (
+            points.Any(point =>
+                !matching.Any(range => Token(range.FunctionIdentity) == point.Token)
+            )
+        )
+            return Evidence(
+                source,
+                ExecutionCoverage.Unknown,
+                [CoverageReason.MissingRange],
+                matching
+            );
+        var state = MergePoints(matching);
+        return Evidence(
+            source,
+            state,
+            state == ExecutionCoverage.Unknown ? [CoverageReason.PartialRange] : [],
+            matching
+        );
+    }
+
+    private static int? Token(string identity) =>
+        identity.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+        && int.TryParse(
+            identity.AsSpan(2),
+            System.Globalization.NumberStyles.HexNumber,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var token
+        )
+            ? token
+            : null;
 
     internal void FixtureLines(string document, LineCoverageMeasurement measurement) =>
         _fixtureLines.Add(document, measurement);
@@ -32,17 +129,22 @@ internal sealed class ProjectCoverage
     private CoverageReason MissingReason(string documentId) =>
         _documentReasons.GetValueOrDefault(documentId, _unavailableReason);
 
-    internal void Add(string documentId, IEnumerable<CoverageRange> ranges) =>
-        _documents[documentId] = ranges
+    internal void Add(string documentId, IEnumerable<CoverageRange> ranges)
+    {
+        var functions = ranges
             .GroupBy(range => (range.Span, range.FunctionIdentity))
             .Select(group => new CoverageRange(
                 group.Key.Span,
                 MergePoints(group),
                 group.Key.FunctionIdentity
             ))
+            .ToArray();
+        _functionRanges[documentId] = functions;
+        _documents[documentId] = functions
             .GroupBy(range => range.Span)
             .Select(group => new CoverageRange(group.Key, MergePoints(group), ""))
             .ToArray();
+    }
 
     private static ExecutionCoverage MergePoints(IEnumerable<CoverageRange> ranges) =>
         ranges.All(range => range.State == ExecutionCoverage.Covered) ? ExecutionCoverage.Covered
@@ -59,7 +161,8 @@ internal sealed class ProjectCoverage
             && _fixtureExecutions.TryGetValue(
                 (
                     fixtureSource.Document.DocumentId,
-                    new(element.Location.Start, element.Location.Length)
+                    new(element.Location.Start, element.Location.Length),
+                    CoverageMetric.Execution
                 ),
                 out var fixture
             )

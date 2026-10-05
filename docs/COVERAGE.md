@@ -129,7 +129,7 @@ Pass `--explain-coverage` to include context identity, typed explanations and
 matching ranges, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
 Ordinary bundle output omits ranges; typed state/reasons/counts remain available
 through diagnostics, validated findings and cross-context aggregation. Response
-protocol 6 requires matching CLI/SDK packages and rebuilt bundles. Collection,
+protocol 7 requires matching CLI/SDK packages and rebuilt bundles. Collection,
 build, tool and test failures still stop the check rather than becoming unknown
 findings.
 
@@ -199,5 +199,36 @@ Negated conditions retain ordinary Boolean semantics and default violation gatin
 `CoverageEvidence.ReviewReasons` carries the explicit policy independently of the
 measured state; `MinimumPercentage` carries a line requirement's threshold. Bundle
 validation checks eligible reasons, measured counts, thresholds, and review gating
-before accepting a successful exit. Response protocol 6 requires matching packages
+before accepting a successful exit. Response protocol 7 requires matching packages
 and rebuilt bundles.
+
+## Enumeration advancement
+
+`Code.Enumerations` selects ordinary, deconstruction, and `await foreach` loops.
+`SourceExpression` retains the written collection and its original type; `Body`
+selects the independent loop body. `GetEnumeratorMethod`, `MoveNextMethod`, and
+`IsAsync` describe the bound enumeration pattern.
+
+```csharp
+rules.For(Code.Enumerations)
+    .Require(Coverage.EnumerationStarted, "ENUM001", "Start enumeration.");
+```
+
+`EnumerationStarted` requires evidence that the compiler-selected `MoveNext` or
+`MoveNextAsync` call was attempted. An empty sequence satisfies it. Evaluating the
+collection, acquiring its enumerator, or entering another loop does not. A skipped
+loop or a failure before advancement remains uncovered when its advancement
+point has conclusive evidence. This requirement says nothing about completion,
+body execution, repeated enumeration, or provider behavior.
+
+The collector verifies the loop's exact portable-PDB `in` point against the
+matching assembly's IL and bound advancement method. Missing identity evidence
+keeps its existing typed reason. Unsupported lowering, including indexed array
+and string loops, produces `UnsupportedEnumerationMapping`; it never falls back
+to collection or body hits. Partial advancement evidence remains unknown.
+`OnUnknown` and `OnUncovered` retain their strict behavior; this requirement does
+not permit the execution-only review policy.
+
+Synthetic tests can independently attach `facts.ForEnumeration(loop).Started()`,
+`.NotStarted()`, or `.Unknown(reason)` using a loop from the workspace's analyzed
+solution. Call facts and enumeration facts do not imply one another.

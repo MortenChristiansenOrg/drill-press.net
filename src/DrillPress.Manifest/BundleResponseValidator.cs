@@ -197,7 +197,8 @@ public sealed class BundleResponseValidator
             );
             Require(
                 evidence.ReviewReasons is null
-                    || evidence.ReviewReasons.Count > 0
+                    || evidence.Metric == CoverageMetric.Execution
+                        && evidence.ReviewReasons.Count > 0
                         && evidence.ReviewReasons.All(reason =>
                             reason == CoverageReason.UnsupportedExpressionMapping
                         ),

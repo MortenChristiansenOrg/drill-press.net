@@ -12,6 +12,29 @@ public sealed class TestCoverageFacts
 
     internal TestCoverageFacts(IReadOnlyList<AnalysisProject> projects) => _projects = projects;
 
+    /// <summary>Binds an exact resolved foreach occurrence in this workspace. Advancement facts remain separate from execution facts for its collection expression.</summary>
+    public TestEnumerationCoverage ForEnumeration(CodeEnumeration enumeration)
+    {
+        if (
+            !_projects.Contains(enumeration.Source.Project)
+            || !enumeration.IsResolved
+            || enumeration.Source.Document.IsGenerated
+            || enumeration.Syntax.SyntaxTree != enumeration.Source.Tree
+        )
+            throw new ArgumentException(
+                "Enumeration must be a resolved occurrence in this workspace.",
+                nameof(enumeration)
+            );
+        return new(
+            new TestCallCoverage(
+                this,
+                enumeration.Source,
+                enumeration.Syntax.Span,
+                CoverageMetric.Enumeration
+            )
+        );
+    }
+
     /// <summary>Binds a unique explicit call across the workspace. Repeated text or linked/framework memberships require the project overload or a bound call.</summary>
     public TestCallCoverage ForCall(string documentPath, string callText) =>
         Call(Sources(documentPath), callText);
@@ -113,7 +136,8 @@ public sealed class TestCoverageFacts
         AnalysisSource source,
         Microsoft.CodeAnalysis.Text.TextSpan span,
         ExecutionCoverage state,
-        CoverageReason[] reasons
+        CoverageReason[] reasons,
+        CoverageMetric metric = CoverageMetric.Execution
     )
     {
         if (
@@ -121,13 +145,21 @@ public sealed class TestCoverageFacts
                 fact.ContextId == source.Project.Snapshot.ContextId
                 && fact.Document.DocumentId == source.Document.DocumentId
                 && fact.Span == span
+                && fact.Metric == metric
             )
         )
             throw new InvalidOperationException(
                 "This source occurrence already has a synthetic execution fact."
             );
         _executions.Add(
-            new(source.Project.Snapshot.ContextId, source.Document, span, state, reasons.ToArray())
+            new(
+                source.Project.Snapshot.ContextId,
+                source.Document,
+                span,
+                state,
+                reasons.ToArray(),
+                metric
+            )
         );
     }
 
@@ -155,7 +187,8 @@ public sealed class TestCoverageFacts
                 fact.Document.DocumentId,
                 fact.Span,
                 fact.State,
-                fact.Reasons
+                fact.Reasons,
+                fact.Metric
             );
         }
         foreach (var fact in _lines)

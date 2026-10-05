@@ -9,33 +9,37 @@ public sealed class CoverageRequirement
     private readonly string? _uncoveredMessage;
     private readonly string? _unknownMessage;
     private readonly CoverageReason[] _reviewReasons;
+    private readonly bool _enumerationStarted;
 
     internal CoverageRequirement(
         double? minimum,
         string? uncoveredMessage = null,
         string? unknownMessage = null,
-        CoverageReason[]? reviewReasons = null
+        CoverageReason[]? reviewReasons = null,
+        bool enumerationStarted = false
     ) =>
-        (_minimum, _uncoveredMessage, _unknownMessage, _reviewReasons) = (
+        (_minimum, _uncoveredMessage, _unknownMessage, _reviewReasons, _enumerationStarted) = (
             minimum,
             uncoveredMessage,
             unknownMessage,
-            reviewReasons?.ToArray() ?? []
+            reviewReasons?.ToArray() ?? [],
+            enumerationStarted
         );
 
     /// <summary>Chooses occurrence-specific remediation for conclusive execution or percentage failures, retaining the stable rule descriptor.</summary>
     public CoverageRequirement OnUncovered(string message) =>
-        new(_minimum, Message(message), _unknownMessage, _reviewReasons);
+        new(_minimum, Message(message), _unknownMessage, _reviewReasons, _enumerationStarted);
 
     /// <summary>Chooses occurrence-specific remediation for inconclusive evidence without treating it as satisfied.</summary>
     public CoverageRequirement OnUnknown(string message) =>
-        new(_minimum, _uncoveredMessage, Message(message), _reviewReasons);
+        new(_minimum, _uncoveredMessage, Message(message), _reviewReasons, _enumerationStarted);
 
     /// <summary>Explicitly requests visible, non-gating review only when every unknown reason is a configured unsupported execution mapping. Missing tests, identity/exclusion failures, and operational failures are ineligible.</summary>
     public CoverageRequirement ReviewUnknownFor(params CoverageReason[] reasons)
     {
         if (
             _minimum is not null
+            || _enumerationStarted
             || reasons.Length == 0
             || reasons.Any(reason => reason != CoverageReason.UnsupportedExpressionMapping)
         )
@@ -58,13 +62,16 @@ public sealed class CoverageRequirement
     }
 
     /// <summary>Reads occurrence evidence after collection; direct rule evaluation without prepared evidence returns unknown.</summary>
-    public ExecutionCoverage ExecutionOf(ICodeElement occurrence) =>
-        occurrence.Source?.Project.Coverage.ExecutionOf(occurrence) ?? ExecutionCoverage.Unknown;
+    public ExecutionCoverage ExecutionOf(ICodeElement occurrence) => Inspect(occurrence).State;
 
     /// <summary>Reads source-bound execution evidence and typed explanations after preparation; does not launch tests.</summary>
     public CoverageEvidence Inspect(ICodeElement occurrence) =>
         WithPolicy(
-            occurrence.Source?.Project.Coverage.Inspect(occurrence)
+            (
+                _enumerationStarted
+                    ? occurrence.Source?.Project.Coverage.InspectEnumeration(occurrence)
+                    : occurrence.Source?.Project.Coverage.Inspect(occurrence)
+            )
                 ?? new(
                     ExecutionCoverage.Unknown,
                     Array.AsReadOnly(new[] { CoverageReason.EvidenceNotPrepared }),
@@ -72,6 +79,11 @@ public sealed class CoverageRequirement
                     "",
                     ""
                 )
+                {
+                    Metric = _enumerationStarted
+                        ? CoverageMetric.Enumeration
+                        : CoverageMetric.Execution,
+                }
         );
 
     private CoverageEvidence WithPolicy(CoverageEvidence evidence) =>
@@ -106,7 +118,12 @@ public sealed class CoverageRequirement
                     "",
                     "",
                     ""
-                );
+                )
+                {
+                    Metric = _enumerationStarted
+                        ? CoverageMetric.Enumeration
+                        : CoverageMetric.Execution,
+                };
         var measured = Coverage.Line.Measure(candidate);
         var project = candidate is AnalysisProject selected
             ? selected

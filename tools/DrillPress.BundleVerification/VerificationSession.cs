@@ -497,6 +497,13 @@ public sealed class VerificationSession : IDisposable
         Console.WriteLine(
             "CLI fix/recheck: both safe fixes preserve exact source bytes with managed/native bundles"
         );
+        await new EnumerationCoverageCase(
+            _fileSystem,
+            RepositoryRoot,
+            _fixture.FullName,
+            OutputDirectory,
+            RuntimeIdentifier
+        ).VerifyAsync(BuildHost);
         await new CoverageEvidenceCase(
             _fileSystem,
             RepositoryRoot,

@@ -8,9 +8,14 @@ public sealed class TestCallCoverage
     private readonly TestCoverageFacts _facts;
     private readonly AnalysisSource _source;
     private readonly TextSpan _span;
+    private readonly CoverageMetric _metric;
 
-    internal TestCallCoverage(TestCoverageFacts facts, AnalysisSource source, TextSpan span) =>
-        (_facts, _source, _span) = (facts, source, span);
+    internal TestCallCoverage(
+        TestCoverageFacts facts,
+        AnalysisSource source,
+        TextSpan span,
+        CoverageMetric metric = CoverageMetric.Execution
+    ) => (_facts, _source, _span, _metric) = (facts, source, span, metric);
 
     /// <summary>Supplies synthetic covered evidence; this does not represent real test execution.</summary>
     public TestCoverageFacts Executed() => Set(ExecutionCoverage.Covered, []);
@@ -31,7 +36,7 @@ public sealed class TestCallCoverage
 
     private TestCoverageFacts Set(ExecutionCoverage state, CoverageReason[] reasons)
     {
-        _facts.Execution(_source, _span, state, reasons);
+        _facts.Execution(_source, _span, state, reasons, _metric);
         return _facts;
     }
 }

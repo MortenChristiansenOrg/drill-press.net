@@ -67,6 +67,9 @@ public enum CoverageReason
 
     /// <summary>A report range lacks valid coordinates or function identity.</summary>
     InvalidReportRange,
+
+    /// <summary>The compiler loop has no verified, separately instrumented advancement condition.</summary>
+    UnsupportedEnumerationMapping,
 }
 
 /// <summary>The source fact measured by a coverage requirement.</summary>
@@ -77,6 +80,9 @@ public enum CoverageMetric
 
     /// <summary>Physical fully covered and coverable lines.</summary>
     Line,
+
+    /// <summary>An enumerator-based loop reached its first MoveNext or MoveNextAsync attempt, independently of collection evaluation or body entry.</summary>
+    Enumeration,
 }
 
 /// <summary>A source-relative instrumented range; it is evidence, not a claim that every enclosed expression executed.</summary>
@@ -152,7 +158,8 @@ public sealed record CoverageEvidence(
     /// <summary>Whether every unknown reason is explicitly eligible for review; this does not satisfy the requirement.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsReviewEligible =>
-        State == ExecutionCoverage.Unknown
+        Metric == CoverageMetric.Execution
+        && State == ExecutionCoverage.Unknown
         && Reasons.Count > 0
         && ReviewReasons is { Count: > 0 }
         && Reasons.All(reason =>
