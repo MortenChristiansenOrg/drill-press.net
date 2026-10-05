@@ -63,10 +63,21 @@ public sealed class CodeArgument : ICodeElement
     public bool IsExplicit => SourceIndex.HasValue;
 
     /// <summary>The source value, absent for omitted optional arguments or empty synthesized params.</summary>
-    public CodeExpression? Value =>
-        (IsExplicit || IsReceiver) && Operation.Syntax is ExpressionSyntax expression
-            ? new(Source, expression)
-            : null;
+    public CodeExpression? Value
+    {
+        get
+        {
+            if (
+                Kind == ArgumentKind.Explicit
+                && SourceIndex is { } index
+                && Invocation.Operation.Syntax is InvocationExpressionSyntax call
+            )
+                return new(Source, call.ArgumentList.Arguments[index].Expression);
+            return (IsExplicit || IsReceiver) && Operation.Syntax is ExpressionSyntax expression
+                ? new(Source, expression)
+                : null;
+        }
+    }
 
     /// <summary>The explicit value's span. Callers must choose their own fallback for implicit values.</summary>
     public SourceLocation? Location => Value?.Location;

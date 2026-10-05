@@ -8,6 +8,13 @@ namespace DrillPress;
 /// <summary>A source expression and its compiler evidence; no expression evaluation or runtime inference is performed.</summary>
 public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax syntax) : ICodeElement
 {
+    /// <summary>Visits the root and explicitly configured call inputs, bounded by depth and distinct source expressions. Stops at assignments, properties, and unconfigured calls; preserves original source/conversion evidence.</summary>
+    public ExpressionTraversalResult TraverseInputs(
+        ExpressionTraversal traversal,
+        int maxDepth = 16,
+        int maxExpressions = 256
+    ) => traversal.Traverse(this, maxDepth, maxExpressions);
+
     /// <summary>Views an explicit bound invocation through parentheses and implicit built-in conversions. Explicit/user conversions and conditional-access envelopes remain unavailable.</summary>
     public CodeInvocation? AsInvocation()
     {
