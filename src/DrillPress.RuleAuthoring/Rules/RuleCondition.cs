@@ -21,6 +21,7 @@ public sealed class RuleCondition<T>
     internal Func<T, string>? Detail { get; init; }
     internal Func<T, IReadOnlyList<CoverageEvidence>>? CoverageFacts { get; init; }
     internal Func<T, ConditionFailure>? Failure { get; init; }
+    internal Func<T, ConditionPossibilities>? BeforeCoverage { get; init; }
 
     /// <summary>Adapts a test-backed coverage requirement to this candidate type while retaining collection metadata.</summary>
     public static implicit operator RuleCondition<T>(CoverageRequirement requirement) =>
@@ -30,6 +31,7 @@ public sealed class RuleCondition<T>
             Detail = requirement.Detail<T>,
             CoverageFacts = candidate => new[] { requirement.InspectCandidate(candidate) },
             Failure = requirement.Failure<T>,
+            BeforeCoverage = _ => new(true, true),
         };
 
     /// <summary>Requires both conditions and intersects their known candidate names.</summary>
@@ -45,6 +47,14 @@ public sealed class RuleCondition<T>
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),
             Failure = CombinedFailure(other),
+            BeforeCoverage = candidate =>
+            {
+                var left = Possibilities(candidate);
+                if (!left.CanBeTrue)
+                    return new(false, true);
+                var right = other.Possibilities(candidate);
+                return new(left.CanBeTrue && right.CanBeTrue, left.CanBeFalse || right.CanBeFalse);
+            },
         };
 
     /// <summary>Accepts either condition; an unrestricted alternative keeps discovery unrestricted.</summary>
@@ -60,6 +70,14 @@ public sealed class RuleCondition<T>
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),
             Failure = CombinedFailure(other),
+            BeforeCoverage = candidate =>
+            {
+                var left = Possibilities(candidate);
+                if (!left.CanBeFalse)
+                    return new(true, false);
+                var right = other.Possibilities(candidate);
+                return new(left.CanBeTrue || right.CanBeTrue, left.CanBeFalse && right.CanBeFalse);
+            },
         };
 
     /// <summary>Inverts this condition without restricting candidate discovery.</summary>
@@ -69,6 +87,11 @@ public sealed class RuleCondition<T>
             RequiresCoverage = RequiresCoverage,
             Detail = Detail,
             CoverageFacts = CoverageFacts,
+            BeforeCoverage = candidate =>
+            {
+                var inner = Possibilities(candidate);
+                return new(inner.CanBeFalse, inner.CanBeTrue);
+            },
         };
 
     /// <summary>Accepts this condition only when the exception is false.</summary>
@@ -99,6 +122,14 @@ public sealed class RuleCondition<T>
                 messages.Length == 0 ? null : string.Join("; ", messages)
             );
         };
+    }
+
+    internal ConditionPossibilities Possibilities(T candidate)
+    {
+        if (BeforeCoverage is { } planning)
+            return planning(candidate);
+        var value = Evaluate(candidate);
+        return new(value, !value);
     }
 
     private Func<T, IReadOnlyList<CoverageEvidence>>? CombinedCoverage(RuleCondition<T> other)

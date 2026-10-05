@@ -7,6 +7,29 @@ namespace DrillPress;
 /// <summary>Shares lazy candidate collections across all rules in a loaded source-project graph.</summary>
 public sealed class AnalysisSolution
 {
+    internal bool IsPlanningCoverage { get; init; }
+    internal bool RequiresCertainCoverageMatches { get; init; }
+    private AnalysisSolution? _oppositeCoveragePlanning;
+
+    internal AnalysisSolution OppositeCoveragePlanning()
+    {
+        if (!IsPlanningCoverage)
+            return this;
+        lock (_facts)
+        {
+            if (_oppositeCoveragePlanning is null)
+            {
+                _oppositeCoveragePlanning = new(Projects, Options, CancellationToken)
+                {
+                    IsPlanningCoverage = true,
+                    RequiresCertainCoverageMatches = !RequiresCertainCoverageMatches,
+                };
+                _oppositeCoveragePlanning._oppositeCoveragePlanning = this;
+            }
+            return _oppositeCoveragePlanning;
+        }
+    }
+
     private readonly Lazy<IReadOnlyList<MemberReference>> _references;
     private readonly Lazy<IReadOnlyList<CodeMethod>> _methods;
     private readonly Lazy<IReadOnlyList<CodeDeclaration>> _types;
