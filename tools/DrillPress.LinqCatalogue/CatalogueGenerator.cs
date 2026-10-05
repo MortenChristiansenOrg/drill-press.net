@@ -76,14 +76,15 @@ public sealed class CatalogueGenerator(IFileSystem fileSystem)
     }
 
     private static bool IsSequence(ITypeSymbol type) =>
-        type is INamedTypeSymbol named
-        && named.OriginalDefinition.ToDisplayString()
-            is "System.Collections.IEnumerable"
-                or "System.Collections.Generic.IEnumerable<T>"
-                or "System.Linq.IQueryable"
-                or "System.Linq.IQueryable<T>"
-                or "System.Linq.IOrderedQueryable<T>"
-                or "System.Linq.IOrderedEnumerable<TElement>";
+        type is IArrayTypeSymbol
+        || type is INamedTypeSymbol named
+            && named.OriginalDefinition.ToDisplayString()
+                is "System.Collections.IEnumerable"
+                    or "System.Collections.Generic.IEnumerable<T>"
+                    or "System.Linq.IQueryable"
+                    or "System.Linq.IQueryable<T>"
+                    or "System.Linq.IOrderedQueryable<T>"
+                    or "System.Linq.IOrderedEnumerable<TElement>";
 
     private static LinqOperationCategory Category(string name) =>
         name switch

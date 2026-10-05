@@ -7,6 +7,52 @@ namespace DrillPress.IntegrationTests.Linq;
 public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Array_specific_overloads_preserve_the_original_sequence_input_in_either_spelling()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Arrays",
+            [
+                new(
+                    "Calls.cs",
+                    """
+                    using System.Linq;
+                    class C { void M(int[] items) { _ = items.Reverse(); _ = Enumerable.Reverse(items); } }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var operations = Code.Calls.In(solution).Select(StandardLinq.Inspect).ToArray();
+
+        Assert.Equal(
+            [LinqClassificationStatus.Supported, LinqClassificationStatus.Supported],
+            operations.Select(operation => operation.Status)
+        );
+        Assert.Equal(
+            new LinqOperationCategory?[]
+            {
+                LinqOperationCategory.DeferredConstruction,
+                LinqOperationCategory.DeferredConstruction,
+            },
+            operations.Select(operation => operation.Category)
+        );
+        Assert.Equal(
+            ["source:items:int[]", "source:items:int[]"],
+            operations.Select(operation =>
+            {
+                var input = Assert.Single(operation.SequenceInputs);
+                return input.Role
+                    + ":"
+                    + input.Value.Syntax
+                    + ":"
+                    + input.Value.Type!.ToDisplayString();
+            })
+        );
+    }
+
+    [Fact]
     public void Categories_distinguish_deferred_materialized_scalar_adapter_and_factory_calls()
     {
         var workspace = fixture.Workspace();
