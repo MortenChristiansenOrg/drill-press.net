@@ -7,6 +7,22 @@ public sealed class RuleSet
 
     internal bool RequiresCoverage { get; private set; }
 
+    internal IReadOnlySet<AnalysisProject> CoverageContexts(AnalysisSolution solution)
+    {
+        var planning = new AnalysisSolution(
+            solution.Projects,
+            solution.Options,
+            solution.CancellationToken
+        )
+        {
+            IsPlanningCoverage = true,
+        };
+        return _rules
+            .SelectMany(rule => rule.CoverageContexts(planning))
+            .Where(project => project.Snapshot.IsAnalysisTarget)
+            .ToHashSet();
+    }
+
     /// <summary>Begins a rule declaration over candidates selected by <paramref name="query"/>.</summary>
     public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
 
@@ -41,7 +57,8 @@ public sealed class RuleSet
         Func<T, FixProposal?>? fix,
         Func<T, object?>? reportKey = null,
         Func<T, string>? detail = null,
-        Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null
+        Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null,
+        CodeQuery<AnalysisProject>? coverageScope = null
     )
     {
         var (id, message) = descriptor;
@@ -71,9 +88,18 @@ public sealed class RuleSet
             throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");
         }
 
-        RequiresCoverage |= query.RequiresCoverage;
+        RequiresCoverage |= query.RequiresCoverage || coverageScope is not null;
         _rules.Add(
-            new CandidateRule<T>(query, descriptor, location, fix, reportKey, detail, coverageFacts)
+            new CandidateRule<T>(
+                query,
+                descriptor,
+                location,
+                fix,
+                reportKey,
+                detail,
+                coverageFacts,
+                coverageScope
+            )
         );
     }
 }

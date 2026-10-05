@@ -60,7 +60,10 @@ public sealed class CodeQuery<T>
     ) =>
         Create(solution =>
             {
-                var keys = other.Evaluate(solution).Select(otherKey).ToHashSet(comparer);
+                var keys = other
+                    .Evaluate(solution.OppositeCoveragePlanning())
+                    .Select(otherKey)
+                    .ToHashSet(comparer);
                 return Evaluate(solution).Where(candidate => !keys.Contains(key(candidate)));
             })
             .WithCoverage(RequiresCoverage || other.RequiresCoverage);
@@ -72,7 +75,7 @@ public sealed class CodeQuery<T>
     ) =>
         Create(solution =>
             {
-                var counterparts = other.In(solution);
+                var counterparts = other.In(solution.OppositeCoveragePlanning());
                 return In(solution)
                     .Where(candidate =>
                         !counterparts.Any(otherCandidate => matches(candidate, otherCandidate))
@@ -140,6 +143,14 @@ public sealed class CodeQuery<T>
     private IEnumerable<T> SelectCandidates(AnalysisSolution solution)
     {
         var candidates = _select(solution, _condition?.MemberNames);
-        return _condition is null ? candidates : candidates.Where(_condition.Evaluate);
+        return _condition is null ? candidates
+            : solution.IsPlanningCoverage
+                ? candidates.Where(candidate =>
+                {
+                    var possibilities = _condition.Possibilities(candidate);
+                    return possibilities.CanBeTrue
+                        && (!solution.RequiresCertainCoverageMatches || !possibilities.CanBeFalse);
+                })
+            : candidates.Where(_condition.Evaluate);
     }
 }
