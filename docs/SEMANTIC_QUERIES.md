@@ -172,3 +172,16 @@ unqualified source name can bind, source usage, or a direct package reference.
 Open generic names select definitions; `CodeType.Of<T>()` also resolves ordinary
 constructed types and arrays. Nested constructed runtime types remain unavailable
 when their outer substitutions cannot be resolved.
+
+## Bound call families
+
+`ToMethodsDeclaredOn(type)` matches the call's normalized declaration owner;
+`ToMethodsDeclaredOnOrDerivedFrom(type)` additionally follows the owner's nominal
+base classes. These differ from receiver filtering: an inherited member stays
+owned by its base type, an override is owned by the overriding type, and an
+extension stays owned by its static class in either call spelling. Metadata and
+constructed generic owners retain their identity. `ToMethodsMatchingName("*Async")`
+uses the existing case-sensitive glob semantics; `ToMethodsNamed` still means
+exact names. Equivalent element predicates are `IsDeclaredOn`,
+`IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `Calling` to
+retain configured signature constraints. Invalid calls never match.

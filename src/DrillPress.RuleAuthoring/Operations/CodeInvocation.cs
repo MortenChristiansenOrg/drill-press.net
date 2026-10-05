@@ -12,6 +12,17 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
     private IReadOnlyList<CodeArgument>? _arguments;
     private bool? _resolved;
 
+    /// <summary>Matches the normalized declaration owner, independently of the receiver's type.</summary>
+    public bool IsDeclaredOn(CodeType type) =>
+        IsResolved && type.Matches(Declaration.ContainingType);
+
+    /// <summary>Matches a declaration owner or its nominal base classes; does not imply override equivalence.</summary>
+    public bool IsDeclaredOnOrDerivedFrom(CodeType type) =>
+        IsResolved && Symbols.IsOrDerivesFrom(Declaration.ContainingType, type);
+
+    /// <summary>Matches a bound target's unqualified name using the SDK's case-sensitive glob semantics.</summary>
+    public bool TargetNameMatches(string pattern) => IsResolved && Declaration.NameMatches(pattern);
+
     /// <summary>The call's original source context.</summary>
     public AnalysisSource Source { get; } = source;
 
