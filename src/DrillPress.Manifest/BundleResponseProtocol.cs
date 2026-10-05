@@ -6,7 +6,7 @@ namespace DrillPress.Manifest;
 public static class BundleResponseProtocol
 {
     /// <summary>Exact version understood by the coordinator and bundle.</summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     /// <summary>Produces deterministic UTF-8 JSON without a BOM or trailing newline.</summary>
     public static byte[] Serialize(BundleResponse response) =>

@@ -31,6 +31,11 @@ public static class Code
     /// <summary>Bound calls across ordinary source, including accessors, initializers and nested functions.</summary>
     public static CodeQuery<CodeInvocation> Calls => OperationQueries.Invocations;
 
+    /// <summary>Written foreach and await foreach occurrences, including deconstruction, with separate collection and advancement semantics.</summary>
+    public static CodeQuery<CodeEnumeration> Enumerations { get; } =
+        Nodes<CommonForEachStatementSyntax>()
+            .Select(loop => new CodeEnumeration(loop.Source, loop.Syntax));
+
     /// <summary>Bound null checks retaining declaration and incoming flow evidence separately.</summary>
     public static CodeQuery<CodeNullCheck> NullChecks => OperationQueries.NullChecks;
 

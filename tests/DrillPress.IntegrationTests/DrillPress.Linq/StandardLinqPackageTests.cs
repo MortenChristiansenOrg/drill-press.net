@@ -4,9 +4,8 @@ using Xunit;
 
 namespace DrillPress.IntegrationTests.Linq;
 
-public sealed class StandardLinqPackageTests(PackageFixture fixture)
-    : IntegrationTest,
-        IClassFixture<PackageFixture>
+[Collection(typeof(PackageCollection))]
+public sealed class StandardLinqPackageTests(PackageFixture fixture) : IntegrationTest
 {
     [Fact]
     public async Task Optional_catalogue_builds_and_classifies_calls_from_packages_only()

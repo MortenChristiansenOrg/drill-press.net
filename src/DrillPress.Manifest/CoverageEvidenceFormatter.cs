@@ -20,7 +20,8 @@ public static class CoverageEvidenceFormatter
                 : $"line coverage: unknown ({counts}; {reasons})";
         }
         var state = evidence.State.ToString().ToLowerInvariant();
-        return reasons.Length == 0 ? $"coverage: {state}" : $"coverage: {state} ({reasons})";
+        var metric = evidence.Metric == CoverageMetric.Enumeration ? "enumeration" : "coverage";
+        return reasons.Length == 0 ? $"{metric}: {state}" : $"{metric}: {state} ({reasons})";
     }
 
     /// <summary>Returns actionable remediation for a typed reason, including cases where adding tests cannot fix the current mapping.</summary>
@@ -55,6 +56,8 @@ public static class CoverageEvidenceFormatter
                 "No coverable lines were measured; explicitly exclude scopes outside the policy rather than granting vacuous success.",
             CoverageReason.InvalidReportRange =>
                 "The collector range has invalid coordinates or function identity; regenerate the report.",
+            CoverageReason.UnsupportedEnumerationMapping =>
+                "The loop has no verified advancement point; inspect compiler lowering and exclusions. More body or collection coverage cannot substitute for it.",
             _ => throw new ArgumentOutOfRangeException(nameof(reason)),
         };
 
@@ -62,6 +65,7 @@ public static class CoverageEvidenceFormatter
         reason switch
         {
             CoverageReason.EvidenceNotPrepared => "not-prepared",
+            CoverageReason.UnsupportedEnumerationMapping => "unsupported-enumeration",
             CoverageReason.LooseSource => "loose-source",
             CoverageReason.NoApplicableTests => "no-tests",
             CoverageReason.MissingSymbols => "missing-symbols",

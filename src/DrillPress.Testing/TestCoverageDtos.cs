@@ -8,7 +8,8 @@ internal sealed record TestExecutionFact(
     DocumentSnapshot Document,
     TextSpan Span,
     ExecutionCoverage State,
-    CoverageReason[] Reasons
+    CoverageReason[] Reasons,
+    CoverageMetric Metric = CoverageMetric.Execution
 );
 
 internal sealed record TestLineFact(

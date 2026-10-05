@@ -1,13 +1,13 @@
 using System.IO.Compression;
 using System.Xml.Linq;
 using DrillPress.IntegrationTests.TestInfrastructure;
+using DrillPress.Manifest;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.DrillPress.Cli;
 
-public sealed class InstalledPackageTests(PackageFixture fixture)
-    : IntegrationTest,
-        IClassFixture<PackageFixture>
+[Collection(typeof(PackageCollection))]
+public sealed class InstalledPackageTests(PackageFixture fixture) : IntegrationTest
 {
     [Theory]
     [InlineData("string?", 0, "")]
@@ -123,7 +123,14 @@ public sealed class InstalledPackageTests(PackageFixture fixture)
         );
         var global = await fixture.GlobalAsync("--version");
 
-        Assert.Equal((0, $"drillpress {fixture.Version} (snapshot 5, response 6)\n", ""), local);
+        Assert.Equal(
+            (
+                0,
+                $"drillpress {fixture.Version} (snapshot {CompilationSnapshot.CurrentFormatVersion}, response {BundleResponseProtocol.CurrentVersion})\n",
+                ""
+            ),
+            local
+        );
         Assert.Equal(local, global);
     }
 

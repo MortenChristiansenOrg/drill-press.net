@@ -51,6 +51,7 @@ internal sealed class CoverageSymbols(IFileSystem fileSystem, CoverageProcess pr
                 project.Coverage.Unavailable(CoverageReason.SymbolIdentityMismatch);
                 return null;
             }
+            new CoverageAdvancementSymbols(_fileSystem).Apply(project, pe, reader);
             return Convert.ToHexString(reader.DebugMetadataHeader!.Id.AsSpan());
         }
         catch (BadImageFormatException)
