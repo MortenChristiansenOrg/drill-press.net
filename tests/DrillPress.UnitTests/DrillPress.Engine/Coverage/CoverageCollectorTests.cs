@@ -8,6 +8,57 @@ namespace DrillPress.UnitTests.Engine.Coverage;
 public sealed class CoverageCollectorTests
 {
     [Fact]
+    public async Task Coverage_ranges_retain_their_document_when_the_diagnostic_reports_another_file()
+    {
+        var fixture = new CoverageFixture(additionalSources: [("Report.cs", "class Report {}")]);
+        var project = fixture.Snapshot.Projects[0];
+        var report = project.Documents[1];
+        var reportPath = report.Path;
+        var snapshot = fixture.Snapshot;
+        var rules = new RuleSet();
+        rules
+            .For(Code.Calls.ToMethodsNamed("HitValue"))
+            .Require(
+                global::DrillPress.Coverage.Executed,
+                "COV",
+                "Exercise call.",
+                location: _ => new(reportPath, 0, 5, 1, 1)
+            );
+
+        var response = await fixture
+            .Engine()
+            .EvaluateAsync(
+                rules,
+                snapshot,
+                new AnalysisOptions { ExplainCoverage = true },
+                TestContext.Current.CancellationToken
+            );
+        var validated = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal([reportPath], validated.Findings.Select(finding => finding.Path));
+        Assert.Equal(
+            [project.Documents[0].DocumentId, project.Documents[0].DocumentId],
+            validated
+                .Findings.SelectMany(finding => finding.Coverage!)
+                .SelectMany(evidence => evidence.Ranges)
+                .Select(range => range.DocumentId)
+        );
+        Assert.Equal(
+            [project.Documents[0].Path, project.Documents[0].Path],
+            validated
+                .Findings.SelectMany(finding => finding.Coverage!)
+                .SelectMany(evidence => evidence.Ranges)
+                .Select(range => range.Path)
+        );
+        Assert.All(
+            validated
+                .Findings.SelectMany(finding => finding.Coverage!)
+                .SelectMany(evidence => evidence.Ranges),
+            range => Assert.True(range.Start + range.Length > report.Text.Length)
+        );
+    }
+
+    [Fact]
     public async Task Typed_reasons_distinguish_missing_tests_from_unsupported_expression_mapping()
     {
         var absent = new CoverageFixture();
@@ -97,6 +148,8 @@ public sealed class CoverageCollectorTests
                 Ranges =
                 [
                     new(
+                        project.Documents[0].DocumentId,
+                        project.Documents[0].Path,
                         CoverageFixture.Source.IndexOf(statement),
                         statement.Length,
                         ExecutionCoverage.Covered

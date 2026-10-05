@@ -134,7 +134,7 @@ public sealed class BundleResponseValidator
                     IsSpan(document!.Text, finding.Start, finding.Length),
                     "Finding span is outside captured source."
                 );
-                ValidateCoverage(finding, contexts[context.ContextId], document!);
+                ValidateCoverage(finding, contexts[context.ContextId]);
                 Require(
                     finding.BatchId is null || batches.ContainsKey(finding.BatchId),
                     "Finding references an unknown fix batch."
@@ -143,11 +143,7 @@ public sealed class BundleResponseValidator
         }
     }
 
-    private static void ValidateCoverage(
-        Finding finding,
-        ProjectSnapshot project,
-        DocumentSnapshot document
-    )
+    private static void ValidateCoverage(Finding finding, ProjectSnapshot project)
     {
         foreach (var evidence in finding.Coverage ?? [])
         {
@@ -170,7 +166,12 @@ public sealed class BundleResponseValidator
                     && evidence.Ranges.All(range =>
                         range is not null
                         && Enum.IsDefined(range.State)
-                        && IsSpan(document.Text, range.Start, range.Length)
+                        && project.Documents.Any(document =>
+                            document.DocumentId == range.DocumentId
+                            && document.Path == range.Path
+                            && !document.IsGenerated
+                            && IsSpan(document.Text, range.Start, range.Length)
+                        )
                     ),
                 "Invalid coverage source range."
             );
