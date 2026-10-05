@@ -86,10 +86,18 @@ public enum CoverageMetric
 }
 
 /// <summary>A source-relative instrumented range; it is evidence, not a claim that every enclosed expression executed.</summary>
+/// <param name="DocumentId">The original evidence document's membership within its evaluated context, independent of the diagnostic's reporting location.</param>
+/// <param name="Path">That captured document's path, validated against its membership before rendering.</param>
 /// <param name="Start">Zero-based UTF-16 source offset.</param>
 /// <param name="Length">UTF-16 range length.</param>
 /// <param name="State">Merged execution evidence for this range.</param>
-public sealed record CoverageRangeEvidence(int Start, int Length, ExecutionCoverage State);
+public sealed record CoverageRangeEvidence(
+    string DocumentId,
+    string Path,
+    int Start,
+    int Length,
+    ExecutionCoverage State
+);
 
 /// <summary>Measured line counts with completeness retained separately from the percentage.</summary>
 /// <param name="Covered">Fully covered physical lines.</param>
