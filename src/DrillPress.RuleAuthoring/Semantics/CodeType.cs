@@ -10,33 +10,63 @@ public readonly record struct CodeType(string MetadataName)
     private bool AllowFrameworkFacades { get; init; }
     private Type? RuntimeType { get; init; }
 
-    internal ITypeSymbol? Resolve(Compilation compilation)
+    internal TypeAvailability InspectAvailability(Compilation compilation)
     {
-        var resolved =
-            RuntimeType is { } runtime ? ResolveRuntime(runtime, compilation)
-            : TypeArguments.Length == 0 ? compilation.GetTypeByMetadataName(MetadataName)
-            : null;
-        return resolved is not null && Matches(resolved) ? resolved : null;
+        if (RuntimeType is { IsArray: true } array)
+        {
+            var element = FromRuntime(array.GetElementType()!).InspectAvailability(compilation);
+            return element.Type is { } symbol
+                ? new(
+                    TypeAvailabilityStatus.Available,
+                    compilation.CreateArrayTypeSymbol(symbol, array.GetArrayRank())
+                )
+                : element;
+        }
+        var definitionIdentity = this with { TypeArguments = "" };
+        var candidates = compilation
+            .GetTypesByMetadataName(MetadataName)
+            .Where(definitionIdentity.Matches)
+            .ToArray();
+        if (candidates.Length != 1)
+            return new(
+                candidates.Length == 0
+                    ? TypeAvailabilityStatus.Missing
+                    : TypeAvailabilityStatus.Ambiguous,
+                null
+            );
+        if (RuntimeType is not { IsConstructedGenericType: true } runtime)
+            return Matches(candidates[0])
+                ? new(TypeAvailabilityStatus.Available, candidates[0])
+                : new(TypeAvailabilityStatus.Missing, null);
+        return ConstructAvailability(compilation, candidates[0], runtime);
     }
 
-    private static ITypeSymbol? ResolveRuntime(Type type, Compilation compilation)
+    internal ITypeSymbol? Resolve(Compilation compilation) => InspectAvailability(compilation).Type;
+
+    private TypeAvailability ConstructAvailability(
+        Compilation compilation,
+        INamedTypeSymbol definition,
+        Type runtime
+    )
     {
-        if (type.IsArray)
-            return ResolveRuntime(type.GetElementType()!, compilation) is { } element
-                ? compilation.CreateArrayTypeSymbol(element, type.GetArrayRank())
-                : null;
-        var definition = compilation.GetTypeByMetadataName(RuntimeName(type));
-        if (definition is null || !type.IsConstructedGenericType)
-            return definition;
-        // Nested generic construction is left to contextual symbols rather than guessing outer substitutions.
+        // Nested construction requires outer substitutions that this descriptor does not resolve.
         if (definition.ContainingType is not null)
-            return null;
-        var arguments = type
-            .GenericTypeArguments.Select(argument => ResolveRuntime(argument, compilation))
+            return new(TypeAvailabilityStatus.Missing, null);
+        var arguments = runtime
+            .GenericTypeArguments.Select(argument =>
+                FromRuntime(argument).InspectAvailability(compilation)
+            )
             .ToArray();
-        return arguments.All(argument => argument is not null)
-            ? definition.Construct(arguments.Select(argument => argument!).ToArray())
-            : null;
+        if (arguments.Any(argument => argument.Status == TypeAvailabilityStatus.Missing))
+            return new(TypeAvailabilityStatus.Missing, null);
+        if (arguments.Any(argument => argument.Status == TypeAvailabilityStatus.Ambiguous))
+            return new(TypeAvailabilityStatus.Ambiguous, null);
+        var constructed = definition.Construct(
+            arguments.Select(argument => argument.Type!).ToArray()
+        );
+        return Matches(constructed)
+            ? new(TypeAvailabilityStatus.Available, constructed)
+            : new(TypeAvailabilityStatus.Missing, null);
     }
 
     /// <summary>Describes instance constructors without exposing their metadata name.</summary>

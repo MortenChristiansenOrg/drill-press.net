@@ -160,6 +160,32 @@ culture formatting or runtime value inference is built into this model. A rule c
 therefore distinguish a literal `/details` suffix from `?next=/details`, and inspect
 relative URI text without accidentally treating its base URI as the selected value.
 
+## Call and expression views
+
+`call.Expression` and `calls.Expressions()` expose the existing `CodeExpression`
+model with the bound invocation's source span, context, original/converted types
+and `Facts`. Implicit or invalid calls have no expression view. Conditional
+access exposes only the bound call arm, such as `.Load()`, rather than the whole
+`receiver?.Load()` expression. `expression.AsInvocation()` returns a bound call
+through parentheses and implicit built-in conversions; explicit/user conversions,
+conditional-access envelopes, and non-call/invalid expressions return null.
+`calls.OutsideExpressionTrees()` is an explicit consumer filter. Ordinary call
+queries retain expression-tree occurrences. Built-in projections retain lazy
+query caching, occurrence identity and coverage collection dependencies.
+
+## Contextual project scopes
+
+`Code.Calls.InNonTestProjects().InProjectsWithType(contract)` shares evaluated
+project classification and contextual type availability with other source queries.
+`project.HasType(contract)` requires one match; `project.InspectType(contract)`
+retains missing, available and ambiguous outcomes and caches them per context.
+Assembly-qualified descriptors can distinguish same-named types. Availability
+includes references exposed through extern aliases; it does not imply an
+unqualified source name can bind, source usage, or a direct package reference.
+Open generic names select definitions; `CodeType.Of<T>()` also resolves ordinary
+constructed types and arrays. Nested constructed runtime types remain unavailable
+when their outer substitutions cannot be resolved.
+
 ## Bound call families
 
 `ToMethodsDeclaredOn(type)` matches the call's normalized declaration owner;
@@ -172,3 +198,16 @@ uses the existing case-sensitive glob semantics; `ToMethodsNamed` still means
 exact names. Equivalent element predicates are `IsDeclaredOn`,
 `IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `Calling` to
 retain configured signature constraints. Invalid calls never match.
+
+## Multiple argument roles
+
+`calls.WhereAnyArgument(named: ["source", "first", "second"], value: predicate)`
+tests original source expressions associated with bound declaration parameters,
+including normalized extension receivers. Each matching invocation appears once;
+missing roles, omitted defaults, empty params and invalid calls do not match.
+`calls.ArgumentsFor("first", "second")` projects every selected value in source
+evaluation order, retaining expanded params and defaults. Repeated role names
+never duplicate a value. `SourceValues(includeReceivers: true)` includes the
+written extension receiver once in both extension spellings; its default remains
+false, preserving the existing explicit-argument-only projection. Original type,
+contextual conversion, source/context identity and collection metadata survive.
