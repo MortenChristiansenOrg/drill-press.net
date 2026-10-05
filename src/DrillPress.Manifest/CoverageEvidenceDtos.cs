@@ -1,5 +1,15 @@
 namespace DrillPress;
 
+/// <summary>Whether a visible finding fails the check or requests review under an explicit coverage policy.</summary>
+public enum FindingDisposition
+{
+    /// <summary>Fails the check; this is the default for unknown and uncovered requirements.</summary>
+    Violation,
+
+    /// <summary>Remains visible without failing the check; it proves no coverage.</summary>
+    Review,
+}
+
 /// <summary>Whether prepared test evidence establishes execution of a selected source occurrence.</summary>
 public enum ExecutionCoverage
 {
@@ -114,6 +124,40 @@ public sealed record CoverageEvidence(
 
     /// <summary>Matching source ranges, supplied by SDK inspection or opt-in detailed bundle output.</summary>
     public IReadOnlyList<CoverageRangeEvidence> Ranges { get; init; } = [];
+
+    /// <summary>Explicit reasons eligible for review-only gating; this is policy metadata and never changes State.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public IReadOnlyList<CoverageReason>? ReviewReasons { get; init; }
+
+    /// <summary>The required percentage when this fact describes a line requirement.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public double? MinimumPercentage { get; init; }
+
+    /// <summary>Whether the measured fact satisfies its execution or line requirement; unknown evidence always returns false.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SatisfiesRequirement =>
+        State != ExecutionCoverage.Unknown
+        && (
+            Metric == CoverageMetric.Line
+                ? Lines is { IsComplete: true, Coverable: > 0 }
+                    && MinimumPercentage is { } minimum
+                    && Lines.Percentage >= minimum
+                : State == ExecutionCoverage.Covered
+        );
+
+    /// <summary>Whether every unknown reason is explicitly eligible for review; this does not satisfy the requirement.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsReviewEligible =>
+        State == ExecutionCoverage.Unknown
+        && Reasons.Count > 0
+        && ReviewReasons is { Count: > 0 }
+        && Reasons.All(reason =>
+            reason == CoverageReason.UnsupportedExpressionMapping && ReviewReasons.Contains(reason)
+        );
 
     /// <summary>Whether refreshed collection might repair stale, missing, or partial evidence; unsupported mappings and absent tests need another remedy.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

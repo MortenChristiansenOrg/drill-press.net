@@ -6,6 +6,142 @@ namespace DrillPress.UnitTests.Manifest;
 
 public sealed class BundleResponseValidatorTests
 {
+    [Fact]
+    public void Review_without_explicit_eligible_evidence_is_rejected()
+    {
+        var fixture = new ContractFixture();
+        var finding = fixture.Response.Contexts[0].Findings[0] with
+        {
+            Disposition = FindingDisposition.Review,
+        };
+        var response = fixture.Response with
+        {
+            Contexts =
+            [
+                fixture.Response.Contexts[0] with
+                {
+                    Findings = [finding],
+                },
+                fixture.Response.Contexts[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(fixture.Snapshot, response)
+        );
+
+        Assert.Equal("Review finding lacks an explicit eligible coverage policy.", error.Message);
+    }
+
+    [Fact]
+    public void Line_threshold_satisfaction_is_validated_without_treating_unknown_execution_as_covered()
+    {
+        var fixture = new ContractFixture();
+        var project = fixture.Snapshot.Projects[0];
+        var review = new CoverageEvidence(
+            ExecutionCoverage.Unknown,
+            [CoverageReason.UnsupportedExpressionMapping],
+            project.Name,
+            project.TargetFramework,
+            project.ContextId
+        )
+        {
+            ReviewReasons = [CoverageReason.UnsupportedExpressionMapping],
+        };
+        var lines = new CoverageEvidence(
+            ExecutionCoverage.Uncovered,
+            [],
+            project.Name,
+            project.TargetFramework,
+            project.ContextId
+        )
+        {
+            Metric = CoverageMetric.Line,
+            Lines = new(8, 10, true, []),
+            MinimumPercentage = 60,
+        };
+        var finding = fixture.Response.Contexts[0].Findings[0] with
+        {
+            Disposition = FindingDisposition.Review,
+            Coverage = [review, lines],
+        };
+        var response = fixture.Response with
+        {
+            Contexts =
+            [
+                fixture.Response.Contexts[0] with
+                {
+                    Findings = [finding],
+                },
+                fixture.Response.Contexts[1],
+            ],
+        };
+
+        var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
+
+        Assert.Equal(FindingDisposition.Review, Assert.Single(result.Findings).Disposition);
+        Assert.False(review.SatisfiesRequirement);
+        Assert.True(lines.SatisfiesRequirement);
+    }
+
+    [Fact]
+    public void A_violation_in_another_context_retains_failure_gating()
+    {
+        var fixture = new ContractFixture();
+        var first = fixture.Snapshot.Projects[0];
+        var second = fixture.Snapshot.Projects[1];
+        var review = fixture.Response.Contexts[0].Findings[0] with
+        {
+            Disposition = FindingDisposition.Review,
+            BatchId = null,
+            Coverage =
+            [
+                new(
+                    ExecutionCoverage.Unknown,
+                    [CoverageReason.UnsupportedExpressionMapping],
+                    first.Name,
+                    first.TargetFramework,
+                    first.ContextId
+                )
+                {
+                    ReviewReasons = [CoverageReason.UnsupportedExpressionMapping],
+                },
+            ],
+        };
+        var violation = review with
+        {
+            Disposition = FindingDisposition.Violation,
+            DocumentId = "linked",
+            Coverage =
+            [
+                new(
+                    ExecutionCoverage.Uncovered,
+                    [],
+                    second.Name,
+                    second.TargetFramework,
+                    second.ContextId
+                ),
+            ],
+        };
+        var response = fixture.Response with
+        {
+            Contexts =
+            [
+                new(first.ContextId, true, [review]),
+                new(second.ContextId, true, [violation]),
+            ],
+            Batches = [],
+        };
+
+        var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
+
+        Assert.Equal(FindingDisposition.Violation, Assert.Single(result.Findings).Disposition);
+        Assert.Equal(
+            [ExecutionCoverage.Unknown, ExecutionCoverage.Uncovered],
+            Assert.Single(result.Findings).Coverage!.Select(evidence => evidence.State)
+        );
+    }
+
     private readonly ContractFixture _fixture = new();
 
     [Theory]

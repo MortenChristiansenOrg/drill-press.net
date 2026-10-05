@@ -41,7 +41,8 @@ public sealed class RuleSet
         Func<T, FixProposal?>? fix,
         Func<T, object?>? reportKey = null,
         Func<T, string>? detail = null,
-        Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null
+        Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null,
+        Func<T, ConditionFailure>? failure = null
     )
     {
         var (id, message) = descriptor;
@@ -73,7 +74,16 @@ public sealed class RuleSet
 
         RequiresCoverage |= query.RequiresCoverage;
         _rules.Add(
-            new CandidateRule<T>(query, descriptor, location, fix, reportKey, detail, coverageFacts)
+            new CandidateRule<T>(
+                query,
+                descriptor,
+                location,
+                fix,
+                reportKey,
+                detail,
+                coverageFacts,
+                failure
+            )
         );
     }
 }

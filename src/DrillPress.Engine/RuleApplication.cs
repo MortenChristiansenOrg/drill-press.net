@@ -107,7 +107,7 @@ public sealed class RuleApplication
                     System.Text.Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response))
                 );
             }
-            return response.Contexts.All(context => context.Findings.Length == 0)
+            return plan.Findings.All(finding => finding.Disposition == FindingDisposition.Review)
                 ? RuleExitCode.Clean
                 : RuleExitCode.Findings;
         }

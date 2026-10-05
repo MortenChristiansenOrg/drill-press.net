@@ -129,7 +129,7 @@ Pass `--explain-coverage` to include context identity, typed explanations and
 matching ranges, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
 Ordinary bundle output omits ranges; typed state/reasons/counts remain available
 through diagnostics, validated findings and cross-context aggregation. Response
-protocol 5 requires matching CLI/SDK packages and rebuilt bundles. Collection,
+protocol 6 requires matching CLI/SDK packages and rebuilt bundles. Collection,
 build, tool and test failures still stop the check rather than becoming unknown
 findings.
 
@@ -168,3 +168,36 @@ requirement evaluator, response construction, and validator. Synthetic facts are
 restricted to the testing package's fixture path; production checks still require
 collector/build/source identity validation. Keep real collector integration tests
 separate from these deterministic rule-policy tests.
+
+## Coverage outcome policy
+
+Strict execution and line requirements fail for uncovered and unknown evidence.
+Declare different remediation without rebuilding that state machine:
+
+```csharp
+rules.For(queryExecutions).Require(
+    Coverage.Executed
+        .OnUncovered("Exercise this query in tests.")
+        .OnUnknown("Inspect the coverage explanation."),
+    "DATA002", "Queries require verified test execution.");
+```
+
+The registered rule description stays stable; `OutcomeRemediation` describes each
+occurrence. To make an unsupported execution mapping a visible review item,
+explicitly opt into `.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping)`.
+Every unknown reason must be eligible. Missing tests/symbols, identity mismatches,
+exclusions, partial ranges, and collection/build/test/tool failures cannot become
+review-only findings. Empty or ineligible review configuration rejects.
+
+Review is a gating choice: `Disposition` remains visible, the CLI adds `[review]`,
+and a check containing only review findings exits 0. Execution remains `Unknown`,
+`SatisfiesRequirement` stays false, and no covered claim is made. Any violation in
+another contributing context retains failing exit 1. Composed conditions retain
+automatic collection; any failing non-review condition retains violation gating.
+Negated conditions retain ordinary Boolean semantics and default violation gating.
+
+`CoverageEvidence.ReviewReasons` carries the explicit policy independently of the
+measured state; `MinimumPercentage` carries a line requirement's threshold. Bundle
+validation checks eligible reasons, measured counts, thresholds, and review gating
+before accepting a successful exit. Response protocol 6 requires matching packages
+and rebuilt bundles.

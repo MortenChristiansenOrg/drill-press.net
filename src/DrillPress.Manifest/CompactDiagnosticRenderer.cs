@@ -67,6 +67,10 @@ public sealed class CompactDiagnosticRenderer
 
                     if (finding.Evidence is not null)
                         output.Append(" [").Append(finding.Evidence).Append(']');
+                    if (finding.Disposition == FindingDisposition.Review)
+                        output.Append(" [review]");
+                    if (finding.OutcomeRemediation is not null)
+                        output.Append(' ').Append(finding.OutcomeRemediation);
                     output.Append('\n');
                     if (explainCoverage)
                         ExplainCoverage(output, finding);

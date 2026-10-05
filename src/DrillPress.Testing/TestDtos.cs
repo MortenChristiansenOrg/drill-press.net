@@ -22,6 +22,12 @@ public sealed record TestFinding(
     bool HasFix
 )
 {
+    /// <summary>Default violation or explicitly reason-scoped visible review.</summary>
+    public FindingDisposition Disposition { get; init; }
+
+    /// <summary>Optional occurrence-specific coverage remediation.</summary>
+    public string? OutcomeRemediation { get; init; }
+
     /// <summary>Readable evidence retained from the validated production result.</summary>
     public string? Evidence { get; init; }
 

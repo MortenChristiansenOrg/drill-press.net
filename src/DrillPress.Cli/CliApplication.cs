@@ -163,7 +163,9 @@ public sealed class CliApplication
                     }
                     await standardOutput.WriteAsync(text);
                 }
-                return evaluation.Result.Findings.Length == 0
+                return evaluation.Result.Findings.All(finding =>
+                    finding.Disposition == FindingDisposition.Review
+                )
                     ? CliExitCode.Clean
                     : CliExitCode.Findings;
             }
@@ -239,9 +241,9 @@ public sealed class CliApplication
             check.StandardOutput,
             snapshot,
             options.FixComplexities,
-            out var completeFindingCount
+            out var completeViolationCount
         );
-        if (check.ExitCode != (completeFindingCount == 0 ? 0 : 1))
+        if (check.ExitCode != (completeViolationCount == 0 ? 0 : 1))
         {
             throw new InvalidDataException("Bundle exit code disagrees with its response.");
         }
