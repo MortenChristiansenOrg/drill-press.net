@@ -10,7 +10,8 @@ internal sealed record CliOptions(
     bool EnableOptimizations,
     bool RefreshCoverage,
     bool ShowFixComplexity,
-    IReadOnlySet<RuleFixComplexity?>? FixComplexities
+    IReadOnlySet<RuleFixComplexity?>? FixComplexities,
+    bool ExplainCoverage
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -30,6 +31,7 @@ internal sealed record CliOptions(
         var optimize = true;
         var refreshCoverage = false;
         var showFixComplexity = false;
+        var explainCoverage = false;
         IReadOnlySet<RuleFixComplexity?>? fixComplexities = null;
         for (var index = 1; index < args.Length; index++)
         {
@@ -63,6 +65,9 @@ internal sealed record CliOptions(
                             "--fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.";
                         return false;
                     }
+                    break;
+                case "--explain-coverage":
+                    explainCoverage = true;
                     break;
                 case "--refresh-coverage":
                     refreshCoverage = true;
@@ -104,7 +109,8 @@ internal sealed record CliOptions(
             optimize,
             refreshCoverage,
             showFixComplexity,
-            fixComplexities
+            fixComplexities,
+            explainCoverage
         );
         return true;
     }

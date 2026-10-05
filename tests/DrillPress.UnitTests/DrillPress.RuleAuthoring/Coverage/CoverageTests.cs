@@ -28,12 +28,23 @@ public sealed class CoverageTests
 
         var diagnostics = rules.Evaluate([reference]);
 
-        Assert.Equal(
+        Assert.Equivalent(
             new RuleDiagnostic(new("COV001", "Exercise reference."), reference.Location)
             {
-                Evidence = "coverage: unknown",
+                Evidence = "coverage: unknown (not-prepared)",
+                Coverage =
+                [
+                    new(
+                        ExecutionCoverage.Unknown,
+                        [CoverageReason.EvidenceNotPrepared],
+                        "",
+                        "",
+                        ""
+                    ),
+                ],
             },
-            Assert.Single(diagnostics)
+            Assert.Single(diagnostics),
+            strict: true
         );
         Assert.Equal(
             ExecutionCoverage.Unknown,

@@ -5,6 +5,28 @@ public sealed class LineCoverage
 {
     internal LineCoverage() { }
 
+    /// <summary>Reads prepared physical line counts for a project, file, method, type, or other source element; does not launch tests.</summary>
+    public LineCoverageMeasurement Measure<T>(T candidate) =>
+        candidate switch
+        {
+            AnalysisProject project => project.Coverage.Measure(
+                project.Sources.Where(source => !source.Document.IsGenerated)
+            ),
+            CodeFile file => file.Source.Project.Coverage.Measure([file.Source]),
+            ICodeElement { Source: { } source } element => source.Project.Coverage.Measure(
+                [source],
+                element.Location
+            ),
+            _ => new(
+                0,
+                0,
+                false,
+                Array.AsReadOnly(
+                    new[] { CoverageReason.EvidenceNotPrepared, CoverageReason.ZeroCoverableLines }
+                )
+            ),
+        };
+
     /// <summary>Requires a percentage from zero through one hundred. Missing evidence and zero coverable lines fail.</summary>
     public CoverageRequirement AtLeast(double percentage)
     {

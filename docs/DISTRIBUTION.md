@@ -101,7 +101,7 @@ native compiler; explicitly supplied native bundles remain supported.
 protocol numbers. Snapshots and responses carry their producer's exact package
 version; incompatible or missing versions fail before findings or edits are
 accepted. Snapshot format 5 records explicit build overrides for coverage
-collection; response format 4 carries per-occurrence evidence and optional rule fix
+collection; response format 5 carries per-occurrence evidence and optional rule fix
 complexity alongside stable remediation. Source preview bundles with earlier formats must be rebuilt.
 
 Update the local tool with `dotnet tool update DrillPress.Cli --version 1.0.0-rc.1`

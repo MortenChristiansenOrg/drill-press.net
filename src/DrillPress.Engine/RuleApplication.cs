@@ -41,12 +41,18 @@ public sealed class RuleApplication
             || args[0] != "check"
             || args.Skip(2)
                 .Any(argument =>
-                    argument is not ("--profile" or "--no-optimization" or "--refresh-coverage")
+                    argument
+                        is not (
+                            "--profile"
+                            or "--no-optimization"
+                            or "--refresh-coverage"
+                            or "--explain-coverage"
+                        )
                 )
         )
         {
             await standardError.WriteLineAsync(
-                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage]"
+                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage]"
             );
             return RuleExitCode.Failure;
         }
@@ -73,6 +79,7 @@ public sealed class RuleApplication
                 EnableOptimizations = !args.Skip(2).Contains("--no-optimization"),
                 Profile = profile,
                 RefreshCoverage = args.Skip(2).Contains("--refresh-coverage"),
+                ExplainCoverage = args.Skip(2).Contains("--explain-coverage"),
             };
             var response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(
                 rules,
