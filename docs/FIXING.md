@@ -61,5 +61,6 @@ the CLI cancellation handler, which reports cancellation and exits 2. If no
 changes survive, the initial completed analysis supplies the
 output without another export. There is no automatic iteration loop.
 
-Exit 0 means a completed clean check, 1 means remaining findings, and 2 means an
+Exit 0 means a completed check without violations, including visible review-only
+findings. Exit 1 means remaining violations, and 2 means an
 operational failure. Routine successful fixes produce no progress messages.
