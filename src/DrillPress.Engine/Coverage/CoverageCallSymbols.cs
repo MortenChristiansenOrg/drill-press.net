@@ -36,6 +36,7 @@ internal sealed class CoverageCallSymbols(IFileSystem fileSystem)
         if (calls.Length == 0)
             return new([], calls);
         var index = new CoverageCallIndex(calls);
+        var documents = ReadDocuments(project, symbols);
         var result = new List<CoverageCallProof>();
         var metadata = image.GetMetadataReader();
         foreach (var handle in symbols.MethodDebugInformation)
@@ -52,14 +53,7 @@ internal sealed class CoverageCallSymbols(IFileSystem fileSystem)
             var blocks = CoverageIL.Blocks(instructions, body);
             var debug = symbols.GetMethodDebugInformation(handle);
             var points = debug.GetSequencePoints().ToArray();
-            var layout = ReadLayout(
-                project,
-                symbols,
-                debug,
-                points,
-                blocks,
-                body.GetILReader().Length
-            );
+            var layout = ReadLayout(documents, debug, points, blocks, body.GetILReader().Length);
             result.AddRange(
                 ReadMethod(
                     index,
@@ -157,9 +151,8 @@ internal sealed class CoverageCallSymbols(IFileSystem fileSystem)
         return ordinal >= 0 ? ordinal : null;
     }
 
-    private CoveragePointLayout?[] ReadLayout(
-        AnalysisProject project,
-        MetadataReader symbols,
+    private static CoveragePointLayout?[] ReadLayout(
+        IReadOnlyDictionary<DocumentHandle, AnalysisSource> documents,
         MethodDebugInformation debug,
         SequencePoint[] points,
         int[] blocks,
@@ -173,13 +166,11 @@ internal sealed class CoverageCallSymbols(IFileSystem fileSystem)
             if (point.IsHidden)
                 continue;
             var document = point.Document.IsNil ? debug.Document : point.Document;
-            if (document.IsNil)
-                continue;
-            var path = symbols.GetString(symbols.GetDocument(document).Name);
-            var source = project.Sources.SingleOrDefault(source =>
-                SamePath(source.Document.Path, path)
-            );
-            if (source is null || Span(source, point) is not { } span)
+            if (
+                document.IsNil
+                || !documents.TryGetValue(document, out var source)
+                || Span(source, point) is not { } span
+            )
                 continue;
             var start = CoverageIL.Ordinal(blocks, point.Offset);
             var endOffset = index + 1 < points.Length ? points[index + 1].Offset : methodEnd;
@@ -207,14 +198,28 @@ internal sealed class CoverageCallSymbols(IFileSystem fileSystem)
         return result;
     }
 
-    private bool SamePath(string first, string second) =>
-        string.Equals(
-            _fileSystem.Path.GetFullPath(first),
-            _fileSystem.Path.GetFullPath(second),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal
+    private Dictionary<DocumentHandle, AnalysisSource> ReadDocuments(
+        AnalysisProject project,
+        MetadataReader symbols
+    )
+    {
+        var sources = project.Sources.ToLookup(
+            source => _fileSystem.Path.GetFullPath(source.Document.Path),
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : null
         );
+        var result = new Dictionary<DocumentHandle, AnalysisSource>();
+        foreach (var document in symbols.Documents)
+        {
+            project.CancellationToken.ThrowIfCancellationRequested();
+            var path = _fileSystem.Path.GetFullPath(
+                symbols.GetString(symbols.GetDocument(document).Name)
+            );
+            var matches = sources[path].Take(2).ToArray();
+            if (matches.Length == 1)
+                result.Add(document, matches[0]);
+        }
+        return result;
+    }
 
     private static TextSpan? Span(AnalysisSource source, SequencePoint point)
     {
