@@ -16,16 +16,20 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
         _evaluations.Refresh();
     }
 
-    internal async Task PrepareAsync(AnalysisSolution solution, CancellationToken cancellationToken)
+    internal async Task PrepareAsync(
+        AnalysisSolution solution,
+        IReadOnlySet<AnalysisProject> selected,
+        CancellationToken cancellationToken
+    )
     {
-        var projects = solution
-            .Projects.Where(project =>
+        var projects = selected
+            .Where(project =>
                 project.Snapshot.IsAnalysisTarget
                 && project.TargetFramework.Length > 0
                 && _fileSystem.File.Exists(project.ProjectPath)
             )
             .ToArray();
-        foreach (var project in solution.Projects.Except(projects))
+        foreach (var project in selected.Except(projects))
             project.Coverage.Unavailable(CoverageReason.LooseSource);
         var locks = new List<Stream>();
         try

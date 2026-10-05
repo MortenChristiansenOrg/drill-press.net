@@ -13,6 +13,14 @@ public sealed class LineCoverage
                 project.Sources.Where(source => !source.Document.IsGenerated)
             ),
             CodeFile file => file.Source.Project.Coverage.Measure([file.Source]),
+            CodeMethod method => method.Source.Project.Coverage.Measure(
+                [method.Source],
+                method.Source.Locate(method.Syntax.Span)
+            ),
+            CodeDeclaration declaration => declaration.Source.Project.Coverage.Measure(
+                [declaration.Source],
+                declaration.Source.Locate(declaration.Syntax.Span)
+            ),
             ICodeElement { Source: { } source } element => source.Project.Coverage.Measure(
                 [source],
                 element.Location
