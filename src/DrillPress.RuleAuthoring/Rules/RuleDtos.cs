@@ -22,6 +22,12 @@ public sealed record RuleDescriptor(string Id, string Message)
 /// <param name="Location">The violating source expression.</param>
 public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Location)
 {
+    /// <summary>Visible violation by default; review is an explicit coverage gating choice and proves no execution.</summary>
+    public FindingDisposition Disposition { get; init; }
+
+    /// <summary>Optional occurrence-specific coverage remediation, separate from the stable rule description.</summary>
+    public string? OutcomeRemediation { get; init; }
+
     /// <summary>Optional single-line occurrence evidence, separate from the stable remediation shared by a rule.</summary>
     public string? Evidence { get; init; }
 

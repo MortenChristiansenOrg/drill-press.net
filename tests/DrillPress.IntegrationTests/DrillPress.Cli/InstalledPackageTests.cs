@@ -123,7 +123,7 @@ public sealed class InstalledPackageTests(PackageFixture fixture)
         );
         var global = await fixture.GlobalAsync("--version");
 
-        Assert.Equal((0, $"drillpress {fixture.Version} (snapshot 5, response 5)\n", ""), local);
+        Assert.Equal((0, $"drillpress {fixture.Version} (snapshot 5, response 6)\n", ""), local);
         Assert.Equal(local, global);
     }
 

@@ -26,7 +26,7 @@ public sealed class CliApplication
         Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
         --version  Show the package and protocol versions.
-        Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
+        Exit codes: 0 no violations (review findings may appear), 1 violations, 2 failure. Fix failures may retain completed writes.
         """;
 
     private readonly IFileSystem _fileSystem;
@@ -163,7 +163,9 @@ public sealed class CliApplication
                     }
                     await standardOutput.WriteAsync(text);
                 }
-                return evaluation.Result.Findings.Length == 0
+                return evaluation.Result.Findings.All(finding =>
+                    finding.Disposition == FindingDisposition.Review
+                )
                     ? CliExitCode.Clean
                     : CliExitCode.Findings;
             }
@@ -239,9 +241,9 @@ public sealed class CliApplication
             check.StandardOutput,
             snapshot,
             options.FixComplexities,
-            out var completeFindingCount
+            out var completeViolationCount
         );
-        if (check.ExitCode != (completeFindingCount == 0 ? 0 : 1))
+        if (check.ExitCode != (completeViolationCount == 0 ? 0 : 1))
         {
             throw new InvalidDataException("Bundle exit code disagrees with its response.");
         }

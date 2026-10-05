@@ -28,6 +28,8 @@ public sealed class RuleTestResult
             )
             {
                 Evidence = finding.Evidence,
+                Disposition = finding.Disposition,
+                OutcomeRemediation = finding.OutcomeRemediation,
                 Coverage = finding.Coverage ?? [],
             })
             .ToArray();

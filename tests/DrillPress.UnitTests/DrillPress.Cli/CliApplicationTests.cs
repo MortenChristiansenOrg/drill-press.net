@@ -10,6 +10,88 @@ namespace DrillPress.UnitTests.Cli;
 public sealed class CliApplicationTests
 {
     [Fact]
+    public async Task Explicit_review_findings_remain_visible_with_a_clean_exit_code()
+    {
+        var fileSystem = new MockFileSystem();
+        var fixture = new ContractFixture();
+        var project = fixture.Snapshot.Projects[0];
+        var response = fixture.Response with
+        {
+            Contexts =
+            [
+                fixture.Response.Contexts[0] with
+                {
+                    Findings =
+                    [
+                        fixture.Response.Contexts[0].Findings[0] with
+                        {
+                            Disposition = FindingDisposition.Review,
+                            BatchId = null,
+                            Evidence = "coverage: unknown (unsupported-mapping)",
+                            OutcomeRemediation = "Review mapping.",
+                            Coverage =
+                            [
+                                new(
+                                    ExecutionCoverage.Unknown,
+                                    [CoverageReason.UnsupportedExpressionMapping],
+                                    project.Name,
+                                    project.TargetFramework,
+                                    project.ContextId
+                                )
+                                {
+                                    ReviewReasons = [CoverageReason.UnsupportedExpressionMapping],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                fixture.Response.Contexts[1],
+            ],
+            Batches = [],
+        };
+        var runner = new StubChildProcessRunner(
+            async (_, arguments, cancellation) =>
+            {
+                await new CompilationSnapshotFile(fileSystem).WriteAsync(
+                    arguments.Last(),
+                    fixture.Snapshot,
+                    cancellation
+                );
+                return 0;
+            }
+        )
+        {
+            StandardOutput = Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response)),
+        };
+        var application = new CliApplication(
+            fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(fileSystem)
+        );
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exit = await application.RunAsync(
+            ["check", "--build-host", "host", "--rules", "rules", "target.csproj"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, exit);
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            """
+            DP1004 Replace alpha.
+            Shared.cs
+              1:3 [coverage: unknown (unsupported-mapping)] [review] Review mapping.
+
+            """.ReplaceLineEndings("\n"),
+            output.ToString()
+        );
+    }
+
+    [Fact]
     public void Public_construction_requires_no_external_dependencies()
     {
         var type = typeof(CliApplication);
@@ -66,7 +148,7 @@ public sealed class CliApplicationTests
             Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
-            Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
+            Exit codes: 0 no violations (review findings may appear), 1 violations, 2 failure. Fix failures may retain completed writes.
 
             """.ReplaceLineEndings("\n"),
             output.ToString()
@@ -96,7 +178,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 5)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 6)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());

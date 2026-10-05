@@ -17,7 +17,7 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         return new(ruleSet, query) { _reportKey = _reportKey, _coverageScope = projects };
     }
 
-    /// <summary>Displays the first source-ordered violation per key and compilation while retaining every candidate's fix for conflict and combined validation. Null is a valid grouping key.</summary>
+    /// <summary>Displays the first source-ordered violation per key and compilation, preferring a violation over review-only items, while retaining every candidate's fix for conflict and combined validation. Null is a valid grouping key.</summary>
     public RuleScope<T> ReportOncePer<TKey>(Func<T, TKey> key) =>
         new(ruleSet, query)
         {
@@ -114,6 +114,7 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
             _reportKey,
             condition.Detail,
             condition.CoverageFacts,
+            condition.Failure,
             _coverageScope
         );
         return this;

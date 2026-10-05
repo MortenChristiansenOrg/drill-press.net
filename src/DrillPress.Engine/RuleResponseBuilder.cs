@@ -64,6 +64,8 @@ internal sealed class RuleResponseBuilder
             )
             {
                 Evidence = diagnostic.Evidence,
+                Disposition = diagnostic.Disposition,
+                OutcomeRemediation = diagnostic.OutcomeRemediation,
                 Coverage = diagnostic.Coverage.Count == 0 ? null : diagnostic.Coverage,
                 FixComplexity = diagnostic.Descriptor.FixComplexity,
             };

@@ -136,6 +136,23 @@ public sealed class BundleResponseValidator
                 );
                 ValidateCoverage(finding, contexts[context.ContextId]);
                 Require(
+                    Enum.IsDefined(finding.Disposition)
+                        && (
+                            finding.OutcomeRemediation is null
+                            || IsSingleLine(finding.OutcomeRemediation)
+                        ),
+                    "Invalid finding disposition or coverage remediation."
+                );
+                Require(
+                    finding.Disposition != FindingDisposition.Review
+                        || finding.Coverage is { Count: > 0 }
+                            && finding.Coverage.Any(evidence => evidence.IsReviewEligible)
+                            && finding.Coverage.All(evidence =>
+                                evidence.SatisfiesRequirement || evidence.IsReviewEligible
+                            ),
+                    "Review finding lacks an explicit eligible coverage policy."
+                );
+                Require(
                     finding.BatchId is null || batches.ContainsKey(finding.BatchId),
                     "Finding references an unknown fix batch."
                 );
@@ -178,6 +195,23 @@ public sealed class BundleResponseValidator
             Require(
                 evidence.State != ExecutionCoverage.Unknown || evidence.Reasons.Count > 0,
                 "Unknown coverage requires an explanation."
+            );
+            Require(
+                evidence.ReviewReasons is null
+                    || evidence.ReviewReasons.Count > 0
+                        && evidence.ReviewReasons.All(reason =>
+                            reason == CoverageReason.UnsupportedExpressionMapping
+                        ),
+                "Review policy contains an ineligible coverage reason."
+            );
+            Require(
+                evidence.Metric == CoverageMetric.Line
+                    ? evidence.MinimumPercentage is { } minimum
+                        && double.IsFinite(minimum)
+                        && minimum >= 0
+                        && minimum <= 100
+                    : evidence.MinimumPercentage is null,
+                "Invalid coverage percentage requirement."
             );
             Require(
                 evidence.Metric == CoverageMetric.Line
@@ -292,6 +326,22 @@ public sealed class BundleResponseValidator
                 )
                 {
                     Evidence = CombineEvidence(group),
+                    Disposition = group.All(finding =>
+                        finding.Disposition == FindingDisposition.Review
+                    )
+                        ? FindingDisposition.Review
+                        : FindingDisposition.Violation,
+                    OutcomeRemediation = group.Any(finding =>
+                        finding.OutcomeRemediation is not null
+                    )
+                        ? string.Join(
+                            "; ",
+                            group
+                                .Select(finding => finding.OutcomeRemediation ?? finding.Message)
+                                .Distinct()
+                                .Order(StringComparer.Ordinal)
+                        )
+                        : null,
                     FixComplexity = first.FixComplexity,
                     Coverage = group.Any(finding => finding.Coverage is not null)
                         ? group.SelectMany(finding => finding.Coverage ?? []).ToArray()

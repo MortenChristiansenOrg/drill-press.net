@@ -92,6 +92,8 @@ public sealed class AnalysisEngine
                     )
                     {
                         Evidence = finding.Evidence,
+                        Disposition = finding.Disposition,
+                        OutcomeRemediation = finding.OutcomeRemediation,
                         Coverage = finding.Coverage ?? [],
                     };
                 })
