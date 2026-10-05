@@ -6,6 +6,18 @@ namespace DrillPress;
 /// <summary>Fluent selections over resolved calls, receivers and parameter-associated values.</summary>
 public static class InvocationQueries
 {
+    /// <summary>Projects explicit, resolved call expressions with their original source span and compilation membership.</summary>
+    public static CodeQuery<CodeExpression> Expressions(this CodeQuery<CodeInvocation> calls) =>
+        calls.SelectMany(call => call.Expression is { } expression ? new[] { expression } : []);
+
+    /// <summary>Selects explicit bound calls outside compiler-identified expression trees; the ordinary Calls query retains both contexts.</summary>
+    public static CodeQuery<CodeInvocation> OutsideExpressionTrees(
+        this CodeQuery<CodeInvocation> calls
+    ) =>
+        calls.Where(call =>
+            call.Expression is { } expression && !expression.Facts.IsInsideExpressionTree
+        );
+
     /// <summary>Selects calls by ordinal method name without assuming their declaring type.</summary>
     public static CodeQuery<CodeInvocation> ToMethodsNamed(
         this CodeQuery<CodeInvocation> calls,
