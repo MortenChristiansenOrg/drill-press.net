@@ -36,7 +36,7 @@ public sealed class CompactDiagnosticRendererTests
                     "context"
                 )
                 {
-                    Ranges = [new(0, 10, ExecutionCoverage.Covered)],
+                    Ranges = [new("evidence", "Evidence.cs", 0, 10, ExecutionCoverage.Covered)],
                 },
             ],
         };
@@ -51,7 +51,7 @@ public sealed class CompactDiagnosticRendererTests
               1 [coverage: unknown (unsupported-mapping)]
                 Execution Target net10.0 context=context
                 UnsupportedExpressionMapping: The current mapping cannot distinguish this expression; additional tests alone may not resolve it.
-                range 0+10: covered
+                range Evidence.cs 0+10: covered
 
             """.ReplaceLineEndings("\n"),
             output
