@@ -1,8 +1,8 @@
 # Windows and Linux technical preview
 
 This preview supports `linux-x64` and `win-x64`. Commands and authoring APIs can
-still change. Build and run from source; there is no package installation or
-project template. Run the commands below from the repository root.
+still change. For package installation, see [distribution](DISTRIBUTION.md).
+The commands below build and run from source; run them from the repository root.
 
 ## Fresh checkout
 

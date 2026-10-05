@@ -32,6 +32,7 @@ internal sealed class ReleasePackageFixture
         {
             "DrillPress.Engine" => ["DrillPress.Manifest", "DrillPress.RuleAuthoring"],
             "DrillPress.RuleAuthoring" => ["DrillPress.Manifest"],
+            "DrillPress.Linq" => ["DrillPress.RuleAuthoring"],
             "DrillPress.Testing" => ["DrillPress.Engine"],
             _ => [],
         };

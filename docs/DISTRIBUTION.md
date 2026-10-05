@@ -17,6 +17,7 @@ protocol compatibility requires the full version, including the prerelease suffi
 | Package | Purpose | Drill Press dependencies |
 | --- | --- | --- |
 | `DrillPress.RuleAuthoring` | Public C# query, rule, analysis, and edit APIs | Manifest |
+| `DrillPress.Linq` | Optional maintained standard LINQ declaration facts | RuleAuthoring |
 | `DrillPress.Engine` | `RuleApplication` and compiled bundle execution | RuleAuthoring, Manifest |
 | `DrillPress.Testing` | Existing in-process consumer test workspace | Engine |
 | `DrillPress.Manifest` | Snapshot, response, diagnostic, and edit contracts | None |
@@ -135,7 +136,7 @@ builds, including a different prerelease with the same numeric version. The
 release inventory additionally reads the actual informational version of every
 Drill Press assembly, including those bundled with the CLI.
 
-Only the four SDK libraries and the CLI are packable. Package validation checks
+Only the five SDK libraries and the CLI are packable. Package validation checks
 reference/runtime API consistency inside each library package. No previous API
 baseline is enforced; wire version compatibility is tested separately.
 
@@ -162,7 +163,7 @@ The project and packages use the [MIT license](../LICENSE). Publication targets
 Publishing uses [NuGet trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
 with GitHub OIDC. No long-lived API key or `NUGET_API_KEY` GitHub secret is needed.
 
-1. Ensure your NuGet account owns or can publish all five package IDs listed above.
+1. Ensure your NuGet account owns or can publish all six package IDs listed above.
 2. Open the repository's **Settings → Environments** and create or select **nuget**.
    Under **Deployment branches and tags**, select **Selected branches and tags**
    and add a **Tag** rule matching `v*`. Leave required reviewers and wait timers
@@ -224,7 +225,7 @@ last one hour and are requested immediately before the publication step.
 
 After package validation and native parity pass on both platforms, CI downloads
 the validated Linux package artifact, revalidates it, and publishes in dependency
-order. It verifies that **all five**
+order. It verifies that **all six**
 packages are retrievable from nuget.org before creating or updating the GitHub
 release with package links. Prereleases are marked as such and never promoted
 to the latest stable GitHub release. Validated packages are retained as workflow
