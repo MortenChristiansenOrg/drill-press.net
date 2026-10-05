@@ -31,15 +31,42 @@ internal sealed class CoverageFixture
     public FakeCoverageProcess Process { get; }
     public CompilationSnapshot Snapshot { get; }
 
-    public CoverageFixture(string source = Source)
+    public CoverageFixture(
+        string source = Source,
+        params (string Path, string Text)[] additionalSources
+    )
     {
         var path = FileSystem.Path.GetFullPath("/coverage/Target.cs");
         var project = TestSnapshots.CreateProject(path, source) with
         {
             TargetFramework = "net10.0",
         };
+        project = project with
+        {
+            Documents =
+            [
+                .. project.Documents,
+                .. additionalSources.Select(extra =>
+                    SourceIdentity.Capture(
+                        new DocumentSnapshot(
+                            FileSystem.Path.GetFullPath(
+                                extra.Path,
+                                FileSystem.Path.GetDirectoryName(path)!
+                            ),
+                            extra.Text,
+                            false
+                        ),
+                        Encoding.UTF8.GetBytes(extra.Text),
+                        "utf-8",
+                        false
+                    )
+                ),
+            ],
+        };
         Snapshot = CompilationSnapshot.Create(project);
         FileSystem.AddFile(path, new MockFileData(source));
+        foreach (var document in project.Documents.Skip(1))
+            FileSystem.AddFile(document.Path, new MockFileData(document.Text));
         FileSystem.AddFile(project.ProjectPath, new MockFileData("<Project />"));
         FileSystem.AddFile(
             FileSystem.Path.GetFullPath("/coverage/Tests.csproj"),
@@ -50,12 +77,13 @@ internal sealed class CoverageFixture
             new MockFileData("<Solution />")
         );
         var metadata = new MetadataBuilder();
-        metadata.AddDocument(
-            metadata.GetOrAddDocumentName(path),
-            metadata.GetOrAddGuid(new Guid("8829d00f-11b8-4213-878b-770e8597ac16")),
-            metadata.GetOrAddBlob(SHA256.HashData(SourceIdentity.Encode(project.Documents[0]))),
-            default
-        );
+        foreach (var document in project.Documents)
+            metadata.AddDocument(
+                metadata.GetOrAddDocumentName(document.Path),
+                metadata.GetOrAddGuid(new Guid("8829d00f-11b8-4213-878b-770e8597ac16")),
+                metadata.GetOrAddBlob(SHA256.HashData(SourceIdentity.Encode(document))),
+                default
+            );
         var compilerOptions = Encoding.UTF8.GetBytes(
             "language\0C#\0output-kind\0DynamicallyLinkedLibrary\0platform\0AnyCpu\0nullable\0Enable\0language-version\014.0\0"
         );

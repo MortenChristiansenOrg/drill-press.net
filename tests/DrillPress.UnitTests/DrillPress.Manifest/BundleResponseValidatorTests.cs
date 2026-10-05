@@ -9,6 +9,65 @@ public sealed class BundleResponseValidatorTests
     private readonly ContractFixture _fixture = new();
 
     [Theory]
+    [InlineData("missing", "Shared.cs", 0, 1)]
+    [InlineData("document", "Other.cs", 0, 1)]
+    [InlineData("document", "Shared.cs", 0, 100)]
+    public void Rejects_coverage_ranges_without_matching_context_document_coordinates(
+        string documentId,
+        string path,
+        int start,
+        int length
+    )
+    {
+        var project = _fixture.Snapshot.Projects[0];
+        var context = _fixture.Response.Contexts[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                context with
+                {
+                    Findings =
+                    [
+                        context.Findings[0] with
+                        {
+                            Coverage =
+                            [
+                                new(
+                                    ExecutionCoverage.Unknown,
+                                    [CoverageReason.UnsupportedExpressionMapping],
+                                    project.Name,
+                                    project.TargetFramework,
+                                    project.ContextId
+                                )
+                                {
+                                    Ranges =
+                                    [
+                                        new(
+                                            documentId,
+                                            path,
+                                            start,
+                                            length,
+                                            ExecutionCoverage.Covered
+                                        ),
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                _fixture.Response.Contexts[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(_fixture.Snapshot, response)
+        );
+
+        Assert.Equal("Invalid coverage source range.", error.Message);
+    }
+
+    [Theory]
     [InlineData((ExecutionCoverage)99, CoverageReason.MissingRange)]
     [InlineData(ExecutionCoverage.Unknown, (CoverageReason)99)]
     public void Rejects_undefined_typed_coverage_states_and_reasons(

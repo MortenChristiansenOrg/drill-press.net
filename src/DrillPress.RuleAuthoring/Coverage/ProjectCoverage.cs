@@ -112,6 +112,8 @@ internal sealed class ProjectCoverage
             Ranges = Array.AsReadOnly(
                 (ranges ?? [])
                     .Select(range => new CoverageRangeEvidence(
+                        source!.Document.DocumentId,
+                        source.Document.Path,
                         range.Span.Start,
                         range.Span.Length,
                         range.State
