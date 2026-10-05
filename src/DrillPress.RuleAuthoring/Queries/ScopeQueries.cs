@@ -6,6 +6,16 @@ namespace DrillPress;
 /// <summary>Physical document and semantic namespace scopes for reportable source candidates.</summary>
 public static class ScopeQueries
 {
+    /// <summary>Selects source candidates using evaluated test classification, without project naming assumptions.</summary>
+    public static CodeQuery<T> InNonTestProjects<T>(this CodeQuery<T> query)
+        where T : ICodeElement =>
+        query.Where(element => element.Source is { Project.IsTestProject: false });
+
+    /// <summary>Selects source candidates whose evaluated context uniquely contains the configured type identity.</summary>
+    public static CodeQuery<T> InProjectsWithType<T>(this CodeQuery<T> query, CodeType type)
+        where T : ICodeElement =>
+        query.Where(element => element.Source?.Project.HasType(type) == true);
+
     /// <summary>Selects candidates in the named evaluated project, using an ordinal name comparison.</summary>
     public static CodeQuery<T> InProject<T>(this CodeQuery<T> query, string name)
         where T : ICodeElement
