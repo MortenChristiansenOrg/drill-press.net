@@ -140,6 +140,9 @@ public sealed class CodeQuery<T>
     private IEnumerable<T> SelectCandidates(AnalysisSolution solution)
     {
         var candidates = _select(solution, _condition?.MemberNames);
-        return _condition is null ? candidates : candidates.Where(_condition.Evaluate);
+        return _condition is null ? candidates
+            : solution.IsPlanningCoverage
+                ? candidates.Where(candidate => _condition.Possibilities(candidate).CanBeTrue)
+            : candidates.Where(_condition.Evaluate);
     }
 }

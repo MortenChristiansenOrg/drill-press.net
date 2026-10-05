@@ -7,6 +7,7 @@ namespace DrillPress;
 /// <summary>Shares lazy candidate collections across all rules in a loaded source-project graph.</summary>
 public sealed class AnalysisSolution
 {
+    internal bool IsPlanningCoverage { get; init; }
     private readonly Lazy<IReadOnlyList<MemberReference>> _references;
     private readonly Lazy<IReadOnlyList<CodeMethod>> _methods;
     private readonly Lazy<IReadOnlyList<CodeDeclaration>> _types;
