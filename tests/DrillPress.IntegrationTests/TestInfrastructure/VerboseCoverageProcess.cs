@@ -13,6 +13,7 @@ internal sealed class VerboseCoverageProcess(
     private readonly string _executable = executable;
     private readonly bool _hasTests = hasTests;
     public int Collections { get; private set; }
+    public int Installations { get; private set; }
 
     internal override async Task<string> RunAsync(
         string executable,
@@ -22,12 +23,15 @@ internal sealed class VerboseCoverageProcess(
     )
     {
         if (arguments[0] == "tool")
+        {
+            Installations++;
             return await base.RunAsync(
                 executable,
                 arguments,
                 _fileSystem.Path.GetDirectoryName(_executable)!,
                 cancellationToken
             );
+        }
         if (arguments[0] == "msbuild")
         {
             if (arguments.Contains("-getProperty:TargetPath"))
