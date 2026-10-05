@@ -8,6 +8,27 @@ namespace DrillPress;
 /// <summary>A source expression and its compiler evidence; no expression evaluation or runtime inference is performed.</summary>
 public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax syntax) : ICodeElement
 {
+    /// <summary>Views an explicit bound invocation through parentheses and implicit built-in conversions. Explicit/user conversions and conditional-access envelopes remain unavailable.</summary>
+    public CodeInvocation? AsInvocation()
+    {
+        if (IsImplicit || !IsResolved)
+            return null;
+        var operation = Operation;
+        while (
+            operation
+                is IConversionOperation { IsImplicit: true, Conversion.IsUserDefined: false }
+                    or IParenthesizedOperation
+        )
+            operation = operation is IConversionOperation conversion
+                ? conversion.Operand
+                : ((IParenthesizedOperation)operation).Operand;
+        return
+            operation is IInvocationOperation { IsImplicit: false } invocation
+            && invocation.Syntax is ExpressionSyntax
+            ? new(Source, invocation)
+            : null;
+    }
+
     /// <summary>Facts about enclosing observable syntax and interior trivia, independent of rewrite authorization.</summary>
     public ExpressionSourceFacts Facts => new(Source, Syntax);
 

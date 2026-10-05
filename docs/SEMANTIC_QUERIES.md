@@ -160,6 +160,32 @@ culture formatting or runtime value inference is built into this model. A rule c
 therefore distinguish a literal `/details` suffix from `?next=/details`, and inspect
 relative URI text without accidentally treating its base URI as the selected value.
 
+## Call and expression views
+
+`call.Expression` and `calls.Expressions()` expose the existing `CodeExpression`
+model with the bound invocation's source span, context, original/converted types
+and `Facts`. Implicit or invalid calls have no expression view. Conditional
+access exposes only the bound call arm, such as `.Load()`, rather than the whole
+`receiver?.Load()` expression. `expression.AsInvocation()` returns a bound call
+through parentheses and implicit built-in conversions; explicit/user conversions,
+conditional-access envelopes, and non-call/invalid expressions return null.
+`calls.OutsideExpressionTrees()` is an explicit consumer filter. Ordinary call
+queries retain expression-tree occurrences. Built-in projections retain lazy
+query caching, occurrence identity and coverage collection dependencies.
+
+## Contextual project scopes
+
+`Code.Calls.InNonTestProjects().InProjectsWithType(contract)` shares evaluated
+project classification and contextual type availability with other source queries.
+`project.HasType(contract)` requires one match; `project.InspectType(contract)`
+retains missing, available and ambiguous outcomes and caches them per context.
+Assembly-qualified descriptors can distinguish same-named types. Availability
+includes references exposed through extern aliases; it does not imply an
+unqualified source name can bind, source usage, or a direct package reference.
+Open generic names select definitions; `CodeType.Of<T>()` also resolves ordinary
+constructed types and arrays. Nested constructed runtime types remain unavailable
+when their outer substitutions cannot be resolved.
+
 ## Bound call families
 
 `ToMethodsDeclaredOn(type)` matches the call's normalized declaration owner;

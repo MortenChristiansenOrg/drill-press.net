@@ -12,6 +12,12 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
     private IReadOnlyList<CodeArgument>? _arguments;
     private bool? _resolved;
 
+    /// <summary>The bound call's explicit source expression, excluding any enclosing conditional-access envelope; unavailable for implicit or invalid calls.</summary>
+    public CodeExpression? Expression =>
+        IsResolved && !Operation.IsImplicit && Operation.Syntax is ExpressionSyntax expression
+            ? new(Source, expression)
+            : null;
+
     /// <summary>Matches the normalized declaration owner, independently of the receiver's type.</summary>
     public bool IsDeclaredOn(CodeType type) =>
         IsResolved && type.Matches(Declaration.ContainingType);

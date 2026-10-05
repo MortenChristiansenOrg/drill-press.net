@@ -50,6 +50,18 @@ public static class InvocationQueries
         return names.ToHashSet();
     }
 
+    /// <summary>Projects explicit, resolved call expressions with their original source span and compilation membership.</summary>
+    public static CodeQuery<CodeExpression> Expressions(this CodeQuery<CodeInvocation> calls) =>
+        calls.SelectMany(call => call.Expression is { } expression ? new[] { expression } : []);
+
+    /// <summary>Selects explicit bound calls outside compiler-identified expression trees; the ordinary Calls query retains both contexts.</summary>
+    public static CodeQuery<CodeInvocation> OutsideExpressionTrees(
+        this CodeQuery<CodeInvocation> calls
+    ) =>
+        calls.Where(call =>
+            call.Expression is { } expression && !expression.Facts.IsInsideExpressionTree
+        );
+
     /// <summary>Selects bound calls declared on exactly the configured owner, including normalized extension declarations.</summary>
     public static CodeQuery<CodeInvocation> ToMethodsDeclaredOn(
         this CodeQuery<CodeInvocation> calls,
