@@ -20,6 +20,7 @@ public sealed class RuleCondition<T>
     internal bool RequiresCoverage { get; init; }
     internal Func<T, string>? Detail { get; init; }
     internal Func<T, IReadOnlyList<CoverageEvidence>>? CoverageFacts { get; init; }
+    internal Func<T, ConditionFailure>? Failure { get; init; }
     internal Func<T, ConditionPossibilities>? BeforeCoverage { get; init; }
 
     /// <summary>Adapts a test-backed coverage requirement to this candidate type while retaining collection metadata.</summary>
@@ -29,6 +30,7 @@ public sealed class RuleCondition<T>
             RequiresCoverage = true,
             Detail = requirement.Detail<T>,
             CoverageFacts = candidate => new[] { requirement.InspectCandidate(candidate) },
+            Failure = requirement.Failure<T>,
             BeforeCoverage = _ => new(true, true),
         };
 
@@ -44,6 +46,7 @@ public sealed class RuleCondition<T>
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),
+            Failure = CombinedFailure(other),
             BeforeCoverage = candidate =>
             {
                 var left = Possibilities(candidate);
@@ -66,6 +69,7 @@ public sealed class RuleCondition<T>
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),
+            Failure = CombinedFailure(other),
             BeforeCoverage = candidate =>
             {
                 var left = Possibilities(candidate);
@@ -94,6 +98,31 @@ public sealed class RuleCondition<T>
     public RuleCondition<T> ExceptWhen(RuleCondition<T> exception) => And(exception.Not());
 
     internal bool Evaluate(T candidate) => _predicate(candidate);
+
+    private Func<T, ConditionFailure>? CombinedFailure(RuleCondition<T> other)
+    {
+        if (Failure is null && other.Failure is null)
+            return null;
+        return candidate =>
+        {
+            var failures = new[] { this, other }
+                .Where(condition => !condition.Evaluate(candidate))
+                .Select(condition => condition.Failure?.Invoke(candidate) ?? new())
+                .ToArray();
+            var messages = failures
+                .Select(failure => failure.Remediation)
+                .OfType<string>()
+                .Distinct()
+                .ToArray();
+            return new(
+                failures.Length > 0
+                && failures.All(failure => failure.Disposition == FindingDisposition.Review)
+                    ? FindingDisposition.Review
+                    : FindingDisposition.Violation,
+                messages.Length == 0 ? null : string.Join("; ", messages)
+            );
+        };
+    }
 
     internal ConditionPossibilities Possibilities(T candidate)
     {

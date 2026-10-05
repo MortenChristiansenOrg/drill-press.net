@@ -6,7 +6,7 @@ namespace DrillPress.Manifest;
 public static class BundleResponseProtocol
 {
     /// <summary>Exact version understood by the coordinator and bundle.</summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     /// <summary>Produces deterministic UTF-8 JSON without a BOM or trailing newline.</summary>
     public static byte[] Serialize(BundleResponse response) =>
@@ -29,7 +29,7 @@ public static class BundleResponseProtocol
         string json,
         CompilationSnapshot snapshot,
         IReadOnlySet<RuleFixComplexity?>? fixComplexities,
-        out int completeFindingCount
+        out int completeViolationCount
     )
     {
         using var document = JsonDocument.Parse(json);
@@ -46,7 +46,9 @@ public static class BundleResponseProtocol
             root.Deserialize(CompilationSnapshotJsonContext.Default.BundleResponse)
             ?? throw new InvalidDataException("Missing bundle response.");
         var result = new BundleResponseValidator().Validate(snapshot, response);
-        completeFindingCount = result.Findings.Length;
+        completeViolationCount = result.Findings.Count(finding =>
+            finding.Disposition == FindingDisposition.Violation
+        );
         return RuleFixSelection.Select(result, response, fixComplexities);
     }
 }

@@ -39,6 +39,18 @@ public sealed record Finding(
     string? BatchId
 )
 {
+    /// <summary>Explicit visible review or a default check-failing violation.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+    )]
+    public FindingDisposition Disposition { get; init; }
+
+    /// <summary>Optional occurrence-specific coverage remediation.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string? OutcomeRemediation { get; init; }
+
     /// <summary>Single-line evidence for this occurrence; omitted when the rule supplies only remediation.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
@@ -107,6 +119,18 @@ public sealed record AggregatedFinding(
     string? BatchId
 )
 {
+    /// <summary>Review only when every contributing context is review-only; any violation retains failure gating.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+    )]
+    public FindingDisposition Disposition { get; init; }
+
+    /// <summary>Distinct occurrence-specific remediation from the contributing contexts.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string? OutcomeRemediation { get; init; }
+
     /// <summary>Single-line evidence for this occurrence; omitted when the rule supplies only remediation.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull

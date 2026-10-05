@@ -8,6 +8,7 @@ internal sealed class CandidateRule<T>(
     Func<T, object?>? reportKey,
     Func<T, string>? detail,
     Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts,
+    Func<T, ConditionFailure>? failure,
     CodeQuery<AnalysisProject>? coverageScope
 ) : CompiledRule(descriptor.Id)
 {
@@ -59,11 +60,14 @@ internal sealed class CandidateRule<T>(
                             $"Candidate type '{typeof(T)}' does not expose a source location."
                         );
                 var proposal = fix?.Invoke(candidate);
+                var outcome = failure?.Invoke(candidate);
                 return (
                     Key: reportKey?.Invoke(candidate),
                     Diagnostic: new RuleDiagnostic(descriptor, span)
                     {
                         Evidence = detail?.Invoke(candidate),
+                        Disposition = outcome?.Disposition ?? FindingDisposition.Violation,
+                        OutcomeRemediation = outcome?.Remediation,
                         Coverage = (coverageFacts?.Invoke(candidate) ?? [])
                             .Select(evidence =>
                                 solution.Options.ExplainCoverage
@@ -88,7 +92,7 @@ internal sealed class CandidateRule<T>(
             : candidates
                 .GroupBy(item => (item.Diagnostic.Source?.Project, item.Key))
                 .Select(group =>
-                    group.First().Diagnostic with
+                    group.OrderBy(item => item.Diagnostic.Disposition).First().Diagnostic with
                     {
                         Fixes = Array.AsReadOnly(
                             group.SelectMany(item => item.Diagnostic.Fixes).ToArray()

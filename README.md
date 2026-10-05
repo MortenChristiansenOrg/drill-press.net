@@ -103,8 +103,9 @@ The `+10:29` location offers a safe correction on line 10, column 29.
 To check your own C# project,
 replace the final argument with the path to its `.csproj` file.
 
-A clean check prints nothing and exits with code `0`. Findings produce code
-`1`—including the example above. Code `2` means the check could not complete,
+A clean check prints nothing and exits with code `0`. Review-only findings also
+exit with code `0`, with visible output. Violations produce code `1`, including
+the example above. Code `2` means the check could not complete,
 such as when a project cannot be loaded. `check` reports violations without
 applying fixes.
 
@@ -112,7 +113,7 @@ The CLI captures and validates a versioned internal bundle response before writi
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle package versions. Snapshot format 5 records analysis
-scope and build overrides; response protocol 5 carries per-occurrence evidence and optional rule fix complexity.
+scope and build overrides; response protocol 6 carries per-occurrence evidence and optional rule fix complexity.
 The contracts bind responses to a unique request and preserve compilation and
 document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
@@ -122,7 +123,7 @@ Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
 relative file path, then source span. Each rule's remediation appears once. A
 location is `line` or `line:column` (one-based physical UTF-16 coordinates); `+`
 before the line marks an agreed safe correction. Paths containing controls,
-quotes, or surrounding whitespace use JSON escaping. Clean runs emit nothing.
+quotes, or surrounding whitespace use JSON escaping. Runs with no findings emit nothing.
 
 Rules can optionally estimate agent fix effort as `Trivial`, `Local`, `Complex`,
 or `Architectural`. Use `--show-fix-complexity` to include assigned levels once

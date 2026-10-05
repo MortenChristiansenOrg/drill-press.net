@@ -54,7 +54,7 @@ internal sealed class CoverageEvidenceCase(
                         "Include",
                         _fileSystem.Path.Combine(
                             repository,
-                            "src/DrillPress.Engine/DrillPress.Engine.csproj"
+                            "src/DrillPress.Testing/DrillPress.Testing.csproj"
                         )
                     )
                 )
@@ -66,9 +66,30 @@ internal sealed class CoverageEvidenceCase(
             """
             using DrillPress;
             using DrillPress.Engine;
+            using DrillPress.Testing;
+            if (args is ["fixture-policy"])
+            {
+                var workspace = new RuleTestWorkspace([]);
+                workspace.AddProject("Policy", [new("Policy.cs",
+                    "namespace System { public class Object {} public class ValueType {} public struct Void {} } class C { static void Hit() {} void M() { Hit(); } }")]);
+                workspace.WithCoverage(facts => facts.ForCall("Policy.cs", "Hit()")
+                    .Unknown(CoverageReason.UnsupportedExpressionMapping));
+                var policyRules = new RuleSet();
+                policyRules.For(Code.Calls.Where(call => call.Target.Name == "Hit"))
+                    .Require(Coverage.Executed.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping),
+                        "POL", "Verify execution.");
+                var result = await workspace.CheckAsync(policyRules);
+                var finding = result.Findings.Single();
+                var evidence = finding.Coverage.Single();
+                Console.Write($"{finding.Disposition} {evidence.State} {evidence.SatisfiesRequirement} {evidence.IsReviewEligible}");
+                return 0;
+            }
             var rules = new RuleSet();
             rules.For(CodeType.Of<string>().Member("Empty").References)
                 .Require(Coverage.Executed, "COV", "Exercise source occurrence.");
+            rules.For(CodeType.Of<string>().Member("Empty").References)
+                .Require(Coverage.Executed.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping)
+                    .OnUnknown("Inspect coverage evidence."), "POL", "Verify execution.");
             return (int)await new RuleApplication().RunAsync(rules, args);
             """
         );
@@ -107,7 +128,31 @@ internal sealed class CoverageEvidenceCase(
             new(
                 BundleResponseProtocol.CurrentVersion,
                 snapshot.RequestId,
-                [new(context.ContextId, true, [finding])],
+                [
+                    new(
+                        context.ContextId,
+                        true,
+                        [
+                            finding,
+                            finding with
+                            {
+                                RuleId = "POL",
+                                Message = "Verify execution.",
+                                OutcomeRemediation = "Inspect coverage evidence.",
+                                Coverage =
+                                [
+                                    finding.Coverage![0] with
+                                    {
+                                        ReviewReasons =
+                                        [
+                                            CoverageReason.UnsupportedExpressionMapping,
+                                        ],
+                                    },
+                                ],
+                            },
+                        ]
+                    ),
+                ],
                 []
             )
         );
@@ -169,6 +214,25 @@ internal sealed class CoverageEvidenceCase(
         await _fileSystem.File.WriteAllBytesAsync(
             _fileSystem.Path.Combine(output, $"coverage-evidence.{mode}.stdout"),
             result.StandardOutput
+        );
+        var policy = await ProcessRunner.RunAsync(
+            mode == BundleMode.Managed ? "dotnet" : executable,
+            mode == BundleMode.Managed ? [executable, "fixture-policy"] : ["fixture-policy"],
+            repository
+        );
+        BundleContract.Validate(
+            new(
+                "fixture-policy",
+                [],
+                BundleOutcome.Clean,
+                Encoding.UTF8.GetBytes("Review Unknown False True"),
+                []
+            ),
+            policy
+        );
+        await _fileSystem.File.WriteAllBytesAsync(
+            _fileSystem.Path.Combine(output, $"coverage-policy.{mode}.stdout"),
+            policy.StandardOutput
         );
     }
 }

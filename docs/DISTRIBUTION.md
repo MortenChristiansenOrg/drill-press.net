@@ -100,15 +100,16 @@ native compiler; explicitly supplied native bundles remain supported.
 protocol numbers. Snapshots and responses carry their producer's exact package
 version; incompatible or missing versions fail before findings or edits are
 accepted. Snapshot format 5 records explicit build overrides for coverage
-collection; response format 5 carries per-occurrence evidence and optional rule fix
+collection; response format 6 carries per-occurrence evidence and optional rule fix
 complexity alongside stable remediation. Source preview bundles with earlier formats must be rebuilt.
 
 Update the local tool with `dotnet tool update DrillPress.Cli --version 1.0.0-rc.1`
 (or add `--global` for a global installation), update all SDK references to
 `[1.0.0-rc.1]`, then rebuild every rules bundle. Commit the updated local manifest.
 Replace the example version with the desired published release. Read that release's
-changes and adapt authoring code if required. Normal checks remain silent when
-clean, with exit codes 0 clean, 1 findings, and 2 operational failure; version
+changes and adapt authoring code if required. Checks without findings remain silent.
+Exit codes are 0 without violations (review-only findings can print output),
+1 with violations, and 2 for operational failure; version
 errors go to stderr and produce no diagnostic stdout.
 
 ## Build and validate distribution artifacts

@@ -58,6 +58,7 @@ public sealed class RuleSet
         Func<T, object?>? reportKey = null,
         Func<T, string>? detail = null,
         Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null,
+        Func<T, ConditionFailure>? failure = null,
         CodeQuery<AnalysisProject>? coverageScope = null
     )
     {
@@ -98,6 +99,7 @@ public sealed class RuleSet
                 reportKey,
                 detail,
                 coverageFacts,
+                failure,
                 coverageScope
             )
         );
