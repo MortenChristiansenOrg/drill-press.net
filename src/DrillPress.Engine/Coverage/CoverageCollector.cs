@@ -25,6 +25,8 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
                 && _fileSystem.File.Exists(project.ProjectPath)
             )
             .ToArray();
+        foreach (var project in solution.Projects.Except(projects))
+            project.Coverage.Unavailable(CoverageReason.LooseSource);
         var locks = new List<Stream>();
         try
         {
@@ -66,10 +68,12 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
     {
         var root = _inputs.Root(project);
         var plan = await DiscoverAsync(project, root, cancellationToken);
-        if (
-            plan.Tests.Length == 0
-            || await TryApplyCachedAsync(project, plan, root, refresh, cancellationToken)
-        )
+        if (plan.Tests.Length == 0)
+        {
+            project.Coverage.Unavailable(CoverageReason.NoApplicableTests);
+            return;
+        }
+        if (await TryApplyCachedAsync(project, plan, root, refresh, cancellationToken))
             return;
         // Evaluate restored imports before capturing the inputs that the test build will consume.
         var revision = session.InputRevision;
@@ -77,10 +81,12 @@ internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess 
         if (session.InputRevision != revision)
             RefreshInputs();
         plan = await DiscoverAsync(project, root, cancellationToken);
-        if (
-            plan.Tests.Length == 0
-            || await TryApplyCachedAsync(project, plan, root, refresh, cancellationToken)
-        )
+        if (plan.Tests.Length == 0)
+        {
+            project.Coverage.Unavailable(CoverageReason.NoApplicableTests);
+            return;
+        }
+        if (await TryApplyCachedAsync(project, plan, root, refresh, cancellationToken))
             return;
         await CollectAndPublishAsync(project, plan, root, session, cancellationToken);
     }

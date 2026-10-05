@@ -19,7 +19,12 @@ public sealed class CompactDiagnosticRenderer
     /// <summary>Groups rules, relative files, and physical locations; '+' marks retained common-safe fixes.</summary>
     /// <param name="result">The validated and optionally selected diagnostics.</param>
     /// <param name="showFixComplexity">Includes assigned complexity once in each rule header; unclassified rules have no annotation.</param>
-    public string Render(ValidatedResult result, bool showFixComplexity = false)
+    /// <param name="explainCoverage">Adds actionable typed explanations, evaluated context identities, and transported source ranges.</param>
+    public string Render(
+        ValidatedResult result,
+        bool showFixComplexity = false,
+        bool explainCoverage = false
+    )
     {
         var output = new StringBuilder();
         foreach (
@@ -63,11 +68,42 @@ public sealed class CompactDiagnosticRenderer
                     if (finding.Evidence is not null)
                         output.Append(" [").Append(finding.Evidence).Append(']');
                     output.Append('\n');
+                    if (explainCoverage)
+                        ExplainCoverage(output, finding);
                 }
             }
         }
 
         return output.ToString();
+    }
+
+    private static void ExplainCoverage(StringBuilder output, AggregatedFinding finding)
+    {
+        foreach (var evidence in finding.Coverage ?? [])
+        {
+            output
+                .Append("    ")
+                .Append(evidence.Metric)
+                .Append(' ')
+                .Append(Escape(evidence.Project))
+                .Append(' ')
+                .Append(Escape(evidence.Framework))
+                .Append(" context=")
+                .Append(Escape(evidence.ContextId))
+                .Append('\n');
+            foreach (var reason in evidence.Reasons)
+                output
+                    .Append("    ")
+                    .Append(reason)
+                    .Append(": ")
+                    .Append(CoverageEvidenceFormatter.Explain(reason))
+                    .Append('\n');
+            foreach (var range in evidence.Ranges)
+                output.Append(
+                    CultureInfo.InvariantCulture,
+                    $"    range {range.Start}+{range.Length}: {range.State.ToString().ToLowerInvariant()}\n"
+                );
+        }
     }
 
     private string DisplayPath(string path)

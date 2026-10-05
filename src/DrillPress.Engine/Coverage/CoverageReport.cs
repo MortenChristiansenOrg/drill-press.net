@@ -34,6 +34,7 @@ internal sealed class CoverageReport(IFileSystem fileSystem)
     {
         if (symbolIdentity is null)
             return;
+        project.Coverage.Unavailable(CoverageReason.ModuleIdentityMismatch);
         var modules = report
             .Descendants("module")
             .Where(module =>
@@ -45,6 +46,7 @@ internal sealed class CoverageReport(IFileSystem fileSystem)
         if (modules.Length != 1)
             return;
         var module = modules[0];
+        project.Coverage.Unavailable(CoverageReason.MissingOrExcludedDocument);
         foreach (var source in project.Sources.Where(source => !source.Document.IsGenerated))
         {
             var files = module
@@ -52,7 +54,14 @@ internal sealed class CoverageReport(IFileSystem fileSystem)
                 .Where(file => Matches(source, file))
                 .ToArray();
             if (files.Length != 1)
+            {
+                if (module.Descendants("source_file").Any(file => MatchesPath(source, file)))
+                    project.Coverage.DocumentUnavailable(
+                        source.Document.DocumentId,
+                        CoverageReason.SourceIdentityMismatch
+                    );
                 continue;
+            }
             var id = (string?)files[0].Attribute("id");
             if (string.IsNullOrWhiteSpace(id))
                 continue;
@@ -81,25 +90,30 @@ internal sealed class CoverageReport(IFileSystem fileSystem)
                         )
                     );
                 else
+                {
                     invalid.Add(source.Document.DocumentId);
+                    project.Coverage.DocumentUnavailable(
+                        source.Document.DocumentId,
+                        CoverageReason.InvalidReportRange
+                    );
+                }
             }
         }
     }
 
+    private bool MatchesPath(AnalysisSource source, XElement file) =>
+        (string?)file.Attribute("path") is { } path
+        && string.Equals(
+            _fileSystem.Path.GetFullPath(path),
+            _fileSystem.Path.GetFullPath(source.Document.Path),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal
+        );
+
     private bool Matches(AnalysisSource source, XElement file)
     {
-        var path = (string?)file.Attribute("path");
-        if (
-            path is null
-            || !string.Equals(
-                _fileSystem.Path.GetFullPath(path),
-                _fileSystem.Path.GetFullPath(source.Document.Path),
-                OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal
-            )
-            || !_fileSystem.File.Exists(source.Document.Path)
-        )
+        if (!MatchesPath(source, file) || !_fileSystem.File.Exists(source.Document.Path))
             return false;
         var bytes = _fileSystem.File.ReadAllBytes(source.Document.Path);
         var checksum = (string?)file.Attribute("checksum_type") switch

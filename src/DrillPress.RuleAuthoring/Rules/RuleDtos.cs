@@ -25,6 +25,9 @@ public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Lo
     /// <summary>Optional single-line occurrence evidence, separate from the stable remediation shared by a rule.</summary>
     public string? Evidence { get; init; }
 
+    /// <summary>Typed coverage facts for this occurrence, retaining distinct evaluated contexts and requirement kinds.</summary>
+    public IReadOnlyList<CoverageEvidence> Coverage { get; init; } = [];
+
     /// <summary>Document membership used for context-specific aggregation.</summary>
     public AnalysisSource? Source { get; init; }
 

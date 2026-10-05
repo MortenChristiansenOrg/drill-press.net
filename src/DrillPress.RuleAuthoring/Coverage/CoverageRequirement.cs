@@ -1,4 +1,4 @@
-using System.Globalization;
+using DrillPress.Manifest;
 
 namespace DrillPress;
 
@@ -13,38 +13,56 @@ public sealed class CoverageRequirement
     public ExecutionCoverage ExecutionOf(ICodeElement occurrence) =>
         occurrence.Source?.Project.Coverage.ExecutionOf(occurrence) ?? ExecutionCoverage.Unknown;
 
-    internal bool Satisfied<T>(T candidate) =>
-        _minimum is null
-            ? candidate is ICodeElement element && ExecutionOf(element) == ExecutionCoverage.Covered
-            : Measure(candidate) is { Complete: true, Total: > 0 } measurement
-                && measurement.Percentage >= _minimum;
+    /// <summary>Reads source-bound execution evidence and typed explanations after preparation; does not launch tests.</summary>
+    public CoverageEvidence Inspect(ICodeElement occurrence) =>
+        occurrence.Source?.Project.Coverage.Inspect(occurrence)
+        ?? new(
+            ExecutionCoverage.Unknown,
+            Array.AsReadOnly(new[] { CoverageReason.EvidenceNotPrepared }),
+            "",
+            "",
+            ""
+        );
 
-    internal string Detail<T>(T candidate)
+    internal CoverageEvidence InspectCandidate<T>(T candidate)
     {
         if (_minimum is null)
             return candidate is ICodeElement element
-                ? $"coverage: {ExecutionOf(element).ToString().ToLowerInvariant()}"
-                : "coverage: unknown";
-        var measured = Measure(candidate);
-        return measured is { Complete: true, Total: > 0 }
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"line coverage: {measured.Percentage:0.##}% ({measured.Covered}/{measured.Total}), required {_minimum:0.##}%"
-            )
-            : "line coverage: unknown (missing or zero coverable lines)";
+                ? Inspect(element)
+                : new(
+                    ExecutionCoverage.Unknown,
+                    Array.AsReadOnly(new[] { CoverageReason.EvidenceNotPrepared }),
+                    "",
+                    "",
+                    ""
+                );
+        var measured = Coverage.Line.Measure(candidate);
+        var project = candidate is AnalysisProject selected
+            ? selected
+            : (candidate as ICodeElement)?.Source?.Project;
+        return new(
+            measured.IsComplete && measured.Coverable > 0
+                ? measured.Covered == measured.Coverable
+                    ? ExecutionCoverage.Covered
+                    : ExecutionCoverage.Uncovered
+                : ExecutionCoverage.Unknown,
+            measured.Reasons,
+            project?.Name ?? "",
+            project?.TargetFramework ?? "",
+            project?.Snapshot.ContextId ?? ""
+        )
+        {
+            Metric = CoverageMetric.Line,
+            Lines = measured,
+        };
     }
 
-    private static CoverageMeasurement Measure<T>(T candidate) =>
-        candidate switch
-        {
-            AnalysisProject project => project.Coverage.Measure(
-                project.Sources.Where(source => !source.Document.IsGenerated)
-            ),
-            CodeFile file => file.Source.Project.Coverage.Measure([file.Source]),
-            ICodeElement { Source: { } source } element => source.Project.Coverage.Measure(
-                [source],
-                element.Location
-            ),
-            _ => new(0, 0, false),
-        };
+    internal bool Satisfied<T>(T candidate) =>
+        _minimum is null
+            ? candidate is ICodeElement element && ExecutionOf(element) == ExecutionCoverage.Covered
+            : Coverage.Line.Measure(candidate) is { IsComplete: true, Coverable: > 0 } measurement
+                && measurement.Percentage >= _minimum;
+
+    internal string Detail<T>(T candidate) =>
+        CoverageEvidenceFormatter.Format(InspectCandidate(candidate), _minimum);
 }

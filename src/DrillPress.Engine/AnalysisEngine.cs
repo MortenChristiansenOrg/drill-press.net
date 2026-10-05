@@ -61,6 +61,7 @@ public sealed class AnalysisEngine
                     )
                     {
                         Evidence = finding.Evidence,
+                        Coverage = finding.Coverage ?? [],
                     };
                 })
             )

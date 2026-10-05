@@ -19,10 +19,16 @@ public sealed class RuleCondition<T>
     internal IReadOnlySet<string>? MemberNames { get; }
     internal bool RequiresCoverage { get; init; }
     internal Func<T, string>? Detail { get; init; }
+    internal Func<T, IReadOnlyList<CoverageEvidence>>? CoverageFacts { get; init; }
 
     /// <summary>Adapts a test-backed coverage requirement to this candidate type while retaining collection metadata.</summary>
     public static implicit operator RuleCondition<T>(CoverageRequirement requirement) =>
-        new(requirement.Satisfied<T>) { RequiresCoverage = true, Detail = requirement.Detail<T> };
+        new(requirement.Satisfied<T>)
+        {
+            RequiresCoverage = true,
+            Detail = requirement.Detail<T>,
+            CoverageFacts = candidate => new[] { requirement.InspectCandidate(candidate) },
+        };
 
     /// <summary>Requires both conditions and intersects their known candidate names.</summary>
     public RuleCondition<T> And(RuleCondition<T> other) =>
@@ -35,6 +41,7 @@ public sealed class RuleCondition<T>
         {
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
+            CoverageFacts = CombinedCoverage(other),
         };
 
     /// <summary>Accepts either condition; an unrestricted alternative keeps discovery unrestricted.</summary>
@@ -48,6 +55,7 @@ public sealed class RuleCondition<T>
         {
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
+            CoverageFacts = CombinedCoverage(other),
         };
 
     /// <summary>Inverts this condition without restricting candidate discovery.</summary>
@@ -56,12 +64,22 @@ public sealed class RuleCondition<T>
         {
             RequiresCoverage = RequiresCoverage,
             Detail = Detail,
+            CoverageFacts = CoverageFacts,
         };
 
     /// <summary>Accepts this condition only when the exception is false.</summary>
     public RuleCondition<T> ExceptWhen(RuleCondition<T> exception) => And(exception.Not());
 
     internal bool Evaluate(T candidate) => _predicate(candidate);
+
+    private Func<T, IReadOnlyList<CoverageEvidence>>? CombinedCoverage(RuleCondition<T> other)
+    {
+        if (CoverageFacts is not { } left)
+            return other.CoverageFacts;
+        if (other.CoverageFacts is not { } right)
+            return left;
+        return candidate => left(candidate).Concat(right(candidate)).ToArray();
+    }
 
     private Func<T, string>? CombinedDetail(RuleCondition<T> other)
     {

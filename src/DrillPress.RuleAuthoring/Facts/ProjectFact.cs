@@ -15,8 +15,8 @@ public sealed class ProjectFact<T>(Func<AnalysisProject, T> compute)
             );
         }
 
-        var cache = solution.Cached(this, () => new Dictionary<AnalysisProject, Lazy<T>>());
-        Lazy<T> value;
+        var cache = solution.Cached(this, () => new Dictionary<AnalysisProject, Lazy<object>>());
+        Lazy<object> value;
         lock (cache)
         {
             if (!cache.TryGetValue(project, out value!))
@@ -26,6 +26,6 @@ public sealed class ProjectFact<T>(Func<AnalysisProject, T> compute)
             }
         }
 
-        return value.Value;
+        return (T)value.Value;
     }
 }

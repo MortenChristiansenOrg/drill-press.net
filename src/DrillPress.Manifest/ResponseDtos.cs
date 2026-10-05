@@ -45,6 +45,12 @@ public sealed record Finding(
     )]
     public string? Evidence { get; init; }
 
+    /// <summary>Typed source-bound coverage evidence, retained separately for each evaluated context and requirement.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public IReadOnlyList<CoverageEvidence>? Coverage { get; init; }
+
     /// <summary>Optional author estimate of agent effort; absent for unclassified rules.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
@@ -106,6 +112,12 @@ public sealed record AggregatedFinding(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]
     public string? Evidence { get; init; }
+
+    /// <summary>Typed source-bound coverage evidence, retained separately for each evaluated context and requirement.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public IReadOnlyList<CoverageEvidence>? Coverage { get; init; }
 
     /// <summary>Optional author estimate of agent effort; absent for unclassified rules.</summary>
     [System.Text.Json.Serialization.JsonIgnore(

@@ -8,6 +8,89 @@ public sealed class BundleResponseValidatorTests
 {
     private readonly ContractFixture _fixture = new();
 
+    [Theory]
+    [InlineData((ExecutionCoverage)99, CoverageReason.MissingRange)]
+    [InlineData(ExecutionCoverage.Unknown, (CoverageReason)99)]
+    public void Rejects_undefined_typed_coverage_states_and_reasons(
+        ExecutionCoverage state,
+        CoverageReason reason
+    )
+    {
+        var project = _fixture.Snapshot.Projects[0];
+        var context = _fixture.Response.Contexts[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                context with
+                {
+                    Findings =
+                    [
+                        context.Findings[0] with
+                        {
+                            Coverage =
+                            [
+                                new(
+                                    state,
+                                    [reason],
+                                    project.Name,
+                                    project.TargetFramework,
+                                    project.ContextId
+                                ),
+                            ],
+                        },
+                    ],
+                },
+                _fixture.Response.Contexts[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(_fixture.Snapshot, response)
+        );
+
+        Assert.Equal("Invalid coverage state or reason.", error.Message);
+    }
+
+    [Fact]
+    public void Rejects_coverage_evidence_from_another_framework_context()
+    {
+        var project = _fixture.Snapshot.Projects[0];
+        var context = _fixture.Response.Contexts[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                context with
+                {
+                    Findings =
+                    [
+                        context.Findings[0] with
+                        {
+                            Coverage =
+                            [
+                                new(
+                                    ExecutionCoverage.Unknown,
+                                    [CoverageReason.NoApplicableTests],
+                                    project.Name,
+                                    "net9.0",
+                                    project.ContextId
+                                ),
+                            ],
+                        },
+                    ],
+                },
+                _fixture.Response.Contexts[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(_fixture.Snapshot, response)
+        );
+
+        Assert.Equal("Coverage evidence belongs to another evaluated context.", error.Message);
+    }
+
     [Fact]
     public void Context_evidence_is_combined_without_changing_the_registered_remediation()
     {

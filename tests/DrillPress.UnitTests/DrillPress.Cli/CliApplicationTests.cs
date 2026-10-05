@@ -59,6 +59,7 @@ public sealed class CliApplicationTests
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
             --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
+            --explain-coverage  Show typed reasons, context identity and matching source ranges.
             --refresh-coverage  Rerun tests even when cached coverage inputs match.
             --show-fix-complexity  Include assigned agent fix effort once per rule.
             --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
@@ -95,7 +96,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 4)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 5)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());
@@ -262,7 +263,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -620,7 +621,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
