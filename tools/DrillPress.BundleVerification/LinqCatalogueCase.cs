@@ -1,5 +1,6 @@
 using System.IO.Abstractions;
 using System.Text;
+using System.Xml.Linq;
 
 namespace DrillPress.BundleVerification;
 
@@ -15,6 +16,14 @@ public sealed class LinqCatalogueCase(
     {
         fileSystem.Directory.CreateDirectory(fixture);
         var project = fileSystem.Path.Combine(fixture, "LinqProbe.csproj");
+        var linqReference = new XAttribute(
+            "Include",
+            fileSystem.Path.Combine(repository, "src/DrillPress.Linq/DrillPress.Linq.csproj")
+        );
+        var testingReference = new XAttribute(
+            "Include",
+            fileSystem.Path.Combine(repository, "src/DrillPress.Testing/DrillPress.Testing.csproj")
+        );
         await fileSystem.File.WriteAllTextAsync(
             project,
             $$"""
@@ -27,14 +36,8 @@ public sealed class LinqCatalogueCase(
                 <EnableTrimAnalyzer>true</EnableTrimAnalyzer><EnableAotAnalyzer>true</EnableAotAnalyzer>
               </PropertyGroup>
               <ItemGroup>
-                <ProjectReference Include="{{fileSystem.Path.Combine(
-                repository,
-                "src/DrillPress.Linq/DrillPress.Linq.csproj"
-            )}}" />
-                <ProjectReference Include="{{fileSystem.Path.Combine(
-                repository,
-                "src/DrillPress.Testing/DrillPress.Testing.csproj"
-            )}}" />
+                <ProjectReference {{linqReference}} />
+                <ProjectReference {{testingReference}} />
               </ItemGroup>
             </Project>
             """
@@ -57,6 +60,7 @@ public sealed class LinqCatalogueCase(
                 class C { void M(int[] items, IQueryable<int> query) {
                     _ = items.SequenceEqual(query); _ = Enumerable.ToList(query);
                     _ = query.Count(); _ = items.Where(x => x > 0); _ = items.AsEnumerable();
+                    _ = items.Reverse();
                 } }
                 """)]);
             foreach (var call in Code.Calls.In(workspace.Analyze())) {
@@ -78,6 +82,7 @@ public sealed class LinqCatalogueCase(
             Supported Queryable Scalar: source:query
             Supported Enumerable DeferredConstruction: source:items
             Supported Enumerable Adapter: source:items
+            Supported Enumerable DeferredConstruction: source:items
             """;
         foreach (var mode in Enum.GetValues<BundleMode>())
         {
@@ -130,7 +135,7 @@ public sealed class LinqCatalogueCase(
             ProcessRunner.RequireSuccess(result);
             if (
                 Encoding.UTF8.GetString(result.StandardOutput).Replace("\r\n", "\n")
-                    != expected + "\n"
+                    != expected.Replace("\r\n", "\n") + "\n"
                 || result.StandardError.Length != 0
             )
                 throw new InvalidOperationException($"The {mode} LINQ catalogue contract differs.");

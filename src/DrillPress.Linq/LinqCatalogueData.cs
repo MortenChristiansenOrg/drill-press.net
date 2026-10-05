@@ -903,7 +903,7 @@ internal static class LinqCatalogueData
                 "M:System.Linq.Enumerable.Reverse``1(``0[]):global::System.Collections.Generic.IEnumerable<TSource>",
                 LinqOperationCategory.DeferredConstruction,
                 4,
-                []
+                [0]
             ),
             new(
                 "M:System.Linq.Enumerable.Reverse``1(System.Collections.Generic.IEnumerable{``0}):global::System.Collections.Generic.IEnumerable<TSource>",
