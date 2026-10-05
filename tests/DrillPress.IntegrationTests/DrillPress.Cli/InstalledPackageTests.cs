@@ -6,9 +6,8 @@ using Xunit;
 
 namespace DrillPress.IntegrationTests.DrillPress.Cli;
 
-public sealed class InstalledPackageTests(PackageFixture fixture)
-    : IntegrationTest,
-        IClassFixture<PackageFixture>
+[Collection(typeof(PackageCollection))]
+public sealed class InstalledPackageTests(PackageFixture fixture) : IntegrationTest
 {
     [Theory]
     [InlineData("string?", 0, "")]
