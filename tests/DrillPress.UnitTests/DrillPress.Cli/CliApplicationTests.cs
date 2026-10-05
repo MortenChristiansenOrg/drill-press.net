@@ -148,7 +148,7 @@ public sealed class CliApplicationTests
             Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
-            Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
+            Exit codes: 0 no violations (review findings may appear), 1 violations, 2 failure. Fix failures may retain completed writes.
 
             """.ReplaceLineEndings("\n"),
             output.ToString()
