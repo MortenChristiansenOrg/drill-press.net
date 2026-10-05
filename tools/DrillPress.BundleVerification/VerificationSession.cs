@@ -96,6 +96,9 @@ public sealed class VerificationSession : IDisposable
             mode == BundleMode.Managed ? [ManagedBundle, .. @case.Arguments] : @case.Arguments,
             RepositoryRoot
         );
+        var prefix = _fileSystem.Path.Combine(OutputDirectory, $"{@case.Name}.{mode}");
+        await _fileSystem.File.WriteAllBytesAsync(prefix + ".stdout", result.StandardOutput);
+        await _fileSystem.File.WriteAllBytesAsync(prefix + ".stderr", result.StandardError);
         BundleContract.Validate(@case, result);
         return result;
     }
@@ -424,13 +427,7 @@ public sealed class VerificationSession : IDisposable
         {
             foreach (var mode in Enum.GetValues<BundleMode>())
             {
-                var result = await ExecuteAsync(mode, @case);
-                var prefix = _fileSystem.Path.Combine(OutputDirectory, $"{@case.Name}.{mode}");
-                await _fileSystem.File.WriteAllBytesAsync(
-                    prefix + ".stdout",
-                    result.StandardOutput
-                );
-                await _fileSystem.File.WriteAllBytesAsync(prefix + ".stderr", result.StandardError);
+                await ExecuteAsync(mode, @case);
             }
 
             Console.WriteLine(
@@ -500,5 +497,12 @@ public sealed class VerificationSession : IDisposable
         Console.WriteLine(
             "CLI fix/recheck: both safe fixes preserve exact source bytes with managed/native bundles"
         );
+        await new CoverageEvidenceCase(
+            _fileSystem,
+            RepositoryRoot,
+            _fixture.FullName,
+            OutputDirectory,
+            RuntimeIdentifier
+        ).VerifyAsync();
     }
 }

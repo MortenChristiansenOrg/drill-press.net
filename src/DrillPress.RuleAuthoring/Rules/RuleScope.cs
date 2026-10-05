@@ -96,7 +96,8 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
             location,
             fix,
             _reportKey,
-            condition.Detail
+            condition.Detail,
+            condition.CoverageFacts
         );
         return this;
     }

@@ -6,7 +6,8 @@ internal sealed class CandidateRule<T>(
     Func<T, SourceLocation>? location,
     Func<T, FixProposal?>? fix,
     Func<T, object?>? reportKey,
-    Func<T, string>? detail
+    Func<T, string>? detail,
+    Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts
 ) : CompiledRule(descriptor.Id)
 {
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
@@ -42,6 +43,16 @@ internal sealed class CandidateRule<T>(
                     Diagnostic: new RuleDiagnostic(descriptor, span)
                     {
                         Evidence = detail?.Invoke(candidate),
+                        Coverage = (coverageFacts?.Invoke(candidate) ?? [])
+                            .Select(evidence =>
+                                solution.Options.ExplainCoverage
+                                    ? evidence
+                                    : evidence with
+                                    {
+                                        Ranges = [],
+                                    }
+                            )
+                            .ToArray(),
                         Source = element?.Source,
                         Fix = proposal,
                         Fixes = proposal is null ? [] : [proposal],

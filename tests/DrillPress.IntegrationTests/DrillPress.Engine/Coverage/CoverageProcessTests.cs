@@ -8,11 +8,20 @@ namespace DrillPress.IntegrationTests.Engine.Coverage;
 public sealed class CoverageProcessTests : IntegrationTest
 {
     [Theory]
-    [InlineData(false, 0)]
-    [InlineData(true, 1)]
+    [InlineData(
+        false,
+        0,
+        "line coverage: unknown (0/0; no-tests, incomplete-lines, zero-coverable-lines)"
+    )]
+    [InlineData(
+        true,
+        1,
+        "line coverage: unknown (0/0; missing-symbols, incomplete-lines, zero-coverable-lines)"
+    )]
     public async Task Large_build_queries_and_successful_test_logs_do_not_fail_coverage(
         bool hasTests,
-        int collections
+        int collections,
+        string expectedEvidence
     )
     {
         var directory = CreateTemporaryDirectory("drillpress-coverage-output-");
@@ -57,7 +66,7 @@ public sealed class CoverageProcessTests : IntegrationTest
 
         Assert.Equal(collections, process.Collections);
         Assert.Equal(
-            "line coverage: unknown (missing or zero coverable lines)",
+            expectedEvidence,
             Assert.Single(Assert.Single(response.Contexts).Findings).Evidence
         );
     }

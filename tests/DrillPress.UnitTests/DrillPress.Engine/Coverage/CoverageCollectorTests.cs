@@ -8,6 +8,195 @@ namespace DrillPress.UnitTests.Engine.Coverage;
 public sealed class CoverageCollectorTests
 {
     [Fact]
+    public async Task Coverage_ranges_retain_their_document_when_the_diagnostic_reports_another_file()
+    {
+        var fixture = new CoverageFixture(additionalSources: [("Report.cs", "class Report {}")]);
+        var project = fixture.Snapshot.Projects[0];
+        var report = project.Documents[1];
+        var reportPath = report.Path;
+        var snapshot = fixture.Snapshot;
+        var rules = new RuleSet();
+        rules
+            .For(Code.Calls.ToMethodsNamed("HitValue"))
+            .Require(
+                global::DrillPress.Coverage.Executed,
+                "COV",
+                "Exercise call.",
+                location: _ => new(reportPath, 0, 5, 1, 1)
+            );
+
+        var response = await fixture
+            .Engine()
+            .EvaluateAsync(
+                rules,
+                snapshot,
+                new AnalysisOptions { ExplainCoverage = true },
+                TestContext.Current.CancellationToken
+            );
+        var validated = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal([reportPath], validated.Findings.Select(finding => finding.Path));
+        Assert.Equal(
+            [project.Documents[0].DocumentId, project.Documents[0].DocumentId],
+            validated
+                .Findings.SelectMany(finding => finding.Coverage!)
+                .SelectMany(evidence => evidence.Ranges)
+                .Select(range => range.DocumentId)
+        );
+        Assert.Equal(
+            [project.Documents[0].Path, project.Documents[0].Path],
+            validated
+                .Findings.SelectMany(finding => finding.Coverage!)
+                .SelectMany(evidence => evidence.Ranges)
+                .Select(range => range.Path)
+        );
+        Assert.All(
+            validated
+                .Findings.SelectMany(finding => finding.Coverage!)
+                .SelectMany(evidence => evidence.Ranges),
+            range => Assert.True(range.Start + range.Length > report.Text.Length)
+        );
+    }
+
+    [Fact]
+    public async Task Typed_reasons_distinguish_missing_tests_from_unsupported_expression_mapping()
+    {
+        var absent = new CoverageFixture();
+        absent.Process.HasTests = false;
+        var mapped = new CoverageFixture();
+
+        var noTests = await absent
+            .Engine()
+            .AnalyzeAsync(
+                CoverageFixture.ExecutionRules(),
+                absent.Snapshot,
+                TestContext.Current.CancellationToken
+            );
+        var unsupported = await mapped
+            .Engine()
+            .AnalyzeAsync(
+                CoverageFixture.ExecutionRules(),
+                mapped.Snapshot,
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.Equal(
+            [
+                CoverageReason.NoApplicableTests,
+                CoverageReason.NoApplicableTests,
+                CoverageReason.NoApplicableTests,
+            ],
+            noTests.Select(diagnostic => Assert.Single(Assert.Single(diagnostic.Coverage).Reasons))
+        );
+        Assert.Equal(
+            [
+                CoverageReason.UnsupportedExpressionMapping,
+                CoverageReason.UnsupportedExpressionMapping,
+            ],
+            unsupported.Select(diagnostic =>
+                Assert.Single(Assert.Single(diagnostic.Coverage).Reasons)
+            )
+        );
+        Assert.Equal(
+            [false, false],
+            unsupported.Select(diagnostic => Assert.Single(diagnostic.Coverage).RefreshMayHelp)
+        );
+    }
+
+    [Fact]
+    public async Task Detailed_bundle_evidence_preserves_matching_ranges_and_context_identity_only_when_requested()
+    {
+        var fixture = new CoverageFixture();
+        var project = fixture.Snapshot.Projects[0];
+        var statement = "var result = condition ? HitValue() : HitValue();";
+
+        var compact = await fixture
+            .Engine()
+            .EvaluateAsync(
+                CoverageFixture.ExecutionRules(),
+                fixture.Snapshot,
+                TestContext.Current.CancellationToken
+            );
+        var detailed = await fixture
+            .Engine()
+            .EvaluateAsync(
+                CoverageFixture.ExecutionRules(),
+                fixture.Snapshot,
+                new AnalysisOptions { ExplainCoverage = true },
+                TestContext.Current.CancellationToken
+            );
+        var validated = BundleResponseProtocol.Read(
+            System.Text.Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(detailed)),
+            fixture.Snapshot
+        );
+
+        Assert.Equal(
+            [0, 0],
+            compact
+                .Contexts[0]
+                .Findings.Select(finding => Assert.Single(finding.Coverage!).Ranges.Count)
+        );
+        Assert.Equivalent(
+            new CoverageEvidence(
+                ExecutionCoverage.Unknown,
+                [CoverageReason.UnsupportedExpressionMapping],
+                project.Name,
+                project.TargetFramework,
+                project.ContextId
+            )
+            {
+                Ranges =
+                [
+                    new(
+                        project.Documents[0].DocumentId,
+                        project.Documents[0].Path,
+                        CoverageFixture.Source.IndexOf(statement),
+                        statement.Length,
+                        ExecutionCoverage.Covered
+                    ),
+                ],
+            },
+            Assert.Single(validated.Findings[0].Coverage!),
+            strict: true
+        );
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
+    [Fact]
+    public async Task Incomplete_line_evidence_retains_counts_and_missing_test_reason()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.HasTests = false;
+        var rules = new RuleSet();
+        rules
+            .For(Code.Files)
+            .Require(global::DrillPress.Coverage.Line.AtLeast(0), "LINES", "Exercise file.");
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equivalent(
+            new LineCoverageMeasurement(
+                0,
+                0,
+                false,
+                [
+                    CoverageReason.NoApplicableTests,
+                    CoverageReason.IncompleteLineEvidence,
+                    CoverageReason.ZeroCoverableLines,
+                ]
+            ),
+            Assert.Single(Assert.Single(diagnostics).Coverage).Lines,
+            strict: true
+        );
+        Assert.Equal(
+            "line coverage: unknown (0/0; no-tests, incomplete-lines, zero-coverable-lines)",
+            Assert.Single(diagnostics).Evidence
+        );
+    }
+
+    [Fact]
     public async Task Collects_once_and_reuses_evidence_across_rules_and_invocations()
     {
         var fixture = new CoverageFixture();
@@ -24,9 +213,9 @@ public sealed class CoverageCollectorTests
             .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, fixture.Process.Collections);
-        Assert.Equal(first, second);
+        Assert.Equivalent(first, second, strict: true);
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown"],
+            ["coverage: unknown (unsupported-mapping)", "coverage: unknown (unsupported-mapping)"],
             first.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -70,7 +259,12 @@ public sealed class CoverageCollectorTests
         Assert.Equal(single.Process.Evaluations, multiple.Process.Evaluations);
         Assert.Equal(1, multiple.Process.Collections);
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
+            ],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -107,8 +301,8 @@ public sealed class CoverageCollectorTests
             COV001 Exercise call.
             coverage/Target.cs
               7:9 [coverage: uncovered]
-              9:34 [coverage: unknown]
-              9:47 [coverage: unknown]
+              9:34 [coverage: unknown (unsupported-mapping)]
+              9:47 [coverage: unknown (unsupported-mapping)]
 
             """.ReplaceLineEndings("\n"),
             rendered
@@ -191,7 +385,11 @@ public sealed class CoverageCollectorTests
 
         Assert.Equal(0, fixture.Process.Collections);
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [
+                "coverage: unknown (no-tests)",
+                "coverage: unknown (no-tests)",
+                "coverage: unknown (no-tests)",
+            ],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -250,7 +448,7 @@ public sealed class CoverageCollectorTests
             .Engine()
             .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal(first, second);
+        Assert.Equivalent(first, second, strict: true);
         Assert.Equal(1, fixture.Process.Collections);
     }
 
@@ -334,7 +532,11 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [
+                "coverage: unknown (symbol-mismatch)",
+                "coverage: unknown (symbol-mismatch)",
+                "coverage: unknown (symbol-mismatch)",
+            ],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -359,7 +561,11 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [
+                "coverage: unknown (missing-symbols)",
+                "coverage: unknown (missing-symbols)",
+                "coverage: unknown (missing-symbols)",
+            ],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -379,7 +585,7 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown"],
+            ["coverage: unknown (unsupported-mapping)", "coverage: unknown (unsupported-mapping)"],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -437,12 +643,15 @@ public sealed class CoverageCollectorTests
     }
 
     [Theory]
-    [InlineData("stale")]
-    [InlineData("build")]
-    [InlineData("excluded")]
-    [InlineData("missing")]
-    [InlineData("function")]
-    public async Task Invalid_or_missing_evidence_never_satisfies_execution(string invalidEvidence)
+    [InlineData("stale", "coverage: unknown (source-mismatch)")]
+    [InlineData("build", "coverage: unknown (module-mismatch)")]
+    [InlineData("excluded", "coverage: unknown (missing-range)")]
+    [InlineData("missing", "coverage: unknown (no-tests)")]
+    [InlineData("function", "coverage: unknown (invalid-report-range)")]
+    public async Task Invalid_or_missing_evidence_never_satisfies_execution(
+        string invalidEvidence,
+        string expectedEvidence
+    )
     {
         var fixture = new CoverageFixture();
         fixture.Process.Stale = invalidEvidence == "stale";
@@ -460,7 +669,7 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [expectedEvidence, expectedEvidence, expectedEvidence],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -495,11 +704,20 @@ public sealed class CoverageCollectorTests
     }
 
     [Theory]
-    [InlineData(true, "line coverage: 0% (0/3), required 100%")]
-    [InlineData(false, "line coverage: unknown (missing or zero coverable lines)")]
+    [InlineData(
+        true,
+        "line coverage: 0% (0/3), required 100%",
+        "coverage: unknown (partial-range)"
+    )]
+    [InlineData(
+        false,
+        "line coverage: unknown (0/0; incomplete-lines, zero-coverable-lines, invalid-report-range)",
+        "coverage: unknown (invalid-report-range)"
+    )]
     public async Task Ambiguous_function_mapping_or_line_only_evidence_is_unknown(
         bool duplicateFunctions,
-        string percentageMessage
+        string percentageMessage,
+        string executionMessage
     )
     {
         var fixture = new CoverageFixture();
@@ -515,7 +733,7 @@ public sealed class CoverageCollectorTests
             .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown", percentageMessage],
+            [executionMessage, executionMessage, executionMessage, percentageMessage],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -535,7 +753,11 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [
+                "coverage: unknown (partial-range)",
+                "coverage: unknown (partial-range)",
+                "coverage: unknown (partial-range)",
+            ],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -645,7 +867,11 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown"],
+            [
+                "coverage: unknown (source-mismatch)",
+                "coverage: unknown (source-mismatch)",
+                "coverage: unknown (source-mismatch)",
+            ],
             diagnostics.Select(diagnostic => diagnostic.Evidence)
         );
     }
@@ -665,7 +891,7 @@ public sealed class CoverageCollectorTests
             .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            "line coverage: unknown (missing or zero coverable lines)",
+            "line coverage: unknown (0/0; zero-coverable-lines)",
             Assert.Single(diagnostics).Evidence
         );
     }

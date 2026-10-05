@@ -134,11 +134,65 @@ public sealed class BundleResponseValidator
                     IsSpan(document!.Text, finding.Start, finding.Length),
                     "Finding span is outside captured source."
                 );
+                ValidateCoverage(finding, contexts[context.ContextId]);
                 Require(
                     finding.BatchId is null || batches.ContainsKey(finding.BatchId),
                     "Finding references an unknown fix batch."
                 );
             }
+        }
+    }
+
+    private static void ValidateCoverage(Finding finding, ProjectSnapshot project)
+    {
+        foreach (var evidence in finding.Coverage ?? [])
+        {
+            Require(
+                evidence is not null
+                    && evidence.ContextId == project.ContextId
+                    && evidence.Project == project.Name
+                    && evidence.Framework == project.TargetFramework,
+                "Coverage evidence belongs to another evaluated context."
+            );
+            Require(
+                Enum.IsDefined(evidence!.State)
+                    && Enum.IsDefined(evidence.Metric)
+                    && evidence.Reasons is not null
+                    && evidence.Reasons.All(Enum.IsDefined),
+                "Invalid coverage state or reason."
+            );
+            Require(
+                evidence.Ranges is not null
+                    && evidence.Ranges.All(range =>
+                        range is not null
+                        && Enum.IsDefined(range.State)
+                        && project.Documents.Any(document =>
+                            document.DocumentId == range.DocumentId
+                            && document.Path == range.Path
+                            && !document.IsGenerated
+                            && IsSpan(document.Text, range.Start, range.Length)
+                        )
+                    ),
+                "Invalid coverage source range."
+            );
+            Require(
+                evidence.State != ExecutionCoverage.Unknown || evidence.Reasons.Count > 0,
+                "Unknown coverage requires an explanation."
+            );
+            Require(
+                evidence.Metric == CoverageMetric.Line
+                    ? evidence.Lines is not null
+                    : evidence.Lines is null,
+                "Coverage metric and line counts disagree."
+            );
+            if (evidence.Lines is { } lines)
+                Require(
+                    lines.Covered >= 0
+                        && lines.Coverable >= lines.Covered
+                        && lines.Reasons is not null
+                        && lines.Reasons.All(Enum.IsDefined),
+                    "Invalid coverage line measurement."
+                );
         }
     }
 
@@ -239,6 +293,9 @@ public sealed class BundleResponseValidator
                 {
                     Evidence = CombineEvidence(group),
                     FixComplexity = first.FixComplexity,
+                    Coverage = group.Any(finding => finding.Coverage is not null)
+                        ? group.SelectMany(finding => finding.Coverage ?? []).ToArray()
+                        : null,
                 };
             })
             .OrderBy(finding => finding.RuleId, StringComparer.Ordinal)
@@ -299,8 +356,10 @@ public sealed class BundleResponseValidator
         && !text.Contains('\u2028')
         && !text.Contains('\u2029');
 
-    private static void Require(bool condition, string message) =>
-        SnapshotValidation.Require(condition, message);
+    private static void Require(
+        [System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool condition,
+        string message
+    ) => SnapshotValidation.Require(condition, message);
 
     private static (int Line, int Column) Coordinates(string text, int offset)
     {

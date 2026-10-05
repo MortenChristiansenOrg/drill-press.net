@@ -9,6 +9,55 @@ namespace DrillPress.UnitTests.Manifest;
 
 public sealed class CompactDiagnosticRendererTests
 {
+    [Fact]
+    public void Detailed_coverage_rendering_explains_mapping_limits_and_matching_ranges()
+    {
+        var files = new MockFileSystem();
+        var finding = new AggregatedFinding(
+            "COV",
+            "Exercise call.",
+            "file",
+            "Target.cs",
+            0,
+            3,
+            1,
+            1,
+            null
+        )
+        {
+            Evidence = "coverage: unknown (unsupported-mapping)",
+            Coverage =
+            [
+                new(
+                    ExecutionCoverage.Unknown,
+                    [CoverageReason.UnsupportedExpressionMapping],
+                    "Target",
+                    "net10.0",
+                    "context"
+                )
+                {
+                    Ranges = [new("evidence", "Evidence.cs", 0, 10, ExecutionCoverage.Covered)],
+                },
+            ],
+        };
+        var result = new ValidatedResult([finding], [], []);
+
+        var output = new CompactDiagnosticRenderer(files).Render(result, explainCoverage: true);
+
+        Assert.Equal(
+            """
+            COV Exercise call.
+            Target.cs
+              1 [coverage: unknown (unsupported-mapping)]
+                Execution Target net10.0 context=context
+                UnsupportedExpressionMapping: The current mapping cannot distinguish this expression; additional tests alone may not resolve it.
+                range Evidence.cs 0+10: covered
+
+            """.ReplaceLineEndings("\n"),
+            output
+        );
+    }
+
     [Theory]
     [InlineData("en-US")]
     [InlineData("da-DK")]

@@ -177,8 +177,8 @@ public sealed class CoverageCollectorTests : IntegrationTest
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(first, simultaneous[1]);
-        Assert.Equal(first, second);
+        Assert.Equivalent(first, simultaneous[1], strict: true);
+        Assert.Equivalent(first, second, strict: true);
         Assert.Equal(2, process.Collections);
         Assert.Equal(
             ["Hit()", "Consume(Throwing())", "Throwing().ToString()", "Tick()"],
@@ -189,7 +189,12 @@ public sealed class CoverageCollectorTests : IntegrationTest
                 )
         );
         Assert.Equal(
-            ["coverage: unknown", "coverage: unknown", "coverage: unknown", "coverage: uncovered"],
+            [
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (partial-range)",
+                "coverage: unknown (partial-range)",
+                "coverage: uncovered",
+            ],
             first
                 .Where(diagnostic => diagnostic.Descriptor.Id == "COV001")
                 .Select(diagnostic => diagnostic.Evidence)

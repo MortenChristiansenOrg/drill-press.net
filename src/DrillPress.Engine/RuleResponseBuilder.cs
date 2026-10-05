@@ -64,6 +64,7 @@ internal sealed class RuleResponseBuilder
             )
             {
                 Evidence = diagnostic.Evidence,
+                Coverage = diagnostic.Coverage.Count == 0 ? null : diagnostic.Coverage,
                 FixComplexity = diagnostic.Descriptor.FixComplexity,
             };
             findings[source.Project.Snapshot.ContextId].Add(finding);

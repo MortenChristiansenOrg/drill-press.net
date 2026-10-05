@@ -43,7 +43,7 @@ project identity and produces unknown coverage.
 ## Occurrence evidence
 
 Findings retain the selected occurrence's physical source location and append
-`[coverage: uncovered]` or `[coverage: unknown]`. A covered occurrence satisfies
+`[coverage: uncovered]` or `[coverage: unknown (reason-code)]`. A covered occurrence satisfies
 the requirement. Source byte checksums and portable PDB identities must match the
 captured compilation, including compiler options and all source documents, and the
 selected project/framework/build output. Associated external or embedded portable
@@ -109,3 +109,26 @@ inventory; `bin` and `obj` contribute assembly, symbol and JSON build identities
 Tests depending on changing services, clocks or other external state must request
 fresh evidence with `--refresh-coverage`, or `AnalysisOptions.RefreshCoverage` for
 library use. The cache cannot fingerprint those external dependencies.
+
+## Inspecting evidence
+
+`Coverage.Executed.Inspect(occurrence)` returns read-only `CoverageEvidence` with
+state, typed reasons, project/framework/context identity, matching source ranges,
+and whether refreshing might help. `Coverage.Line.Measure(scope)` exposes covered
+and coverable counts, completeness, reasons and percentage independently of a
+threshold. SDK inspection reads prepared facts and never starts tests.
+
+Unknown findings include compact reason codes such as `no-tests`, `symbol-mismatch`,
+`partial-range` and `unsupported-mapping`. A missing report document is described
+as missing or possibly excluded; the integration does not invent an exclusion it
+cannot verify. Line findings retain counts even when incomplete or zero-coverable.
+`CoverageEvidenceFormatter.Explain(reason)` supplies actionable explanation text.
+Unsupported mappings explicitly explain that adding tests alone may not fix them.
+
+Pass `--explain-coverage` to include context identity, typed explanations and
+matching ranges, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
+Ordinary bundle output omits ranges; typed state/reasons/counts remain available
+through diagnostics, validated findings and cross-context aggregation. Response
+protocol 5 requires matching CLI/SDK packages and rebuilt bundles. Collection,
+build, tool and test failures still stop the check rather than becoming unknown
+findings.

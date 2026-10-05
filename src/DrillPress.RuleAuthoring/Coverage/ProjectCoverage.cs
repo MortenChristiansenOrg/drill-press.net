@@ -6,6 +6,16 @@ namespace DrillPress;
 internal sealed class ProjectCoverage
 {
     private readonly Dictionary<string, CoverageRange[]> _documents = [];
+    private readonly Dictionary<string, CoverageReason> _documentReasons = [];
+    private CoverageReason _unavailableReason = CoverageReason.EvidenceNotPrepared;
+
+    internal void Unavailable(CoverageReason reason) => _unavailableReason = reason;
+
+    internal void DocumentUnavailable(string documentId, CoverageReason reason) =>
+        _documentReasons[documentId] = reason;
+
+    private CoverageReason MissingReason(string documentId) =>
+        _documentReasons.GetValueOrDefault(documentId, _unavailableReason);
 
     internal void Add(string documentId, IEnumerable<CoverageRange> ranges) =>
         _documents[documentId] = ranges
@@ -25,21 +35,36 @@ internal sealed class ProjectCoverage
             ? ExecutionCoverage.Uncovered
         : ExecutionCoverage.Unknown;
 
-    internal ExecutionCoverage ExecutionOf(ICodeElement element)
+    internal ExecutionCoverage ExecutionOf(ICodeElement element) => Inspect(element).State;
+
+    internal CoverageEvidence Inspect(ICodeElement element)
     {
         if (
             element.Source is not { } source
             || !_documents.TryGetValue(source.Document.DocumentId, out var ranges)
         )
-            return ExecutionCoverage.Unknown;
+            return Evidence(
+                element.Source,
+                ExecutionCoverage.Unknown,
+                [
+                    element.Source is { } missing
+                        ? MissingReason(missing.Document.DocumentId)
+                        : CoverageReason.EvidenceNotPrepared,
+                ]
+            );
         var span = new TextSpan(element.Location.Start, element.Location.Length);
         var matching = ranges.Where(range => range.Span.Contains(span)).ToArray();
         if (matching.Length == 0)
-            return ExecutionCoverage.Unknown;
+            return Evidence(source, ExecutionCoverage.Unknown, [CoverageReason.MissingRange]);
         if (matching.All(range => range.State == ExecutionCoverage.Uncovered))
-            return ExecutionCoverage.Uncovered;
+            return Evidence(source, ExecutionCoverage.Uncovered, [], matching);
         if (matching.Any(range => range.State == ExecutionCoverage.Unknown))
-            return ExecutionCoverage.Unknown;
+            return Evidence(
+                source,
+                ExecutionCoverage.Unknown,
+                [CoverageReason.PartialRange],
+                matching
+            );
         // Sequence points can cover both sides of a branch. A hit cannot identify its conditional arm.
         var node = source
             .Tree.GetRoot(source.Project.CancellationToken)
@@ -47,23 +72,55 @@ internal sealed class ProjectCoverage
         foreach (var range in matching.Where(range => range.State == ExecutionCoverage.Covered))
         {
             if (range.Span == span)
-                return ExecutionCoverage.Covered;
+                return Evidence(source, ExecutionCoverage.Covered, [], matching);
             var anchor = source.Tree.GetRoot().FindNode(range.Span, getInnermostNodeForTie: true);
             foreach (var expression in DirectExpressions(anchor))
             {
                 if (expression.Span == span)
-                    return ExecutionCoverage.Covered;
+                    return Evidence(source, ExecutionCoverage.Covered, [], matching);
                 // Member-reference selectors omit the invocation arguments; accept only an argument-free direct call.
                 if (
                     expression is InvocationExpressionSyntax invocation
                     && invocation.Expression.Span == node.Span
                     && invocation.ArgumentList.Arguments.Count == 0
                 )
-                    return ExecutionCoverage.Covered;
+                    return Evidence(source, ExecutionCoverage.Covered, [], matching);
             }
         }
-        return ExecutionCoverage.Unknown;
+        return Evidence(
+            source,
+            ExecutionCoverage.Unknown,
+            [CoverageReason.UnsupportedExpressionMapping],
+            matching
+        );
     }
+
+    private static CoverageEvidence Evidence(
+        AnalysisSource? source,
+        ExecutionCoverage state,
+        CoverageReason[] reasons,
+        CoverageRange[]? ranges = null
+    ) =>
+        new(
+            state,
+            Array.AsReadOnly(reasons),
+            source?.Project.Name ?? "",
+            source?.Project.TargetFramework ?? "",
+            source?.Project.Snapshot.ContextId ?? ""
+        )
+        {
+            Ranges = Array.AsReadOnly(
+                (ranges ?? [])
+                    .Select(range => new CoverageRangeEvidence(
+                        source!.Document.DocumentId,
+                        source.Document.Path,
+                        range.Span.Start,
+                        range.Span.Length,
+                        range.State
+                    ))
+                    .ToArray()
+            ),
+        };
 
     private static IEnumerable<ExpressionSyntax> DirectExpressions(
         Microsoft.CodeAnalysis.SyntaxNode anchor
@@ -92,7 +149,7 @@ internal sealed class ProjectCoverage
         }
     }
 
-    internal CoverageMeasurement Measure(
+    internal LineCoverageMeasurement Measure(
         IEnumerable<AnalysisSource> sources,
         SourceLocation? location = null
     )
@@ -100,11 +157,13 @@ internal sealed class ProjectCoverage
         var covered = 0;
         var total = 0;
         var complete = true;
+        var reasons = new HashSet<CoverageReason>();
         foreach (var source in sources)
         {
             if (!_documents.TryGetValue(source.Document.DocumentId, out var ranges))
             {
                 complete = false;
+                reasons.Add(MissingReason(source.Document.DocumentId));
                 continue;
             }
             var text = source.Tree.GetText();
@@ -128,6 +187,10 @@ internal sealed class ProjectCoverage
             covered += lines.Count(line => line.Value);
             total += lines.Count;
         }
-        return new(covered, total, complete);
+        if (!complete)
+            reasons.Add(CoverageReason.IncompleteLineEvidence);
+        if (total == 0)
+            reasons.Add(CoverageReason.ZeroCoverableLines);
+        return new(covered, total, complete, Array.AsReadOnly(reasons.Order().ToArray()));
     }
 }

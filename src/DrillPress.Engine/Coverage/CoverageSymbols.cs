@@ -28,6 +28,7 @@ internal sealed class CoverageSymbols(IFileSystem fileSystem, CoverageProcess pr
             cancellationToken
         );
         var assembly = _fileSystem.Path.GetFullPath(output.Trim(), root);
+        project.Coverage.Unavailable(CoverageReason.MissingSymbols);
         if (!_fileSystem.File.Exists(assembly))
             return null;
         using var stream = _fileSystem.File.OpenRead(assembly);
@@ -46,7 +47,10 @@ internal sealed class CoverageSymbols(IFileSystem fileSystem, CoverageProcess pr
             using var symbols = provider!;
             var reader = symbols.GetMetadataReader();
             if (!CoverageCompilation.Matches(project, reader))
+            {
+                project.Coverage.Unavailable(CoverageReason.SymbolIdentityMismatch);
                 return null;
+            }
             return Convert.ToHexString(reader.DebugMetadataHeader!.Id.AsSpan());
         }
         catch (BadImageFormatException)
