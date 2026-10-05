@@ -215,7 +215,9 @@ Assert.Equal(expectedFindings, result.Findings);
 Assert.Equal(expectedSource, result.FixedText("Example.cs"));
 ```
 
-`TestFinding` contains rule ID, path, exact line/column/text and `HasFix`.
+`TestFinding` contains rule ID, path, exact line/column/text, `HasFix`, readable
+`Evidence`, and typed `Coverage` facts. [Synthetic coverage fixtures](COVERAGE.md#synthetic-rule-policy-fixtures)
+support deterministic coverage-policy tests without a collector.
 The test kit runs the production evaluator and validator, so withheld fixes are
 tested through the same path as normal checks. `FixedText` applies the validated
 plan in memory; create a new workspace from that text to assert a clean recheck.
