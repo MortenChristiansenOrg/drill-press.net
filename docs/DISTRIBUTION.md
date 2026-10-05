@@ -136,7 +136,7 @@ builds, including a different prerelease with the same numeric version. The
 release inventory additionally reads the actual informational version of every
 Drill Press assembly, including those bundled with the CLI.
 
-Only the four SDK libraries and the CLI are packable. Package validation checks
+Only the five SDK libraries and the CLI are packable. Package validation checks
 reference/runtime API consistency inside each library package. No previous API
 baseline is enforced; wire version compatibility is tested separately.
 
