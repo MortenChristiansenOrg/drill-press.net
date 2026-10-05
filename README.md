@@ -8,7 +8,7 @@ to change, without pages of repeated messages.
 
 **All `0.0.X` releases are experimental and may introduce breaking changes.**
 Release tags also support explicit NuGet prereleases such as `1.0.0-rc.1`.
-Pushing a version tag publishes all five packages after release validation; see
+Pushing a version tag publishes all six packages after release validation; see
 the [release process](docs/DISTRIBUTION.md#automatic-publication).
 Pin the tool and all Drill Press SDK packages to the same exact version. Before
 upgrading, check the release's compatibility notes and rebuild your rule bundles.
@@ -242,3 +242,6 @@ The xUnit layout, single-implementation interface, empty-string, ordinal-compare
 and implicit-accessibility conventions belong entirely to the sample bundle.
 See the [policy helper migration guide](docs/SDK_CAPABILITIES.md#migrating-policy-helpers-out-of-the-sdk)
 when updating an earlier consumer.
+
+Optional maintained LINQ declaration categories and sequence input roles are
+available in `DrillPress.Linq`; see [the catalogue](docs/LINQ_CATALOGUE.md).

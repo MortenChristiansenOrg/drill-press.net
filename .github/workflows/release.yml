@@ -46,7 +46,7 @@ jobs:
         id: nuget-login
         with:
           user: ${{ vars.NUGET_USER }}
-      - name: Publish and verify all five packages
+      - name: Publish and verify all six packages
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: dotnet run --project tools/DrillPress.Release -c Release -- publish "$RELEASE_TAG" artifacts/packages
@@ -61,9 +61,9 @@ jobs:
           fi
           notes="$RUNNER_TEMP/release-notes.md"
           {
-            echo "All five packages are available on nuget.org at version $version."
+            echo "All six packages are available on nuget.org at version $version."
             echo
-            for package in DrillPress.Manifest DrillPress.RuleAuthoring DrillPress.Engine DrillPress.Testing DrillPress.Cli; do
+            for package in DrillPress.Manifest DrillPress.RuleAuthoring DrillPress.Linq DrillPress.Engine DrillPress.Testing DrillPress.Cli; do
               echo "- [$package](https://www.nuget.org/packages/$package/$version)"
             done
           } > "$notes"

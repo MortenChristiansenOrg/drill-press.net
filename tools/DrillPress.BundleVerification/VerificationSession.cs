@@ -491,6 +491,13 @@ public sealed class VerificationSession : IDisposable
         Console.WriteLine(
             "All five rules and both proposed fixes: managed/native contract matches"
         );
+        await new LinqCatalogueCase(
+            _fileSystem,
+            RepositoryRoot,
+            _fileSystem.Path.Combine(_fixture.FullName, "LinqCatalogue"),
+            OutputDirectory,
+            RuntimeIdentifier
+        ).VerifyAsync();
         await new FixVerificationCase(
             _fileSystem,
             RepositoryRoot,
