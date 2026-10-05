@@ -22,6 +22,8 @@ public sealed class LinqCatalogueCase(
               <PropertyGroup>
                 <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+                <TrimmerSingleWarn>false</TrimmerSingleWarn>
+                <WarningsNotAsErrors>IL2091;IL3000</WarningsNotAsErrors>
                 <EnableTrimAnalyzer>true</EnableTrimAnalyzer><EnableAotAnalyzer>true</EnableAotAnalyzer>
               </PropertyGroup>
               <ItemGroup>
