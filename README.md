@@ -103,8 +103,9 @@ The `+10:29` location offers a safe correction on line 10, column 29.
 To check your own C# project,
 replace the final argument with the path to its `.csproj` file.
 
-A clean check prints nothing and exits with code `0`. Findings produce code
-`1`—including the example above. Code `2` means the check could not complete,
+A clean check prints nothing and exits with code `0`. Review-only findings also
+exit with code `0`, with visible output. Violations produce code `1`, including
+the example above. Code `2` means the check could not complete,
 such as when a project cannot be loaded. `check` reports violations without
 applying fixes.
 
@@ -122,7 +123,7 @@ Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
 relative file path, then source span. Each rule's remediation appears once. A
 location is `line` or `line:column` (one-based physical UTF-16 coordinates); `+`
 before the line marks an agreed safe correction. Paths containing controls,
-quotes, or surrounding whitespace use JSON escaping. Clean runs emit nothing.
+quotes, or surrounding whitespace use JSON escaping. Runs with no findings emit nothing.
 
 Rules can optionally estimate agent fix effort as `Trivial`, `Local`, `Complex`,
 or `Architectural`. Use `--show-fix-complexity` to include assigned levels once

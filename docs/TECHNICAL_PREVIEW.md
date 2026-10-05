@@ -78,8 +78,9 @@ dotnet build $target -c Release --no-restore
 The sample deliberately has findings, so a successful `check` exits **1**.
 The `fix` commands above modify the original sample files. They apply eligible
 string/comparer corrections and can still exit 1 for findings needing manual
-changes. Both commands use **0** for clean output and **2** for operational
-failure. Help exits 0 without loading a target.
+changes. Both commands use **0** when there are no violations, including visible
+review-only findings, and **2** for operational failure. Help exits 0 without
+loading a target.
 
 Output groups a remediation once per rule, then relative paths and physical
 one-based `line:column` locations. Columns count UTF-16 code units; a default
