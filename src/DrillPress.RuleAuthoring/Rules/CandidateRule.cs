@@ -8,21 +8,42 @@ internal sealed class CandidateRule<T>(
     Func<T, object?>? reportKey,
     Func<T, string>? detail,
     Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts,
-    Func<T, ConditionFailure>? failure
+    Func<T, ConditionFailure>? failure,
+    CodeQuery<AnalysisProject>? coverageScope
 ) : CompiledRule(descriptor.Id)
 {
+    public override IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning)
+    {
+        if (coverageScope is not null)
+            return coverageScope.In(planning);
+        if (!query.RequiresCoverage)
+            return [];
+        return query
+            .Evaluate(planning)
+            .Where(IsReportable)
+            .SelectMany(candidate =>
+                candidate switch
+                {
+                    AnalysisProject project => [project],
+                    ICodeElement { Source: { } source } => new[] { source.Project },
+                    _ => planning.Projects,
+                }
+            );
+    }
+
+    private static bool IsReportable(T candidate) =>
+        candidate
+            is not ICodeElement
+            {
+                Source: { Document.IsGenerated: true }
+                    or { Project.Snapshot.IsAnalysisTarget: false }
+            };
+
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
         var candidates = query
             .Evaluate(solution)
-            .Where(candidate =>
-                candidate
-                    is not ICodeElement
-                    {
-                        Source: { Document.IsGenerated: true }
-                            or { Project.Snapshot.IsAnalysisTarget: false }
-                    }
-            )
+            .Where(IsReportable)
             .Select(candidate =>
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();

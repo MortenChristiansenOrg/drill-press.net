@@ -22,6 +22,7 @@ internal sealed class FakeCoverageProcess(
     private readonly string _symbolIdentity = symbolIdentity;
     public int Collections { get; private set; }
     public int Evaluations { get; private set; }
+    public List<string[]> Calls { get; } = [];
     public string[]? ReferencingTargets { get; set; }
     public bool Fail { get; set; }
     public bool HasTests { get; set; } = true;
@@ -51,6 +52,7 @@ internal sealed class FakeCoverageProcess(
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        Calls.Add(arguments.ToArray());
         if (arguments[0].EndsWith("DrillPress.CoverageReader.dll", StringComparison.Ordinal))
             return Task.FromResult("");
         if (arguments[0] == "restore")

@@ -24,13 +24,34 @@ Custom selectors and predicates must remain pure; do not run tests inside them.
 
 `AnalysisEngine` and executable rule bundles arrange collection before evaluating
 coverage conditions. No work is collected for rule sets without coverage
-requirements. The first coverage check automatically installs the pinned Microsoft
+requirements or with zero source-selected coverage candidates. Collection is limited
+to the evaluated contexts containing those candidates. The first relevant coverage check automatically installs the pinned Microsoft
 coverage tool into Drill Press's user-local cache. It requires an SDK, NuGet
 access on first use, and working test projects; rule authors do not add collector
 packages or configure report formats. SDK source snapshots must already be
 restored as usual. Test runs build their projects and dependencies. A failed
 installation, evaluation, build, test run or collection fails the check explicitly.
 Cancellation stops external processes and removes temporary reports.
+
+Planning uses a separate query/cache lifetime. Source predicates, projections,
+unions, and anchored custom values retain their context; built-in coverage
+conditions remain unresolved possibilities until evidence is ready, including
+negation and Boolean alternatives. Unanchored custom values conservatively retain
+all target contexts. Use `.At(value => owner)` when such values have a source owner.
+Callbacks and custom selectors used during automatic planning must read source
+facts only. When a custom callback reads coverage directly, explicitly choose
+contexts without evaluating that callback during planning:
+
+```csharp
+rules.For(customCoverageDependentSelection)
+    .CollectCoverageIn(Code.Projects.Where(project => project.Name == "Product.Data"))
+    .Forbid("DATA002", "Inspect the selected execution.");
+```
+
+This scope always collects its selected contexts. It must use source-only filters
+and cannot contain a built-in coverage dependency. Operational collection failures
+still fail the check. Method and type line scopes measure their full selected
+declaration, while the diagnostic remains anchored to its identifier.
 
 Discovery searches below the closest enclosing solution or repository root,
 falling back to the target project directory. MSBuild evaluates test classification

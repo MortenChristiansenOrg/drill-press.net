@@ -177,9 +177,13 @@ public sealed class AnalysisEngine
 
         if (rules.RequiresCoverage)
         {
+            IReadOnlySet<AnalysisProject> selected;
+            using (options.Profile.Measure("coverage.planning"))
+                selected = rules.CoverageContexts(solution);
             using var collection = options.Profile.Measure("coverage.collection");
             await new CoverageCollector(_fileSystem, _coverageProcess).PrepareAsync(
                 solution,
+                selected,
                 cancellationToken
             );
         }
