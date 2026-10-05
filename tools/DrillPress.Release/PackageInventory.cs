@@ -13,6 +13,7 @@ public sealed class PackageInventory(IFileSystem fileSystem, AssemblyVersionRead
             {
                 "DrillPress.Manifest",
                 "DrillPress.RuleAuthoring",
+                "DrillPress.Linq",
                 "DrillPress.Engine",
                 "DrillPress.Testing",
                 "DrillPress.Cli",
@@ -28,7 +29,7 @@ public sealed class PackageInventory(IFileSystem fileSystem, AssemblyVersionRead
         if (!packages.Select(package => package.Id).Order().SequenceEqual(PackageIds.Order()))
         {
             throw new InvalidDataException(
-                "Release must contain exactly the five Drill Press packages."
+                "Release must contain exactly the six Drill Press packages."
             );
         }
 
@@ -86,6 +87,7 @@ public sealed class PackageInventory(IFileSystem fileSystem, AssemblyVersionRead
         {
             "DrillPress.Engine" => ["DrillPress.Manifest", "DrillPress.RuleAuthoring"],
             "DrillPress.RuleAuthoring" => ["DrillPress.Manifest"],
+            "DrillPress.Linq" => ["DrillPress.RuleAuthoring"],
             "DrillPress.Testing" => ["DrillPress.Engine"],
             _ => [],
         };
