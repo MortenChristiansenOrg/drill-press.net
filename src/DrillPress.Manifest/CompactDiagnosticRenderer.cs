@@ -77,7 +77,7 @@ public sealed class CompactDiagnosticRenderer
         return output.ToString();
     }
 
-    private static void ExplainCoverage(StringBuilder output, AggregatedFinding finding)
+    private void ExplainCoverage(StringBuilder output, AggregatedFinding finding)
     {
         foreach (var evidence in finding.Coverage ?? [])
         {
@@ -101,7 +101,7 @@ public sealed class CompactDiagnosticRenderer
             foreach (var range in evidence.Ranges)
                 output.Append(
                     CultureInfo.InvariantCulture,
-                    $"    range {range.Start}+{range.Length}: {range.State.ToString().ToLowerInvariant()}\n"
+                    $"    range {Escape(DisplayPath(range.Path))} {range.Start}+{range.Length}: {range.State.ToString().ToLowerInvariant()}\n"
                 );
         }
     }
