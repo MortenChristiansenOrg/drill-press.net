@@ -46,6 +46,11 @@ public sealed class RuleSet
         var (id, message) = descriptor;
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        if (descriptor.FixComplexity is { } complexity && !Enum.IsDefined(complexity))
+            throw new ArgumentOutOfRangeException(
+                nameof(descriptor),
+                "Unknown rule fix complexity."
+            );
         if (
             id.Any(char.IsControl)
             || message.Any(char.IsControl)

@@ -47,7 +47,10 @@ public sealed class AnalysisEngine
                     var text = SourceText.From(document.Text);
                     var position = text.Lines.GetLinePosition(finding.Start);
                     return new RuleDiagnostic(
-                        new RuleDescriptor(finding.RuleId, finding.Message),
+                        new RuleDescriptor(finding.RuleId, finding.Message)
+                        {
+                            FixComplexity = finding.FixComplexity,
+                        },
                         new SourceLocation(
                             document.Path,
                             finding.Start,

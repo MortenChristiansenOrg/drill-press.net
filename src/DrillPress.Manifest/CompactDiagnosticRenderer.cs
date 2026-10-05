@@ -17,7 +17,9 @@ public sealed class CompactDiagnosticRenderer
     internal CompactDiagnosticRenderer(IFileSystem fileSystem) => _fileSystem = fileSystem;
 
     /// <summary>Groups rules, relative files, and physical locations; '+' marks retained common-safe fixes.</summary>
-    public string Render(ValidatedResult result)
+    /// <param name="result">The validated and optionally selected diagnostics.</param>
+    /// <param name="showFixComplexity">Includes assigned complexity once in each rule header; unclassified rules have no annotation.</param>
+    public string Render(ValidatedResult result, bool showFixComplexity = false)
     {
         var output = new StringBuilder();
         foreach (
@@ -26,7 +28,13 @@ public sealed class CompactDiagnosticRenderer
                 .OrderBy(group => group.Key, StringComparer.Ordinal)
         )
         {
-            output.Append(rule.Key).Append(' ').Append(rule.First().Message).Append('\n');
+            output.Append(rule.Key);
+            if (showFixComplexity && rule.First().FixComplexity is { } complexity)
+                output
+                    .Append(" [fix:")
+                    .Append(complexity.ToString().ToLowerInvariant())
+                    .Append(']');
+            output.Append(' ').Append(rule.First().Message).Append('\n');
             foreach (
                 var file in rule.GroupBy(finding => DisplayPath(finding.Path))
                     .OrderBy(group => group.Key, StringComparer.Ordinal)

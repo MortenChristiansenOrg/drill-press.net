@@ -11,7 +11,11 @@ public sealed record SourceLocation(string FilePath, int Start, int Length, int 
 /// <summary>Defines the stable identifier and remediation text presented for a rule.</summary>
 /// <param name="Id">The stable rule identifier.</param>
 /// <param name="Message">Concise guidance for correcting a violation.</param>
-public sealed record RuleDescriptor(string Id, string Message);
+public sealed record RuleDescriptor(string Id, string Message)
+{
+    /// <summary>Optional author estimate of agent effort for a typical fix; null leaves the rule unclassified.</summary>
+    public RuleFixComplexity? FixComplexity { get; init; }
+}
 
 /// <summary>Associates a rule violation with its physical source location.</summary>
 /// <param name="Descriptor">The rule that produced the violation.</param>

@@ -220,7 +220,10 @@ public sealed class VerificationSession : IDisposable
                             document.Text.IndexOf("Text.Empty", StringComparison.Ordinal),
                             "Text.Empty".Length,
                             null
-                        ),
+                        )
+                        {
+                            FixComplexity = RuleFixComplexity.Trivial,
+                        },
                     ];
             FixBatch[] batches = [];
             if (findings.Length > 0)
@@ -338,7 +341,10 @@ public sealed class VerificationSession : IDisposable
                 source.IndexOf("Text.Empty", StringComparison.Ordinal),
                 "Text.Empty".Length,
                 null
-            );
+            )
+            {
+                FixComplexity = RuleFixComplexity.Trivial,
+            };
             var response = new BundleResponse(
                 BundleResponseProtocol.CurrentVersion,
                 name,
@@ -364,6 +370,52 @@ public sealed class VerificationSession : IDisposable
         }
 
         _contextCases = cases.ToArray();
+    }
+
+    private async Task VerifyComplexityAsync(string cli)
+    {
+        var annotated = Encoding.UTF8.GetBytes(
+            Encoding
+                .UTF8.GetString(PublicOutput)
+                .Replace("DP1004 ", "DP1004 [fix:trivial] ", StringComparison.Ordinal)
+        );
+        foreach (var mode in Enum.GetValues<BundleMode>())
+        {
+            foreach (
+                var (name, levels, expected, outcome) in new[]
+                {
+                    ("complexity", "trivial", annotated, BundleOutcome.Findings),
+                    ("excluded-complexity", "complex", Array.Empty<byte>(), BundleOutcome.Clean),
+                }
+            )
+            {
+                var result = await ProcessRunner.RunAsync(
+                    "dotnet",
+                    [
+                        cli,
+                        "check",
+                        "--build-host",
+                        BuildHost,
+                        "--rules",
+                        mode == BundleMode.Managed ? ManagedBundle : NativeBundle,
+                        _fileSystem.Path.Combine(_fixture.FullName, "Probe.csproj"),
+                        "--show-fix-complexity",
+                        "--fix-complexity",
+                        levels,
+                    ],
+                    RepositoryRoot
+                );
+                BundleContract.Validate(new BundleCase(name, [], outcome, expected, []), result);
+                await _fileSystem.File.WriteAllBytesAsync(
+                    _fileSystem.Path.Combine(OutputDirectory, $"{name}.{mode}.stdout"),
+                    result.StandardOutput
+                );
+            }
+        }
+
+        Console.WriteLine(
+            "CLI complexity: managed/native annotations, selection and exit codes match"
+        );
     }
 
     private async Task VerifyAsync()
@@ -415,6 +467,7 @@ public sealed class VerificationSession : IDisposable
             PublicOutput
         );
         Console.WriteLine("CLI/native: complete BuildHost-to-native path matches");
+        await VerifyComplexityAsync(cli);
         await new TargetCoverageCase(
             _fileSystem,
             RepositoryRoot,

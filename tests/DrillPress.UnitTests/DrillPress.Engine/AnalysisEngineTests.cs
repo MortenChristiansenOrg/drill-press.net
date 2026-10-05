@@ -413,4 +413,57 @@ public sealed class AnalysisEngineTests
 
         Assert.Empty(diagnostics);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(RuleFixComplexity.Trivial)]
+    [InlineData(RuleFixComplexity.Local)]
+    [InlineData(RuleFixComplexity.Complex)]
+    [InlineData(RuleFixComplexity.Architectural)]
+    public async Task Analysis_preserves_rule_complexity_in_diagnostics_and_responses(
+        RuleFixComplexity? complexity
+    )
+    {
+        var snapshot = TestSnapshots.Create("class Source { }", "Source.cs");
+        var rules = new RuleSet();
+        rules.For(Sources.Files).Forbid("R", "Fix the file.", fixComplexity: complexity);
+        var engine = new AnalysisEngine(_fileSystem);
+
+        var response = await engine.EvaluateAsync(
+            rules,
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
+        var diagnostics = await engine.AnalyzeAsync(
+            rules,
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            [
+                new Finding(
+                    "R",
+                    "Fix the file.",
+                    snapshot.Projects[0].Documents[0].DocumentId,
+                    0,
+                    0,
+                    null
+                )
+                {
+                    FixComplexity = complexity,
+                },
+            ],
+            response.Contexts[0].Findings
+        );
+        Assert.Equal(
+            [
+                new RuleDiagnostic(
+                    new RuleDescriptor("R", "Fix the file.") { FixComplexity = complexity },
+                    new SourceLocation("Source.cs", 0, 0, 1, 1)
+                ),
+            ],
+            diagnostics
+        );
+    }
 }

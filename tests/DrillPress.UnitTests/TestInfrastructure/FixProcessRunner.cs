@@ -10,6 +10,8 @@ internal sealed class FixProcessRunner(FixFixture fixture) : ChildProcessRunner
     private int _exports;
     private CompilationSnapshot _snapshot = fixture.Snapshot;
     public List<(string Executable, string[] Arguments)> Calls { get; } = [];
+    public BundleResponse Response { get; init; } = fixture.Response;
+    public Func<CompilationSnapshot, BundleResponse>? RecheckResponse { get; init; }
     public bool FailRegeneration { get; set; }
     public bool FailRecheck { get; set; }
     public bool WithholdFixes { get; set; }
@@ -71,19 +73,20 @@ internal sealed class FixProcessRunner(FixFixture fixture) : ChildProcessRunner
             return new(2, "stale text must not escape", "recheck failed\n");
         var response =
             _exports == 1
-                ? _fixture.Response
-                : new BundleResponse(
-                    BundleResponseProtocol.CurrentVersion,
-                    _snapshot.RequestId,
-                    _snapshot
-                        .Projects.Select(project => new ContextEvaluation(
-                            project.ContextId,
-                            true,
-                            []
-                        ))
-                        .ToArray(),
-                    []
-                );
+                ? Response
+                : RecheckResponse?.Invoke(_snapshot)
+                    ?? new BundleResponse(
+                        BundleResponseProtocol.CurrentVersion,
+                        _snapshot.RequestId,
+                        _snapshot
+                            .Projects.Select(project => new ContextEvaluation(
+                                project.ContextId,
+                                true,
+                                []
+                            ))
+                            .ToArray(),
+                        []
+                    );
         if (WithholdFixes)
             response = response with
             {

@@ -96,7 +96,7 @@ public sealed class BundleResponseValidator
         Dictionary<string, FixBatch> batches
     )
     {
-        var messages = new Dictionary<string, string>();
+        var descriptors = new Dictionary<string, (string Message, RuleFixComplexity? Complexity)>();
         foreach (var context in response.Contexts)
         {
             Require(
@@ -112,11 +112,15 @@ public sealed class BundleResponseValidator
                     "Rule identifiers and messages must be non-empty single lines."
                 );
                 Require(
-                    !messages.TryGetValue(finding.RuleId, out var message)
-                        || message == finding.Message,
-                    "A rule has multiple remediation messages."
+                    !descriptors.TryGetValue(finding.RuleId, out var descriptor)
+                        || descriptor == (finding.Message, finding.FixComplexity),
+                    "A rule has inconsistent remediation or fix complexity."
                 );
-                messages[finding.RuleId] = finding.Message;
+                descriptors[finding.RuleId] = (finding.Message, finding.FixComplexity);
+                Require(
+                    finding.FixComplexity is not { } complexity || Enum.IsDefined(complexity),
+                    "Unknown rule fix complexity."
+                );
                 Require(
                     finding.Evidence is null || IsSingleLine(finding.Evidence),
                     "Finding evidence must be a non-empty single line."
@@ -234,6 +238,7 @@ public sealed class BundleResponseValidator
                 )
                 {
                     Evidence = CombineEvidence(group),
+                    FixComplexity = first.FixComplexity,
                 };
             })
             .OrderBy(finding => finding.RuleId, StringComparer.Ordinal)

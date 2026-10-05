@@ -37,7 +37,8 @@ public static class SampleRuleSet
             .Forbid(
                 "DP1004",
                 "Use the empty string literal \"\" instead of string.Empty.",
-                fix: EmptyStringFix.Create
+                fix: EmptyStringFix.Create,
+                fixComplexity: RuleFixComplexity.Trivial
             );
         rules
             .For(

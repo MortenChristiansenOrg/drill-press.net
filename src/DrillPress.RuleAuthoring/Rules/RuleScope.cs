@@ -9,15 +9,20 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
     public RuleScope<T> ReportOncePer<TKey>(Func<T, TKey> key) =>
         new(ruleSet, query) { _reportKey = candidate => key(candidate) };
 
-    /// <summary>Reports every selected candidate, optionally selecting a precise span and proposing a complete fix.</summary>
+    /// <summary>Reports every selected candidate, optionally selecting a precise span, proposing a complete fix, and estimating typical agent fix effort.</summary>
     public RuleScope<T> Forbid(
         string id,
         string message,
         Func<T, SourceLocation>? location = null,
-        Func<T, FixProposal?>? fix = null
+        Func<T, FixProposal?>? fix = null,
+        RuleFixComplexity? fixComplexity = null
     )
     {
-        return Forbid(new RuleDescriptor(id, message), location, fix);
+        return Forbid(
+            new RuleDescriptor(id, message) { FixComplexity = fixComplexity },
+            location,
+            fix
+        );
     }
 
     /// <summary>Reports at an existing source element, syntax node/token or physical location in the candidate's own compilation.</summary>
@@ -25,13 +30,15 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         string id,
         string message,
         Func<T, object> at,
-        Func<T, FixProposal?>? fix = null
+        Func<T, FixProposal?>? fix = null,
+        RuleFixComplexity? fixComplexity = null
     ) =>
         Forbid(
             id,
             message,
             location: candidate => ReportingLocation.For(candidate, at(candidate)),
-            fix: fix
+            fix: fix,
+            fixComplexity: fixComplexity
         );
 
     /// <summary>Reports failed requirements at an existing contextual source part.</summary>
@@ -40,14 +47,16 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         string id,
         string message,
         Func<T, object> at,
-        Func<T, FixProposal?>? fix = null
+        Func<T, FixProposal?>? fix = null,
+        RuleFixComplexity? fixComplexity = null
     ) =>
         Require(
             new RuleCondition<T>(when),
             id,
             message,
             candidate => ReportingLocation.For(candidate, at(candidate)),
-            fix
+            fix,
+            fixComplexity
         );
 
     /// <summary>Registers a reusable descriptor with optional location and fix factories.</summary>
@@ -67,21 +76,23 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         string message,
         Func<T, bool> when,
         Func<T, SourceLocation>? location = null,
-        Func<T, FixProposal?>? fix = null
-    ) => Require(new RuleCondition<T>(when), id, message, location, fix);
+        Func<T, FixProposal?>? fix = null,
+        RuleFixComplexity? fixComplexity = null
+    ) => Require(new RuleCondition<T>(when), id, message, location, fix, fixComplexity);
 
-    /// <summary>Reports selected candidates that fail the required condition.</summary>
+    /// <summary>Reports selected candidates that fail the required condition, with optional typical agent fix effort.</summary>
     public RuleScope<T> Require(
         RuleCondition<T> condition,
         string id,
         string message,
         Func<T, SourceLocation>? location = null,
-        Func<T, FixProposal?>? fix = null
+        Func<T, FixProposal?>? fix = null,
+        RuleFixComplexity? fixComplexity = null
     )
     {
         ruleSet.Add(
             query.Where(condition.Not()),
-            new RuleDescriptor(id, message),
+            new RuleDescriptor(id, message) { FixComplexity = fixComplexity },
             location,
             fix,
             _reportKey,

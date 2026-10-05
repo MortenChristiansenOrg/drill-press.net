@@ -494,4 +494,65 @@ public sealed class BundleResponseValidatorTests
             result.Findings
         );
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(RuleFixComplexity.Complex)]
+    public void A_rule_cannot_change_complexity_between_contexts(
+        RuleFixComplexity? secondComplexity
+    )
+    {
+        var first = _fixture.Response.Contexts[0];
+        var finding = first.Findings[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                first with
+                {
+                    Findings = [finding with { FixComplexity = RuleFixComplexity.Trivial }],
+                },
+                _fixture.Response.Contexts[1] with
+                {
+                    Findings =
+                    [
+                        finding with
+                        {
+                            DocumentId = "linked",
+                            FixComplexity = secondComplexity,
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(_fixture.Snapshot, response)
+        );
+
+        Assert.Equal("A rule has inconsistent remediation or fix complexity.", error.Message);
+    }
+
+    [Fact]
+    public void Unknown_numeric_complexity_is_rejected()
+    {
+        var context = _fixture.Response.Contexts[0];
+        var response = _fixture.Response with
+        {
+            Contexts =
+            [
+                context with
+                {
+                    Findings = [context.Findings[0] with { FixComplexity = (RuleFixComplexity)99 }],
+                },
+                _fixture.Response.Contexts[1],
+            ],
+        };
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(_fixture.Snapshot, response)
+        );
+
+        Assert.Equal("Unknown rule fix complexity.", error.Message);
+    }
 }

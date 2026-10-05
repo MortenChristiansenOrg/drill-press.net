@@ -98,7 +98,7 @@ public sealed class CliFixTests : IntegrationTest
         return FileSystem.Path.Combine(destination, "DrillPress.SampleTarget.slnx");
     }
 
-    private Task<ProcessResult> FixAsync(string target) =>
+    private Task<ProcessResult> FixAsync(string target, params string[] options) =>
         RunProcessAsync(
             "dotnet",
             [
@@ -109,8 +109,45 @@ public sealed class CliFixTests : IntegrationTest
                 "--rules",
                 GetOutputPath("DrillPress.SampleRules", "samples"),
                 target,
+                .. options,
             ],
             RepositoryRoot,
             TestContext.Current.CancellationToken
         );
+
+    [Fact]
+    public async Task Real_processes_fix_only_selected_complexity_and_ignore_remaining_unselected_findings()
+    {
+        var directory = CreateTemporaryDirectory("drillpress-complexity-fix-");
+        var first = FileSystem.Path.Combine(directory.FullName, "A.cs");
+        var second = FileSystem.Path.Combine(directory.FullName, "B.cs");
+        const string unclassified = "public interface IContract { } public class B : IContract { }";
+        await FileSystem.File.WriteAllTextAsync(
+            first,
+            "public class A { public string Value => string.Empty; }",
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            second,
+            unclassified,
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await FixAsync(
+            FileSystem.Path.Combine(directory.FullName, "*.cs"),
+            "--fix-complexity",
+            "trivial",
+            "--show-fix-complexity"
+        );
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.Equal("", result.StandardError);
+        Assert.Equal(
+            "public class A { public string Value => \"\"; }",
+            FileSystem.File.ReadAllText(first)
+        );
+        Assert.Equal(unclassified, FileSystem.File.ReadAllText(second));
+        Assert.Equal([first, second], FileSystem.Directory.GetFiles(directory.FullName).Order());
+    }
 }
