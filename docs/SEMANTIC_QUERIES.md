@@ -185,3 +185,28 @@ uses the existing case-sensitive glob semantics; `ToMethodsNamed` still means
 exact names. Equivalent element predicates are `IsDeclaredOn`,
 `IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `Calling` to
 retain configured signature constraints. Invalid calls never match.
+
+## Configured source-input traversal
+
+```csharp
+var adapters = new ExpressionTraversal()
+    .ThroughReceiverOf(asEnumerable, asAsyncEnumerable)
+    .ThroughArgumentOf(customAdapter, "source");
+var result = expression.TraverseInputs(adapters);
+var hasQuerySource = result.Values.Any(value => value.TypeIsAssignableTo(queryableType));
+```
+
+Configuration is immutable and contains consumer-selected call identities and
+input roles. Extension receivers work in both spellings; named arguments retain
+their original values and source order. Parentheses and implicit built-in
+conversions do not obscure a call. Results include the root and follow configured
+inputs in depth-first source order, once per source occurrence and context.
+
+`Status` and typed `Boundaries` distinguish complete traversal, unavailable
+binding/inputs, and limits. Defaults are 16 steps and 256 expressions; set
+`maxDepth` and `maxExpressions` explicitly when needed. Omitted inputs, implicit
+`this`, dynamic calls, conditional-access envelopes, and explicit/user conversions
+are unavailable. Unconfigured calls, local/parameter references, and properties
+are intentional boundaries: traversal does not chase assignments, method bodies,
+property implementations, or runtime aliases. An adapter match proves no purity,
+runtime object identity, or permission to remove or rewrite that adapter.
