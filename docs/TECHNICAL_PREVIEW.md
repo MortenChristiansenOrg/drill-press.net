@@ -86,7 +86,7 @@ Output groups a remediation once per rule, then relative paths and physical
 one-based `line:column` locations. Columns count UTF-16 code units; a default
 column of 1 is omitted. A `+` before the line marks a retained common-safe fix.
 Paths needing escaping use JSON string escaping. Output is deterministic UTF-8
-without a BOM, with LF line endings; a clean result prints nothing. Operational
+without a BOM, with LF line endings; a run with no findings prints nothing. Operational
 errors and opt-in profiling go to stderr. Direct bundle JSON is an internal
 transport, not an additional public output format.
 
