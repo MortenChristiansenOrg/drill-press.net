@@ -2,12 +2,16 @@ using System.IO.Abstractions;
 
 namespace DrillPress.Engine;
 
-internal sealed class CoverageCollector(IFileSystem fileSystem, CoverageProcess process)
+internal sealed class CoverageCollector(
+    IFileSystem fileSystem,
+    CoverageProcess process,
+    CoverageCache cache
+)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
     private readonly CoverageProcess _process = process;
     private readonly CoverageInputs _inputs = new(fileSystem);
-    private readonly CoverageCache _cache = new(fileSystem);
+    private readonly CoverageCache _cache = cache;
     private readonly CoverageEvaluations _evaluations = new();
 
     private void RefreshInputs()

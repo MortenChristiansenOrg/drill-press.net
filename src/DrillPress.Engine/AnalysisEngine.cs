@@ -43,6 +43,7 @@ public sealed class AnalysisEngine
 
     private readonly IFileSystem _fileSystem;
     private readonly CoverageProcess _coverageProcess;
+    private readonly CoverageCache _coverageCache;
 
     /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
     public AnalysisEngine()
@@ -52,9 +53,17 @@ public sealed class AnalysisEngine
         : this(fileSystem, new CoverageProcess()) { }
 
     internal AnalysisEngine(IFileSystem fileSystem, CoverageProcess coverageProcess)
+        : this(fileSystem, coverageProcess, new CoverageCache(fileSystem)) { }
+
+    internal AnalysisEngine(
+        IFileSystem fileSystem,
+        CoverageProcess coverageProcess,
+        CoverageCache coverageCache
+    )
     {
         _fileSystem = fileSystem;
         _coverageProcess = coverageProcess;
+        _coverageCache = coverageCache;
     }
 
     /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
@@ -181,7 +190,7 @@ public sealed class AnalysisEngine
             using (options.Profile.Measure("coverage.planning"))
                 selected = rules.CoverageContexts(solution);
             using var collection = options.Profile.Measure("coverage.collection");
-            await new CoverageCollector(_fileSystem, _coverageProcess).PrepareAsync(
+            await new CoverageCollector(_fileSystem, _coverageProcess, _coverageCache).PrepareAsync(
                 solution,
                 selected,
                 cancellationToken

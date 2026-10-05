@@ -52,12 +52,16 @@ public sealed class CoverageProcessTests : IntegrationTest
             OperatingSystem.IsWindows() ? ".exe" : null
         );
         var process = new VerboseCoverageProcess(FileSystem, executable, hasTests);
+        var cache = new CoverageCache(
+            FileSystem,
+            CreateTemporaryDirectory("drillpress-coverage-cache-").FullName
+        );
         var rules = new RuleSet();
         rules
             .For(Code.Files)
             .Require(global::DrillPress.Coverage.Line.AtLeast(0), "COV001", "Exercise file.");
 
-        var response = await new AnalysisEngine(FileSystem, process).EvaluateAsync(
+        var response = await new AnalysisEngine(FileSystem, process, cache).EvaluateAsync(
             rules,
             "large-output",
             [context],
@@ -65,6 +69,7 @@ public sealed class CoverageProcessTests : IntegrationTest
         );
 
         Assert.Equal(collections, process.Collections);
+        Assert.Equal(collections, process.Installations);
         Assert.Equal(
             expectedEvidence,
             Assert.Single(Assert.Single(response.Contexts).Findings).Evidence

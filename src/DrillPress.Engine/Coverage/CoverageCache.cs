@@ -4,17 +4,18 @@ using System.Text;
 
 namespace DrillPress.Engine;
 
-internal sealed class CoverageCache(IFileSystem fileSystem)
+internal sealed class CoverageCache(IFileSystem fileSystem, string? root = null)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
     internal string Root { get; } =
         fileSystem.Path.GetFullPath(
-            fileSystem.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "DrillPress",
-                "coverage",
-                CoverageTool.Version
-            )
+            root
+                ?? fileSystem.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DrillPress",
+                    "coverage",
+                    CoverageTool.Version
+                )
         );
 
     internal string ReportPath(string identity) =>
