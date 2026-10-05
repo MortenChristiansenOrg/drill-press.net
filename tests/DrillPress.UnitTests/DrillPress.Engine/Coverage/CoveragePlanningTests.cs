@@ -8,6 +8,116 @@ namespace DrillPress.UnitTests.Engine.Coverage;
 public sealed class CoveragePlanningTests
 {
     [Fact]
+    public async Task Keyed_exclusion_retains_candidates_when_projected_counterparts_need_coverage()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.State = "no";
+        var hits = Code.Calls.Where(call => call.Target.Name == "Hit");
+        RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
+        var counterparts = hits.Where(executed).Select(call => call);
+        var rules = new RuleSet();
+        rules
+            .For(
+                hits.WithoutMatching(
+                    counterparts,
+                    call => call.Location.Start,
+                    call => call.Location.Start
+                )
+            )
+            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["coverage: uncovered"],
+            diagnostics.Select(diagnostic => diagnostic.Evidence)
+        );
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
+    [Fact]
+    public async Task Relationship_exclusion_retains_candidates_when_counterparts_need_coverage()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.State = "no";
+        var hits = Code.Calls.Where(call => call.Target.Name == "Hit");
+        RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
+        var rules = new RuleSet();
+        rules
+            .For(
+                hits.WithoutMatching(
+                    hits.Where(executed),
+                    (left, right) => left.Location == right.Location
+                )
+            )
+            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["coverage: uncovered"],
+            diagnostics.Select(diagnostic => diagnostic.Evidence)
+        );
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
+    [Fact]
+    public async Task Certain_alternative_counterparts_exclude_candidates_without_collecting_tests()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.Fail = true;
+        var hits = Code.Calls.Where(call => call.Target.Name == "Hit");
+        RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
+        var counterparts = hits.Where(new RuleCondition<CodeInvocation>(_ => true).Or(executed))
+            .Select(call => call);
+        var rules = new RuleSet();
+        rules
+            .For(hits.WithoutMatching(counterparts, call => call.Location, call => call.Location))
+            .Require(global::DrillPress.Coverage.Executed, "KEY", "Exercise call.");
+        rules
+            .For(
+                hits.WithoutMatching(counterparts, (left, right) => left.Location == right.Location)
+            )
+            .Require(global::DrillPress.Coverage.Executed, "REL", "Exercise call.");
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+        Assert.Empty(fixture.Process.Calls);
+    }
+
+    [Fact]
+    public async Task Nested_exclusions_do_not_promote_possible_counterparts_to_certain_matches()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.State = "no";
+        var hits = Code.Calls.Where(call => call.Target.Name == "Hit");
+        RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
+        var uncertain = hits.WithoutMatching(
+            hits.Where(executed),
+            call => call.Location,
+            call => call.Location
+        );
+        var rules = new RuleSet();
+        rules
+            .For(hits.WithoutMatching(uncertain, (left, right) => left.Location == right.Location))
+            .Forbid("UNMATCHED", "Unexpected unmatched call.");
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
+    [Fact]
     public async Task Zero_source_candidates_launch_no_coverage_processes_while_ordinary_rules_still_run()
     {
         var fixture = new CoverageFixture();
