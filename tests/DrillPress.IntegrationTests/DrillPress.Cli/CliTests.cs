@@ -126,4 +126,30 @@ public sealed class CliTests : IntegrationTest
                 .Select(reference => reference.Attribute("Include")!.Value)
         );
     }
+
+    [Fact]
+    public async Task Real_bundle_complexity_is_selected_and_displayed_without_other_rule_groups()
+    {
+        var result = await RunCliAsync(
+            SampleProjectPath,
+            "--fix-complexity",
+            "trivial",
+            "--show-fix-complexity"
+        );
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Equal("", result.StandardError);
+        Assert.Equal(
+            """
+            DP1004 [fix:trivial] Use the empty string literal "" instead of string.Empty.
+            Sample Solution/src/WidgetLibrary/Contracts.cs
+              +10:29
+
+            """.ReplaceLineEndings("\n"),
+            result.StandardOutput
+        );
+        Assert.Empty(
+            FileSystem.Directory.EnumerateDirectories(result.TemporaryRoot, "drillpress-*")
+        );
+    }
 }

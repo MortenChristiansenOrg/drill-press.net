@@ -97,4 +97,73 @@ public sealed class CompactDiagnosticRendererTests
 
         Assert.Equal("", output);
     }
+
+    [Fact]
+    public void Complexity_is_optional_and_appears_once_per_classified_rule_group()
+    {
+        var fileSystem = new MockFileSystem();
+        var first = new AggregatedFinding(
+            "A",
+            "Fix A.",
+            "file",
+            fileSystem.Path.GetFullPath("File.cs"),
+            0,
+            1,
+            1,
+            1,
+            null
+        )
+        {
+            FixComplexity = RuleFixComplexity.Local,
+        };
+        var result = new ValidatedResult(
+            [
+                first,
+                first with
+                {
+                    Start = 2,
+                    Line = 2,
+                },
+                first with
+                {
+                    RuleId = "B",
+                    Message = "Fix B.",
+                    FixComplexity = null,
+                },
+            ],
+            [],
+            []
+        );
+        var renderer = new CompactDiagnosticRenderer(fileSystem);
+
+        var standard = renderer.Render(result);
+        var annotated = renderer.Render(result, showFixComplexity: true);
+
+        Assert.Equal(
+            """
+            A Fix A.
+            File.cs
+              1
+              2
+            B Fix B.
+            File.cs
+              1
+
+            """.ReplaceLineEndings("\n"),
+            standard
+        );
+        Assert.Equal(
+            """
+            A [fix:local] Fix A.
+            File.cs
+              1
+              2
+            B Fix B.
+            File.cs
+              1
+
+            """.ReplaceLineEndings("\n"),
+            annotated
+        );
+    }
 }

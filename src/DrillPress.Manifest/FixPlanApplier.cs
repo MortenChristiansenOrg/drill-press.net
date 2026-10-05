@@ -28,12 +28,14 @@ public sealed class FixPlanApplier
     /// Validates the exact bundle response, prepares every output, then replaces files once.
     /// Concurrent writers must be stopped: verification and replacement cannot form a cross-process transaction.
     /// Earlier successful replacements are retained on failure; unused temporary files are removed.
+    /// Optional complexity selection runs after complete validation and withholds batches shared with excluded findings.
     /// </summary>
     public async Task<FixApplicationResult> ApplyAsync(
         CompilationSnapshot snapshot,
         string response,
         CancellationToken cancellationToken = default,
-        PipelineProfile? profile = null
+        PipelineProfile? profile = null,
+        IReadOnlySet<RuleFixComplexity?>? fixComplexities = null
     )
     {
         profile ??= new PipelineProfile(false, TextWriter.Null, "fix");
@@ -46,7 +48,7 @@ public sealed class FixPlanApplier
         FixApplicationResult result;
         try
         {
-            var plan = BundleResponseProtocol.Read(response, snapshot);
+            var plan = BundleResponseProtocol.Read(response, snapshot, fixComplexities);
             var documents = snapshot
                 .Projects.SelectMany(project => project.Documents)
                 .DistinctBy(document => document.FileIdentity)

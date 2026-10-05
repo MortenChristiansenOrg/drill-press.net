@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage]";
+        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck.
@@ -20,6 +20,9 @@ public sealed class CliApplication
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --refresh-coverage  Rerun tests even when cached coverage inputs match.
+        --show-fix-complexity  Include assigned agent fix effort once per rule.
+        --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
+        Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
         --version  Show the package and protocol versions.
         Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
@@ -75,8 +78,10 @@ public sealed class CliApplication
             return CliExitCode.Clean;
         }
 
-        if (!CliOptions.TryParse(args, out var options))
+        if (!CliOptions.TryParse(args, out var options, out var optionError))
         {
+            if (optionError is not null)
+                await standardError.WriteLineAsync($"drillpress: {optionError}");
             await standardError.WriteLineAsync(Usage);
             return CliExitCode.Failure;
         }
@@ -107,7 +112,8 @@ public sealed class CliApplication
                         evaluation.Snapshot,
                         evaluation.Response,
                         cancellationToken,
-                        profile
+                        profile,
+                        options.FixComplexities
                     );
                     if (application.Outcome != FixApplicationOutcome.Completed)
                     {
@@ -145,7 +151,10 @@ public sealed class CliApplication
 
                 using (profile.Measure("rendering"))
                 {
-                    var text = new CompactDiagnosticRenderer(_fileSystem).Render(evaluation.Result);
+                    var text = new CompactDiagnosticRenderer(_fileSystem).Render(
+                        evaluation.Result,
+                        options.ShowFixComplexity
+                    );
                     if (profile.Enabled)
                     {
                         profile.Count("public.bytes", System.Text.Encoding.UTF8.GetByteCount(text));
@@ -222,8 +231,13 @@ public sealed class CliApplication
             throw new IOException($"Rule bundle exited {check.ExitCode}.");
         }
 
-        var result = BundleResponseProtocol.Read(check.StandardOutput, snapshot);
-        if (check.ExitCode != (result.Findings.Length == 0 ? 0 : 1))
+        var result = BundleResponseProtocol.Read(
+            check.StandardOutput,
+            snapshot,
+            options.FixComplexities,
+            out var completeFindingCount
+        );
+        if (check.ExitCode != (completeFindingCount == 0 ? 0 : 1))
         {
             throw new InvalidDataException("Bundle exit code disagrees with its response.");
         }

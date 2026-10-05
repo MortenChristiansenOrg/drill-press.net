@@ -64,6 +64,7 @@ internal sealed class RuleResponseBuilder
             )
             {
                 Evidence = diagnostic.Evidence,
+                FixComplexity = diagnostic.Descriptor.FixComplexity,
             };
             findings[source.Project.Snapshot.ContextId].Add(finding);
             findingBatches.Add(finding, batchIds);

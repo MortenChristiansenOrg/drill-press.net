@@ -143,6 +143,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
             ) with
             {
                 BatchId = combinedId,
+                FixComplexity = RuleFixComplexity.Trivial,
             },
             Find(
                 "DP1005",

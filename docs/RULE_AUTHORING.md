@@ -96,6 +96,76 @@ Interface views combine compatible consumer roots for the same target framework;
 alternate frameworks and incompatible dependency evaluations remain independent. A shared interface can consequently
 violate the convention in one framework and satisfy it in another.
 
+## Rule fix complexity
+
+Estimate how much context and design judgment an agent needs for a typical fix
+with the optional `fixComplexity` argument on `Forbid` or `Require`:
+
+```csharp
+rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+    .Forbid("EMPTY", "Use an empty literal.", fixComplexity: RuleFixComplexity.Trivial);
+```
+
+Reusable descriptors support the same metadata:
+
+```csharp
+var descriptor = new RuleDescriptor("EMPTY", "Use an empty literal.")
+{
+    FixComplexity = RuleFixComplexity.Trivial,
+};
+rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+    .Forbid(descriptor);
+```
+
+`RuleFixComplexity` is available with `using DrillPress;`. Its enum members have
+XML documentation describing these four levels:
+
+| Level | Context and judgment needed |
+| --- | --- |
+| `Trivial` | An isolated mechanical edit, typically one line, with no surrounding code or design decisions. |
+| `Local` | Nearby code or a small set of related symbols; a clear correction with little design judgment. |
+| `Complex` | Behavioral reasoning across related code and meaningful judgment, such as adding useful method test coverage. |
+| `Architectural` | Broad context and substantial judgment about responsibilities, abstractions, or component dependencies. |
+
+These are author estimates of agent effort, independent of severity, detection
+cost, or automatic fix availability. Line and file counts alone do not determine
+the level. Omit metadata when no estimate is available; null means unclassified,
+and is not equivalent to `Trivial`. Existing declarations remain valid.
+
+The CLI hides complexity by default. `--show-fix-complexity` adds an annotation
+only for classified rules, once in the rule header:
+
+```text
+EMPTY [fix:trivial] Use an empty literal.
+Example.cs
+  7:20
+```
+
+Use `--fix-complexity <levels>` independently of the display option to route
+findings to models with different capabilities. For example, send the first
+command's output to a model suited to bounded edits and the second to a model
+suited to reasoning and design:
+
+```sh
+drillpress check --rules Rules.dll Target.csproj --fix-complexity trivial,local --show-fix-complexity
+drillpress check --rules Rules.dll Target.csproj --fix-complexity complex,architectural --show-fix-complexity
+```
+
+Run `--fix-complexity unspecified` separately to triage unclassified rules, or
+include `unspecified` in any selection. Specify the option once with a
+comma-separated list; names are case-insensitive and surrounding spaces are
+ignored. Unknown or empty values fail with exit code 2.
+
+Without a filter all rules are included. With a filter `check` and `fix` report
+only selected findings, and only those findings cause exit code 1. A selected
+clean result exits 0 even if excluded rules have findings. `fix` applies only
+selected safe batches and rechecks with the same selection. All findings and
+fixes are validated before selection: filtering cannot hide malformed responses,
+remove conflicts, or bypass cross-context agreement. Atomic batches shared with
+an excluded rule are withheld in full, so a selected finding can remain unfixed.
+This selection controls reporting and edits; all rules are still evaluated.
+
+
 ## Fix contracts
 
 A fix factory returns `FixProposal`, containing every `SourceEdit` required by

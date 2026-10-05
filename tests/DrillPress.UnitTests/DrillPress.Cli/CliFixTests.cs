@@ -220,4 +220,147 @@ public sealed class CliFixTests
         );
         Assert.Empty(fixture.TemporaryFiles());
     }
+
+    [Fact]
+    public async Task Complexity_selection_changes_only_selected_files_and_rechecks_with_the_same_filter()
+    {
+        var fixture = new FixComplexityFixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            fixture.Runner,
+            fixture.Files.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [.. _arguments, "--fix-complexity", "trivial", "--show-fix-complexity"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal("", output.ToString());
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            [
+                "😀é\r\nbeta\ngamma\r",
+                fixture.Files.Documents[1].Text,
+                fixture.Files.Documents[2].Text,
+            ],
+            fixture.Files.Texts()
+        );
+        Assert.Equal(
+            ["host", "rules", "host", "rules"],
+            fixture.Runner.Calls.Select(call => call.Executable)
+        );
+        Assert.Empty(fixture.Files.TemporaryFiles());
+    }
+
+    [Fact]
+    public async Task Complexity_selection_can_fix_unclassified_rules_and_preserve_assigned_rules()
+    {
+        var fixture = new FixComplexityFixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            fixture.Runner,
+            fixture.Files.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [.. _arguments, "--fix-complexity", "unspecified"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal("", output.ToString());
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            [
+                fixture.Files.Documents[0].Text,
+                fixture.Files.Documents[1].Text,
+                "😀é\r\nbeta\ngamma\r",
+            ],
+            fixture.Files.Texts()
+        );
+        Assert.Empty(fixture.Files.TemporaryFiles());
+    }
+
+    [Fact]
+    public async Task An_empty_complexity_selection_does_not_apply_or_recheck_any_fixes()
+    {
+        var fixture = new FixComplexityFixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            fixture.Runner,
+            fixture.Files.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [.. _arguments, "--fix-complexity", "local"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal("", output.ToString());
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            fixture.Files.Documents.Select(document => document.Text),
+            fixture.Files.Texts()
+        );
+        Assert.Equal(["host", "rules"], fixture.Runner.Calls.Select(call => call.Executable));
+        Assert.Empty(fixture.Files.TemporaryFiles());
+    }
+
+    [Fact]
+    public async Task Complexity_selection_withholds_a_shared_atomic_batch_without_writing_any_files()
+    {
+        var fixture = new FixComplexityFixture();
+        var runner = new FixProcessRunner(fixture.Files) { Response = fixture.SharedBatchResponse };
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            runner,
+            fixture.Files.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [.. _arguments, "--fix-complexity", "trivial", "--show-fix-complexity"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Findings, result);
+        Assert.Equal(
+            """
+            R0 [fix:trivial] Replace alpha.
+            A.cs
+              1:3
+
+            """.ReplaceLineEndings("\n"),
+            output.ToString()
+        );
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            fixture.Files.Documents.Select(document => document.Text),
+            fixture.Files.Texts()
+        );
+        Assert.Equal(["host", "rules"], runner.Calls.Select(call => call.Executable));
+        Assert.Empty(fixture.Files.TemporaryFiles());
+    }
 }

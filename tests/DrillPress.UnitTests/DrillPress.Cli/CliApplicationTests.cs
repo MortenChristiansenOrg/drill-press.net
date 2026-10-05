@@ -60,6 +60,9 @@ public sealed class CliApplicationTests
             --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --refresh-coverage  Rerun tests even when cached coverage inputs match.
+            --show-fix-complexity  Include assigned agent fix effort once per rule.
+            --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
+            Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
             Exit codes: 0 clean, 1 findings, 2 failure. Fix failures may retain completed writes.
@@ -92,7 +95,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 3)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 4)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());
@@ -259,7 +262,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -479,5 +482,149 @@ public sealed class CliApplicationTests
         Assert.Equal("", stdout.ToString());
         Assert.NotEmpty(stderr.ToString());
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
+    }
+
+    [Theory]
+    [InlineData("trivial", "R0 Replace alpha.\nA.cs\n  +1:3\n", CliExitCode.Findings)]
+    [InlineData("complex", "R1 Replace alpha.\nB.cs\n  +1:3\n", CliExitCode.Findings)]
+    [InlineData("unspecified", "R2 Replace alpha.\nC.cs\n  +1:3\n", CliExitCode.Findings)]
+    [InlineData(
+        "Trivial, COMPLEX,trivial",
+        "R0 Replace alpha.\nA.cs\n  +1:3\nR1 Replace alpha.\nB.cs\n  +1:3\n",
+        CliExitCode.Findings
+    )]
+    [InlineData("local,architectural", "", CliExitCode.Clean)]
+    public async Task Complexity_selection_filters_reporting_and_exit_codes_without_requiring_annotations(
+        string levels,
+        string expected,
+        CliExitCode expectedExitCode
+    )
+    {
+        var fixture = new FixComplexityFixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            fixture.Runner,
+            permissions: new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [
+                "check",
+                "--build-host",
+                "host",
+                "--rules",
+                "rules",
+                "target.csproj",
+                "--fix-complexity",
+                levels,
+            ],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(expectedExitCode, result);
+        Assert.Equal(expected, output.ToString());
+        Assert.Equal("", error.ToString());
+        Assert.Equal(["host", "rules"], fixture.Runner.Calls.Select(call => call.Executable));
+        Assert.Equal(
+            ["check", fixture.Runner.Calls[0].Arguments[2]],
+            fixture.Runner.Calls[1].Arguments
+        );
+        Assert.Equal(
+            fixture.Files.Documents.Select(document => document.Text),
+            fixture.Files.Texts()
+        );
+        Assert.Empty(fixture.Files.TemporaryFiles());
+    }
+
+    [Fact]
+    public async Task Complexity_is_opt_in_and_unclassified_headers_remain_unannotated()
+    {
+        var fixture = new FixComplexityFixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            fixture.Runner,
+            permissions: new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [
+                "check",
+                "--build-host",
+                "host",
+                "--rules",
+                "rules",
+                "target.csproj",
+                "--show-fix-complexity",
+            ],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Findings, result);
+        Assert.Equal(
+            """
+            R0 [fix:trivial] Replace alpha.
+            A.cs
+              +1:3
+            R1 [fix:complex] Replace alpha.
+            B.cs
+              +1:3
+            R2 Replace alpha.
+            C.cs
+              +1:3
+
+            """.ReplaceLineEndings("\n"),
+            output.ToString()
+        );
+        Assert.Equal("", error.ToString());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("unknown")]
+    [InlineData("0")]
+    [InlineData("Trivial,99")]
+    [InlineData("trivial,")]
+    [InlineData(",local")]
+    [InlineData("trivial,,complex")]
+    [InlineData()]
+    [InlineData("trivial", "--fix-complexity", "complex")]
+    public async Task Invalid_complexity_filters_fail_clearly_before_starting_tools(
+        params string[] levels
+    )
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var runner = new StubChildProcessRunner(
+            (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+        );
+        var cli = new CliApplication(_fileSystem, runner);
+
+        var result = await cli.RunAsync(
+            ["check", "--rules", "rules", "target.csproj", "--fix-complexity", .. levels],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Failure, result);
+        Assert.Equal("", output.ToString());
+        Assert.Equal(
+            """
+            drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
+            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+
+            """.ReplaceLineEndings(Environment.NewLine),
+            error.ToString()
+        );
+        Assert.Empty(_fileSystem.AllFiles);
     }
 }

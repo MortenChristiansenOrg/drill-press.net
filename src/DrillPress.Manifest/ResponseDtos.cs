@@ -44,6 +44,12 @@ public sealed record Finding(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]
     public string? Evidence { get; init; }
+
+    /// <summary>Optional author estimate of agent effort; absent for unclassified rules.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public RuleFixComplexity? FixComplexity { get; init; }
 }
 
 /// <summary>All edits for a correction; conflicts withhold the entire batch.</summary>
@@ -100,6 +106,12 @@ public sealed record AggregatedFinding(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]
     public string? Evidence { get; init; }
+
+    /// <summary>Optional author estimate of agent effort; absent for unclassified rules.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public RuleFixComplexity? FixComplexity { get; init; }
 }
 
 /// <summary>Validated diagnostics and the same conflict-filtered plan used for automatic writes.</summary>

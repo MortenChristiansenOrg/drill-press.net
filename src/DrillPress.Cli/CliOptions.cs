@@ -8,12 +8,15 @@ internal sealed record CliOptions(
     string[] ExportArguments,
     bool Profile,
     bool EnableOptimizations,
-    bool RefreshCoverage
+    bool RefreshCoverage,
+    bool ShowFixComplexity,
+    IReadOnlySet<RuleFixComplexity?>? FixComplexities
 )
 {
-    public static bool TryParse(string[] args, out CliOptions options)
+    public static bool TryParse(string[] args, out CliOptions options, out string? error)
     {
         options = null!;
+        error = null;
         if (args.Length < 4 || args[0] is not ("check" or "fix"))
         {
             return false;
@@ -26,6 +29,8 @@ internal sealed record CliOptions(
         var profile = false;
         var optimize = true;
         var refreshCoverage = false;
+        var showFixComplexity = false;
+        IReadOnlySet<RuleFixComplexity?>? fixComplexities = null;
         for (var index = 1; index < args.Length; index++)
         {
             switch (args[index])
@@ -43,6 +48,21 @@ internal sealed record CliOptions(
                 case "--profile":
                     profile = true;
                     exportArguments.Add(args[index]);
+                    break;
+                case "--show-fix-complexity":
+                    showFixComplexity = true;
+                    break;
+                case "--fix-complexity":
+                    if (
+                        fixComplexities is not null
+                        || index + 1 >= args.Length
+                        || !FixComplexityFilter.TryParse(args[++index], out fixComplexities)
+                    )
+                    {
+                        error =
+                            "--fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.";
+                        return false;
+                    }
                     break;
                 case "--refresh-coverage":
                     refreshCoverage = true;
@@ -82,7 +102,9 @@ internal sealed record CliOptions(
             exportArguments.ToArray(),
             profile,
             optimize,
-            refreshCoverage
+            refreshCoverage,
+            showFixComplexity,
+            fixComplexities
         );
         return true;
     }

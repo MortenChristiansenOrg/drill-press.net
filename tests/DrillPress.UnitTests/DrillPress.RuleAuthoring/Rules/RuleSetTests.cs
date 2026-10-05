@@ -73,4 +73,18 @@ public sealed class RuleSetTests
 
     private static (string Id, string Path, int Start) Describe(RuleDiagnostic diagnostic) =>
         (diagnostic.Descriptor.Id, diagnostic.Location.FilePath, diagnostic.Location.Start);
+
+    [Fact]
+    public void Invalid_complexity_is_rejected_at_registration()
+    {
+        var rules = new RuleSet();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            rules
+                .For(Code.MemberReferences)
+                .Forbid("R", "Message.", fixComplexity: (RuleFixComplexity)99)
+        );
+
+        Assert.Equal("descriptor", exception.ParamName);
+    }
 }
