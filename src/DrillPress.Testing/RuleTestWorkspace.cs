@@ -13,6 +13,15 @@ public sealed class RuleTestWorkspace
 {
     private readonly IReadOnlyList<MetadataReference> _references;
     private readonly List<AnalysisProject> _projects = [];
+    private TestCoverageFacts? _coverage;
+
+    /// <summary>Configures synthetic, source-bound evidence for this test fixture only. Selectors bind immediately and reject missing or ambiguous occurrences; no tools or tests run.</summary>
+    public RuleTestWorkspace WithCoverage(Action<TestCoverageFacts> configure)
+    {
+        _coverage ??= new(_projects);
+        configure(_coverage);
+        return this;
+    }
 
     /// <summary>Uses the host runtime's platform assemblies for convenient snippet tests. Explicit references are required for reference-pack fidelity.</summary>
     public RuleTestWorkspace()
@@ -124,7 +133,7 @@ public sealed class RuleTestWorkspace
         new(_projects, cancellationToken);
 
     /// <summary>Runs the production evaluator and response validator, including cross-context safety and conflict withholding.</summary>
-    public async Task<RuleTestResult> CheckAsync(
+    public Task<RuleTestResult> CheckAsync(
         RuleSet rules,
         CancellationToken cancellationToken = default
     )
@@ -132,15 +141,18 @@ public sealed class RuleTestWorkspace
         var snapshot = CompilationSnapshot.Create(
             _projects.Select(project => project.Snapshot).ToArray()
         );
-        var response = await new AnalysisEngine().EvaluateAsync(
+        var response = new AnalysisEngine().EvaluateFixture(
             rules,
             snapshot.RequestId,
             _projects
                 .Select(project => new CompilationContext(project.Snapshot, project.Compilation))
                 .ToArray(),
+            solution => _coverage?.Apply(solution),
             cancellationToken
         );
-        return new(snapshot, new BundleResponseValidator().Validate(snapshot, response));
+        return Task.FromResult(
+            new RuleTestResult(snapshot, new BundleResponseValidator().Validate(snapshot, response))
+        );
     }
 
     private static MetadataReference[] ReadReferences(IFileSystem fileSystem) =>

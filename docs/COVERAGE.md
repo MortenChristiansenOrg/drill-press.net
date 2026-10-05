@@ -132,3 +132,39 @@ through diagnostics, validated findings and cross-context aggregation. Response
 protocol 5 requires matching CLI/SDK packages and rebuilt bundles. Collection,
 build, tool and test failures still stop the check rather than becoming unknown
 findings.
+
+## Synthetic rule-policy fixtures
+
+`DrillPress.Testing` can supply source-bound synthetic evidence without installing
+tools, discovering projects, or running tests:
+
+```csharp
+var workspace = new RuleTestWorkspace();
+var project = workspace.AddProject("Product", [new TestSource("Queries.cs", source)]);
+workspace.WithCoverage(facts => facts
+    .ForCall(project, "Queries.cs", "store.LoadAsync()")
+    .Executed()
+    .ForFile(project, "Queries.cs")
+    .Lines(8, 10));
+var result = await workspace.CheckAsync(rules);
+```
+
+Choose `Executed()`, `NotExecuted()`, or `Unknown(reason, ...)` explicitly. Unknown
+requires defined reasons. `Lines(covered, coverable, isComplete, reasons)` keeps
+counts and completeness separate; incomplete and zero-coverable evidence fail
+even a zero threshold. File measurements also contribute to project totals.
+
+Text-only selectors must identify one resolved source call or document across the
+workspace. Use the project overload to identify the exact framework membership,
+then an explicit zero-based `occurrenceIndex` for repeated call text. `ForCall(call)`
+also accepts a bound call from this workspace. Missing, ambiguous, generated, and
+invalid call selectors reject rather than silently choosing a match. Facts bind
+immediately, reject duplicates, and are reapplied to fresh analysis lifetimes;
+changed source identity rejects before evaluation. Unspecified facts remain unknown.
+
+`TestFinding.Evidence` and `TestFinding.Coverage` retain validated readable and
+typed evidence from every contributing context. This fixture uses the production
+requirement evaluator, response construction, and validator. Synthetic facts are
+restricted to the testing package's fixture path; production checks still require
+collector/build/source identity validation. Keep real collector integration tests
+separate from these deterministic rule-policy tests.

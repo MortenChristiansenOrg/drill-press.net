@@ -25,7 +25,11 @@ public sealed class RuleTestResult
                 finding.Column,
                 files[finding.FileIdentity].Text.Substring(finding.Start, finding.Length),
                 finding.BatchId is not null
-            ))
+            )
+            {
+                Evidence = finding.Evidence,
+                Coverage = finding.Coverage ?? [],
+            })
             .ToArray();
     }
 
