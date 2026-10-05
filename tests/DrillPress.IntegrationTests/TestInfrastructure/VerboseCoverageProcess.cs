@@ -21,6 +21,13 @@ internal sealed class VerboseCoverageProcess(
         CancellationToken cancellationToken
     )
     {
+        if (arguments[0] == "tool")
+            return await base.RunAsync(
+                executable,
+                arguments,
+                _fileSystem.Path.GetDirectoryName(_executable)!,
+                cancellationToken
+            );
         if (arguments[0] == "msbuild")
         {
             if (arguments.Contains("-getProperty:TargetPath"))
