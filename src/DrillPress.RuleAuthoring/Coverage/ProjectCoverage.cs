@@ -8,6 +8,21 @@ internal sealed class ProjectCoverage
     private readonly Dictionary<string, CoverageRange[]> _documents = [];
     private readonly Dictionary<string, CoverageReason> _documentReasons = [];
     private CoverageReason _unavailableReason = CoverageReason.EvidenceNotPrepared;
+    private readonly Dictionary<
+        (string Document, TextSpan Span),
+        (ExecutionCoverage State, CoverageReason[] Reasons)
+    > _fixtureExecutions = [];
+    private readonly Dictionary<string, LineCoverageMeasurement> _fixtureLines = [];
+
+    internal void FixtureExecution(
+        string document,
+        TextSpan span,
+        ExecutionCoverage state,
+        CoverageReason[] reasons
+    ) => _fixtureExecutions.Add((document, span), (state, reasons.ToArray()));
+
+    internal void FixtureLines(string document, LineCoverageMeasurement measurement) =>
+        _fixtureLines.Add(document, measurement);
 
     internal void Unavailable(CoverageReason reason) => _unavailableReason = reason;
 
@@ -39,6 +54,17 @@ internal sealed class ProjectCoverage
 
     internal CoverageEvidence Inspect(ICodeElement element)
     {
+        if (
+            element.Source is { } fixtureSource
+            && _fixtureExecutions.TryGetValue(
+                (
+                    fixtureSource.Document.DocumentId,
+                    new(element.Location.Start, element.Location.Length)
+                ),
+                out var fixture
+            )
+        )
+            return Evidence(fixtureSource, fixture.State, fixture.Reasons);
         if (
             element.Source is not { } source
             || !_documents.TryGetValue(source.Document.DocumentId, out var ranges)
@@ -160,6 +186,19 @@ internal sealed class ProjectCoverage
         var reasons = new HashSet<CoverageReason>();
         foreach (var source in sources)
         {
+            if (
+                location is null
+                && _fixtureLines.TryGetValue(source.Document.DocumentId, out var fixture)
+            )
+            {
+                covered += fixture.Covered;
+                total += fixture.Coverable;
+                complete &= fixture.IsComplete;
+                reasons.UnionWith(
+                    fixture.Reasons.Where(reason => reason != CoverageReason.ZeroCoverableLines)
+                );
+                continue;
+            }
             if (!_documents.TryGetValue(source.Document.DocumentId, out var ranges))
             {
                 complete = false;

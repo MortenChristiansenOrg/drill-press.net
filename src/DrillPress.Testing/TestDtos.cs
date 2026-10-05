@@ -20,4 +20,11 @@ public sealed record TestFinding(
     int Column,
     string Text,
     bool HasFix
-);
+)
+{
+    /// <summary>Readable evidence retained from the validated production result.</summary>
+    public string? Evidence { get; init; }
+
+    /// <summary>Typed coverage facts for every contributing project/framework context; empty for ordinary findings.</summary>
+    public IReadOnlyList<CoverageEvidence> Coverage { get; init; } = [];
+}

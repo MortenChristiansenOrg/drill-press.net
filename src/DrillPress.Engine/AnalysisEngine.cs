@@ -10,6 +10,37 @@ namespace DrillPress.Engine;
 /// </summary>
 public sealed class AnalysisEngine
 {
+    internal BundleResponse EvaluateFixture(
+        RuleSet rules,
+        string requestId,
+        IReadOnlyList<CompilationContext> contexts,
+        Action<AnalysisSolution> prepare,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var solution = new AnalysisSolution(
+            contexts
+                .Select(context => new AnalysisProject(
+                    context.Snapshot,
+                    context.Compilation,
+                    _fileSystem,
+                    cancellationToken
+                ))
+                .ToArray(),
+            cancellationToken
+        );
+        foreach (var project in solution.Projects)
+            project.Coverage.Unavailable(CoverageReason.LooseSource);
+        prepare(solution);
+        return new RuleResponseBuilder().Build(
+            requestId,
+            solution,
+            rules.Evaluate(solution),
+            cancellationToken
+        );
+    }
+
     private readonly IFileSystem _fileSystem;
     private readonly CoverageProcess _coverageProcess;
 
