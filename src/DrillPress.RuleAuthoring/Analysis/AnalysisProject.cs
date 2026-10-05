@@ -8,6 +8,22 @@ namespace DrillPress;
 public sealed class AnalysisProject
 {
     private readonly Lazy<IReadOnlyList<AnalysisSource>> _sources;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        CodeType,
+        TypeAvailability
+    > _types = new();
+
+    /// <summary>Tests unique contextual type availability, including transitive references and extern aliases; does not imply source usage.</summary>
+    public bool HasType(CodeType type) =>
+        InspectType(type).Status == TypeAvailabilityStatus.Available;
+
+    /// <summary>Resolves a complete configured identity once per evaluated context, retaining missing and ambiguous outcomes.</summary>
+    public TypeAvailability InspectType(CodeType type)
+    {
+        CancellationToken.ThrowIfCancellationRequested();
+        ArgumentException.ThrowIfNullOrWhiteSpace(type.MetadataName);
+        return _types.GetOrAdd(type, identity => identity.InspectAvailability(Compilation));
+    }
 
     /// <summary>Pairs a compiler-faithful snapshot with its live or reconstructed compilation.</summary>
     public AnalysisProject(

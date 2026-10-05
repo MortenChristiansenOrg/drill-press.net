@@ -6,6 +6,62 @@ namespace DrillPress;
 /// <summary>Fluent selections over resolved calls, receivers and parameter-associated values.</summary>
 public static class InvocationQueries
 {
+    /// <summary>Selects each resolved call once when any configured declaration parameter has an original source value satisfying the predicate, including extension receivers.</summary>
+    public static CodeQuery<CodeInvocation> WhereAnyArgument(
+        this CodeQuery<CodeInvocation> calls,
+        IReadOnlyList<string> named,
+        Func<CodeExpression, bool> value
+    )
+    {
+        var names = ParameterNames(named);
+        return calls.Where(call =>
+            call.IsResolved
+            && call.Arguments.Any(argument =>
+                names.Contains(argument.Parameter.Name)
+                && argument.Value is { } expression
+                && value(expression)
+            )
+        );
+    }
+
+    /// <summary>Projects all values associated with the named declaration roles once, in source evaluation order, including normalized extension receivers and defaults.</summary>
+    public static CodeQuery<CodeArgument> ArgumentsFor(
+        this CodeQuery<CodeInvocation> calls,
+        params string[] parameterNames
+    )
+    {
+        var names = ParameterNames(parameterNames);
+        return calls
+            .Where(call => call.IsResolved)
+            .SelectMany(call =>
+                call.Arguments.Where(argument => names.Contains(argument.Parameter.Name))
+            );
+    }
+
+    private static HashSet<string> ParameterNames(IReadOnlyList<string> names)
+    {
+        if (names.Count == 0)
+            throw new ArgumentException(
+                "Select at least one declaration parameter role.",
+                nameof(names)
+            );
+        foreach (var name in names)
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return names.ToHashSet();
+    }
+
+    /// <summary>Projects explicit, resolved call expressions with their original source span and compilation membership.</summary>
+    public static CodeQuery<CodeExpression> Expressions(this CodeQuery<CodeInvocation> calls) =>
+        calls.SelectMany(call => call.Expression is { } expression ? new[] { expression } : []);
+
+    /// <summary>Selects explicit bound calls outside compiler-identified expression trees; the ordinary Calls query retains both contexts.</summary>
+    public static CodeQuery<CodeInvocation> OutsideExpressionTrees(
+        this CodeQuery<CodeInvocation> calls
+    ) =>
+        calls.Where(call =>
+            call.Expression is { } expression && !expression.Facts.IsInsideExpressionTree
+        );
+
     /// <summary>Selects bound calls declared on exactly the configured owner, including normalized extension declarations.</summary>
     public static CodeQuery<CodeInvocation> ToMethodsDeclaredOn(
         this CodeQuery<CodeInvocation> calls,
@@ -106,10 +162,16 @@ public static class InvocationQueries
             argument.Invocation.IsResolved && members.Contains(argument.Invocation.Target)
         );
 
-    /// <summary>Projects reportable explicit value expressions, excluding defaults and synthesized receivers without source argument syntax.</summary>
-    public static CodeQuery<CodeExpression> SourceValues(this CodeQuery<CodeArgument> arguments) =>
+    /// <summary>Projects reportable source values, excluding defaults. Opt into normalized extension receivers to include their original source once in either call spelling.</summary>
+    public static CodeQuery<CodeExpression> SourceValues(
+        this CodeQuery<CodeArgument> arguments,
+        bool includeReceivers = false
+    ) =>
         arguments.SelectMany(argument =>
-            argument.IsExplicit && argument.Value is { } value ? new[] { value } : []
+            (argument.IsExplicit || includeReceivers && argument.IsReceiver)
+            && argument.Value is { } value
+                ? new[] { value }
+                : []
         );
 
     /// <summary>Matches a configured method without discarding its actual overload.</summary>
