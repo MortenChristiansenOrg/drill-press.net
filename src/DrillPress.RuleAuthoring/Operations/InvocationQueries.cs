@@ -6,6 +6,28 @@ namespace DrillPress;
 /// <summary>Fluent selections over resolved calls, receivers and parameter-associated values.</summary>
 public static class InvocationQueries
 {
+    /// <summary>Selects bound calls declared on exactly the configured owner, including normalized extension declarations.</summary>
+    public static CodeQuery<CodeInvocation> ToMethodsDeclaredOn(
+        this CodeQuery<CodeInvocation> calls,
+        CodeType type
+    ) => calls.Where(call => call.IsDeclaredOn(type));
+
+    /// <summary>Selects bound calls whose declaration owner is the configured type or a derived class, independently of receiver type.</summary>
+    public static CodeQuery<CodeInvocation> ToMethodsDeclaredOnOrDerivedFrom(
+        this CodeQuery<CodeInvocation> calls,
+        CodeType type
+    ) => calls.Where(call => call.IsDeclaredOnOrDerivedFrom(type));
+
+    /// <summary>Selects bound targets by a case-sensitive name glob; exact-name selections remain available through ToMethodsNamed.</summary>
+    public static CodeQuery<CodeInvocation> ToMethodsMatchingName(
+        this CodeQuery<CodeInvocation> calls,
+        string pattern
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
+        return calls.Where(call => call.TargetNameMatches(pattern));
+    }
+
     /// <summary>Selects calls by ordinal method name without assuming their declaring type.</summary>
     public static CodeQuery<CodeInvocation> ToMethodsNamed(
         this CodeQuery<CodeInvocation> calls,
