@@ -6,6 +6,26 @@ namespace DrillPress;
 internal sealed class ProjectCoverage
 {
     private readonly Dictionary<string, CoverageRange[]> _documents = [];
+    private readonly Dictionary<(string Document, TextSpan Span), CoverageEvidence> _precise = [];
+
+    internal void PreciseExecution(
+        AnalysisSource source,
+        TextSpan occurrence,
+        ExecutionCoverage state,
+        CoverageReason[] reasons,
+        CoverageRange[] ranges,
+        CoverageCallEvidence[] calls
+    ) =>
+        _precise[(source.Document.DocumentId, occurrence)] = Evidence(
+            source,
+            state,
+            reasons,
+            ranges
+        ) with
+        {
+            Calls = calls.Length == 0 ? null : Array.AsReadOnly(calls),
+        };
+
     private readonly Dictionary<string, CoverageRange[]> _functionRanges = [];
     private readonly HashSet<(string Document, TextSpan Span, int Token)> _advancements = [];
     private readonly Dictionary<string, CoverageReason> _documentReasons = [];
@@ -182,6 +202,8 @@ internal sealed class ProjectCoverage
                 ]
             );
         var span = new TextSpan(element.Location.Start, element.Location.Length);
+        if (_precise.TryGetValue((source.Document.DocumentId, span), out var precise))
+            return precise;
         var matching = ranges.Where(range => range.Span.Contains(span)).ToArray();
         if (matching.Length == 0)
             return Evidence(source, ExecutionCoverage.Unknown, [CoverageReason.MissingRange]);

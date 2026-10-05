@@ -102,12 +102,28 @@ public sealed class CompactDiagnosticRenderer
                     .Append(": ")
                     .Append(CoverageEvidenceFormatter.Explain(reason))
                     .Append('\n');
+            foreach (var call in evidence.Calls ?? [])
+                ExplainCall(output, call);
             foreach (var range in evidence.Ranges)
                 output.Append(
                     CultureInfo.InvariantCulture,
                     $"    range {Escape(DisplayPath(range.Path))} {range.Start}+{range.Length}: {range.State.ToString().ToLowerInvariant()}\n"
                 );
         }
+    }
+
+    private void ExplainCall(StringBuilder output, CoverageCallEvidence call)
+    {
+        output.Append(
+            CultureInfo.InvariantCulture,
+            $"    call {Escape(DisplayPath(call.Path))} 0x{call.MethodToken:X} IL_{call.InstructionOffset:X4}: block {call.EntryBlock} {(call.EntryCovered ? "hit" : "not hit")}, {(call.PrefixCannotThrow ? "safe prefix" : "unproven prefix")}"
+        );
+        if (call.CompletionBlock is { } completion)
+            output.Append(
+                CultureInfo.InvariantCulture,
+                $", completion {completion} {(call.CompletionCovered == true ? "hit" : "not hit")}"
+            );
+        output.Append('\n');
     }
 
     private string DisplayPath(string path)

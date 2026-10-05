@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageDownload Include="dotnet-coverage" Version="[$(DotNetCoverageVersion)]" />
+    <Reference Include="Microsoft.CodeCoverage.Core">
+      <HintPath>$(NuGetPackageRoot)dotnet-coverage/$(DotNetCoverageVersion)/tools/net8.0/any/Microsoft.CodeCoverage.Core.dll</HintPath>
+    </Reference>
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
+  </ItemGroup>
+</Project>

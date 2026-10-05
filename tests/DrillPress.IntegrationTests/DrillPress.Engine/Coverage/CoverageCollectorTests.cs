@@ -181,7 +181,7 @@ public sealed class CoverageCollectorTests : IntegrationTest
         Assert.Equivalent(first, second, strict: true);
         Assert.Equal(2, process.Collections);
         Assert.Equal(
-            ["Hit()", "Consume(Throwing())", "Throwing().ToString()", "Tick()"],
+            ["Consume(Throwing())", "Throwing().ToString()", "Tick()"],
             first
                 .Where(diagnostic => diagnostic.Descriptor.Id == "COV001")
                 .Select(diagnostic =>
@@ -189,12 +189,7 @@ public sealed class CoverageCollectorTests : IntegrationTest
                 )
         );
         Assert.Equal(
-            [
-                "coverage: unknown (unsupported-mapping)",
-                "coverage: unknown (partial-range)",
-                "coverage: unknown (partial-range)",
-                "coverage: uncovered",
-            ],
+            ["coverage: uncovered", "coverage: uncovered", "coverage: uncovered"],
             first
                 .Where(diagnostic => diagnostic.Descriptor.Id == "COV001")
                 .Select(diagnostic => diagnostic.Evidence)

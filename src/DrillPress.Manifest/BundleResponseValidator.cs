@@ -193,6 +193,22 @@ public sealed class BundleResponseValidator
                 "Invalid coverage source range."
             );
             Require(
+                evidence.Calls is null
+                    || evidence.Metric == CoverageMetric.Execution
+                        && evidence.Calls.Count > 0
+                        && evidence.Calls.All(call => ValidCall(project, call)),
+                "Invalid coverage call proof."
+            );
+            Require(
+                evidence.Calls is null
+                    || evidence.State == ExecutionCoverage.Unknown
+                    || evidence.State == ExecutionCoverage.Covered
+                        && evidence.Calls.Any(call => call.State == ExecutionCoverage.Covered)
+                    || evidence.State == ExecutionCoverage.Uncovered
+                        && evidence.Calls.All(call => call.State == ExecutionCoverage.Uncovered),
+                "Coverage call proof and execution state disagree."
+            );
+            Require(
                 evidence.State != ExecutionCoverage.Unknown || evidence.Reasons.Count > 0,
                 "Unknown coverage requires an explanation."
             );
@@ -230,6 +246,24 @@ public sealed class BundleResponseValidator
                 );
         }
     }
+
+    private static bool ValidCall(ProjectSnapshot project, CoverageCallEvidence call) =>
+        call is not null
+        && project.Documents.Any(document =>
+            document.DocumentId == call.DocumentId
+            && document.Path == call.Path
+            && !document.IsGenerated
+        )
+        && (call.MethodToken & unchecked((int)0xff000000)) == 0x06000000
+        && (call.MethodToken & 0x00ffffff) > 0
+        && call.InstructionOffset >= 0
+        && call.EntryBlock >= 0
+        && (
+            call.CompletionBlock is null
+                ? call.CompletionCovered is null
+                : call.CompletionBlock > call.EntryBlock && call.CompletionCovered is not null
+        )
+        && (call.EntryCovered || call.CompletionCovered != true);
 
     private static void ValidateBatch(
         FixBatch batch,

@@ -178,7 +178,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 7)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 8)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());

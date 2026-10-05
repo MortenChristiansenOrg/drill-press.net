@@ -9,7 +9,7 @@ internal sealed class CoverageSymbols(IFileSystem fileSystem, CoverageProcess pr
     private readonly IFileSystem _fileSystem = fileSystem;
     private readonly CoverageProcess _process = process;
 
-    internal async Task<string?> IdentityAsync(
+    internal async Task<CoverageSymbolEvidence?> IdentityAsync(
         AnalysisProject project,
         string root,
         CancellationToken cancellationToken
@@ -52,7 +52,12 @@ internal sealed class CoverageSymbols(IFileSystem fileSystem, CoverageProcess pr
                 return null;
             }
             new CoverageAdvancementSymbols(_fileSystem).Apply(project, pe, reader);
-            return Convert.ToHexString(reader.DebugMetadataHeader!.Id.AsSpan());
+            var calls = new CoverageCallSymbols(_fileSystem).Read(project, pe, reader);
+            return new(
+                Convert.ToHexString(reader.DebugMetadataHeader!.Id.AsSpan()),
+                calls.Proofs,
+                calls.Occurrences
+            );
         }
         catch (BadImageFormatException)
         {

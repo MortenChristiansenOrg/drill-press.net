@@ -73,25 +73,41 @@ another assembly build, missing symbols, exclusions, ambiguous assembly names,
 or changed source cannot satisfy it. Generated sources are outside the ordinary
 rule scope.
 
-The integration reads instrumented ranges with both line and column coordinates;
-it does not equate a covered line with an executed call. A range hit identifies an
-exact expression or a direct expression in an expression statement, return, throw,
-or single-variable initializer, including parentheses, direct awaits, and checked
-expressions. Broader ranges and partially
-covered ranges are conservative. For example:
+The integration reads individual instrumented blocks from the pinned collector's
+binary report and verifies their relationship to the matching assembly's IL and
+portable PDB. For a uniquely bound call, an unhit call-entry block proves that the
+call was skipped. A hit proves an attempted call only when the preceding
+instructions in that block cannot throw, or a uniquely reached completion block
+proves that the call returned. A call can be covered even when its body throws;
+execution does not require successful completion.
+
+This supports selected calls inside null coalescing, conditional access,
+conditional expressions, short-circuit Boolean expressions, arguments and
+receivers, including direct and conditional awaits:
 
 ```csharp
 var result = cached ?? await store.LoadAsync();
 ```
 
-Running the cached path cannot establish that `LoadAsync` ran. When sequence-point
-and block evidence cannot distinguish the selected expression, the result stays
-unknown. This version does not rewrite consumer source or introduce extra probes
-inside expressions. Unknown evidence is a failing requirement, so it can produce
-findings even when a test actually exercised the expression. Use
-`Coverage.Executed.ExecutionOf(occurrence)` to inspect prepared occurrence evidence.
-Direct `RuleSet.Evaluate` and in-memory snippets without collected facts also
-return unknown rather than launching tests synchronously.
+Running only the cached path reports the skipped call as uncovered when its
+block mapping is verified. Running the query establishes covered execution,
+without changing production source. Throwing earlier arguments or receiver
+expressions cannot establish that a later call ran. Separate successful test
+runs merge their block hits while preserving each source occurrence.
+
+Repeated calls to the same bound method in one sequence point, expression trees,
+unsupported signatures or IL, excluded blocks, inconsistent block layouts, and
+throwing prefixes without conclusive completion evidence remain explicitly
+unknown. Broad statement or line hits never grant these calls covered execution.
+Other source occurrences retain conservative range-based mapping. This strategy
+uses the ordinary collector instrumentation; it does not rewrite source or IL
+or introduce extra expression probes.
+
+Unknown evidence is a failing requirement, so a test can exercise a call without
+providing a supported proof. Use `Coverage.Executed.Inspect(occurrence)` or
+`ExecutionOf(occurrence)` to inspect prepared evidence. Direct `RuleSet.Evaluate`
+and in-memory snippets without supplied facts return unknown without starting
+tests synchronously.
 
 ## Line percentages and reuse
 
@@ -147,10 +163,10 @@ cannot verify. Line findings retain counts even when incomplete or zero-coverabl
 Unsupported mappings explicitly explain that adding tests alone may not fix them.
 
 Pass `--explain-coverage` to include context identity, typed explanations and
-matching ranges, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
-Ordinary bundle output omits ranges; typed state/reasons/counts remain available
+matching ranges and verified call-block proofs, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
+Ordinary bundle output omits ranges and call proofs; typed state/reasons/counts remain available
 through diagnostics, validated findings and cross-context aggregation. Response
-protocol 7 requires matching CLI/SDK packages and rebuilt bundles. Collection,
+protocol 8 requires matching CLI/SDK packages and rebuilt bundles. Collection,
 build, tool and test failures still stop the check rather than becoming unknown
 findings.
 
@@ -220,7 +236,7 @@ Negated conditions retain ordinary Boolean semantics and default violation gatin
 `CoverageEvidence.ReviewReasons` carries the explicit policy independently of the
 measured state; `MinimumPercentage` carries a line requirement's threshold. Bundle
 validation checks eligible reasons, measured counts, thresholds, and review gating
-before accepting a successful exit. Response protocol 7 requires matching packages
+before accepting a successful exit. Response protocol 8 requires matching packages
 and rebuilt bundles.
 
 ## Enumeration advancement

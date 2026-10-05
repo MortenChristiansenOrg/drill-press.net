@@ -18,6 +18,7 @@
     <Project Path="tests/DrillPress.UnitTests/DrillPress.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/DrillPress.CoverageReader/DrillPress.CoverageReader.csproj" />
     <Project Path="tools/DrillPress.LinqCatalogue/DrillPress.LinqCatalogue.csproj" />
     <Project Path="tools/DrillPress.Release/DrillPress.Release.csproj" />
     <Project Path="tools/DrillPress.Benchmarks/DrillPress.Benchmarks.csproj" />

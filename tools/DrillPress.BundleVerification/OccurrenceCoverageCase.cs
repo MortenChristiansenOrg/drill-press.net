@@ -5,7 +5,7 @@ using DrillPress.Manifest;
 
 namespace DrillPress.BundleVerification;
 
-internal sealed class EnumerationCoverageCase(
+internal sealed class OccurrenceCoverageCase(
     IFileSystem fileSystem,
     string repository,
     string fixture,
@@ -37,6 +37,10 @@ internal sealed class EnumerationCoverageCase(
         foreach (var mode in Enum.GetValues<BundleMode>())
         {
             var result = await ExecuteAsync(consumer, snapshotPath, mode);
+            await _fileSystem.File.WriteAllBytesAsync(
+                _fileSystem.Path.Combine(output, $"enumeration.{mode}.stdout"),
+                result.StandardOutput
+            );
             var snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(snapshotPath);
             var validated = BundleResponseProtocol.Read(
                 Encoding.UTF8.GetString(result.StandardOutput),
@@ -45,31 +49,57 @@ internal sealed class EnumerationCoverageCase(
             var evidence = validated.Findings.Select(finding => finding.Evidence).ToArray();
             string[] required =
             [
+                "coverage: uncovered",
+                "coverage: covered",
+                "coverage: uncovered",
+                "coverage: uncovered",
+                "coverage: covered",
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
                 "enumeration: uncovered",
                 "enumeration: uncovered",
                 "enumeration: unknown (unsupported-enumeration)",
             ];
+            CoverageMetric[] metrics =
+            [
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
+                CoverageMetric.Enumeration,
+                CoverageMetric.Enumeration,
+                CoverageMetric.Enumeration,
+            ];
             if (
                 !evidence.SequenceEqual(required)
-                || validated.Findings.Any(finding =>
-                    finding.Coverage!.Single().Metric != CoverageMetric.Enumeration
-                )
+                || !validated
+                    .Findings.Select(finding => finding.Coverage!.Single().Metric)
+                    .SequenceEqual(metrics)
             )
                 throw new InvalidDataException(
-                    "Enumeration advancement did not retain its exact independent outcomes."
+                    "Occurrence coverage did not retain its exact independent outcomes: "
+                        + string.Join(
+                            "; ",
+                            validated.Findings.Select(finding =>
+                                $"{finding.RuleId} {finding.Start} {finding.Evidence}"
+                            )
+                        )
                 );
             expected ??= result.StandardOutput;
             BundleContract.Validate(
                 new("enumeration", [], BundleOutcome.Findings, expected, []),
                 result
             );
-            await _fileSystem.File.WriteAllBytesAsync(
-                _fileSystem.Path.Combine(output, $"enumeration.{mode}.stdout"),
-                result.StandardOutput
-            );
         }
         Console.WriteLine(
-            "Enumeration: managed/native empty, async, skipped, acquisition and indexed outcomes match"
+            "Occurrence coverage: managed/native enumeration and conditional-call block proofs match"
         );
     }
 
@@ -124,6 +154,19 @@ internal sealed class EnumerationCoverageCase(
                 public static void Never() { foreach (var item in Empty()) { } }
                 public static void Indexed() { foreach (var item in System.Array.Empty<int>()) { } }
             }
+            public static class Calls {
+                static int Hit() => 1;
+                static int Throwing() => throw new System.InvalidOperationException();
+                static void Consume(int first, int second) { }
+                public static int Skipped(int? cached) => cached ?? Hit();
+                public static int Taken(int? cached) => cached ?? Hit();
+                public static void Argument() { Consume(Throwing(), Hit()); }
+                static readonly Store _store = new();
+                public static async Task<int> Async(int? cached) => cached ?? await _store.LoadAsync();
+                public static int Duplicate(bool flag) => flag ? Hit() : Hit();
+                public static int DuplicateNever(bool flag) => flag ? Hit() : Hit();
+            }
+            public sealed class Store { public Task<int> LoadAsync() => Task.FromResult(9); }
             public sealed class Broken : IEnumerable<int> {
                 public IEnumerator<int> GetEnumerator() => throw new System.InvalidOperationException();
                 IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -148,6 +191,13 @@ internal sealed class EnumerationCoverageCase(
                 [Xunit.Fact] public async System.Threading.Tasks.Task EmptyLoops() {
                     Loops.Sync(); await Loops.Async(); Loops.Indexed();
                     Xunit.Assert.Throws<System.InvalidOperationException>(Loops.AcquisitionFails);
+                    Xunit.Assert.Equal(5, Calls.Skipped(5));
+                    Xunit.Assert.Equal(1, Calls.Taken(null));
+                    Xunit.Assert.Throws<System.InvalidOperationException>(Calls.Argument);
+                    Xunit.Assert.Equal(5, await Calls.Async(5));
+                    Xunit.Assert.Equal(9, await Calls.Async(null));
+                    Xunit.Assert.Equal(1, Calls.Duplicate(true));
+                    Xunit.Assert.Equal(1, Calls.Duplicate(false));
                 }
             }
             """
@@ -195,6 +245,9 @@ internal sealed class EnumerationCoverageCase(
             using DrillPress.Engine;
             var rules = new RuleSet();
             rules.For(Code.Enumerations).Require(Coverage.EnumerationStarted, "ENUM", "Start enumeration.");
+            RuleCondition<CodeInvocation> executed = Coverage.Executed;
+            rules.For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Consume" or "LoadAsync"))
+                .Require(executed.And(new(_ => false)), "CALL", "Capture call evidence.");
             return (int)await new RuleApplication().RunAsync(rules, args);
             """
         );

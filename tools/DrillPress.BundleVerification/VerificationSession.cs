@@ -504,7 +504,7 @@ public sealed class VerificationSession : IDisposable
         Console.WriteLine(
             "CLI fix/recheck: both safe fixes preserve exact source bytes with managed/native bundles"
         );
-        await new EnumerationCoverageCase(
+        await new OccurrenceCoverageCase(
             _fileSystem,
             RepositoryRoot,
             _fixture.FullName,

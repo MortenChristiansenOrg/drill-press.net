@@ -139,6 +139,12 @@ public sealed record CoverageEvidence(
     /// <summary>Matching source ranges, supplied by SDK inspection or opt-in detailed bundle output.</summary>
     public IReadOnlyList<CoverageRangeEvidence> Ranges { get; init; } = [];
 
+    /// <summary>Verified individual call-site block evidence, available from inspection or detailed bundle output.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public IReadOnlyList<CoverageCallEvidence>? Calls { get; init; }
+
     /// <summary>Explicit reasons eligible for review-only gating; this is policy metadata and never changes State.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull

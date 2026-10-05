@@ -75,6 +75,7 @@ internal sealed class CandidateRule<T>(
                                     : evidence with
                                     {
                                         Ranges = [],
+                                        Calls = null,
                                     }
                             )
                             .ToArray(),

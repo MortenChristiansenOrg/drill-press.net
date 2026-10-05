@@ -53,6 +53,8 @@ internal sealed class FakeCoverageProcess(
     {
         cancellationToken.ThrowIfCancellationRequested();
         Calls.Add(arguments.ToArray());
+        if (arguments[0].EndsWith("DrillPress.CoverageReader.dll", StringComparison.Ordinal))
+            return Task.FromResult("");
         if (arguments[0] == "restore")
         {
             ImportedInputs = RestoredInputs ?? ImportedInputs;
@@ -72,6 +74,21 @@ internal sealed class FakeCoverageProcess(
                     OperatingSystem.IsWindows() ? "dotnet-coverage.exe" : "dotnet-coverage"
                 ),
                 new MockFileData("tool")
+            );
+            _fileSystem.AddFile(
+                _fileSystem.Path.Combine(
+                    arguments[index + 1],
+                    ".store",
+                    "dotnet-coverage",
+                    CoverageTool.Version,
+                    "dotnet-coverage",
+                    CoverageTool.Version,
+                    "tools",
+                    "net8.0",
+                    "any",
+                    "Microsoft.CodeCoverage.Core.dll"
+                ),
+                new MockFileData("collector reader")
             );
             return Task.FromResult("");
         }

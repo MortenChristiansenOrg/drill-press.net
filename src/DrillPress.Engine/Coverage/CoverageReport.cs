@@ -9,7 +9,7 @@ internal sealed class CoverageReport(IFileSystem fileSystem)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
 
-    internal void Apply(AnalysisProject project, string reportPath, string? symbolIdentity)
+    internal void Apply(AnalysisProject project, string reportPath, CoverageSymbolEvidence? symbols)
     {
         var collected = new Dictionary<string, List<CoverageRange>>();
         var invalid = new HashSet<string>();
@@ -17,11 +17,13 @@ internal sealed class CoverageReport(IFileSystem fileSystem)
         var report = XDocument.Load(stream);
         if (report.Root?.Name != "results")
             throw new InvalidDataException("Coverage collector returned an unsupported report.");
-        Read(project, report.Root, collected, symbolIdentity, invalid);
+        Read(project, report.Root, collected, symbols?.Identity, invalid);
         foreach (
             var (document, ranges) in collected.Where(document => !invalid.Contains(document.Key))
         )
             project.Coverage.Add(document, ranges);
+        if (symbols is not null)
+            new CoverageCallReport().Apply(project, report.Root, symbols, collected, invalid);
     }
 
     private void Read(

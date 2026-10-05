@@ -1,11 +1,10 @@
 using DrillPress.Engine;
 using DrillPress.IntegrationTests.TestInfrastructure;
-using DrillPress.Manifest;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.Engine.Coverage;
 
-public sealed class EnumerationCoverageTests : IntegrationTest
+public sealed class EnumerationCoverageTests : CoverageIntegrationTest
 {
     private const string Source = """
         using System.Collections;
@@ -34,20 +33,17 @@ public sealed class EnumerationCoverageTests : IntegrationTest
     [Fact]
     public async Task Empty_sequences_advance_but_collection_acquisition_failures_and_skipped_loops_do_not()
     {
-        var directory = CreateTemporaryDirectory("drillpress-enumeration-").FullName;
-        var project = await CreateProjectsAsync(directory);
-        await RestoreAsync(project);
-        var snapshotPath = FileSystem.Path.Combine(directory, "snapshot.json");
-        var exported = await RunProcessAsync(
-            "dotnet",
-            [GetOutputPath("DrillPress.BuildHost"), "export", project, snapshotPath],
-            directory,
-            TestContext.Current.CancellationToken
-        );
-        Assert.Equal(0, exported.ExitCode);
-        var snapshot = await new CompilationSnapshotFile().ReadAsync(
-            snapshotPath,
-            TestContext.Current.CancellationToken
+        var snapshot = await CreateCoverageSnapshotAsync(
+            Source,
+            """
+            public class LoopTests {
+                [Xunit.Fact] public async System.Threading.Tasks.Task EmptyLoops() {
+                    Loops.Sync(); await Loops.Async(); Loops.Deconstruct(); Loops.Indexed();
+                    Xunit.Assert.Throws<System.InvalidOperationException>(Loops.CollectionFails);
+                    Xunit.Assert.Throws<System.InvalidOperationException>(Loops.AcquisitionFails);
+                }
+            }
+            """
         );
         var rules = new RuleSet();
         rules
@@ -88,70 +84,4 @@ public sealed class EnumerationCoverageTests : IntegrationTest
                 Assert.Equal(CoverageMetric.Enumeration, Assert.Single(diagnostic.Coverage).Metric)
         );
     }
-
-    private async Task<string> CreateProjectsAsync(string directory)
-    {
-        var target = FileSystem.Directory.CreateDirectory(
-            FileSystem.Path.Combine(directory, "Target")
-        );
-        var tests = FileSystem.Directory.CreateDirectory(
-            FileSystem.Path.Combine(directory, "Tests")
-        );
-        await WriteAsync(directory, "Workspace.slnx", "<Solution />");
-        await WriteAsync(
-            directory,
-            "global.json",
-            FileSystem.File.ReadAllText(RepositoryPath("global.json"))
-        );
-        var packages = new System.Xml.Linq.XElement(
-            "Project",
-            new System.Xml.Linq.XElement(
-                "Import",
-                new System.Xml.Linq.XAttribute(
-                    "Project",
-                    RepositoryPath("Directory.Packages.props")
-                )
-            )
-        );
-        await WriteAsync(directory, "Directory.Packages.props", packages.ToString());
-        await WriteAsync(
-            target.FullName,
-            "Target.csproj",
-            """
-            <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>
-            """
-        );
-        await WriteAsync(target.FullName, "Loops.cs", Source);
-        await WriteAsync(
-            tests.FullName,
-            "Tests.csproj",
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport><UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner></PropertyGroup>
-              <ItemGroup><PackageReference Include="xunit.v3" /><ProjectReference Include="../Target/Target.csproj" /></ItemGroup>
-            </Project>
-            """
-        );
-        await WriteAsync(
-            tests.FullName,
-            "Tests.cs",
-            """
-            public class LoopTests {
-                [Xunit.Fact] public async System.Threading.Tasks.Task EmptyLoops() {
-                    Loops.Sync(); await Loops.Async(); Loops.Deconstruct(); Loops.Indexed();
-                    Xunit.Assert.Throws<System.InvalidOperationException>(Loops.CollectionFails);
-                    Xunit.Assert.Throws<System.InvalidOperationException>(Loops.AcquisitionFails);
-                }
-            }
-            """
-        );
-        return FileSystem.Path.Combine(target.FullName, "Target.csproj");
-    }
-
-    private Task WriteAsync(string directory, string name, string text) =>
-        FileSystem.File.WriteAllTextAsync(
-            FileSystem.Path.Combine(directory, name),
-            text,
-            TestContext.Current.CancellationToken
-        );
 }
