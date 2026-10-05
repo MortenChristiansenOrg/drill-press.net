@@ -7,6 +7,35 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference
+      Include="../../tools/DrillPress.CoverageReader/DrillPress.CoverageReader.csproj"
+      ReferenceOutputAssembly="false"
+      Private="false"
+      PrivateAssets="all"
+    />
+  </ItemGroup>
+  <Target Name="EmbedCoverageReader" BeforeTargets="AssignTargetPaths">
+    <PropertyGroup>
+      <_CoverageReaderPublishDirectory>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)coverage-reader'))/</_CoverageReaderPublishDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_CoverageReaderPublishDirectory)" />
+    <MSBuild
+      Projects="../../tools/DrillPress.CoverageReader/DrillPress.CoverageReader.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);PublishDir=$(_CoverageReaderPublishDirectory);UseAppHost=false;SelfContained=false"
+      RemoveProperties="RuntimeIdentifier;PublishAot;PublishSingleFile;PublishTrimmed;PublishReadyToRun"
+    />
+    <ItemGroup>
+      <_CoverageReaderResource
+        Include="$(_CoverageReaderPublishDirectory)**/*.dll;$(_CoverageReaderPublishDirectory)**/*.json"
+        Exclude="$(_CoverageReaderPublishDirectory)Microsoft.CodeCoverage.Core.dll"
+      />
+      <EmbeddedResource Include="@(_CoverageReaderResource)" WithCulture="false">
+        <LogicalName>DrillPress.CoverageReader/%(_CoverageReaderResource.RecursiveDir)%(_CoverageReaderResource.Filename)%(_CoverageReaderResource.Extension)</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+  </Target>
+  <ItemGroup>
     <InternalsVisibleTo Include="DrillPress.UnitTests" />
     <InternalsVisibleTo Include="DrillPress.Testing" />
     <InternalsVisibleTo Include="DrillPress.IntegrationTests" />

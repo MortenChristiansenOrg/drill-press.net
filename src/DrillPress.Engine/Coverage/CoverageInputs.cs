@@ -79,7 +79,7 @@ internal sealed class CoverageInputs(IFileSystem fileSystem)
     )
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append("drillpress-coverage-v4/" + CoverageTool.Version);
+        Append("drillpress-coverage-v5/" + CoverageTool.Version);
         Append(project.ProjectPath);
         Append(project.TargetFramework);
         Append(project.Snapshot.SdkVersion);

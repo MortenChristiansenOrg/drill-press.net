@@ -89,11 +89,24 @@ internal sealed class CoverageSession : IDisposable
             }
             reports.Add(output);
         }
+        var binary = NewReportPath(".coverage");
+        await _process.RunAsync(
+            tool,
+            ["merge", "--nologo", "-f", "coverage", "-o", binary, .. reports],
+            root,
+            cancellationToken
+        );
         var temporary = NewReportPath();
         // Binary reports retain individual block identities; XML alone loses complementary partial hits.
         await _process.RunAsync(
             tool,
-            ["merge", "--nologo", "-f", "xml", "-o", temporary, .. reports],
+            ["merge", "--nologo", "-f", "xml", "-o", temporary, binary],
+            root,
+            cancellationToken
+        );
+        await new CoverageBinaryReader(_fileSystem, _process, _cache).EnrichAsync(
+            binary,
+            temporary,
             root,
             cancellationToken
         );
