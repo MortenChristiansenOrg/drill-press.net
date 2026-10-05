@@ -36,6 +36,8 @@ public sealed class ConditionalCoverageTests : CoverageIntegrationTest
             static readonly Store _store = new();
             public static async System.Threading.Tasks.Task<int> AsyncSkipped(int? cached) => cached ?? await _store.LoadAsync();
             public static async System.Threading.Tasks.Task<int> AsyncTaken(int? cached) => cached ?? await _store.LoadAsync();
+            public static int DuplicateNever(bool flag) => flag ? Hit() : Hit();
+            public static Expression<Func<int>> TreeNever() => () => Hit();
         }
         public sealed class Store { public System.Threading.Tasks.Task<int> LoadAsync() => System.Threading.Tasks.Task.FromResult(9); }
         public sealed class Receiver { public int Hit() => 7; }
@@ -119,6 +121,9 @@ public sealed class ConditionalCoverageTests : CoverageIntegrationTest
                 ExecutionCoverage.Covered,
                 ExecutionCoverage.Uncovered,
                 ExecutionCoverage.Covered,
+                ExecutionCoverage.Unknown,
+                ExecutionCoverage.Unknown,
+                ExecutionCoverage.Unknown,
             ],
             findings.Select(finding => Assert.Single(finding.Coverage!).State)
         );
@@ -144,6 +149,9 @@ public sealed class ConditionalCoverageTests : CoverageIntegrationTest
                 "Identity(3)",
                 "_store.LoadAsync()",
                 "_store.LoadAsync()",
+                "Hit()",
+                "Hit()",
+                "Hit()",
             ],
             findings.Select(finding => Source.Substring(finding.Start, finding.Length))
         );

@@ -87,9 +87,6 @@ internal sealed class CoverageCallReport
             calls.Any(call => call.State == ExecutionCoverage.Covered) ? ExecutionCoverage.Covered
             : complete && calls.All(call => call.State == ExecutionCoverage.Uncovered)
                 ? ExecutionCoverage.Uncovered
-            : relevant.Length > 0
-            && relevant.All(range => range.State == ExecutionCoverage.Uncovered)
-                ? ExecutionCoverage.Uncovered
             : ExecutionCoverage.Unknown;
         CoverageReason[] reasons =
             state == ExecutionCoverage.Unknown

@@ -56,12 +56,16 @@ internal sealed class OccurrenceCoverageCase(
                 "coverage: covered",
                 "coverage: unknown (unsupported-mapping)",
                 "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
+                "coverage: unknown (unsupported-mapping)",
                 "enumeration: uncovered",
                 "enumeration: uncovered",
                 "enumeration: unknown (unsupported-enumeration)",
             ];
             CoverageMetric[] metrics =
             [
+                CoverageMetric.Execution,
+                CoverageMetric.Execution,
                 CoverageMetric.Execution,
                 CoverageMetric.Execution,
                 CoverageMetric.Execution,
@@ -160,6 +164,7 @@ internal sealed class OccurrenceCoverageCase(
                 static readonly Store _store = new();
                 public static async Task<int> Async(int? cached) => cached ?? await _store.LoadAsync();
                 public static int Duplicate(bool flag) => flag ? Hit() : Hit();
+                public static int DuplicateNever(bool flag) => flag ? Hit() : Hit();
             }
             public sealed class Store { public Task<int> LoadAsync() => Task.FromResult(9); }
             public sealed class Broken : IEnumerable<int> {
