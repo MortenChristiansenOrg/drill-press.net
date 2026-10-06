@@ -52,8 +52,47 @@ rules.For(candidates).Forbid("TEAM001", "Use a descriptive method name.");
 that fail its condition. Both accept a location selector and an optional fix
 factory. The selector runs only for violations. Without one, methods/types use
 the declaration identifier and references use the complete bound expression.
-`RuleDescriptor` can be reused with `Forbid`. IDs must be unique and nonblank;
-IDs and messages must be single-line. Registration rejects invalid descriptors.
+`RuleDescriptor` supplies the identity for `Forbid`. IDs must be unique and
+nonblank; IDs and messages must be single-line. Registration rejects invalid
+descriptors and unrelated duplicate registrations, even with identical messages.
+
+### Typed clauses under one identity
+
+Reserve a shared identity explicitly when one policy covers several candidate
+types. Each clause retains its own typed requirement and factories:
+
+```csharp
+var queryCoverage = rules.Rule("DATA002", "Exercise each data query.");
+queryCoverage.For(Code.Calls.ToMethodsNamed("ReadQuery").Expressions())
+    .Require(Coverage.Executed.OnUnknown("Inspect call execution evidence."));
+queryCoverage.For(Code.Enumerations)
+    .Require(Coverage.EnumerationStarted.OnUnknown("Inspect loop advancement evidence."));
+```
+
+Supply consumer-owned source filtering for both selections. `Rule(descriptor)`
+also accepts a configured `RuleDescriptor`; optional fix complexity belongs to
+the shared descriptor. The ID is reserved immediately, including a definition
+with no clauses. Another definition or ordinary registration cannot reuse it.
+
+`RuleDefinition.For(...)` returns a `RuleClause<T>` with `Require`, `Forbid`,
+`ReportOncePer`, `CollectCoverageIn`, and contextual `at:`/physical `location:`
+selectors. Built-in requirements keep their evidence, outcome remediation and
+gating policy. Coverage planning unions the contexts selected by all clauses;
+empty selections do not launch tests unless an explicit collection scope requests
+them.
+
+`ReportOncePer` groups within its own clause and compilation; equal keys in
+different clauses do not group them together. Direct `RuleSet.Evaluate` returns
+each clause's diagnostic. The production response validator combines findings
+with the same rule ID and physical span, including linked compilation memberships:
+evidence and remediation are combined, typed facts are retained, and any violation
+keeps the combined finding gating. A shared ID alone does not merge different spans.
+
+Fixes from all clauses, including hidden reporting-group candidates, pass the
+existing conflict and combined-compilation checks. Identical proposals can share
+a batch; conflicting or jointly invalid proposals are withheld. A deduplicated
+occurrence receives a fix only when every contributing finding agrees on the
+validated batch. Display grouping never bypasses those checks.
 
 Use semantic identities instead of source spelling:
 

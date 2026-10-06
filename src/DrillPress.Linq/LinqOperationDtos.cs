@@ -29,6 +29,19 @@ public enum LinqSurface
     Queryable,
 }
 
+/// <summary>Reviewed declaration behavior for direct sequence inputs during the invocation, independent of execution evidence or later consumption of a returned sequence.</summary>
+public enum LinqSequenceConsumption
+{
+    /// <summary>No maintained consumption claim; includes provider-facing operations and unreviewed construction behavior.</summary>
+    Unknown,
+
+    /// <summary>The framework operation does not acquire or advance an input enumerator. Count getters and other invoked user code may still have effects, including indirect enumeration.</summary>
+    NeverEnumerates,
+
+    /// <summary>The operation can acquire or advance an input enumerator. Fast paths and empty inputs remain possible; this does not assert consumption of any particular input or call.</summary>
+    MayEnumerate,
+}
+
 /// <summary>Explains why a call has or lacks maintained classification data.</summary>
 public enum LinqClassificationStatus
 {
@@ -63,11 +76,16 @@ public sealed record LinqOperation(
     LinqSurface? Surface,
     LinqOperationCategory? Category,
     IReadOnlyList<LinqSequenceInput> SequenceInputs
-);
+)
+{
+    /// <summary>Maintained consumption behavior for this supported exact declaration. Unknown supplies no guarantee; this fact never proves execution, purity, provider behavior or later deferred consumption.</summary>
+    public LinqSequenceConsumption SequenceConsumption { get; init; }
+}
 
 internal sealed record LinqCatalogueEntry(
     string Signature,
     LinqOperationCategory Category,
     int Frameworks,
-    int[] SequenceParameters
+    int[] SequenceParameters,
+    LinqSequenceConsumption SequenceConsumption
 );

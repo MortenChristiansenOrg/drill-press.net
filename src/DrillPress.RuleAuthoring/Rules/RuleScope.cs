@@ -6,6 +6,8 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
     private Func<T, object?>? _reportKey;
     private CodeQuery<AnalysisProject>? _coverageScope;
 
+    internal RuleRegistration? Registration { get; init; }
+
     /// <summary>Explicitly chooses collection contexts when a custom selector or callback reads coverage facts. The scope must use source-only predicates; built-in coverage conditions otherwise plan candidates automatically.</summary>
     public RuleScope<T> CollectCoverageIn(CodeQuery<AnalysisProject> projects)
     {
@@ -14,7 +16,12 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
                 "Collection scope cannot depend on coverage evidence.",
                 nameof(projects)
             );
-        return new(ruleSet, query) { _reportKey = _reportKey, _coverageScope = projects };
+        return new(ruleSet, query)
+        {
+            _reportKey = _reportKey,
+            _coverageScope = projects,
+            Registration = Registration,
+        };
     }
 
     /// <summary>Displays the first source-ordered violation per key and compilation, preferring a violation over review-only items, while retaining every candidate's fix for conflict and combined validation. Null is a valid grouping key.</summary>
@@ -23,6 +30,7 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         {
             _reportKey = candidate => key(candidate),
             _coverageScope = _coverageScope,
+            Registration = Registration,
         };
 
     /// <summary>Reports every selected candidate, optionally selecting a precise span, proposing a complete fix, and estimating typical agent fix effort.</summary>
@@ -82,7 +90,15 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         Func<T, FixProposal?>? fix = null
     )
     {
-        ruleSet.Add(query, descriptor, location, fix, _reportKey, coverageScope: _coverageScope);
+        ruleSet.Add(
+            query,
+            descriptor,
+            location,
+            fix,
+            _reportKey,
+            coverageScope: _coverageScope,
+            registration: Registration
+        );
         return this;
     }
 
@@ -104,18 +120,32 @@ public sealed class RuleScope<T>(RuleSet ruleSet, CodeQuery<T> query)
         Func<T, SourceLocation>? location = null,
         Func<T, FixProposal?>? fix = null,
         RuleFixComplexity? fixComplexity = null
+    ) =>
+        Require(
+            condition,
+            new RuleDescriptor(id, message) { FixComplexity = fixComplexity },
+            location,
+            fix
+        );
+
+    internal RuleScope<T> Require(
+        RuleCondition<T> condition,
+        RuleDescriptor descriptor,
+        Func<T, SourceLocation>? location = null,
+        Func<T, FixProposal?>? fix = null
     )
     {
         ruleSet.Add(
             query.Where(condition.Not()),
-            new RuleDescriptor(id, message) { FixComplexity = fixComplexity },
+            descriptor,
             location,
             fix,
             _reportKey,
             condition.Detail,
             condition.CoverageFacts,
             condition.Failure,
-            _coverageScope
+            _coverageScope,
+            Registration
         );
         return this;
     }

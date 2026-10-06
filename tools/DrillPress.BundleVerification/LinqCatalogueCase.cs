@@ -50,6 +50,7 @@ public sealed class LinqCatalogueCase(
             using DrillPress.Presets;
             using DrillPress.Testing;
             using Microsoft.CodeAnalysis;
+            using RuleSet = DrillPress.RuleSet;
 
             var fileSystem = new FileSystem();
             var references = fileSystem.File.ReadAllLines(args[0])
@@ -61,12 +62,27 @@ public sealed class LinqCatalogueCase(
                     _ = items.SequenceEqual(query); _ = Enumerable.ToList(query);
                     _ = query.Count(); _ = items.Where(x => x > 0); _ = items.AsEnumerable();
                     _ = items.Reverse();
+                    _ = items.TryGetNonEnumeratedCount(out var first);
+                    _ = Enumerable.TryGetNonEnumeratedCount(items, out var second);
+                    _ = items.Count();
+                    foreach (var item in items) { }
                 } }
                 """)]);
-            foreach (var call in Code.Calls.In(workspace.Analyze())) {
+            var solution = workspace.Analyze();
+            foreach (var call in Code.Calls.In(solution)) {
                 var operation = StandardLinq.Inspect(call);
-                Console.WriteLine($"{operation.Status} {operation.Surface} {operation.Category}: {string.Join(",", operation.SequenceInputs.Select(input => input.Role + ":" + input.Value.Syntax))}");
+                Console.WriteLine($"{operation.Status} {operation.Surface} {operation.Category} {operation.SequenceConsumption}: {string.Join(",", operation.SequenceInputs.Select(input => input.Role + ":" + input.Value.Syntax))}");
             }
+            var rules = new RuleSet();
+            var policy = rules.Rule("LINQ", "Review consuming operations.");
+            policy.For(Code.Calls.Where(call => StandardLinq.Inspect(call).SequenceConsumption == LinqSequenceConsumption.MayEnumerate).Expressions())
+                .Require(Coverage.Executed);
+            policy.For(Code.Calls.Where(call => StandardLinq.Inspect(call) is { Surface: LinqSurface.Queryable, Category: LinqOperationCategory.Scalar }))
+                .Require(Coverage.Executed);
+            policy.For(Code.Enumerations).Require(Coverage.EnumerationStarted);
+            Console.WriteLine("Shared rule: " + string.Join(",", rules.Evaluate(solution).Select(diagnostic =>
+                diagnostic.Descriptor.Id + ":" + diagnostic.Source!.Document.Text.Substring(diagnostic.Location.Start, diagnostic.Location.Length)
+                    + ":" + string.Join("/", diagnostic.Coverage.Select(evidence => evidence.Metric + "=" + evidence.State)))));
             """"
         );
         var inventory = fileSystem.Path.Combine(fixture, "references.txt");
@@ -77,12 +93,16 @@ public sealed class LinqCatalogueCase(
             )
         );
         const string expected = """
-            Supported Enumerable Scalar: first:items,second:query
-            Supported Enumerable Materializer: source:query
-            Supported Queryable Scalar: source:query
-            Supported Enumerable DeferredConstruction: source:items
-            Supported Enumerable Adapter: source:items
-            Supported Enumerable DeferredConstruction: source:items
+            Supported Enumerable Scalar MayEnumerate: first:items,second:query
+            Supported Enumerable Materializer MayEnumerate: source:query
+            Supported Queryable Scalar Unknown: source:query
+            Supported Enumerable DeferredConstruction Unknown: source:items
+            Supported Enumerable Adapter Unknown: source:items
+            Supported Enumerable DeferredConstruction Unknown: source:items
+            Supported Enumerable Scalar NeverEnumerates: source:items
+            Supported Enumerable Scalar NeverEnumerates: source:items
+            Supported Enumerable Scalar MayEnumerate: source:items
+            Shared rule: LINQ:items.SequenceEqual(query):Execution=Unknown,LINQ:Enumerable.ToList(query):Execution=Unknown,LINQ:query.Count():Execution=Unknown,LINQ:items.Count():Execution=Unknown,LINQ:items:Enumeration=Unknown
             """;
         foreach (var mode in Enum.GetValues<BundleMode>())
         {
@@ -141,7 +161,7 @@ public sealed class LinqCatalogueCase(
                 throw new InvalidOperationException($"The {mode} LINQ catalogue contract differs.");
         }
         Console.WriteLine(
-            "LINQ catalogue: managed/native exact classifications and input roles match"
+            "LINQ catalogue: managed/native classifications, consumption facts and shared clauses match"
         );
     }
 }

@@ -26,6 +26,16 @@ public sealed class RuleSet
     /// <summary>Begins a rule declaration over candidates selected by <paramref name="query"/>.</summary>
     public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
 
+    /// <summary>Reserves a unique rule identity for explicitly composed typed clauses, sharing remediation and optional typical fix effort.</summary>
+    public RuleDefinition Rule(
+        string id,
+        string message,
+        RuleFixComplexity? fixComplexity = null
+    ) => Rule(new RuleDescriptor(id, message) { FixComplexity = fixComplexity });
+
+    /// <summary>Reserves the descriptor's identity for typed clauses. Other declarations, including another definition with the same descriptor, cannot reuse its ID.</summary>
+    public RuleDefinition Rule(RuleDescriptor descriptor) => new(this, Register(descriptor));
+
     /// <summary>Evaluates every registered rule and returns diagnostics in deterministic order.</summary>
     public IReadOnlyList<RuleDiagnostic> Evaluate(
         IReadOnlyList<MemberReference> memberReferences
@@ -59,8 +69,48 @@ public sealed class RuleSet
         Func<T, string>? detail = null,
         Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null,
         Func<T, ConditionFailure>? failure = null,
-        CodeQuery<AnalysisProject>? coverageScope = null
+        CodeQuery<AnalysisProject>? coverageScope = null,
+        RuleRegistration? registration = null
     )
+    {
+        if (registration is null)
+            ValidateRegistration(descriptor);
+        RequiresCoverage |= query.RequiresCoverage || coverageScope is not null;
+        var clause = new CandidateRule<T>(
+            query,
+            descriptor,
+            location,
+            fix,
+            reportKey,
+            detail,
+            coverageFacts,
+            failure,
+            coverageScope
+        );
+        if (registration is null)
+            _rules.Add(clause);
+        else
+            registration.Add(clause);
+    }
+
+    private RuleRegistration Register(RuleDescriptor descriptor)
+    {
+        ValidateRegistration(descriptor);
+        var registration = new RuleRegistration(descriptor);
+        _rules.Add(registration);
+        return registration;
+    }
+
+    private void ValidateRegistration(RuleDescriptor descriptor)
+    {
+        ValidateDescriptor(descriptor);
+        if (_rules.Any(rule => rule.Id == descriptor.Id))
+            throw new InvalidOperationException(
+                $"Rule id '{descriptor.Id}' is registered more than once."
+            );
+    }
+
+    private static void ValidateDescriptor(RuleDescriptor descriptor)
     {
         var (id, message) = descriptor;
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -83,25 +133,5 @@ public sealed class RuleSet
                 "Rule identifiers and remediation messages must be single-line."
             );
         }
-
-        if (_rules.Any(rule => rule.Id == id))
-        {
-            throw new InvalidOperationException($"Rule id '{id}' is registered more than once.");
-        }
-
-        RequiresCoverage |= query.RequiresCoverage || coverageScope is not null;
-        _rules.Add(
-            new CandidateRule<T>(
-                query,
-                descriptor,
-                location,
-                fix,
-                reportKey,
-                detail,
-                coverageFacts,
-                failure,
-                coverageScope
-            )
-        );
     }
 }

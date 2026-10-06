@@ -1,4 +1,5 @@
 using System.IO.Abstractions.TestingHelpers;
+using System.Text;
 using DrillPress.Manifest;
 using DrillPress.UnitTests.TestInfrastructure;
 using Xunit;
@@ -7,6 +8,101 @@ namespace DrillPress.UnitTests.Engine.Coverage;
 
 public sealed class CoveragePlanningTests
 {
+    [Fact]
+    public async Task Shared_explicit_collection_scope_survives_clause_reporting_configuration()
+    {
+        var fixture = new CoverageFixture();
+        var rules = new RuleSet();
+        var policy = rules.Rule("SHARED", "Selected covered call.");
+        policy
+            .For(
+                Code.Calls.Where(call =>
+                    call.Target.Name == "Hit"
+                    && global::DrillPress.Coverage.Executed.ExecutionOf(call)
+                        == ExecutionCoverage.Covered
+                )
+            )
+            .CollectCoverageIn(
+                Code.Projects.Where(project => project.Name == fixture.Snapshot.Projects[0].Name)
+            )
+            .ReportOncePer(call => call.Target.Name)
+            .Forbid();
+        policy.For(Code.Enumerations).Require(global::DrillPress.Coverage.EnumerationStarted);
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["SHARED"], diagnostics.Select(diagnostic => diagnostic.Descriptor.Id));
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
+    [Fact]
+    public async Task Shared_clauses_with_no_candidates_launch_no_tests()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.Fail = true;
+        var rules = new RuleSet();
+        var policy = rules.Rule("SHARED", "Exercise selected queries.");
+        policy
+            .For(Code.Calls.ToMethodsNamed("Missing").Expressions())
+            .Require(global::DrillPress.Coverage.Executed);
+        policy.For(Code.Enumerations).Require(global::DrillPress.Coverage.EnumerationStarted);
+        rules.For(Code.Calls.ToMethodsNamed("Hit")).Forbid("STYLE", "Use another API.");
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["STYLE"], diagnostics.Select(diagnostic => diagnostic.Descriptor.Id));
+        Assert.Empty(fixture.Process.Calls);
+    }
+
+    [Fact]
+    public async Task Shared_clauses_plan_only_contexts_with_selected_source_candidates()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.State = "no";
+        var target = fixture.Snapshot.Projects[0];
+        var unrelatedPath = fixture.FileSystem.Path.GetFullPath("/coverage/Unrelated.cs");
+        var unrelatedText = CoverageFixture.Source.Replace("Hit", "Other");
+        var unrelated = target with
+        {
+            ContextId = "unrelated",
+            Name = "Unrelated",
+            AssemblyName = "Unrelated",
+            ProjectPath = fixture.FileSystem.Path.GetFullPath("/coverage/Unrelated.csproj"),
+            Documents =
+            [
+                SourceIdentity.Capture(
+                    new DocumentSnapshot(unrelatedPath, unrelatedText, false),
+                    Encoding.UTF8.GetBytes(unrelatedText),
+                    "utf-8",
+                    false
+                ),
+            ],
+        };
+        fixture.FileSystem.AddFile(unrelated.ProjectPath, new MockFileData("<Project />"));
+        fixture.FileSystem.AddFile(unrelatedPath, new MockFileData(unrelatedText));
+        var snapshot = CompilationSnapshot.Create([target, unrelated]);
+        var rules = new RuleSet();
+        var policy = rules.Rule("SHARED", "Exercise selected queries.");
+        policy
+            .For(Code.Calls.ToMethodsNamed("Hit").Expressions())
+            .Require(global::DrillPress.Coverage.Executed);
+        policy.For(Code.Enumerations).Require(global::DrillPress.Coverage.EnumerationStarted);
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["coverage: uncovered"],
+            diagnostics.Select(diagnostic => diagnostic.Evidence)
+        );
+        Assert.Equal(1, fixture.Process.Collections);
+    }
+
     [Fact]
     public async Task Keyed_exclusion_retains_candidates_when_projected_counterparts_need_coverage()
     {
