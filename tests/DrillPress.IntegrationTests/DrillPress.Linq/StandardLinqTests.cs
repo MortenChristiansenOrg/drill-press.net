@@ -79,7 +79,7 @@ public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFix
             LINQ_OPERATION|Review this overload.|Older/net8.0|Older.cs|items.Index()|0
             TERMINAL|Selected terminal.|Older/net8.0|Older.cs|items.Count()|0
             TERMINAL|Selected terminal.|Supported/net10.0|Supported.cs|items.Count()|0
-            """,
+            """.Replace("\r\n", "\n"),
             string.Join(
                 "\n",
                 diagnostics.Select(diagnostic =>
@@ -159,7 +159,7 @@ public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFix
             Supported/Enumerable/SequenceFactory/Unknown:
             Supported/Queryable/Scalar/Unknown:source:query
             Supported/Queryable/DeferredConstruction/Unknown:source:query
-            """,
+            """.Replace("\r\n", "\n"),
             string.Join("\n", descriptions)
         );
     }
