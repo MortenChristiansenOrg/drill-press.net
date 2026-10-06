@@ -5,6 +5,11 @@ namespace DrillPress;
 /// <summary>Explicit declaration-part and statement selections for style conventions.</summary>
 public static class StyleQueries
 {
+    /// <summary>Selects explicit local, foreach and out declarations whose inferred type and binding survive replacement with var.</summary>
+    public static CodeQuery<CodeTypedDeclaration> WhereVarPreservesType(
+        this CodeQuery<CodeTypedDeclaration> declarations
+    ) => declarations.Where(declaration => declaration.CanUseVar);
+
     /// <summary>Selects written top-level declaration parts.</summary>
     public static CodeQuery<CodeTypeDeclaration> TopLevel(
         this CodeQuery<CodeTypeDeclaration> types

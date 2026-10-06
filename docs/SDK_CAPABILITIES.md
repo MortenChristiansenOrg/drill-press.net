@@ -227,6 +227,18 @@ constructor, or per project, for synthetic fixtures and reference-pack fidelity.
 Use the same source path and text in multiple projects to test linked files;
 use separate symbols/reference sets to exercise alternate evaluations.
 
+`AddProject` accepts per-project `nullable` (`NullableContextOptions`) and
+`languageVersion` (`LanguageVersion`) options. Defaults remain nullable annotations
+and warnings enabled and C# 14. The fixture compilation and snapshot use the same
+values; `#nullable` source directives override the project setting. For example:
+
+```csharp
+var annotated = workspace.AddProject("Annotated", annotatedSources);
+workspace.AddProject("Legacy", legacySources, dependencies: [annotated],
+    nullable: Microsoft.CodeAnalysis.NullableContextOptions.Disable,
+    languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12);
+```
+
 The [codec showcase](../samples/DrillPress.SampleRules/ShowcaseRules.cs) supplies
 thirteen independent policies covering the capability groups above. The
 [runnable target](../samples/CodecExamples/README.md) demonstrates useful findings

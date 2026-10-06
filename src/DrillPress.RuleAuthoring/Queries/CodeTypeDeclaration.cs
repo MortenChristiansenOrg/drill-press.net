@@ -27,6 +27,9 @@ public sealed class CodeTypeDeclaration : ICodeElement
     /// <summary>The part's identifier.</summary>
     public string Name => Identifier.ValueText;
 
+    /// <summary>Identifier words preserving casing, including acronym and digit boundaries.</summary>
+    public IReadOnlyList<string> NameWords => CodeIdentifier.NamedWords(Name);
+
     /// <summary>Whether the part is declared at compilation or namespace scope.</summary>
     public bool IsTopLevel =>
         Syntax.Parent is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax;

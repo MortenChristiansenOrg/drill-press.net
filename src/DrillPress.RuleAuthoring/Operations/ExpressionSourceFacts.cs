@@ -11,6 +11,24 @@ public sealed class ExpressionSourceFacts
     private readonly AnalysisSource _source;
     private readonly ExpressionSyntax _syntax;
 
+    /// <summary>Whether this expression references a local whose sole write is its declarator initializer. Ref/in/out escapes and writes in nested functions prevent proof.</summary>
+    public bool IsAssignedOnlyByInitializer =>
+        LocalReference(new CodeExpression(_source, _syntax).Operation) is { } local
+        && _source.LocalAssignments.Initializer(local) is not null;
+
+    internal static ILocalSymbol? LocalReference(IOperation? operation)
+    {
+        while (
+            operation
+                is IParenthesizedOperation
+                    or IConversionOperation { IsImplicit: true, Conversion.IsUserDefined: false }
+        )
+            operation = operation is IParenthesizedOperation parenthesized
+                ? parenthesized.Operand
+                : ((IConversionOperation)operation).Operand;
+        return (operation as ILocalReferenceOperation)?.Local;
+    }
+
     internal ExpressionSourceFacts(AnalysisSource source, ExpressionSyntax syntax)
     {
         _source = source;

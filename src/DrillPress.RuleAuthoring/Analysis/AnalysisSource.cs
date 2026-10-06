@@ -8,6 +8,7 @@ namespace DrillPress;
 public sealed class AnalysisSource
 {
     private readonly Lazy<SemanticModel> _model;
+    private readonly Lazy<LocalAssignments> _localAssignments;
 
     internal AnalysisSource(AnalysisProject project, DocumentSnapshot document, SyntaxTree tree)
     {
@@ -15,6 +16,7 @@ public sealed class AnalysisSource
         Document = document;
         Tree = tree;
         _model = new(() => project.Compilation.GetSemanticModel(tree));
+        _localAssignments = new(() => new LocalAssignments(this));
     }
 
     /// <summary>The independent compilation context containing this document membership.</summary>
@@ -28,6 +30,8 @@ public sealed class AnalysisSource
 
     /// <summary>The cached semantic model, created only when a rule needs binding.</summary>
     public SemanticModel Model => _model.Value;
+
+    internal LocalAssignments LocalAssignments => _localAssignments.Value;
 
     /// <summary>Converts a UTF-16 span to physical coordinates, ignoring #line remapping.</summary>
     public SourceLocation Locate(TextSpan span)

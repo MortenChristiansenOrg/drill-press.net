@@ -6,11 +6,14 @@ namespace DrillPress;
 /// <summary>A written local, foreach or declaration-expression type, preserving the containing declaration group.</summary>
 public sealed class CodeTypedDeclaration : ICodeElement
 {
+    private readonly Lazy<bool> _canUseVar;
+
     internal CodeTypedDeclaration(AnalysisSource source, SyntaxNode syntax, TypeSyntax type)
     {
         Source = source;
         Syntax = syntax;
         TypeSyntax = type;
+        _canUseVar = new(() => VarRewrite.CanUseVar(this));
     }
 
     /// <summary>The original source membership.</summary>
@@ -21,6 +24,10 @@ public sealed class CodeTypedDeclaration : ICodeElement
 
     /// <summary>The original written type syntax.</summary>
     public TypeSyntax TypeSyntax { get; }
+
+    /// <summary>Whether replacing this explicit type with var preserves the inferred local type, nullability, tuple names and enclosing binding. Unsupported or unresolved declarations return false.</summary>
+    /// <remarks>Multi-declarator locals and value-producing target-typed expressions are excluded. The result is cached for this declaration.</remarks>
+    public bool CanUseVar => _canUseVar.Value;
 
     /// <summary>A reportable type-name element belonging to the original context.</summary>
     public CodeNode<TypeSyntax> TypeName => new(Source, TypeSyntax);

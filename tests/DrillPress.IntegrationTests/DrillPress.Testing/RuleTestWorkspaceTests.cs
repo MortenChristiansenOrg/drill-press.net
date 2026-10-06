@@ -8,6 +8,111 @@ namespace DrillPress.IntegrationTests.Testing;
 public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Project_options_match_compilation_snapshot_and_source_directives()
+    {
+        var workspace = fixture.Workspace();
+        var library = workspace.AddProject(
+            "Annotated",
+            [
+                new(
+                    "Library.cs",
+                    "public static class Library { public static string Value => \"x\"; }"
+                ),
+            ]
+        );
+        var legacy = workspace.AddProject(
+            "Legacy",
+            [
+                new(
+                    "Legacy.cs",
+                    """
+                    class Legacy
+                    {
+                        string Read() => Library.Value;
+                    #nullable enable
+                        string Enabled() => Library.Value;
+                    }
+                    """
+                ),
+            ],
+            dependencies: [library],
+            nullable: Microsoft.CodeAnalysis.NullableContextOptions.Disable,
+            languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12
+        );
+        var source = legacy.Sources.Single();
+
+        var contexts = new[]
+        {
+            source.Model.GetNullableContext(
+                source.Document.Text.IndexOf("Read()", StringComparison.Ordinal)
+            ),
+            source.Model.GetNullableContext(
+                source.Document.Text.IndexOf("Enabled()", StringComparison.Ordinal)
+            ),
+        }
+            .Select(context =>
+                context.HasFlag(Microsoft.CodeAnalysis.NullableContext.AnnotationsEnabled)
+            )
+            .ToArray();
+
+        Assert.Equal([false, true], contexts);
+        Assert.Equal(
+            Microsoft.CodeAnalysis.NullableContextOptions.Enable,
+            library.Compilation.Options.NullableContextOptions
+        );
+        Assert.Equal(
+            Microsoft.CodeAnalysis.NullableContextOptions.Disable,
+            legacy.Compilation.Options.NullableContextOptions
+        );
+        Assert.Equal(
+            (int)Microsoft.CodeAnalysis.NullableContextOptions.Disable,
+            legacy.Snapshot.NullableContextOptions
+        );
+        Assert.Equal(
+            (int)Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12,
+            legacy.Snapshot.LanguageVersion
+        );
+        Assert.Equal(
+            Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12,
+            ((Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)source.Tree.Options).LanguageVersion
+        );
+        Assert.Equal(
+            (int)Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp14,
+            library.Snapshot.LanguageVersion
+        );
+    }
+
+    [Fact]
+    public void Per_project_language_options_control_available_syntax()
+    {
+        var workspace = fixture.Workspace();
+        const string source = "class A { int[] Values = []; }";
+        var old = workspace.AddProject(
+            "Old",
+            [new("Old.cs", source)],
+            languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp11,
+            allowErrors: true
+        );
+        var modern = workspace.AddProject(
+            "Modern",
+            [new("Modern.cs", source)],
+            languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12
+        );
+
+        var errors = new[] { old, modern }
+            .Select(project =>
+                project
+                    .Compilation.GetDiagnostics()
+                    .Any(diagnostic =>
+                        diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error
+                    )
+            )
+            .ToArray();
+
+        Assert.Equal([true, false], errors);
+    }
+
+    [Fact]
     public async Task Generated_custom_candidates_never_report_and_linked_frameworks_withhold_inactive_fixes()
     {
         var workspace = fixture.Workspace();

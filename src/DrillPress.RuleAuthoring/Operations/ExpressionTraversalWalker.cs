@@ -4,6 +4,7 @@ namespace DrillPress;
 
 internal sealed class ExpressionTraversalWalker(
     ExpressionTraversalStep[] steps,
+    bool throughLocals,
     int maxDepth,
     int maxExpressions
 )
@@ -50,6 +51,16 @@ internal sealed class ExpressionTraversalWalker(
             return;
         }
         var call = expression.AsInvocation();
+        if (
+            throughLocals && ExpressionSourceFacts.LocalReference(expression.Operation) is { } local
+        )
+        {
+            if (expression.Source.LocalAssignments.Initializer(local) is not { } initializer)
+                Stop(expression, ExpressionTraversalReason.LocalNotSingleAssignment);
+            else
+                Follow(expression, [initializer], depth);
+            return;
+        }
         if (call is null)
         {
             if (
@@ -62,6 +73,11 @@ internal sealed class ExpressionTraversalWalker(
             return;
         }
         var inputs = Inputs(call).OrderBy(value => value.Location.Start).ToArray();
+        Follow(expression, inputs, depth);
+    }
+
+    private void Follow(CodeExpression expression, CodeExpression[] inputs, int depth)
+    {
         if (inputs.Length > 0 && depth == maxDepth)
         {
             Stop(expression, ExpressionTraversalReason.DepthLimit);

@@ -263,8 +263,9 @@ and the other does not. `Fix.For(branch).AddBraces().Propose()` uses the existin
 restricted block-wrapping proof.
 
 ```csharp
-rules.For(Code.LocalVariables.WithExplicitType().WithInitializer())
-    .Forbid("VAR", "Use var.", at: local => local.TypeName);
+rules.For(Code.LocalVariables.WhereVarPreservesType())
+    .Forbid("VAR", "Use var.", at: local => local.TypeName,
+        fix: local => Fix.For(local).UseVar());
 
 rules.For(Code.TestMethods.Body().ControlFlowNodes(ControlFlowKinds.AnyBranchOrLoop))
     .ReportOncePer(node => node.ContainingSymbol)
@@ -285,3 +286,46 @@ method => method.NameEndsWith("Async"))`. `NameStartsWith`, `NameEndsWith` and `
 use ordinal/case-sensitive matching. `HasBody`, `HasEmptyBody` and `HasNoStatements`
 distinguish missing bodies, empty blocks and expression bodies; an unresolved method
 retains its syntax and has no fabricated `ContainingType`.
+
+`CanUseVar` and `WhereVarPreservesType()` apply to local, foreach and out
+declarations. They rebind the replacement in its original context and require the
+same variable type, nullable annotations, tuple element names and enclosing call
+binding. Target-typed values, multi-declarator locals, conversions and unresolved
+code are excluded. C# may infer a nullable reference annotation for `var` even
+from a non-null initializer, so changing `string value = "x"` is excluded while
+`string? value = "x"` can qualify. `UseVar()` replaces only the type span and
+validates the final edit batch in every affected context.
+
+`NameWords` on methods and type declarations, and `NameWords()` on any named
+compiler symbol, share `CodeIdentifier.Words`. It preserves casing, splits
+underscores, lower-to-upper and acronym boundaries, and both letter/digit
+transitions, including Unicode letters. `HTTPClientFactory2` becomes `HTTP`,
+`Client`, `Factory`, `2`; leading `@` and empty underscore segments are ignored.
+`NameContainsWord` and `WhereNameContainsAnyWord` match whole words using ordinal
+comparison by default; pass `StringComparison.OrdinalIgnoreCase` explicitly for
+case-insensitive naming policies.
+
+### Comments
+
+```csharp
+rules.For(Code.TestMethods.Body().Comments()
+        .Where(comment => phaseLabels.Contains(comment.Text.Trim())))
+    .Forbid("PHASE", "Remove test phase labels.",
+        fix: comment => Fix.For(comment).Remove());
+```
+
+`Comments()` also works on files, methods, type declarations and syntax-node
+queries. Candidates have a typed `Kind`, delimiter-free `Text`, original `Source`,
+their own `Location`, and the nearest declaration owning the trivia's token.
+Declaration queries include their exterior trivia; body queries retain comments
+inside the executable body, including after an expression-body arrow, and honor
+`NestedFunctions`. Overlapping scopes
+deduplicate candidates per source membership. Strings and inactive preprocessor
+text contribute no comments. Documentation text retains whitespace and line
+endings after removing each `///` prefix or the outer `/** */` delimiters.
+
+`Remove()` deletes the full physical line range when a comment stands alone,
+including its final line break, while retaining adjacent blank lines. Inline
+removal keeps a separator when needed. Token correspondence, compilation and
+compiler-supplied argument checks withhold changes that alter parsing or caller
+information, such as subsequent `CallerLineNumber` values.

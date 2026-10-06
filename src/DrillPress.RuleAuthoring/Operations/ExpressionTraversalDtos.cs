@@ -25,6 +25,9 @@ public enum ExpressionTraversalReason
     /// <summary>A configured receiver or named input has no explicit source value.</summary>
     UnavailableInput,
 
+    /// <summary>A selected local has no initializer or cannot be proven free of other writes and ref/in/out escapes.</summary>
+    LocalNotSingleAssignment,
+
     /// <summary>The next configured step exceeds the maximum depth.</summary>
     DepthLimit,
 
@@ -42,7 +45,7 @@ public sealed record ExpressionTraversalBoundary(
 
 /// <summary>Visited expressions in depth-first source order, including the root, with explicit incomplete paths.</summary>
 /// <param name="Status">Completion of the configured paths, independently of classification results.</param>
-/// <param name="Values">Original source views, without reconstructing conversions or following assignments.</param>
+/// <param name="Values">Original source views, including proven local initializers only when explicitly configured.</param>
 /// <param name="Boundaries">Paths that could not be followed; empty on complete traversal.</param>
 public sealed record ExpressionTraversalResult(
     ExpressionTraversalStatus Status,
