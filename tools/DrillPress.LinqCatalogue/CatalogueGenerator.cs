@@ -37,6 +37,7 @@ public sealed class CatalogueGenerator(IFileSystem fileSystem)
             {
                 var signature = LinqSignature.Of(method);
                 var category = Category(method.Name);
+                var consumption = Consumption(owner, method.Name, category);
                 var parameters = method
                     .Parameters.Where(parameter => IsSequence(parameter.Type))
                     .Select(parameter => parameter.Ordinal)
@@ -45,6 +46,7 @@ public sealed class CatalogueGenerator(IFileSystem fileSystem)
                 {
                     if (
                         existing.Category != category
+                        || existing.SequenceConsumption != consumption
                         || !existing.SequenceParameters.SequenceEqual(parameters)
                     )
                         throw new InvalidDataException(
@@ -56,13 +58,16 @@ public sealed class CatalogueGenerator(IFileSystem fileSystem)
                     };
                 }
                 else
-                    entries.Add(signature, new(signature, category, 1 << index, parameters));
+                    entries.Add(
+                        signature,
+                        new(signature, category, 1 << index, parameters, consumption)
+                    );
             }
         }
         var rows = entries
             .Values.OrderBy(entry => entry.Signature)
             .Select(entry =>
-                $"        new({JsonSerializer.Serialize(entry.Signature, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping })}, LinqOperationCategory.{entry.Category}, {entry.Frameworks}, [{string.Join(", ", entry.SequenceParameters)}]),"
+                $"        new({JsonSerializer.Serialize(entry.Signature, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping })}, LinqOperationCategory.{entry.Category}, {entry.Frameworks}, [{string.Join(", ", entry.SequenceParameters)}], LinqSequenceConsumption.{entry.SequenceConsumption}),"
             );
         fileSystem.File.WriteAllText(
             arguments[0],
@@ -85,6 +90,17 @@ public sealed class CatalogueGenerator(IFileSystem fileSystem)
                     or "System.Linq.IQueryable<T>"
                     or "System.Linq.IOrderedQueryable<T>"
                     or "System.Linq.IOrderedEnumerable<TElement>";
+
+    private static LinqSequenceConsumption Consumption(
+        string owner,
+        string name,
+        LinqOperationCategory category
+    ) =>
+        owner != "System.Linq.Enumerable" ? LinqSequenceConsumption.Unknown
+        : name == "TryGetNonEnumeratedCount" ? LinqSequenceConsumption.NeverEnumerates
+        : category is LinqOperationCategory.Scalar or LinqOperationCategory.Materializer
+            ? LinqSequenceConsumption.MayEnumerate
+        : LinqSequenceConsumption.Unknown;
 
     private static LinqOperationCategory Category(string name) =>
         name switch

@@ -51,6 +51,17 @@ rules.For(asyncMethods).Require(
     &quot;TEAM002&quot;,
     &quot;Give asynchronous methods an Async suffix.&quot;);</code></pre></div>
 <p>This selects async methods, then reports the ones whose names lack the suffix. By contrast, <code>Forbid</code> reports every candidate already selected. Neither method throws away the useful source location.</p>
+<h2 id="shared-identity">Give typed clauses one rule identity</h2>
+<p>Use <code>rules.Rule(id, message)</code> when one policy needs different candidate types. Calls can require execution while loops require enumeration advancement under the same ID and remediation.</p>
+<div class="codeblock"><div class="codehead"><span>Compose call and loop requirements</span></div><pre tabindex="0" data-check="program" id="example-shared-rule"><code>using DrillPress;
+
+var rules = new RuleSet();
+var policy = rules.Rule(&quot;DATA002&quot;, &quot;Exercise each data query.&quot;);
+policy.For(Code.Calls.ToMethodsNamed(&quot;ReadQuery&quot;).Expressions())
+    .Require(Coverage.Executed);
+policy.For(Code.Enumerations)
+    .Require(Coverage.EnumerationStarted);</code></pre></div>
+<p>Apply your own source filters to both selections. The definition reserves its ID immediately; unrelated declarations still cannot reuse it. Each clause retains its typed evidence and outcome policy. <code>ReportOncePer</code> groups only its own clause, and every fix still passes conflict and combined validation. See <a href="../docs/RULE_AUTHORING.md">shared-rule reporting and fix behavior</a>.</p>
 <h2 id="conditions">Name conditions and exceptions</h2>
 <div class="codeblock"><div class="codehead"><span>Compose a convention and its exception</span></div><pre tabindex="0" data-check="program" id="example-6"><code>using DrillPress;
 
@@ -86,7 +97,7 @@ rules.For(applicationMethods.Where(asynchronous.ExceptWhen(eventHandler)))
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#conditions">Name conditions and exceptions</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#shared-identity">Give typed clauses one rule identity</a><a href="#conditions">Name conditions and exceptions</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

@@ -322,7 +322,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "RuleSet · API field guide",
     "url": "reference.html#api-ruleset",
-    "text": "For(query); Evaluate(solution); Evaluate(memberReferences) Collect explicit registrations. Evaluate returns ordered RuleDiagnostic values; it is not the complete cross-context fix-validation workflow."
+    "text": "For(query); Evaluate(solution); Evaluate(memberReferences) Collect explicit registrations. Evaluate returns ordered RuleDiagnostic values; it is not the complete cross-context fix-validation workflow. Rule(id, message) or Rule(descriptor) reserves a shared identity for typed clauses."
   },
   {
     "title": "RuleScope<T> · API field guide",
@@ -332,7 +332,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "RuleDescriptor / RuleDiagnostic · API field guide",
     "url": "reference.html#api-ruledescriptor-rulediagnostic",
-    "text": "Id, Message / Descriptor, Location, Source, Fix Stable policy text and a source-anchored result. IDs must be unique within a rule set."
+    "text": "Id, Message / Descriptor, Location, Source, Fix Stable policy text and a source-anchored result. IDs are unique; explicitly composed clauses share one reserved definition."
   },
   {
     "title": "RuleCondition<T> · API field guide",
@@ -625,8 +625,23 @@ window.DRILLPRESS_SEARCH = [
     "text": "Microsoft.CodeAnalysis contains symbols, operations, and compiler result types. Microsoft.CodeAnalysis.CSharp.Syntax contains C# syntax node types. Microsoft.CodeAnalysis.Operations contains typed operation interfaces; Microsoft.CodeAnalysis.Text.TextSpan describes a character range. Use the existing Source.Model , Source.Tree , and Project.Compilation rather than making a second compiler view of the same source. Compare symbols using compiler identity, not display strings. Keep unavailable or ambiguous facts distinct from a confirmed policy violation."
   },
   {
-  "title": "Require test execution \u00b7 Calls and flow",
-  "url": "analysis.html#coverage",
-  "text": "Coverage.Executed Coverage.Line.AtLeast line thresholds test execution covered uncovered unknown transparent collection report cache refresh-coverage source checksum portable PDB"
-}
+    "title": "Require test execution · Calls and flow",
+    "url": "analysis.html#coverage",
+    "text": "Coverage.Executed Coverage.Line.AtLeast line thresholds test execution covered uncovered unknown transparent collection report cache refresh-coverage source checksum portable PDB"
+  },
+  {
+    "title": "Give typed clauses one rule identity · Select and compose",
+    "url": "selections.html#shared-identity",
+    "text": "RuleSet.Rule creates a RuleDefinition. For(query) returns a typed RuleClause with Require, Forbid, ReportOncePer and CollectCoverageIn. Calls and enumerations share an ID while retaining coverage evidence, outcome policies and safe fix validation."
+  },
+  {
+    "title": "RuleDefinition / RuleClause<T> · API field guide",
+    "url": "reference.html#api-ruledefinition-ruleclauset",
+    "text": "Descriptor, For(query), Require, Forbid, ReportOncePer, CollectCoverageIn. Shared rule identity with typed clauses and clause-local reporting groups."
+  },
+  {
+    "title": "StandardLinq / LinqOperation · API field guide",
+    "url": "reference.html#api-standardlinq",
+    "text": "Optional DrillPress.Linq catalogue in DrillPress.Presets. Inspect exposes Status, Surface, Category, SequenceInputs and SequenceConsumption. Handle unsupported frameworks and overloads explicitly; distinguish NotStandardSymbol from Unresolved. NeverEnumerates, MayEnumerate and Unknown are declaration facts, not execution evidence."
+  }
 ];

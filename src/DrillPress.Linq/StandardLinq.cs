@@ -51,6 +51,9 @@ public static class StandardLinq
             surface,
             entry.Category,
             Array.AsReadOnly(inputs)
-        );
+        )
+        {
+            SequenceConsumption = entry.SequenceConsumption,
+        };
     }
 }
