@@ -45,6 +45,9 @@ public sealed class CodeDeclaration : ICodeElement
     /// <summary>The unqualified declared type name.</summary>
     public string Name => Symbol.Name;
 
+    /// <summary>Identifier words preserving casing, including acronym and digit boundaries.</summary>
+    public IReadOnlyList<string> NameWords => CodeIdentifier.Words(Name);
+
     /// <summary>The declared namespace, or an empty string for the global namespace.</summary>
     public string Namespace =>
         Symbol.ContainingNamespace.IsGlobalNamespace

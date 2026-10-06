@@ -33,7 +33,7 @@ public static class SampleRuleSet
                 "Remove interfaces with exactly one concrete non-test implementation."
             );
         rules
-            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References.OutsideNameOf())
             .Forbid(
                 "DP1004",
                 "Use the empty string literal \"\" instead of string.Empty.",

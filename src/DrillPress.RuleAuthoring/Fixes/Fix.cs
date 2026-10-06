@@ -7,6 +7,12 @@ namespace DrillPress;
 /// <summary>Constructs contextual edit proposals; no files are written and a consumer semantic proof is required.</summary>
 public static class Fix
 {
+    /// <summary>Selects physical comment trivia for removal with token and caller-information preservation checks.</summary>
+    public static CommentFix For(CodeComment comment) => new(comment);
+
+    /// <summary>Selects a written local, foreach or out type for inference-preserving replacement.</summary>
+    public static TypedDeclarationFix For(CodeTypedDeclaration declaration) => new(declaration);
+
     /// <summary>Starts an expression edit; a source-less member reference retains an unavailable builder that proposes nothing.</summary>
     /// <remarks>Selection does not authorize an edit. See the selected builder Propose documentation for its default source, trivia, binding and contextual compilation gates; additional evaluation and behavior obligations remain explicit.</remarks>
     public static ReferenceFix For(MemberReference reference) =>

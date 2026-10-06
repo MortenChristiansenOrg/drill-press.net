@@ -220,9 +220,31 @@ binding/inputs, and limits. Defaults are 16 steps and 256 expressions; set
 `maxDepth` and `maxExpressions` explicitly when needed. Omitted inputs, implicit
 `this`, dynamic calls, conditional-access envelopes, and explicit/user conversions
 are unavailable. Unconfigured calls, local/parameter references, and properties
-are intentional boundaries: traversal does not chase assignments, method bodies,
+are intentional boundaries by default. Opt into proven local initializers with
+`ThroughSingleAssignmentLocals()`:
+
+```csharp
+var traversal = adapters.ThroughSingleAssignmentLocals();
+var result = expression.TraverseInputs(traversal);
+```
+
+The initializer must be the local's only write. Assignments, increments,
+deconstruction, ref/in/out escapes, ref aliases and writes in nested functions
+prevent proof, regardless of ordinary body-query nesting policy.
+`expression.Facts.IsAssignedOnlyByInitializer` exposes that evidence for local
+references. Scope analysis is cached within each source membership. Failed proofs
+produce `LocalNotSingleAssignment` boundaries; local and call-input chains share
+the same traversal limits. Original values and source locations remain available
+at the call site and at each initializer. Traversal does not follow method bodies,
 property implementations, or runtime aliases. An adapter match proves no purity,
 runtime object identity, or permission to remove or rewrite that adapter.
+
+Member references expose `AsExpression()` and nullable `Facts` using the same
+evidence as `CodeExpression`. Source-less candidates have neither projection nor
+facts. `member.References.OutsideNameOf()` explicitly excludes compiler-bound
+nameof operands and source-less candidates; ordinary member-reference queries
+retain their current defaults. Fix builders continue to withhold observable
+rewrites independently of reporting filters.
 
 ## Multiple argument roles
 

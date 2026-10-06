@@ -186,6 +186,7 @@ public sealed class VerificationSession : IDisposable
             var (name, expression, outcome) in new[]
             {
                 ("clean", "\"\"", BundleOutcome.Clean),
+                ("nameof", "nameof(Text.Empty)", BundleOutcome.Clean),
                 ("violating", "Text.Empty", BundleOutcome.Findings),
             }
         )

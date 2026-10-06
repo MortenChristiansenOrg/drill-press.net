@@ -18,4 +18,11 @@ public sealed record MemberReference(
 
     /// <summary>The resolved member; candidate symbols from ambiguous binding are excluded.</summary>
     public Microsoft.CodeAnalysis.ISymbol? Symbol { get; init; }
+
+    /// <summary>The equivalent source expression, or null when the candidate has no source or syntax.</summary>
+    public CodeExpression? AsExpression() =>
+        Source is { } source && Syntax is { } syntax ? new(source, syntax) : null;
+
+    /// <summary>Original expression-context evidence, unavailable for source-less candidates. These facts do not authorize a rewrite.</summary>
+    public ExpressionSourceFacts? Facts => AsExpression()?.Facts;
 }

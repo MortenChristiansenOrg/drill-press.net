@@ -9,8 +9,7 @@ public sealed class EmptyStringFixTests(SemanticRuleFixture fixture)
     [Theory]
     [InlineData("string.Empty", "\"\"")]
     [InlineData("global::System.String.Empty", "\"\"")]
-    [InlineData("nameof(string.Empty)", null)]
-    public async Task Diagnoses_bound_aliases_and_nameof_but_only_fixes_values(
+    public async Task Diagnoses_and_fixes_bound_value_references(
         string expression,
         string? replacement
     )
@@ -19,10 +18,17 @@ public sealed class EmptyStringFixTests(SemanticRuleFixture fixture)
 
         var findings = await fixture.Describe(project);
 
-        Assert.Equal(
-            [("DP1004", 1, expression.Replace("nameof(", "").TrimEnd(')'), replacement)],
-            findings
-        );
+        Assert.Equal([("DP1004", 1, expression, replacement)], findings);
+    }
+
+    [Fact]
+    public async Task Nameof_references_are_not_reported()
+    {
+        var project = fixture.Project("class C { string Value => nameof(string.Empty); }");
+
+        var findings = await fixture.Describe(project);
+
+        Assert.Empty(findings);
     }
 
     [Fact]

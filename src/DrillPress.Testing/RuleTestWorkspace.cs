@@ -35,6 +35,7 @@ public sealed class RuleTestWorkspace
         _references = references.ToArray();
 
     /// <summary>Adds an independently evaluated source project. Dependencies must already belong to this workspace. Framework labels do not select reference packs.</summary>
+    /// <remarks>Defaults to nullable annotations and warnings enabled and C# 14. Source directives override the project nullable setting.</remarks>
     public AnalysisProject AddProject(
         string name,
         IReadOnlyList<TestSource> sources,
@@ -44,7 +45,9 @@ public sealed class RuleTestWorkspace
         IReadOnlyList<string>? symbols = null,
         bool allowErrors = false,
         IReadOnlyList<MetadataReference>? references = null,
-        IReadOnlyList<PackageReferenceSnapshot>? packages = null
+        IReadOnlyList<PackageReferenceSnapshot>? packages = null,
+        NullableContextOptions nullable = NullableContextOptions.Enable,
+        LanguageVersion languageVersion = LanguageVersion.CSharp14
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -69,7 +72,7 @@ public sealed class RuleTestWorkspace
                 )
             )
             .ToArray();
-        var parse = new CSharpParseOptions(LanguageVersion.CSharp14, preprocessorSymbols: symbols);
+        var parse = new CSharpParseOptions(languageVersion, preprocessorSymbols: symbols);
         var compilation = CSharpCompilation.Create(
             name,
             documents.Select(document =>
@@ -80,7 +83,7 @@ public sealed class RuleTestWorkspace
             ),
             new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
-                nullableContextOptions: NullableContextOptions.Enable
+                nullableContextOptions: nullable
             )
         );
         if (!allowErrors)
@@ -101,9 +104,9 @@ public sealed class RuleTestWorkspace
             name,
             name,
             name + ".csproj",
-            (int)LanguageVersion.CSharp14,
+            (int)languageVersion,
             (int)OutputKind.DynamicallyLinkedLibrary,
-            (int)NullableContextOptions.Enable,
+            (int)nullable,
             symbols.ToArray(),
             documents,
             []
