@@ -17,8 +17,7 @@ public sealed class CommentFix
         if (!source.Document.IsEditable || source.Document.IsGenerated)
             return null;
         var text = source.Tree.GetText(source.Project.CancellationToken);
-        var location = _comment.Location;
-        var span = new TextSpan(location.Start, location.Length);
+        var span = _comment.Span;
         var first = text.Lines.GetLineFromPosition(span.Start);
         var last = text.Lines.GetLineFromPosition(span.End);
         var alone =

@@ -10,6 +10,8 @@ public sealed class CodeComment : ICodeElement
 {
     private readonly TextSpan _span;
 
+    internal TextSpan Span => _span;
+
     internal CodeComment(AnalysisSource source, SyntaxTrivia trivia)
     {
         Source = source;

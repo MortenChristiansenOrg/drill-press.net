@@ -51,4 +51,13 @@ public static class CodeIdentifier
         ArgumentException.ThrowIfNullOrWhiteSpace(word);
         return Words(identifier).Any(candidate => candidate.Equals(word, comparison));
     }
+
+    internal static IReadOnlyList<string> NamedWords(string name) =>
+        name.Length == 0 ? [] : Words(name);
+
+    internal static bool NamedContainsWord(string name, string word, StringComparison comparison)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(word);
+        return NamedWords(name).Any(candidate => candidate.Equals(word, comparison));
+    }
 }

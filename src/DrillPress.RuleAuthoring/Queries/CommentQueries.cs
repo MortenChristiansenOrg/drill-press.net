@@ -45,11 +45,7 @@ public static class CommentQueries
 
     private static CodeQuery<CodeComment> Unique(CodeQuery<CodeComment> comments) =>
         CodeQuery<CodeComment>.Create(solution =>
-            comments
-                .In(solution)
-                .DistinctBy(comment =>
-                    (comment.Source, comment.Location.Start, comment.Location.Length)
-                )
+            comments.In(solution).DistinctBy(comment => (comment.Source, comment.Span))
         );
 
     private static IEnumerable<CodeComment> ReadBody(CodeBody body)

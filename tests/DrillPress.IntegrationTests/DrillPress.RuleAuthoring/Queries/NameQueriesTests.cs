@@ -7,6 +7,37 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Queries;
 public sealed class NameQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Unnamed_symbols_have_no_name_words_and_never_match_a_word()
+    {
+        var workspace = fixture.Workspace();
+        var project = workspace.AddProject("Library", [new("A.cs", "class A {}")]);
+        var symbol = project.Compilation.GlobalNamespace;
+
+        var words = symbol.NameWords();
+        var contains = symbol.NameContainsWord("A");
+
+        Assert.Empty(words);
+        Assert.False(contains);
+    }
+
+    [Fact]
+    public void Missing_written_identifiers_have_no_words_or_matches()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", "class {}")], allowErrors: true);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var declaration = Code.TypeDeclarations.In(solution).Single();
+        var words = declaration.NameWords;
+        var contains = declaration.NameContainsWord("A");
+        var selected = Code.TypeDeclarations.WhereNameContainsAnyWord(["A"]).In(solution);
+
+        Assert.Empty(words);
+        Assert.False(contains);
+        Assert.Empty(selected);
+    }
+
+    [Fact]
     public void Word_helpers_cover_named_declarations_parameters_and_locals()
     {
         var workspace = fixture.Workspace();

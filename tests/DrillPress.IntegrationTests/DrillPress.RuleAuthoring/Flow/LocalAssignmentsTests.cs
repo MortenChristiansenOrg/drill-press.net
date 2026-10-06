@@ -5,6 +5,58 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Flow;
 
 public sealed class LocalAssignmentsTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Fact]
+    public void Top_level_writes_in_later_statements_prevent_initializer_traversal()
+    {
+        var workspace = fixture.Workspace();
+        var captured = workspace.AddProject(
+            "Program",
+            [
+                new(
+                    "Program.cs",
+                    """
+                    int value = 1;
+                    value = 2;
+                    Use(value);
+                    static void Use(int value) {}
+                    """
+                ),
+            ],
+            allowErrors: true
+        );
+        var compilation = captured.Compilation.WithOptions(
+            captured.Compilation.Options.WithOutputKind(
+                Microsoft.CodeAnalysis.OutputKind.ConsoleApplication
+            )
+        );
+        var project = new AnalysisProject(
+            captured.Snapshot with
+            {
+                OutputKind = (int)Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,
+            },
+            compilation,
+            TestContext.Current.CancellationToken
+        );
+        var solution = new AnalysisSolution([project], TestContext.Current.CancellationToken);
+        var root = Code
+            .Calls.ToMethodsNamed("Use")
+            .ArgumentsFor("value")
+            .SourceValues()
+            .In(solution)
+            .Single();
+
+        var fact = root.Facts.IsAssignedOnlyByInitializer;
+        var result = root.TraverseInputs(new ExpressionTraversal().ThroughSingleAssignmentLocals());
+
+        Assert.False(fact);
+        Assert.Equal(ExpressionTraversalStatus.Unavailable, result.Status);
+        Assert.Equal(["value"], result.Values.Select(value => value.Syntax.ToString()));
+        Assert.Equal(
+            [ExpressionTraversalReason.LocalNotSingleAssignment],
+            result.Boundaries.Select(boundary => boundary.Reason)
+        );
+    }
+
     [Theory]
     [InlineData("", true)]
     [InlineData("value = 2;", false)]

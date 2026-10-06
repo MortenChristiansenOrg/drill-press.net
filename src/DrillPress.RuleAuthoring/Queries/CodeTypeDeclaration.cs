@@ -28,7 +28,7 @@ public sealed class CodeTypeDeclaration : ICodeElement
     public string Name => Identifier.ValueText;
 
     /// <summary>Identifier words preserving casing, including acronym and digit boundaries.</summary>
-    public IReadOnlyList<string> NameWords => CodeIdentifier.Words(Name);
+    public IReadOnlyList<string> NameWords => CodeIdentifier.NamedWords(Name);
 
     /// <summary>Whether the part is declared at compilation or namespace scope.</summary>
     public bool IsTopLevel =>

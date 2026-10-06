@@ -5,37 +5,37 @@ namespace DrillPress;
 /// <summary>Ordinal name predicates for source declarations and compiler symbols.</summary>
 public static class NameQueries
 {
-    /// <summary>Identifier words for any named compiler symbol, including members, parameters and locals.</summary>
+    /// <summary>Identifier words for compiler symbols, including members, parameters and locals; unnamed symbols have no words.</summary>
     public static IReadOnlyList<string> NameWords(this ISymbol symbol) =>
-        CodeIdentifier.Words(symbol.Name);
+        CodeIdentifier.NamedWords(symbol.Name);
 
-    /// <summary>Tests a complete identifier word, using ordinal comparison unless configured otherwise.</summary>
+    /// <summary>Tests a complete identifier word, using ordinal comparison unless configured otherwise; unnamed symbols never match.</summary>
     public static bool NameContainsWord(
         this ISymbol symbol,
         string word,
         StringComparison comparison = StringComparison.Ordinal
-    ) => CodeIdentifier.ContainsWord(symbol.Name, word, comparison);
+    ) => CodeIdentifier.NamedContainsWord(symbol.Name, word, comparison);
 
     /// <summary>Tests a complete declared type-name word, using ordinal comparison unless configured otherwise.</summary>
     public static bool NameContainsWord(
         this CodeDeclaration type,
         string word,
         StringComparison comparison = StringComparison.Ordinal
-    ) => CodeIdentifier.ContainsWord(type.Name, word, comparison);
+    ) => CodeIdentifier.NamedContainsWord(type.Name, word, comparison);
 
     /// <summary>Tests a complete written type-name word, using ordinal comparison unless configured otherwise.</summary>
     public static bool NameContainsWord(
         this CodeTypeDeclaration type,
         string word,
         StringComparison comparison = StringComparison.Ordinal
-    ) => CodeIdentifier.ContainsWord(type.Name, word, comparison);
+    ) => CodeIdentifier.NamedContainsWord(type.Name, word, comparison);
 
     /// <summary>Tests a complete method-name word, including unresolved declarations.</summary>
     public static bool NameContainsWord(
         this CodeMethod method,
         string word,
         StringComparison comparison = StringComparison.Ordinal
-    ) => CodeIdentifier.ContainsWord(method.Name, word, comparison);
+    ) => CodeIdentifier.NamedContainsWord(method.Name, word, comparison);
 
     /// <summary>Selects methods containing any complete configured word; comparison defaults to ordinal.</summary>
     public static CodeQuery<CodeMethod> WhereNameContainsAnyWord(
@@ -70,7 +70,7 @@ public static class NameQueries
             ArgumentException.ThrowIfNullOrWhiteSpace(word);
         return query.Where(candidate =>
             CodeIdentifier
-                .Words(name(candidate))
+                .NamedWords(name(candidate))
                 .Any(word => selected.Any(value => word.Equals(value, comparison)))
         );
     }

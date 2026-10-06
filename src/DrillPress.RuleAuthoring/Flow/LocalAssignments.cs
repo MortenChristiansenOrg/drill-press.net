@@ -25,7 +25,10 @@ internal sealed class LocalAssignments(AnalysisSource source)
             declaration
                 .Ancestors()
                 .FirstOrDefault(node =>
-                    node is MemberDeclarationSyntax and not BaseTypeDeclarationSyntax
+                    node
+                        is MemberDeclarationSyntax
+                            and not BaseTypeDeclarationSyntax
+                            and not GlobalStatementSyntax
                 )
             ?? source.Tree.GetRoot(source.Project.CancellationToken);
         var writes = _writes.GetOrAdd(scope, node => new(() => FindWrites(node))).Value;

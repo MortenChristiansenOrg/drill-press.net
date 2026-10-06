@@ -46,7 +46,7 @@ public sealed class CodeDeclaration : ICodeElement
     public string Name => Symbol.Name;
 
     /// <summary>Identifier words preserving casing, including acronym and digit boundaries.</summary>
-    public IReadOnlyList<string> NameWords => CodeIdentifier.Words(Name);
+    public IReadOnlyList<string> NameWords => CodeIdentifier.NamedWords(Name);
 
     /// <summary>The declared namespace, or an empty string for the global namespace.</summary>
     public string Namespace =>

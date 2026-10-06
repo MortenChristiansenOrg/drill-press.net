@@ -48,7 +48,7 @@ public sealed class CodeMethod : ICodeElement
     public string Name => Syntax.Identifier.ValueText;
 
     /// <summary>Identifier words preserving casing, including acronym and digit boundaries.</summary>
-    public IReadOnlyList<string> NameWords => CodeIdentifier.Words(Name);
+    public IReadOnlyList<string> NameWords => CodeIdentifier.NamedWords(Name);
 
     /// <summary>Whether a block or expression body was written; abstract and extern declarations have no body.</summary>
     public bool HasBody => Syntax.Body is not null || Syntax.ExpressionBody is not null;
