@@ -34,7 +34,7 @@ public sealed class ExpressionContextQueriesTests(SdkFixture fixture) : IClassFi
         var selected = query.OutsideNameOf().In(solution);
         var facts = references
             .Select(reference =>
-                $"{reference.Facts!.IsInsideNameOf}:{reference.Facts.IsInsideExpressionTree}:{reference.Facts.HasComments}"
+                $"{reference.Facts.IsInsideNameOf}:{reference.Facts.IsInsideExpressionTree}:{reference.Facts.HasComments}"
             )
             .ToArray();
 
@@ -42,7 +42,7 @@ public sealed class ExpressionContextQueriesTests(SdkFixture fixture) : IClassFi
         Assert.Equal([references[1], references[2]], selected);
         Assert.All(
             references,
-            reference => Assert.Equal(reference.Location, reference.AsExpression()!.Location)
+            reference => Assert.Equal(reference.Location, reference.Expression.Location)
         );
     }
 }

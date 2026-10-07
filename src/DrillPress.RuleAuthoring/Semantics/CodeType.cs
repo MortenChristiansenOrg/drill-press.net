@@ -6,6 +6,24 @@ namespace DrillPress;
 /// <param name="MetadataName">Namespace-qualified metadata name, using + for nested types.</param>
 public readonly record struct CodeType(string MetadataName)
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+        CodeType,
+        CodeQuery<CodeTypeReference>
+    > _references = new();
+
+    /// <summary>Written references to this type in ordinary source, including qualifiers, attributes, generic arguments and object creations. Open generic descriptors match every construction.</summary>
+    public CodeQuery<CodeTypeReference> References =>
+        _references.GetOrAdd(
+            this,
+            type =>
+                Code.TypeReferences.Where(
+                    new RuleCondition<CodeTypeReference>(
+                        reference => type.Matches(reference.Type),
+                        TypeReferenceIndex.NamesOf(type).ToHashSet()
+                    )
+                )
+        );
+
     private bool RequireFramework { get; init; }
     private bool AllowFrameworkFacades { get; init; }
     private Type? RuntimeType { get; init; }
@@ -67,6 +85,16 @@ public readonly record struct CodeType(string MetadataName)
         return Matches(constructed)
             ? new(TypeAvailabilityStatus.Available, constructed)
             : new(TypeAvailabilityStatus.Missing, null);
+    }
+
+    private bool PrintMembers(System.Text.StringBuilder builder)
+    {
+        builder.Append("MetadataName = ").Append(MetadataName);
+        if (AssemblyName is not null)
+            builder.Append(", AssemblyName = ").Append(AssemblyName);
+        if (TypeArguments.Length > 0)
+            builder.Append(", TypeArguments = ").Append(TypeArguments);
+        return true;
     }
 
     /// <summary>Describes instance constructors without exposing their metadata name.</summary>

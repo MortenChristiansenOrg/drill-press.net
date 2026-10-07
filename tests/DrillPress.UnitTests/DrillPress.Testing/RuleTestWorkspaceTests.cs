@@ -154,10 +154,11 @@ public sealed class RuleTestWorkspaceTests
                 .ForFile("Zero.cs")
                 .Lines(0, 0)
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("LINES", "Exercise source.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(50), "LINES", "Exercise source.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(50));
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -196,10 +197,11 @@ public sealed class RuleTestWorkspaceTests
         var workspace = new RuleTestWorkspace([]);
         workspace.AddProject("Product", [new("Calls.cs", Source)]);
         workspace.WithCoverage(facts => facts.ForFile("Calls.cs").Lines(4, 4));
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("LINES", "Exercise source.")
             .For(Code.Projects)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "LINES", "Exercise source.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var first = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
         var second = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -229,12 +231,13 @@ public sealed class RuleTestWorkspaceTests
         Assert.Equal("reasons", invalid.ParamName);
     }
 
-    private static RuleSet ExecutionRules()
+    private static RuleCatalog ExecutionRules()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("CALL", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name == "Hit"))
-            .Require(global::DrillPress.Coverage.Executed, "CALL", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
         return rules;
     }
 

@@ -6,7 +6,15 @@ internal sealed class RuleRegistration(RuleDescriptor descriptor) : CompiledRule
 
     internal RuleDescriptor Descriptor { get; } = descriptor;
 
-    internal void Add(CompiledRule clause) => _clauses.Add(clause);
+    internal bool IsEmpty => _clauses.Count == 0;
+
+    internal bool RequiresCoverage { get; private set; }
+
+    internal void Add(CompiledRule clause, bool requiresCoverage)
+    {
+        _clauses.Add(clause);
+        RequiresCoverage |= requiresCoverage;
+    }
 
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution) =>
         _clauses.SelectMany(clause => clause.Evaluate(solution));

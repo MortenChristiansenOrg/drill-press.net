@@ -33,8 +33,8 @@ public sealed class BuiltStringTests(SdkFixture fixture) : IClassFixture<SdkFixt
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var urls = OperationQueries
-            .Invocations.Calling(CodeType.Named("C").Member("Send"))
+        var urls = Code
+            .Calls.To(CodeType.Named("C").Member("Send"))
             .ArgumentsFor("url")
             .SourceValues();
 
@@ -84,8 +84,8 @@ public sealed class BuiltStringTests(SdkFixture fixture) : IClassFixture<SdkFixt
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var texts = OperationQueries
-            .Invocations.Calling(CodeType.Named("C").Member("Send"))
+        var texts = Code
+            .Calls.To(CodeType.Named("C").Member("Send"))
             .ArgumentsFor("value")
             .SourceValues()
             .In(solution)

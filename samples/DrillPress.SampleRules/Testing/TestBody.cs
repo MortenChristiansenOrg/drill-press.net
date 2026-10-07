@@ -8,6 +8,12 @@ namespace DrillPress.SampleRules.Testing;
 /// <summary>Physical test-body facts shared by whitespace and assertion conventions.</summary>
 internal sealed class TestBody : ICodeElement
 {
+    private static readonly CodeType[] _assertions =
+    [
+        CodeType.Named("Xunit.Assert", "xunit.assert"),
+        CodeType.Named("Xunit.Assert", "xunit.v3.assert"),
+    ];
+
     public AnalysisSource Source { get; }
 
     public SourceLocation Location { get; }
@@ -48,29 +54,11 @@ internal sealed class TestBody : ICodeElement
             )
             .Select(line => method.Source.Locate(new TextSpan(line.Start, line.Span.Length)))
             .ToArray();
-        Assertions = body.DescendantNodes(node =>
-                node is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
-            )
-            .OfType<InvocationExpressionSyntax>()
-            .Select(invocation =>
-                (
-                    Invocation: invocation,
-                    Symbol: method
-                        .Source.Model.GetSymbolInfo(
-                            invocation,
-                            method.Source.Project.CancellationToken
-                        )
-                        .Symbol as IMethodSymbol
-                )
-            )
-            .Where(item =>
-                item.Symbol is { ContainingType: { } type }
-                && XunitTests.IsXunitType(type, "Xunit.Assert")
-            )
-            .Select(item => new TestAssertion(
-                item.Symbol!.Name,
-                method.Source.Locate(item.Invocation.Span)
-            ))
+        Assertions = method
+            .Body()!
+            .Calls()
+            .Where(call => call.IsResolved && _assertions.Any(call.IsDeclaredOn))
+            .Select(call => new TestAssertion(call.Target.Name, call.Location))
             .ToArray();
     }
 

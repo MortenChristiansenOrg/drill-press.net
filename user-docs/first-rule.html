@@ -49,17 +49,16 @@
 <h2 id="declaration">2. Declare and host the rule</h2>
 <div class="codeblock"><div class="codehead"><span>samples/MyRules/Program.cs</span></div><pre tabindex="0" data-check="program" id="example-3"><code>using DrillPress;
 using DrillPress.Engine;
-using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var writeLine = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);
 
-rules.For(ProjectFacts.ProductionFiles.Invocations()
-        .Where(call =&gt; call.Calls(writeLine)))
-    .Forbid(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;);
+rules.Rule(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;)
+    .For(Code.Calls.To(writeLine).InNonTestProjects())
+    .Forbid();
 
 return (int)await new RuleApplication().RunAsync(rules, args);</code></pre></div>
-<p><code>TEAM001</code> is your stable rule identifier. Choose a unique identifier for every registered rule. The message should tell someone what to do next—not just say “bad code.” Both must be nonblank and single-line.</p>
+<p><code>TEAM001</code> is your stable rule identifier. Choose a unique identifier for every registered rule. The message should tell someone what to do next—not just say “bad code.” Both must be nonblank and single-line. A rule must end in <code>Forbid</code> or <code>Require</code>; evaluation stops with an error that names an unfinished rule.</p>
 <h2 id="run">3. Build and check a target</h2>
 <p>Create a tiny target in <code>samples/MyRuleTarget</code>. Its console call is an intentional violation.</p>
 <div class="codeblock"><div class="codehead"><span>samples/MyRuleTarget/MyRuleTarget.csproj</span></div><pre tabindex="0" data-check="xml" id="example-7"><code>&lt;Project Sdk=&quot;Microsoft.NET.Sdk&quot;&gt;
@@ -86,7 +85,7 @@ samples/MyRuleTarget/Worker.cs
 <p>Output groups findings by rule and file, followed by physical line/column locations. A clean run prints nothing. Exit codes are <code>0</code> for clean, <code>1</code> for findings, and <code>2</code> when the check could not finish.</p>
 <p>A <code>+</code> before a location means a proposed fix survived validation. This first rule offers none. Only the CLI’s <code>fix</code> command applies changes; <code>check</code> never does.</p>
 <h2 id="organize">5. Keep a growing bundle understandable</h2>
-<p>Move registrations into a class such as <code>LoggingRules</code> with a <code>Register(RuleSet rules)</code> method. Put reusable selections and named predicates next to their domain rules. Keep compiler details in small helpers, not inside a long registration expression.</p>
+<p>Move registrations into a class such as <code>LoggingRules</code> with a <code>Register(RuleCatalog rules)</code> method. Put reusable selections and named predicates next to their domain rules. Keep compiler details in small helpers, not inside a long registration expression.</p>
 <p>Register every rule explicitly before calling <code>RuleApplication.RunAsync</code>. This keeps the bundle easy to inspect and avoids runtime assembly scanning. Next, <a href="testing.html#first-test">write a small test</a> before adding more policies.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="index.html"><small>← PREVIOUS</small>The rule author’s manual</a>

@@ -26,7 +26,7 @@ public sealed class NullCheckQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var states = OperationQueries
+        var states = Code
             .NullChecks.In(solution)
             .Select(check => check.FlowStateBeforeCheck)
             .ToArray();
@@ -51,7 +51,7 @@ public sealed class NullCheckQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         workspace.AddProject("Disabled", [source], symbols: ["OBLIVIOUS"]);
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var states = OperationQueries
+        var states = Code
             .NullChecks.In(solution)
             .Select(check =>
                 $"{check.CheckedValue.DeclaredNullability}:{check.FlowStateBeforeCheck}"
@@ -81,7 +81,7 @@ public sealed class NullCheckQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var actual = OperationQueries
+        var actual = Code
             .NullChecks.In(solution)
             .Select(check =>
                 $"{check.Condition.Syntax}:{check.CheckedValue.Syntax}:{check.Polarity}:{check.Domain}"
@@ -123,7 +123,7 @@ public sealed class NullCheckQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var states = OperationQueries
+        var states = Code
             .NullChecks.In(solution)
             .Select(check => check.FlowStateBeforeCheck)
             .ToArray();
@@ -158,7 +158,7 @@ public sealed class NullCheckQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var actual = OperationQueries
+        var actual = Code
             .NullChecks.In(solution)
             .Select(check => check.Condition.Syntax.ToString())
             .ToArray();

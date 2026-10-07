@@ -7,94 +7,102 @@ namespace DrillPress.SampleRules;
 public static class ShowcaseRules
 {
     /// <summary>Creates configured codec policies. Supplying an accepted source analysis additionally enables change-aware review.</summary>
-    public static RuleSet Create(SourceBaseline? accepted = null)
+    public static RuleCatalog Create(SourceBaseline? accepted = null)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         Register(rules, accepted);
         return rules;
     }
 
     /// <summary>Registers examples scoped to projects whose names start with CodecExamples, including their test projects.</summary>
-    public static void Register(RuleSet rules, SourceBaseline? accepted = null)
+    public static void Register(RuleCatalog rules, SourceBaseline? accepted = null)
     {
         var code = new CodecSources();
         var examples = new CodecExamples(code);
 
         rules
-            .For(code.Calls.Where(CodecBehavior.CreatesNonRepeatableValues))
-            .Forbid(
+            .Rule(
                 "SDK2001",
                 "Pass reproducible values into codecs instead of creating random values."
-            );
+            )
+            .For(code.Calls.To(CodecBehavior.NonRepeatableValues))
+            .Forbid();
 
         rules
-            .For(code.Calls.Where(CodecBehavior.WritesToConsole))
-            .Require(
-                CodecBehavior.IsInTracingAdapter,
-                "SDK2002",
-                "Keep console output in the Tracing adapter."
-            );
+            .Rule("SDK2002", "Keep console output in the Tracing adapter.")
+            .For(code.Calls.To(CodecBehavior.ConsoleWriteLine))
+            .Require(CodecBehavior.IsInTracingAdapter);
 
         rules
+            .Rule("SDK2003", "Keep blocking sleeps out of asynchronous codec call paths.")
             .For(code.AsyncMethods.WhoseCallPathsReachBlockingSleep())
-            .Forbid("SDK2003", "Keep blocking sleeps out of asynchronous codec call paths.");
+            .Forbid();
 
         rules
+            .Rule("SDK2004", "Provide an xUnit <CodecName>RoundTrip test for each text codec.")
             .For(
                 code.TextCodecs.WithoutMatching(
                     examples.RoundTripTests,
                     examples.IsRoundTripTestFor
                 )
             )
-            .Forbid("SDK2004", "Provide an xUnit <CodecName>RoundTrip test for each text codec.");
+            .Forbid();
 
         rules
+            .Rule("SDK2005", "Give repeated wire-format examples a shared declaration.")
             .For(examples.RepeatedStringLiterals(longerThan: 80))
-            .Forbid("SDK2005", "Give repeated wire-format examples a shared declaration.");
+            .Forbid();
 
         rules
+            .Rule("SDK2006", "Share the repeated format-dispatch expression.")
             .For(examples.RepeatedSwitchExpressions(minimumTokens: 20))
-            .Forbid("SDK2006", "Share the repeated format-dispatch expression.");
+            .Forbid();
 
         rules
+            .Rule("SDK2007", "Keep reader and writer format inventories in agreement.")
             .For(examples.ReaderWriterInventoryMismatches)
-            .Forbid("SDK2007", "Keep reader and writer format inventories in agreement.");
+            .ReportAt(pair => pair.Reader)
+            .Forbid();
 
         rules
+            .Rule("SDK2008", "Use the codec library's System.Text.Json serialization contract.")
             .For(code.Files.Where(CodecSources.ProjectReferencesNewtonsoftJson))
-            .Forbid("SDK2008", "Use the codec library's System.Text.Json serialization contract.");
+            .Forbid();
 
         rules
-            .For(code.TopLevelTypes.Where(CodecSources.DeclaresInternalAccessibility))
-            .Forbid(
-                "SDK2011",
-                "Use the implicit assembly visibility for codec implementation types.",
-                fix: ModifierFix.RemoveRedundantAccessibility
-            );
+            .Rule("SDK2011", "Use the implicit assembly visibility for codec implementation types.")
+            .For(code.TypeDeclarations.TopLevel().WithExplicitModifier(Modifier.Internal))
+            .Forbid(fix: type => Fix.For(type).RemoveModifier(Modifier.Internal).Propose());
 
         rules
-            .For(code.TypeDeclarations.Where(CodecSources.HasSerializableAttribute))
-            .Forbid(
+            .Rule(
                 "SDK2012",
                 "Declare an explicit text-codec contract instead of legacy binary serialization."
-            );
+            )
+            .For(
+                code.TypeDeclarations.WithAttribute(CodeType.Named("System.SerializableAttribute"))
+            )
+            .Forbid();
 
         if (accepted is not null)
         {
             rules
+                .Rule("SDK2013", "Add new codec implementations to the current format layer.")
                 .For(code.NewLegacyFilesSince(accepted))
-                .Forbid("SDK2013", "Add new codec implementations to the current format layer.");
+                .Forbid();
         }
 
         rules
+            .Rule("SDK2009", "Handle a missing input before normalizing codec text.")
             .For(code.Calls.Where(CodecBehavior.TrimsPossiblyNullText))
-            .Forbid("SDK2009", "Handle a missing input before normalizing codec text.");
+            .Forbid();
 
         rules
-            .For(code.Methods.Where(CodecBehavior.CapturesRentedBuffer))
-            .Forbid(
+            .Rule(
                 "SDK2010",
                 "Do not capture rented buffers; callbacks can outlive the array-pool lease."
-            );
+            )
+            .For(code.Methods.Where(CodecBehavior.CapturesRentedBuffer))
+            .Forbid();
     }
 }

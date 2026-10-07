@@ -52,14 +52,11 @@ public sealed class BuildHostTests : IntegrationTest
         );
         await RestoreAsync(projectPath);
         var snapshotPath = FileSystem.Path.Combine(directory.FullName, "snapshot.json");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(
-                Code.MemberReferences.Where(
-                    Members.Are(CodeType.Named("Dependency.Target"), "Empty")
-                )
-            )
-            .Forbid("TEST001", "Do not use Dependency.Target.Empty.");
+            .Rule("TEST001", "Do not use Dependency.Target.Empty.")
+            .For(CodeType.Named("Dependency.Target").Member("Empty").References)
+            .Forbid();
 
         var result = await RunProcessAsync(
             "dotnet",
@@ -115,7 +112,7 @@ public sealed class BuildHostTests : IntegrationTest
             cancellationToken
         );
         var diagnostics = await new AnalysisEngine().AnalyzeAsync(
-            SampleRuleSet.Create(),
+            SampleRuleCatalog.Create(),
             snapshot,
             cancellationToken
         );

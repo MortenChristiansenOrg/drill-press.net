@@ -1,14 +1,16 @@
 using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
 public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    private const DeclarationBehavior Declaration =
+        DeclarationBehavior.Accessibility
+        | DeclarationBehavior.Identity
+        | DeclarationBehavior.Contract;
+
     [Theory]
     [InlineData("internal class A {}", "class A {}", true)]
     [InlineData("internal /* keep */ class A {}", "/* keep */ class A {}", true)]
@@ -22,28 +24,62 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(
-                Sources
-                    .Nodes<MemberDeclarationSyntax>()
-                    .Where(node => node.Syntax.GetFirstToken().IsKind(SyntaxKind.InternalKeyword))
+            .Rule("MODIFIER", "Omit this token.")
+            .For(Code.Methods.WithExplicitModifier(Modifier.Internal))
+            .Forbid(fix: method =>
+                Fix.For(method)
+                    .RemoveModifier(Modifier.Internal)
+                    .MustPreserve(Declaration)
+                    .SafeWhen(_ => true)
             )
-            .Forbid(
-                "MODIFIER",
-                "Omit this token.",
-                fix: node =>
-                    Fix.For(node)
-                        .RemoveModifier(SyntaxKind.InternalKeyword)
-                        .Require(DeclarationChecks.SameDeclaredAccessibility)
-                        .Require(DeclarationChecks.SameIdentity)
-                        .Require(DeclarationChecks.SameContract)
-                        .Propose(_ => ProofResult.Proven)
+            .For(Code.TypeDeclarations.WithExplicitModifier(Modifier.Internal))
+            .Forbid(fix: type =>
+                Fix.For(type)
+                    .RemoveModifier(Modifier.Internal)
+                    .MustPreserve(Declaration)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
         Assert.Equal([hasFix], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(expected, result.FixedText("A.cs"));
+    }
+
+    [Theory]
+    [InlineData("class A { private int field; }", Modifier.Private, "class A { int field; }")]
+    [InlineData("class A { private void M() {} }", Modifier.Private, "class A { void M() {} }")]
+    [InlineData("interface I { public void M(); }", Modifier.Public, "interface I { void M(); }")]
+    [InlineData(
+        "class A { protected internal void M() {} }",
+        Modifier.Protected,
+        "class A { protected internal void M() {} }"
+    )]
+    [InlineData(
+        "class A { static void M() {} }",
+        Modifier.Static,
+        "class A { static void M() {} }"
+    )]
+    public async Task Library_proof_removes_only_accessibility_tokens_that_keep_the_declared_accessibility(
+        string source,
+        Modifier modifier,
+        string expected
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("MODIFIER", "Omit this token.")
+            .For(Code.Methods.WithExplicitModifier(modifier))
+            .Forbid(fix: method => Fix.For(method).RemoveModifier(modifier).Propose())
+            .For(Code.Fields.WithExplicitModifier(modifier))
+            .Forbid(fix: field => Fix.For(field).RemoveModifier(modifier).Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
         Assert.Equal(expected, result.FixedText("A.cs"));
     }
 
@@ -53,24 +89,21 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { private int first, second; }")]);
         var names = Array.Empty<string>();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(Sources.Nodes<FieldDeclarationSyntax>())
-            .Forbid(
-                "MODIFIER",
-                "Omit this token.",
-                fix: node =>
-                    Fix.For(node)
-                        .RemoveModifier(SyntaxKind.PrivateKeyword)
-                        .Require(DeclarationChecks.SameIdentity)
-                        .Require(DeclarationChecks.SameDeclaredAccessibility)
-                        .Propose(change =>
-                        {
-                            names = change
-                                .Symbols.Select(pair => pair.Before.Name + ":" + pair.After.Name)
-                                .ToArray();
-                            return ProofResult.Proven;
-                        })
+            .Rule("MODIFIER", "Omit this token.")
+            .For(Code.Fields.Named("first"))
+            .Forbid(fix: field =>
+                Fix.For(field)
+                    .RemoveModifier(Modifier.Private)
+                    .MustPreserve(DeclarationBehavior.Identity | DeclarationBehavior.Accessibility)
+                    .SafeWhen(change =>
+                    {
+                        names = change
+                            .Symbols.Select(pair => pair.Before.Name + ":" + pair.After.Name)
+                            .ToArray();
+                        return true;
+                    })
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -90,19 +123,15 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
                 new("A.g.cs", "internal partial class A {}", true),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("MODIFIER", "Omit this token.")
             .For(Code.Types)
-            .Forbid(
-                "MODIFIER",
-                "Omit this token.",
-                fix: declaration =>
-                    Fix.For(declaration)
-                        .RemoveModifier(SyntaxKind.InternalKeyword)
-                        .Require(DeclarationChecks.SameIdentity)
-                        .Require(DeclarationChecks.SameDeclaredAccessibility)
-                        .Require(DeclarationChecks.SameContract)
-                        .Propose(_ => ProofResult.Proven)
+            .Forbid(fix: declaration =>
+                Fix.For(declaration)
+                    .RemoveModifier(Modifier.Internal)
+                    .MustPreserve(Declaration)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -117,19 +146,15 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { static void M() {} }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("MODIFIER", "Omit this token.")
             .For(Code.Methods)
-            .Forbid(
-                "MODIFIER",
-                "Omit this token.",
-                fix: method =>
-                    Fix.For(method)
-                        .RemoveModifier(SyntaxKind.StaticKeyword)
-                        .Require(DeclarationChecks.SameIdentity)
-                        .Require(DeclarationChecks.SameDeclaredAccessibility)
-                        .Require(DeclarationChecks.SameContract)
-                        .Propose(_ => ProofResult.Proven)
+            .Forbid(fix: method =>
+                Fix.For(method)
+                    .RemoveModifier(Modifier.Static)
+                    .MustPreserve(Declaration)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

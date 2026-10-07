@@ -27,7 +27,7 @@ public sealed class SourceBaselineTests(SdkFixture fixture) : IClassFixture<SdkF
         );
         var solution = current.Analyze(TestContext.Current.CancellationToken);
 
-        var changes = Sources
+        var changes = Code
             .Files.In(solution)
             .Select(file => (file.Name, baseline.ChangeOf(file)))
             .ToArray();

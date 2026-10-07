@@ -12,6 +12,7 @@ namespace DrillPress.Testing;
 public sealed class RuleTestWorkspace
 {
     private readonly IReadOnlyList<MetadataReference> _references;
+    private readonly IFileSystem _fileSystem;
     private readonly List<AnalysisProject> _projects = [];
     private TestCoverageFacts? _coverage;
 
@@ -28,11 +29,17 @@ public sealed class RuleTestWorkspace
         : this(new FileSystem()) { }
 
     internal RuleTestWorkspace(IFileSystem fileSystem)
-        : this(ReadReferences(fileSystem)) { }
+        : this(ReadReferences(fileSystem), fileSystem) { }
 
     /// <summary>Uses consumer-supplied compiler references without reading files, supporting reference packs and fully synthetic fixtures.</summary>
-    public RuleTestWorkspace(IReadOnlyList<MetadataReference> references) =>
+    public RuleTestWorkspace(IReadOnlyList<MetadataReference> references)
+        : this(references, new FileSystem()) { }
+
+    internal RuleTestWorkspace(IReadOnlyList<MetadataReference> references, IFileSystem fileSystem)
+    {
         _references = references.ToArray();
+        _fileSystem = fileSystem;
+    }
 
     /// <summary>Adds an independently evaluated source project. Dependencies must already belong to this workspace. Framework labels do not select reference packs.</summary>
     /// <remarks>Defaults to nullable annotations and warnings enabled and C# 14. Source directives override the project nullable setting.</remarks>
@@ -137,7 +144,7 @@ public sealed class RuleTestWorkspace
 
     /// <summary>Runs the production evaluator and response validator, including cross-context safety and conflict withholding.</summary>
     public Task<RuleTestResult> CheckAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         CancellationToken cancellationToken = default
     )
     {
@@ -154,7 +161,11 @@ public sealed class RuleTestWorkspace
             cancellationToken
         );
         return Task.FromResult(
-            new RuleTestResult(snapshot, new BundleResponseValidator().Validate(snapshot, response))
+            new RuleTestResult(
+                snapshot,
+                new BundleResponseValidator().Validate(snapshot, response),
+                _fileSystem
+            )
         );
     }
 

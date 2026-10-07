@@ -28,7 +28,7 @@ public sealed class CodeInvocationTests(SdkFixture fixture) : IClassFixture<SdkF
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var calls = Code.Calls.Calling(CodeType.Named("C").Member("Value"));
+        var calls = Code.Calls.To(CodeType.Named("C").Member("Value"));
 
         var all = calls.Expressions().In(solution);
         var outside = calls.OutsideExpressionTrees().Expressions().In(solution);

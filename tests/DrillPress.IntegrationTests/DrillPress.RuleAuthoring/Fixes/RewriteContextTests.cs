@@ -16,7 +16,7 @@ public sealed class RewriteContextTests(SdkFixture fixture) : IClassFixture<SdkF
             [new("A.cs", "class A { int First() => 1; int Second() => 2; }")]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var literals = Sources.Nodes<LiteralExpressionSyntax>().In(solution);
+        var literals = Code.Nodes<LiteralExpressionSyntax>().In(solution);
         var edits = literals
             .Select(node =>
                 SourceChanges.Replace(node.Source, node.Syntax.Span, node.Syntax.ToString() + "0")
@@ -49,7 +49,7 @@ public sealed class RewriteContextTests(SdkFixture fixture) : IClassFixture<SdkF
             [new("A.cs", "class A { int M() => 1 + 2; }")]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var binary = Sources.Nodes<BinaryExpressionSyntax>().In(solution).Single();
+        var binary = Code.Nodes<BinaryExpressionSyntax>().In(solution).Single();
         var edits = new[] { SourceChanges.Replace(binary.Source, binary.Syntax.Span, "2 + 1") };
         NodeRewrite? root = null;
         NodeRewrite? child = null;

@@ -19,46 +19,50 @@ public sealed class RuleConditionTests
         );
         var query = Code
             .MemberReferences.Where(startsWithE.And(included).Or(longName.Not()))
-            .ExceptWhen(new(reference => reference.MemberName == "End"));
-        var references = new[]
-        {
-            RuleTestData.Reference<string>("Empty", "Included.cs"),
-            RuleTestData.Reference<string>("Empty", "Excluded.cs"),
-            RuleTestData.Reference<string>("Any", "Excluded.cs"),
-            RuleTestData.Reference<string>("End", "Included.cs"),
-        };
+            .ExceptWhen(
+                new RuleCondition<MemberReference>(reference => reference.MemberName == "End")
+            );
+        var solution = RuleTestData.Solution(
+            ("Included.cs", ["Empty", "End"]),
+            ("Excluded.cs", ["Empty", "Any"])
+        );
 
-        var diagnostics = RuleTestData.Evaluate(query, references);
+        var diagnostics = RuleTestData.Evaluate(query, solution);
 
         Assert.Equal(
-            [references[2].Location, references[0].Location],
-            diagnostics.Select(diagnostic => diagnostic.Location)
+            [
+                ("TEST001", "Excluded.cs", "Sample.Target.Any"),
+                ("TEST001", "Included.cs", "Sample.Target.Empty"),
+            ],
+            diagnostics.Select(RuleTestData.Describe)
         );
     }
 
     [Fact]
     public void Require_reports_failed_conditions_at_the_selected_location()
     {
-        var rules = new RuleSet();
-        var location = new SourceLocation("Selected.cs", 4, 1, 1, 5);
+        var rules = new RuleCatalog();
+        var location = new SourceLocation("Target.cs", 0, 9, 1, 1);
         var condition = new RuleCondition<MemberReference>(reference =>
             reference.MemberName == "Length"
-        ).ExceptWhen(new(reference => reference.Location.FilePath == "Excluded.cs"));
-        rules
-            .For(Code.MemberReferences)
-            .Require(condition, "TEST001", "Use Length.", _ => location);
-        var references = new[]
-        {
-            RuleTestData.Reference<string>("Empty"),
-            RuleTestData.Reference<string>("Length"),
-        };
-
-        var diagnostics = rules.Evaluate(references);
-
-        Assert.Equal(
-            [new RuleDiagnostic(new RuleDescriptor("TEST001", "Use Length."), location)],
-            diagnostics
+        ).ExceptWhen(
+            new RuleCondition<MemberReference>(reference =>
+                reference.Location.FilePath == "Excluded.cs"
+            )
         );
+        rules
+            .Rule("TEST001", "Use Length.")
+            .For(Code.MemberReferences)
+            .ReportAt(_ => location)
+            .Require(condition);
+        var solution = RuleTestData.Solution(
+            ("Selected.cs", ["Empty", "Length"]),
+            ("Excluded.cs", ["Empty"])
+        );
+
+        var diagnostics = rules.Evaluate(solution);
+
+        Assert.Equal([location, location], diagnostics.Select(diagnostic => diagnostic.Location));
     }
 
     [Fact]
@@ -68,22 +72,18 @@ public sealed class RuleConditionTests
         var fail = new RuleCondition<MemberReference>(_ =>
             throw new InvalidOperationException("Unexpected evaluation.")
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("TEST001", "Expected finding.")
             .For(Code.MemberReferences.Where(never.And(fail).Or(never.Not().Or(fail))))
-            .Forbid("TEST001", "Expected finding.");
-        var reference = RuleTestData.Reference<string>("Empty");
+            .Forbid();
+        var solution = RuleTestData.Solution(("A.cs", ["Empty"]));
 
-        var diagnostics = rules.Evaluate([reference]);
+        var diagnostics = rules.Evaluate(solution);
 
         Assert.Equal(
-            [
-                new RuleDiagnostic(
-                    new RuleDescriptor("TEST001", "Expected finding."),
-                    reference.Location
-                ),
-            ],
-            diagnostics
+            [("TEST001", "A.cs", "Sample.Target.Empty")],
+            diagnostics.Select(RuleTestData.Describe)
         );
     }
 
@@ -91,17 +91,19 @@ public sealed class RuleConditionTests
     public void Predicate_controls_candidates_when_used_by_a_query()
     {
         var condition = new RuleCondition<MemberReference>(reference =>
-            reference.Location.Start > 0
+            reference.Location.Line > 3
         );
         var query = Code.MemberReferences.Where(condition);
+        var solution = RuleTestData.Solution(("A.cs", ["First", "Second", "Long"]));
 
-        var diagnostics = RuleTestData.Evaluate(
-            query,
-            RuleTestData.Reference<string>("First"),
-            RuleTestData.Reference<string>("Second", start: 10)
+        var diagnostics = RuleTestData.Evaluate(query, solution);
+
+        Assert.Equal(
+            [
+                ("TEST001", "A.cs", "Sample.Target.Second"),
+                ("TEST001", "A.cs", "Sample.Target.Long"),
+            ],
+            diagnostics.Select(RuleTestData.Describe)
         );
-
-        var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal(10, diagnostic.Location.Start);
     }
 }

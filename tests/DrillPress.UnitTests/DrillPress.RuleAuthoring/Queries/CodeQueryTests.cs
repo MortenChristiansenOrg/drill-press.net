@@ -9,27 +9,32 @@ public sealed class CodeQueryTests
     public void Where_composes_all_conditions()
     {
         var query = Code
-            .MemberReferences.Where(
-                new RuleCondition<MemberReference>(reference =>
-                    reference.MemberName.StartsWith('E')
-                )
-            )
-            .Where(
-                new RuleCondition<MemberReference>(reference =>
-                    reference.Location.FilePath == "Included.cs"
-                )
-            );
-        var references = new[]
-        {
-            RuleTestData.Reference<string>("Empty", "Included.cs"),
-            RuleTestData.Reference<string>("Empty", "Excluded.cs"),
-            RuleTestData.Reference<string>("Length", "Included.cs"),
-        };
+            .MemberReferences.Where(reference => reference.MemberName.StartsWith('E'))
+            .Where(reference => reference.Location.FilePath == "Included.cs");
+        var solution = RuleTestData.Solution(
+            ("Included.cs", ["Empty", "Length"]),
+            ("Excluded.cs", ["Empty"])
+        );
 
-        var diagnostics = RuleTestData.Evaluate(query, references);
+        var diagnostics = RuleTestData.Evaluate(query, solution);
 
-        var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("Included.cs", diagnostic.Location.FilePath);
-        Assert.Equal(references[0].Location, diagnostic.Location);
+        Assert.Equal(
+            [("TEST001", "Included.cs", "Sample.Target.Empty")],
+            diagnostics.Select(RuleTestData.Describe)
+        );
+    }
+
+    [Fact]
+    public void Union_combines_selections_once_per_source_occurrence()
+    {
+        var empty = Code.MemberReferences.Where(reference => reference.MemberName == "Empty");
+        var first = Code.MemberReferences.Where(reference => reference.Location.Line == 3);
+        var solution = RuleTestData.Solution(("A.cs", ["Empty", "Any"]));
+
+        var union = empty.Union(first).In(solution);
+        var concatenation = empty.Concat(first).In(solution);
+
+        Assert.Equal(["Empty"], union.Select(reference => reference.MemberName));
+        Assert.Equal(["Empty", "Empty"], concatenation.Select(reference => reference.MemberName));
     }
 }

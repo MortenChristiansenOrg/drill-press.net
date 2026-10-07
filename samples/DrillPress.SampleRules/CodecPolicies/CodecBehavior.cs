@@ -1,6 +1,5 @@
 using DrillPress;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -9,13 +8,13 @@ namespace DrillPress.SampleRules.CodecPolicies;
 // Compiler-backed behavior predicates, separate from the policy declarations and their messages.
 internal static class CodecBehavior
 {
-    private static readonly ApiSet _nonRepeatableValues = new(
-        CodeType.Of<Guid>().Member(nameof(Guid.NewGuid)),
-        CodeType.Of<Random>().Member(nameof(Random.Next))
-    );
-    private static readonly CodeMember _consoleWriteLine = CodeType
-        .Named("System.Console")
-        .Member("WriteLine");
+    internal static ApiSet NonRepeatableValues { get; } =
+        new(
+            CodeType.Of<Guid>().Member(nameof(Guid.NewGuid)),
+            CodeType.Of<Random>().Member(nameof(Random.Next))
+        );
+    internal static CodeMember ConsoleWriteLine { get; } =
+        CodeType.Named("System.Console").Member("WriteLine");
     private static readonly CodeMember _blockingSleep = CodeType
         .Named("System.Threading.Thread")
         .Member("Sleep");
@@ -28,21 +27,11 @@ internal static class CodecBehavior
         .Member("Rent");
     private static readonly PathPattern _tracingFiles = new("**/Tracing/*.cs");
 
-    internal static bool CreatesNonRepeatableValues(CodeInvocation call) =>
-        _nonRepeatableValues.Contains(call.Target);
-
-    internal static bool WritesToConsole(CodeInvocation call) => call.Calls(_consoleWriteLine);
-
     internal static bool IsInTracingAdapter(CodeInvocation call) =>
         _tracingFiles.Matches(call.Source.Document.Path);
 
     internal static bool TrimsPossiblyNullText(CodeInvocation call) =>
-        call.Calls(_trimWithoutArguments)
-        && call.Operation.Instance is { } receiver
-        && call.Source.Model.GetTypeInfo(
-            receiver.Syntax,
-            call.Source.Project.CancellationToken
-        ).Nullability.FlowState == NullableFlowState.MaybeNull;
+        call.Calls(_trimWithoutArguments) && call.Receiver is { MayBeNull: true };
 
     internal static CodeQuery<CodeMethod> WhoseCallPathsReachBlockingSleep(
         this CodeQuery<CodeMethod> methods

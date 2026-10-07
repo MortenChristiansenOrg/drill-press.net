@@ -138,12 +138,13 @@ internal sealed class CoverageFixture
 
     public AnalysisEngine Engine() => new(FileSystem, Process);
 
-    public static RuleSet ExecutionRules()
+    public static RuleCatalog ExecutionRules()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "HitValue"))
-            .Require(Coverage.Executed, "COV001", "Exercise call.");
+            .Require(Coverage.Executed);
         return rules;
     }
 }

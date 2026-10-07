@@ -143,7 +143,7 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
             .ToArray();
         var hierarchy = Code
             .Calls.ToMethodsDeclaredOnOrDerivedFrom(owner)
-            .ToMethodsMatchingName("*Async")
+            .ToMethodsMatching("*Async")
             .In(solution)
             .Select(call => call.Operation.Syntax.ToString())
             .ToArray();
@@ -215,7 +215,7 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var calls = OperationQueries.Invocations.Calling(CodeType.Named("C").Member("Send"));
+        var calls = Code.Calls.To(CodeType.Named("C").Member("Send"));
 
         var values = calls
             .ArgumentsFor("values")
@@ -254,14 +254,14 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var receivers = OperationQueries
-            .Invocations.Calling(CodeType.Named("C").Member("Send"))
+        var receivers = Code
+            .Calls.To(CodeType.Named("C").Member("Send"))
             .WhereReceiver(receiver => receiver.TypeIs(CodeType.Named("C")))
             .In(solution)
             .Select(call => $"{call.Receiver!.IsImplicit}:{call.IsConditional}")
             .ToArray();
-        var variance = OperationQueries
-            .Invocations.WhereReceiver(receiver =>
+        var variance = Code
+            .Calls.WhereReceiver(receiver =>
                 receiver.TypeIsAssignableTo(CodeType.Of<IEnumerable<object>>())
             )
             .In(solution)
@@ -290,7 +290,7 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
                 ),
             ]
         );
-        var selected = OperationQueries.Invocations.Calling(CodeType.Named("C").Member("Send"));
+        var selected = Code.Calls.To(CodeType.Named("C").Member("Send"));
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
         var arguments = selected
@@ -337,11 +337,11 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var selected = OperationQueries
-            .Invocations.Calling(CodeType.Named("Client").Member("Send"))
+        var selected = Code
+            .Calls.To(CodeType.Named("Client").Member("Send"))
             .WhereReceiver(receiver => receiver.TypeIsOrDerivesFrom(CodeType.Named("Client")));
-        var extensions = OperationQueries
-            .Invocations.Calling(CodeType.Named("Extensions").Member("Ping"))
+        var extensions = Code
+            .Calls.To(CodeType.Named("Extensions").Member("Ping"))
             .WhereReceiver(receiver => receiver.TypeIsOrDerivesFrom(CodeType.Named("Client")));
 
         var ordinary = selected
@@ -389,8 +389,8 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
             );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var actual = OperationQueries
-            .Invocations.Calling(member)
+        var actual = Code
+            .Calls.To(member)
             .In(solution)
             .Select(call => call.Operation.Syntax.ToString())
             .ToArray();
@@ -415,8 +415,8 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var selected = OperationQueries
-            .Invocations.Calling(CodeType.Named("C").Member("Send"))
+        var selected = Code
+            .Calls.To(CodeType.Named("C").Member("Send"))
             .WhereArgument(
                 "value",
                 argument => argument.Value?.IsConstant(CodeType.Named("First"), 1) == true
@@ -431,5 +431,38 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
             .ToArray();
 
         Assert.Equal(["First:object:True"], values);
+    }
+
+    [Fact]
+    public async Task Omitted_default_arguments_report_at_their_call()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Calls",
+            [
+                new(
+                    "Calls.cs",
+                    "class C\n{\n    void Send(int timeout = -1) { }\n\n    void M()\n    {\n        Send();\n        Send(timeout: -1);\n        Send(5);\n    }\n}\n"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("TIMEOUT", "Pass a bounded timeout.")
+            .For(Code.Calls.ToMethodsNamed("Send").ArgumentsFor("timeout"))
+            .Require(argument => !argument.Is(-1));
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            TIMEOUT Pass a bounded timeout.
+            Calls.cs
+              7:9
+              8:23
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
     }
 }

@@ -40,8 +40,8 @@ public static class ExpressionGroups
     /// <param name="expressions">Only these selected occurrences participate; duplicate inputs are removed.</param>
     /// <param name="minimumOccurrences">The minimum number of distinct selected occurrences per group.</param>
     /// <param name="additionalEquivalence">An optional stricter equivalence relation, compared against each partition's representative.</param>
-    public static CodeQuery<ExpressionGroup> Constants(
-        CodeQuery<CodeExpression> expressions,
+    public static CodeQuery<ExpressionGroup> ConstantGroups(
+        this CodeQuery<CodeExpression> expressions,
         int minimumOccurrences = 2,
         Func<CodeExpression, CodeExpression, bool>? additionalEquivalence = null
     ) => Group(expressions, null, minimumOccurrences, additionalEquivalence);
@@ -51,8 +51,8 @@ public static class ExpressionGroups
     /// <param name="options">Explicit syntax, capture, API and complexity boundaries.</param>
     /// <param name="minimumOccurrences">The minimum number of distinct selected occurrences per group.</param>
     /// <param name="additionalEquivalence">An optional stricter equivalence relation, compared against each partition's representative.</param>
-    public static CodeQuery<ExpressionGroup> OneHoleTemplates(
-        CodeQuery<CodeExpression> expressions,
+    public static CodeQuery<ExpressionGroup> TemplateGroups(
+        this CodeQuery<CodeExpression> expressions,
         OneHoleTemplateOptions options,
         int minimumOccurrences = 2,
         Func<CodeExpression, CodeExpression, bool>? additionalEquivalence = null
@@ -70,7 +70,7 @@ public static class ExpressionGroups
         {
             var groups =
                 new Dictionary<
-                    (CodeDeclaration Owner, string Shape),
+                    (CodeTypeDefinition Owner, string Shape),
                     List<List<ExpressionOccurrence>>
                 >();
             foreach (var (owner, expression, shape) in Candidates(expressions, options, solution))
@@ -100,7 +100,7 @@ public static class ExpressionGroups
     }
 
     private static IEnumerable<(
-        CodeDeclaration Owner,
+        CodeTypeDefinition Owner,
         CodeExpression Expression,
         ExpressionShape Shape
     )> Candidates(

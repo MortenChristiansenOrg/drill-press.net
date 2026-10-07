@@ -26,7 +26,7 @@ public sealed class SymbolQueriesTests(SdkFixture fixture) : IClassFixture<SdkFi
             )
             .Symbol!;
 
-        var references = SymbolQueries.ReferencesTo(target).In(solution);
+        var references = Code.ReferencesTo(target).In(solution);
 
         Assert.Equal(
             [

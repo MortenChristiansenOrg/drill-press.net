@@ -19,7 +19,7 @@ public enum ExtractionNameCollision
 /// <param name="Member">The exact constant or one-parameter helper used by every replacement.</param>
 /// <param name="Reused">Whether an existing constant was reused instead of inserting a member.</param>
 /// <param name="Occurrences">All selected occurrences present in this context, with retained capture mappings.</param>
-public sealed record ExtractionEvidence(
+public sealed record ExtractionChange(
     RewriteContext Context,
     INamedTypeSymbol BeforeOwner,
     INamedTypeSymbol AfterOwner,

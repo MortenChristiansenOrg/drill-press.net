@@ -93,7 +93,7 @@ public sealed class CodeRelationships
     }
 
     /// <summary>Finds ordinary source types implementing an interface or inheriting a class in a compatible source view. Abstract and test types are retained for consumer filtering.</summary>
-    public IReadOnlyList<CodeDeclaration> DerivedTypes(CodeDeclaration declaration)
+    public IReadOnlyList<CodeTypeDefinition> DerivedTypes(CodeTypeDefinition declaration)
     {
         var compatible = _views
             .For(declaration.Source.Project)
@@ -109,7 +109,7 @@ public sealed class CodeRelationships
     }
 
     /// <summary>Finds all ordinary partial declaration files within the type's owning context.</summary>
-    public IReadOnlyList<AnalysisSource> FilesOf(CodeDeclaration declaration) =>
+    public IReadOnlyList<AnalysisSource> FilesOf(CodeTypeDefinition declaration) =>
         declaration
             .Source.Project.Sources.Where(source =>
                 !source.Document.IsGenerated

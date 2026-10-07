@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace DrillPress;
 
-/// <summary>Explicit C# declaration modifier tokens, independent of effective accessibility.</summary>
+/// <summary>Written C# modifier tokens, independent of implicit defaults such as private members or internal top-level types.</summary>
 public enum Modifier
 {
     /// <summary>Explicit internal accessibility.</summary>
@@ -16,6 +16,9 @@ public enum Modifier
 
     /// <summary>Explicit protected accessibility.</summary>
     Protected = SyntaxKind.ProtectedKeyword,
+
+    /// <summary>File-scoped type accessibility.</summary>
+    File = SyntaxKind.FileKeyword,
 
     /// <summary>Static declaration.</summary>
     Static = SyntaxKind.StaticKeyword,
@@ -38,12 +41,42 @@ public enum Modifier
     /// <summary>Constant field or local.</summary>
     Const = SyntaxKind.ConstKeyword,
 
-    /// <summary>File-scoped type accessibility.</summary>
-    File = SyntaxKind.FileKeyword,
-
     /// <summary>Virtual member.</summary>
     Virtual = SyntaxKind.VirtualKeyword,
 
-    /// <summary>Overridden member.</summary>
+    /// <summary>Overriding member.</summary>
     Override = SyntaxKind.OverrideKeyword,
+
+    /// <summary>Member hiding an inherited member.</summary>
+    New = SyntaxKind.NewKeyword,
+
+    /// <summary>Externally implemented member.</summary>
+    Extern = SyntaxKind.ExternKeyword,
+
+    /// <summary>Required member.</summary>
+    Required = SyntaxKind.RequiredKeyword,
+
+    /// <summary>Volatile field.</summary>
+    Volatile = SyntaxKind.VolatileKeyword,
+
+    /// <summary>Unsafe context.</summary>
+    Unsafe = SyntaxKind.UnsafeKeyword,
+
+    /// <summary>By-reference parameter, return or struct.</summary>
+    Ref = SyntaxKind.RefKeyword,
+
+    /// <summary>Output parameter.</summary>
+    Out = SyntaxKind.OutKeyword,
+
+    /// <summary>Read-only by-reference parameter.</summary>
+    In = SyntaxKind.InKeyword,
+
+    /// <summary>Parameter array or collection.</summary>
+    Params = SyntaxKind.ParamsKeyword,
+
+    /// <summary>Extension method receiver parameter.</summary>
+    This = SyntaxKind.ThisKeyword,
+
+    /// <summary>Scoped by-reference value.</summary>
+    Scoped = SyntaxKind.ScopedKeyword,
 }

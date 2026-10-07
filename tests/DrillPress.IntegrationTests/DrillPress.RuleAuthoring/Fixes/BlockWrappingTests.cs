@@ -84,18 +84,14 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("BLOCK", "Wrap the selected statement.")
             .For(
-                Sources
-                    .Nodes<IfStatementSyntax>()
-                    .Where(node => node.Syntax.Parent is ElseClauseSyntax)
+                Code.IfStatements.Select(statement => statement.Else)
+                    .Where(branch => branch is { IsElseIf: true })
             )
-            .Forbid(
-                "BLOCK",
-                "Wrap the selected statement.",
-                fix: node => Fix.For(node).WrapInBlock().Propose()
-            );
+            .Forbid(fix: branch => Fix.For(branch!).AddBraces().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -119,18 +115,14 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("BLOCK", "Wrap the selected statement.")
             .For(
-                Sources
-                    .Nodes<IfStatementSyntax>()
-                    .Where(node => node.Syntax.Parent is IfStatementSyntax)
+                Code.IfStatements.Select(statement => statement.Then)
+                    .Where(branch => branch.Syntax is IfStatementSyntax)
             )
-            .Forbid(
-                "BLOCK",
-                "Wrap the selected statement.",
-                fix: node => Fix.For(node).WrapInBlock().Propose()
-            );
+            .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -141,20 +133,20 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
     }
 
-    private static RuleSet Rules()
+    private static RuleCatalog Rules()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("BLOCK", "Wrap the selected statement.")
             .For(
-                Sources
-                    .Nodes<ExpressionStatementSyntax>()
-                    .Where(node => node.Syntax.Parent is IfStatementSyntax or ElseClauseSyntax)
+                Code.IfStatements.SelectMany(statement =>
+                        statement.Else is { } other
+                            ? new[] { statement.Then, other }
+                            : [statement.Then]
+                    )
+                    .Where(branch => branch.Syntax is ExpressionStatementSyntax)
             )
-            .Forbid(
-                "BLOCK",
-                "Wrap the selected statement.",
-                fix: node => Fix.For(node).WrapInBlock().Propose()
-            );
+            .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose());
         return rules;
     }
 }

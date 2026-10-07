@@ -34,4 +34,7 @@
     <ProjectReference Include="../../src/DrillPress.Manifest/DrillPress.Manifest.csproj" />
     <ProjectReference Include="../../samples/DrillPress.SampleRules/DrillPress.SampleRules.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../skills/drillpress-rules/examples/*.cs" LinkBase="SkillExamples" />
+  </ItemGroup>
 </Project>

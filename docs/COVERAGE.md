@@ -3,17 +3,17 @@
 Use the ordinary rule API to require tests to exercise critical source occurrences:
 
 ```csharp
-rules
-    .For(Code.Calls.Where(call => call.Target.Name == "Commit"))
-    .Require(Coverage.Executed, "COV001", "Exercise each commit in tests.");
+rules.Rule("COV001", "Exercise each commit in tests.")
+    .For(Code.Calls.ToMethodsNamed("Commit"))
+    .Require(Coverage.Executed);
 
-rules
-    .For(Code.Files.Where(file => file.Folder.EndsWith("/Domain")))
-    .Require(Coverage.Line.AtLeast(90), "COV002", "Exercise domain code.");
+rules.Rule("COV002", "Exercise domain code.")
+    .For(Code.Files.InFolder("Domain"))
+    .Require(Coverage.Line.AtLeast(90));
 
-rules
+rules.Rule("COV003", "Exercise production code.")
     .For(Code.Projects.Where(project => !project.IsTestProject))
-    .Require(Coverage.Line.AtLeast(80), "COV003", "Exercise production code.");
+    .Require(Coverage.Line.AtLeast(80));
 ```
 
 Calls, member references, and other `ICodeElement` occurrences use the same
@@ -37,15 +37,16 @@ Planning uses a separate query/cache lifetime. Source predicates, projections,
 unions, and anchored custom values retain their context; built-in coverage
 conditions remain unresolved possibilities until evidence is ready, including
 negation and Boolean alternatives. Unanchored custom values conservatively retain
-all target contexts. Use `.At(value => owner)` when such values have a source owner.
+all target contexts. Use `.ReportAt(value => owner)` when such values have a source owner.
 Callbacks and custom selectors used during automatic planning must read source
 facts only. When a custom callback reads coverage directly, explicitly choose
 contexts without evaluating that callback during planning:
 
 ```csharp
-rules.For(customCoverageDependentSelection)
+rules.Rule("DATA002", "Inspect the selected execution.")
+    .For(customCoverageDependentSelection)
     .CollectCoverageIn(Code.Projects.Where(project => project.Name == "Product.Data"))
-    .Forbid("DATA002", "Inspect the selected execution.");
+    .Forbid();
 ```
 
 This scope always collects its selected contexts. It must use source-only filters
@@ -105,7 +106,7 @@ or introduce extra expression probes.
 
 Unknown evidence is a failing requirement, so a test can exercise a call without
 providing a supported proof. Use `Coverage.Executed.Inspect(occurrence)` or
-`ExecutionOf(occurrence)` to inspect prepared evidence. Direct `RuleSet.Evaluate`
+`ExecutionOf(occurrence)` to inspect prepared evidence. Direct `RuleCatalog.Evaluate`
 and in-memory snippets without supplied facts return unknown without starting
 tests synchronously.
 
@@ -212,11 +213,11 @@ Strict execution and line requirements fail for uncovered and unknown evidence.
 Declare different remediation without rebuilding that state machine:
 
 ```csharp
-rules.For(queryExecutions).Require(
-    Coverage.Executed
+rules.Rule("DATA002", "Queries require verified test execution.")
+    .For(queryExecutions)
+    .Require(Coverage.Executed
         .OnUncovered("Exercise this query in tests.")
-        .OnUnknown("Inspect the coverage explanation."),
-    "DATA002", "Queries require verified test execution.");
+        .OnUnknown("Inspect the coverage explanation."));
 ```
 
 The registered rule description stays stable; `OutcomeRemediation` describes each
@@ -247,8 +248,9 @@ selects the independent loop body. `GetEnumeratorMethod`, `MoveNextMethod`, and
 `IsAsync` describe the bound enumeration pattern.
 
 ```csharp
-rules.For(Code.Enumerations)
-    .Require(Coverage.EnumerationStarted, "ENUM001", "Start enumeration.");
+rules.Rule("ENUM001", "Start enumeration.")
+    .For(Code.Enumerations)
+    .Require(Coverage.EnumerationStarted);
 ```
 
 `EnumerationStarted` requires evidence that the compiler-selected `MoveNext` or

@@ -36,10 +36,10 @@ public static class TypeQueries
         );
 
     /// <summary>Projects reached definitions owned by the exact evaluated project name.</summary>
-    public static CodeQuery<CodeDeclaration> DeclaredInProject(
+    public static CodeQuery<CodeTypeDefinition> DeclaredInProject(
         this CodeQuery<TypeReachability> results,
         string name
-    ) => results.Declarations(project => project.Name == name);
+    ) => results.Definitions(project => project.Name == name);
 
     /// <summary>Combines configured seed selectors over selected methods. Each unresolved selected source remains an explicit seed.</summary>
     public static CodeQuery<TypeSeed> TypeSeeds(
@@ -64,11 +64,11 @@ public static class TypeQueries
     ) => results.Select(result => result.WhereType(where));
 
     /// <summary>Projects selected constructed types to deterministic ordinary-source definitions in compatible dependency contexts. Metadata/generated-only types do not become findings.</summary>
-    public static CodeQuery<CodeDeclaration> Declarations(
+    public static CodeQuery<CodeTypeDefinition> Definitions(
         this CodeQuery<TypeReachability> results,
         Func<AnalysisProject, bool>? owner = null
     ) =>
-        CodeQuery<CodeDeclaration>.Create(solution =>
+        CodeQuery<CodeTypeDefinition>.Create(solution =>
         {
             var declarations = solution
                 .Types.Where(declaration => owner?.Invoke(declaration.Source.Project) ?? true)
@@ -80,7 +80,7 @@ public static class TypeQueries
                     )
                 )
                 .ToLookup(entry => (entry.SyntaxTree, entry.Span), entry => entry.Declaration);
-            var selected = new HashSet<CodeDeclaration>();
+            var selected = new HashSet<CodeTypeDefinition>();
             foreach (var result in results.In(solution))
             foreach (var node in result.Types)
             {

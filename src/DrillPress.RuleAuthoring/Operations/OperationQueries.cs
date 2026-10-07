@@ -1,42 +1,39 @@
-using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
 namespace DrillPress;
 
-/// <summary>Cached compiler-operation selections covering method bodies, accessors, initializers and top-level statements.</summary>
-public static class OperationQueries
+internal static class OperationQueries
 {
-    /// <summary>Bound null checks in ordinary source, retaining compiler nullable evidence and check polarity.</summary>
-    public static CodeQuery<CodeNullCheck> NullChecks { get; } =
+    internal static CodeQuery<CodeNullCheck> NullChecks { get; } =
         NullCheckQueries.In(Sources.Nodes<ExpressionSyntax>());
 
-    /// <summary>Every operation in ordinary source, including implicit conversions and nested functions.</summary>
-    public static CodeQuery<CodeOperation<IOperation>> All { get; } =
+    internal static CodeQuery<CodeOperation<IOperation>> All { get; } =
         Sources.Files.SelectMany(Discover);
 
-    /// <summary>Resolved invocation operations, with parameter mapping and call-site semantics.</summary>
-    public static CodeQuery<CodeInvocation> Invocations { get; } =
+    internal static CodeQuery<CodeInvocation> Invocations { get; } =
         Of<IInvocationOperation>()
             .Select(candidate => new CodeInvocation(candidate.Source, candidate.Operation));
 
-    /// <summary>Selects a compiler operation kind without requiring consumers to traverse syntax or cast nodes.</summary>
-    public static CodeQuery<CodeOperation<T>> Of<T>()
+    internal static CodeQuery<CodeObjectCreation> ObjectCreations { get; } =
+        Sources
+            .Nodes<BaseObjectCreationExpressionSyntax>()
+            .Select(node => new CodeObjectCreation(node.Source, node.Syntax));
+
+    internal static CodeQuery<CodeOperation<T>> Of<T>()
         where T : IOperation => TypedRoot<T>.Query;
 
-    /// <summary>Discovers operations only in a selected file scope, avoiding binding unrelated projects.</summary>
-    public static CodeQuery<CodeOperation<IOperation>> InFiles(CodeQuery<CodeFile> files) =>
-        files.SelectMany(Discover);
+    internal static CodeQuery<CodeOperation<T>> InFiles<T>(CodeQuery<CodeFile> files)
+        where T : IOperation =>
+        files
+            .SelectMany(Discover)
+            .Where(candidate => candidate.Operation is T)
+            .Select(candidate => new CodeOperation<T>(candidate.Source, (T)candidate.Operation));
 
-    /// <summary>Discovers bound calls only within selected files.</summary>
-    public static CodeQuery<CodeInvocation> InvocationsIn(CodeQuery<CodeFile> files) =>
-        InFiles(files)
-            .Where(candidate => candidate.Operation is IInvocationOperation)
-            .Select(candidate => new CodeInvocation(
-                candidate.Source,
-                (IInvocationOperation)candidate.Operation
-            ));
+    internal static CodeQuery<CodeInvocation> InvocationsIn(CodeQuery<CodeFile> files) =>
+        InFiles<IInvocationOperation>(files)
+            .Select(candidate => new CodeInvocation(candidate.Source, candidate.Operation));
 
     private static IEnumerable<CodeOperation<IOperation>> Discover(CodeFile file)
     {
@@ -95,7 +92,7 @@ public static class OperationQueries
         where T : IOperation
     {
         internal static readonly CodeQuery<CodeOperation<T>> Query = All.Where(
-                new(candidate => candidate.Operation is T)
+                new RuleCondition<CodeOperation<IOperation>>(candidate => candidate.Operation is T)
             )
             .Select(candidate => new CodeOperation<T>(candidate.Source, (T)candidate.Operation));
     }

@@ -47,10 +47,6 @@ public sealed class CodeQuery<T>
             )
             .WithCoverage(RequiresCoverage || other.RequiresCoverage);
 
-    /// <summary>Anchors synthetic facts or joined results to an existing reportable owner.</summary>
-    public CodeQuery<LocatedCandidate<T>> At(Func<T, ICodeElement> anchor) =>
-        Select(value => new LocatedCandidate<T>(value, anchor(value)));
-
     /// <summary>Returns candidates lacking a matching counterpart; diagnostics can remain anchored to the original candidate.</summary>
     public CodeQuery<T> WithoutMatching<TOther, TKey>(
         CodeQuery<TOther> other,

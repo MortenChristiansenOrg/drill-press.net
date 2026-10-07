@@ -16,24 +16,26 @@ using DrillPress.Presets;
 
 var calls = Code.Calls.InNonTestProjects()
     .InProjectsWithType(CodeType.Named("Product.Data.DataAccess"));
-var classified = calls
-    .Select(call => (Call: call, Operation: StandardLinq.Inspect(call)))
-    .At(item => item.Call);
+var classified = calls.Select(call => (Call: call, Operation: StandardLinq.Inspect(call)));
 var supportedTerminals = classified.Where(item =>
-    item.Value.Operation.Status == LinqClassificationStatus.Supported
-    && item.Value.Operation.Category is
+    item.Operation.Status == LinqClassificationStatus.Supported
+    && item.Operation.Category is
         LinqOperationCategory.Scalar or LinqOperationCategory.Materializer);
-var terminals = supportedTerminals.Select(item => item.Value.Call);
+var terminals = supportedTerminals.Select(item => item.Call);
 var sources = supportedTerminals.SelectMany(item =>
-    item.Value.Operation.SequenceInputs.Select(input => input.Value));
+    item.Operation.SequenceInputs.Select(input => input.Value));
 
-var rules = new RuleSet();
-rules.For(classified.Where(item =>
-        item.Value.Operation.Status == LinqClassificationStatus.UnsupportedFramework))
-    .Forbid("LINQ_FRAMEWORK", "Use a supported LINQ catalogue framework.");
-rules.For(classified.Where(item =>
-        item.Value.Operation.Status == LinqClassificationStatus.UnsupportedOperation))
-    .Forbid("LINQ_OPERATION", "Add this exact LINQ overload to the maintained catalogue.");
+var rules = new RuleCatalog();
+rules.Rule("LINQ_FRAMEWORK", "Use a supported LINQ catalogue framework.")
+    .For(classified.Where(item =>
+        item.Operation.Status == LinqClassificationStatus.UnsupportedFramework))
+    .ReportAt(item => item.Call)
+    .Forbid();
+rules.Rule("LINQ_OPERATION", "Add this exact LINQ overload to the maintained catalogue.")
+    .For(classified.Where(item =>
+        item.Operation.Status == LinqClassificationStatus.UnsupportedOperation))
+    .ReportAt(item => item.Call)
+    .Forbid();
 ```
 
 Supported adapters and deferred construction are ordinary nonmatches. The two

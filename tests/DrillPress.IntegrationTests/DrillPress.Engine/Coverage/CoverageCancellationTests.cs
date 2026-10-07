@@ -35,10 +35,11 @@ public sealed class CoverageCancellationTests : IntegrationTest
             GetOutputPath("DrillPress.TestProcess", "tests"),
             readyPath
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(90), "COV001", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(90));
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken
         );

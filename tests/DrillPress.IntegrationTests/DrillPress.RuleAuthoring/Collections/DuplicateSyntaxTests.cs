@@ -21,7 +21,7 @@ public sealed class DuplicateSyntaxTests(SdkFixture fixture) : IClassFixture<Sdk
             ]
         );
         workspace.AddProject("Other", [new("B.cs", "class B { int M() => 1 + 2; }")]);
-        var query = DuplicateSyntax.In(Sources.Nodes<BinaryExpressionSyntax>(), minimumTokens: 3);
+        var query = Code.Nodes<BinaryExpressionSyntax>().Duplicates(minimumTokens: 3);
 
         var duplicates = query.In(workspace.Analyze(TestContext.Current.CancellationToken));
 

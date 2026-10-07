@@ -19,29 +19,27 @@ public sealed class DescriptorTransitionTests(SdkFixture fixture) : IClassFixtur
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var distinct = CodeType.Framework("System.Linq.Enumerable").Member("Distinct");
         var enumerable = CodeType.Framework("System.Collections.Generic.IEnumerable<>");
         var comparer = CodeType.Framework("System.Collections.Generic.IEqualityComparer<>");
         var ordinal = CodeType.Of<StringComparer>().Member("Ordinal");
         rules
+            .Rule("REMOVE", "Use default comparer.")
             .For(ordinal.References.PassedAs("comparer").To(distinct))
-            .Forbid(
-                "REMOVE",
-                "Use default comparer.",
-                fix: argument =>
-                    Fix.For(argument)
-                        .Remove()
-                        .ExpectOverloadChange(
-                            distinct.WithParameters(enumerable, comparer),
-                            distinct.WithParameters(enumerable)
-                        )
-                        .RequireRemovedValue(change => change.RemovedValue!.RefersTo(ordinal))
-                        .RequireRemovedEvaluation(change => change.RemovedValue!.RefersTo(ordinal))
-                        .SafeWhen(change =>
-                            change.Expected.Before.TypeArguments
-                                is [{ SpecialType: SpecialType.System_String }]
-                        )
+            .Forbid(fix: argument =>
+                Fix.For(argument)
+                    .Remove()
+                    .ExpectOverloadChange(
+                        distinct.WithParameters(enumerable, comparer),
+                        distinct.WithParameters(enumerable)
+                    )
+                    .RequireRemovedValue(change => change.RemovedValue!.RefersTo(ordinal))
+                    .RequireRemovedEvaluation(change => change.RemovedValue!.RefersTo(ordinal))
+                    .SafeWhen(change =>
+                        change.Expected.Before.TypeArguments
+                            is [{ SpecialType: SpecialType.System_String }]
+                    )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -69,19 +67,17 @@ public sealed class DescriptorTransitionTests(SdkFixture fixture) : IClassFixtur
         workspace.AddProject("Library", [new("A.cs", text)]);
         var owner = CodeType.Named("A");
         var from = owner.Member("Pick").WithParameters(CodeType.Of<int>(), CodeType.Of<bool>());
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(Code.Calls.Calling(from).ArgumentsFor("flag"))
-            .Forbid(
-                "REMOVE",
-                "Remove flag.",
-                fix: argument =>
-                    Fix.For(argument)
-                        .Remove()
-                        .ExpectOverloadChange(from, owner.Member(target))
-                        .RequireRemovedValue(_ => true)
-                        .RequireRemovedEvaluation(_ => true)
-                        .SafeWhen(_ => true)
+            .Rule("REMOVE", "Remove flag.")
+            .For(Code.Calls.To(from).ArgumentsFor("flag"))
+            .Forbid(fix: argument =>
+                Fix.For(argument)
+                    .Remove()
+                    .ExpectOverloadChange(from, owner.Member(target))
+                    .RequireRemovedValue(_ => true)
+                    .RequireRemovedEvaluation(_ => true)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

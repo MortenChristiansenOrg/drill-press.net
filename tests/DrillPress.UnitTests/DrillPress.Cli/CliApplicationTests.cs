@@ -148,6 +148,8 @@ public sealed class CliApplicationTests
             Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
+            drillpress install-skill [<skills-directory>]  Write this version's rule-authoring agent skill
+            to <skills-directory>/drillpress-rules (default .claude/skills).
             Exit codes: 0 no violations (review findings may appear), 1 violations, 2 failure. Fix failures may retain completed writes.
 
             """.ReplaceLineEndings("\n"),
@@ -155,6 +157,86 @@ public sealed class CliApplicationTests
         );
         Assert.Equal(directories, _fileSystem.AllDirectories);
         Assert.Empty(_fileSystem.AllFiles);
+    }
+
+    [Fact]
+    public async Task Skill_installation_writes_this_versions_files_and_keeps_local_notes()
+    {
+        var skill = _fileSystem.Path.GetFullPath("/repo/agents/drillpress-rules");
+        _fileSystem.AddFile(_fileSystem.Path.Combine(skill, "SKILL.md"), new MockFileData("stale"));
+        _fileSystem.AddFile(_fileSystem.Path.Combine(skill, "NOTES.md"), new MockFileData("mine"));
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var application = new CliApplication(
+            _fileSystem,
+            new StubChildProcessRunner(
+                (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+            )
+        );
+
+        var result = await application.RunAsync(
+            ["install-skill", "/repo/agents"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+        var files = _fileSystem
+            .AllFiles.Select(file =>
+                _fileSystem.Path.GetRelativePath(skill, file).Replace('\\', '/')
+            )
+            .Order(StringComparer.Ordinal);
+        var instructions = _fileSystem.File.ReadAllText(
+            _fileSystem.Path.Combine(skill, "SKILL.md")
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal(
+            $"drillpress-rules {ComponentVersion.Current} installed in {skill}\n",
+            output.ToString()
+        );
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            [
+                "NOTES.md",
+                "SKILL.md",
+                "examples/ExampleRules.cs",
+                "examples/ExampleRulesTests.cs",
+                "reference/fixes.md",
+                "reference/queries.md",
+                "reference/testing.md",
+            ],
+            files
+        );
+        Assert.StartsWith("---\nname: drillpress-rules\n", instructions.ReplaceLineEndings("\n"));
+        Assert.Contains($"This skill matches DrillPress {ComponentVersion.Current}.", instructions);
+        Assert.DoesNotContain("{{version}}", instructions);
+    }
+
+    [Fact]
+    public async Task Skill_installation_defaults_to_the_project_claude_skills_directory()
+    {
+        _fileSystem.Directory.CreateDirectory("/work");
+        _fileSystem.Directory.SetCurrentDirectory("/work");
+        var output = new StringWriter();
+        var application = new CliApplication(
+            _fileSystem,
+            new StubChildProcessRunner(
+                (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+            )
+        );
+
+        var result = await application.RunAsync(
+            ["install-skill"],
+            new StringWriter(),
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal(
+            $"drillpress-rules {ComponentVersion.Current} installed in {_fileSystem.Path.GetFullPath("/work/.claude/skills/drillpress-rules")}\n",
+            output.ToString()
+        );
     }
 
     [Fact]

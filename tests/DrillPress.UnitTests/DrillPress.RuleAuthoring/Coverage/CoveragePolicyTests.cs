@@ -131,12 +131,16 @@ public sealed class CoveragePolicyTests
                 CoverageReason.UnsupportedExpressionMapping
             );
         var calls = Code.Calls.Where(call => call.Target.Name == "Choose");
-        var rules = new RuleSet();
-        rules.For(calls).Require(review.And(new(_ => false)), "FAIL", "Verify both requirements.");
-        rules.For(calls).Require(review.And(new(_ => true)), "REVIEW", "Verify execution.");
+        var rules = new RuleCatalog();
         rules
+            .Rule("FAIL", "Verify both requirements.")
             .For(calls)
-            .Require(review.Or(new(_ => true)), "SATISFIED", "Verify either requirement.");
+            .Require(review.And(new(_ => false)));
+        rules.Rule("REVIEW", "Verify execution.").For(calls).Require(review.And(new(_ => true)));
+        rules
+            .Rule("SATISFIED", "Verify either requirement.")
+            .For(calls)
+            .Require(review.Or(new(_ => true)));
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -152,15 +156,14 @@ public sealed class CoveragePolicyTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.Fail = true;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("CALL", "Verify execution.")
             .For(Code.Calls)
             .Require(
                 global::DrillPress.Coverage.Executed.ReviewUnknownFor(
                     CoverageReason.UnsupportedExpressionMapping
-                ),
-                "CALL",
-                "Verify execution."
+                )
             );
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -187,12 +190,13 @@ public sealed class CoveragePolicyTests
         Assert.Equal("reasons", absent.ParamName);
     }
 
-    private static RuleSet Rules(CoverageRequirement requirement)
+    private static RuleCatalog Rules(CoverageRequirement requirement)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("CALL", "Calls require verified execution.")
             .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Skip" or "Choose"))
-            .Require(requirement, "CALL", "Calls require verified execution.");
+            .Require(requirement);
         return rules;
     }
 
@@ -210,16 +214,15 @@ public sealed class CoveragePolicyTests
                 .ForCall("Calls.cs", "Choose()")
                 .Executed()
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("CALL", "Verify execution.")
             .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Skip" or "Choose"))
             .ReportOncePer(_ => "all")
             .Require(
                 global::DrillPress.Coverage.Executed.ReviewUnknownFor(
                     CoverageReason.UnsupportedExpressionMapping
-                ),
-                "CALL",
-                "Verify execution."
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

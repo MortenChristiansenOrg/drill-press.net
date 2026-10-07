@@ -45,27 +45,24 @@ public sealed class ArgumentRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
             },
             new Dictionary<string, string> { ["value"] = "value" }
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(OperationQueries.Invocations.Calling(CodeType.Named("A").Member("Pick")))
-            .Forbid(
-                "ARGUMENT",
-                "Omit the approved default.",
-                fix: call =>
-                    Fix.For(call)
-                        .RemoveArgument("option")
-                        .RequireTransition(transition)
-                        .RequireRemovedValue(_ => ProofResult.Proven)
-                        .RequireRemovedEvaluation(_ => ProofResult.Proven)
-                        .RequireSynthesizedArguments(change =>
-                            change.After.Arguments.Any(argument =>
-                                argument.ArgumentKind == ArgumentKind.DefaultValue
-                                && argument.Value.ConstantValue.Value is false
-                            )
-                                ? approval
-                                : ProofResult.Unknown
+            .Rule("ARGUMENT", "Omit the approved default.")
+            .For(Code.Calls.To(CodeType.Named("A").Member("Pick")))
+            .Forbid(fix: call =>
+                Fix.For(call)
+                    .RemoveArgument("option")
+                    .ExpectTransition(transition)
+                    .RequireRemovedValue(_ => true)
+                    .RequireRemovedEvaluation(_ => true)
+                    .RequireSynthesizedArguments(change =>
+                        change.After.Arguments.Any(argument =>
+                            argument.ArgumentKind == ArgumentKind.DefaultValue
+                            && argument.Value.ConstantValue.Value is false
                         )
-                        .Propose(_ => ProofResult.Proven)
+                        && approval == ProofResult.Proven
+                    )
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -156,7 +153,7 @@ public sealed class ArgumentRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
         Assert.Equal(source, result.FixedText("A.cs"));
     }
 
-    private static RuleSet Rules(
+    private static RuleCatalog Rules(
         ProofResult evaluation,
         SpecialType destination = SpecialType.System_String
     )
@@ -181,28 +178,24 @@ public sealed class ArgumentRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
             },
             new Dictionary<string, string> { ["first"] = "first", ["second"] = "second" }
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(OperationQueries.Invocations.Calling(CodeType.Named("Api").Member("Choose")))
-            .Forbid(
-                "ARGUMENT",
-                "Omit the approved default.",
-                fix: call =>
-                    Fix.For(call)
-                        .RemoveArgument("option")
-                        .RequireTransition(transition)
-                        .RequireRemovedValue(change =>
-                            change.Removed.Operation
-                                is IPropertyReferenceOperation
-                                {
-                                    Property.Name: "Default",
-                                    Property.ContainingType.Name: "Options"
-                                }
-                                ? ProofResult.Proven
-                                : ProofResult.Unknown
-                        )
-                        .RequireRemovedEvaluation(_ => evaluation)
-                        .Propose(_ => ProofResult.Proven)
+            .Rule("ARGUMENT", "Omit the approved default.")
+            .For(Code.Calls.To(CodeType.Named("Api").Member("Choose")))
+            .Forbid(fix: call =>
+                Fix.For(call)
+                    .RemoveArgument("option")
+                    .ExpectTransition(transition)
+                    .RequireRemovedValue(change =>
+                        change.Removed.Operation
+                            is IPropertyReferenceOperation
+                            {
+                                Property.Name: "Default",
+                                Property.ContainingType.Name: "Options"
+                            }
+                    )
+                    .RequireRemovedEvaluation(_ => evaluation == ProofResult.Proven)
+                    .SafeWhen(_ => true)
             );
         return rules;
     }

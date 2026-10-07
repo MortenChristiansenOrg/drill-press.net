@@ -9,8 +9,8 @@ public static class ArgumentUses
     /// <summary>Finds the direct containing invocation argument through parentheses and implicit non-user-defined conversions.</summary>
     public static CodeArgument? AsArgument(this MemberReference reference)
     {
-        if (reference.Source is not { } source || reference.Syntax is not { } syntax)
-            return null;
+        var source = reference.Source;
+        var syntax = reference.Syntax;
         var operation = source.Model.GetOperation(syntax, source.Project.CancellationToken);
         while (
             operation?.Parent

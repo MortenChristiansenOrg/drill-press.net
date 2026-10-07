@@ -6,7 +6,7 @@ conventions, HTTP status selection and application ownership remain rule policy.
 ## Conditional validation evidence
 
 `methods.Body().Conditions().Checks(patterns)` selects complete `if` and ternary
-conditions. Use `ConditionPattern.NullTests()` for built-in null/nullable presence
+conditions. Use `ConditionPattern.Null` for built-in null/nullable presence
 checks and `ForCall(member, valueParameter, classification)` for configured Boolean
 methods such as `string.IsNullOrEmpty`. Exact identity comes from `CodeMember` and
 its assembly/signature refinements. Ordinary negation and Boolean comparisons
@@ -17,12 +17,12 @@ A match exposes `CheckedValue`, `Pattern.Name`, the complete condition location,
 `MatchingOutcome` and `MatchingBranch`. Inspect `CheckedValue.Symbol` as a property,
 and its `Attributes()` for typed constructor/named values. Absent named arguments
 are distinct from explicit false/null; consumer policy supplies known defaults.
-Branch `Invocations()` excludes nested functions by default. A call's syntactic
+Branch `Calls()` excludes nested functions by default. A call's syntactic
 presence is not a proof that it runs on every path. No deletion is implied.
 
 ```csharp
 var matches = methods.Body().Conditions().Checks(
-    ConditionPattern.NullTests(),
+    ConditionPattern.Null,
     ConditionPattern.ForCall(
         CodeType.Of<string>().Member("IsNullOrWhiteSpace"), "value", "whitespace"));
 ```
@@ -62,7 +62,7 @@ var reached = handlers.TypeSeeds(
         .Unwrap(pageType, [0])
         .ThroughProperties())
     .WhereType(IsApplicationModel);
-var declarations = reached.Declarations(project => IsOwned(project));
+var definitions = reached.Definitions(project => IsOwned(project));
 ```
 
 `Ok(new Widget())` seeds `Widget` before conversion to `object`; an `object`
@@ -76,7 +76,7 @@ source-language facts; they do not establish serializer behavior.
 `WhereType` filters output only. `StopAt` explicitly prunes outgoing edges. Visited
 sets use constructed symbols in the seed context, preserving `Box<A>` and `Box<B>`
 until their distinct property edges have been explored. Definition/partial
-deduplication occurs only in `Declarations`, using actual source declaration
+deduplication occurs only in `Definitions`, using actual source declaration
 references and the evaluated dependency graph. Alternate framework contexts remain
 separate. Generated-only and metadata types can be intermediate nodes but never
 become ordinary-source findings.
@@ -91,14 +91,14 @@ is not itself an unresolved compiler edge. Queries are lazy and cached per solut
 
 ### Readable validation and type sources
 
-`ConditionMatch.Is(ConditionPattern.IsNull())` and the other built-in factories
-compare pattern kinds, so a fresh factory call matches existing evidence.
+`ConditionMatch.Is(ConditionPattern.Null)` and the other built-in patterns
+compare pattern kinds; the built-in patterns are shared static instances.
 Configured `ForCall` patterns compare instance identity; retain the configured
 instance when filtering custom checks. Display names do not determine identity.
 
-`ConditionPattern.IsEmptyString()` recognizes empty-string equality (including reversed
-operands), `is ""`, and `Length == 0`, plus negations. The patterns
-`IsNullOrEmptyString()` and `IsNullOrWhiteSpaceString()` recognize their respective
+`ConditionPattern.EmptyString` recognizes empty-string equality (including reversed
+operands and `string.Empty`), `is ""`, and `Length == 0`, plus negations. The patterns
+`NullOrEmptyString` and `NullOrWhiteSpaceString` recognize their respective
 framework calls only. These are different checks: an empty-string comparison does not
 reject null, and reading `Length` may throw. They are not rewrite-equivalence proofs.
 Use `match.Is(pattern)` or `match.Pattern.Kind` rather than comparing display names.
@@ -106,7 +106,7 @@ Use `match.Is(pattern)` or `match.Pattern.Kind` rather than comparing display na
 the predicate's polarity, including an `else` arm for a negated empty check; it is not
 an alias for the syntactic true branch.
 
-A duplicate `[Required]` policy can collect all four patterns (`IsNull` plus the three
+A duplicate `[Required]` policy can collect all four patterns (`Null` plus the three
 string patterns). With `AllowEmptyStrings = false` all are candidate duplicate checks;
 with true, only the null pattern is a candidate. Attribute and branch checks remain
 explicit policy, and removing a guard still requires the contextual fix proof.
@@ -137,15 +137,16 @@ arguments at that node, suppressing its property and custom edges regardless of
 configuration order. The selected item types resume ordinary traversal. `StopAt` still
 stops every edge, including those selected wrapper arguments.
 
-### Static xUnit discovery
+### Static test discovery
 
-`Code.TestMethods` recognizes xUnit v2/v3 Fact/Theory markers and custom derived
-attributes by qualified framework identity. Written base methods appear once; overrides
-are separate candidates when marker inheritance is permitted by `AttributeUsage`.
-`Code.TestClasses` selects concrete classes in evaluated test projects declaring or
-inheriting those methods. `TestDiscovery.Classes(includeAbstract: true)` includes test
-base classes. This is static source discovery, not runtime test enumeration, and does
-not expand theory data or claim discovery rules for other test frameworks.
+`Code.TestMethods` recognizes xUnit v2/v3 `Fact`/`Theory`, NUnit `Test`/`TestCase`/
+`TestCaseSource`/`Theory` and MSTest `TestMethod`/`DataTestMethod` markers, plus
+custom derived attributes, by qualified framework identity. Written base methods
+appear once; overrides are separate candidates when marker inheritance is permitted
+by `AttributeUsage`. `Code.TestClasses` selects concrete classes in evaluated test
+projects declaring or inheriting those methods, and `Code.AbstractTestClasses`
+selects the abstract test bases. This is static source discovery, not runtime test
+enumeration, and does not expand theory or case data.
 
 Empty-string comparisons also recognize the bound framework `string.Empty` field.
 Generic-argument traversal includes arguments on containing types of nested types.

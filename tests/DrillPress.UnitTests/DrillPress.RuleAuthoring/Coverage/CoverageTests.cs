@@ -20,13 +20,16 @@ public sealed class CoverageTests
     [Fact]
     public void Direct_evaluation_without_collected_evidence_returns_unknown()
     {
-        var reference = RuleTestData.Reference<string>("Empty");
-        var rules = new RuleSet();
+        var solution = RuleTestData.Solution(("A.cs", ["Empty"]));
+        var reference = Assert.Single(Code.MemberReferences.In(solution));
+        var project = reference.Source.Project;
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise reference.")
             .For(Code.MemberReferences)
-            .Require(global::DrillPress.Coverage.Executed, "COV001", "Exercise reference.");
+            .Require(global::DrillPress.Coverage.Executed);
 
-        var diagnostics = rules.Evaluate([reference]);
+        var diagnostics = rules.Evaluate(solution);
 
         Assert.Equivalent(
             new RuleDiagnostic(new("COV001", "Exercise reference."), reference.Location)
@@ -37,11 +40,12 @@ public sealed class CoverageTests
                     new(
                         ExecutionCoverage.Unknown,
                         [CoverageReason.EvidenceNotPrepared],
-                        "",
-                        "",
-                        ""
+                        project.Name,
+                        project.TargetFramework,
+                        project.Snapshot.ContextId
                     ),
                 ],
+                Source = reference.Source,
             },
             Assert.Single(diagnostics),
             strict: true

@@ -6,24 +6,26 @@ semantic fact. Queries remain lazy and cached per analysis. Framework and naming
 policies remain in consumer rules.
 
 ```csharp
-var calls = OperationQueries.Invocations
-    .Calling(configuredMembers)
+var calls = Code.Calls
+    .To(configuredMembers)
     .WhereReceiver(receiver => receiver.TypeIsOrDerivesFrom(clientType))
     .WhereArgument("mode", argument => argument.IsExplicit
         && argument.Value?.IsConstant(modeType, expectedValue) == true);
 
 var urls = calls.ArgumentsFor("url").SourceValues();
-rules.For(urls).Require(value => allowedRoute(value), "URL001", "Use an approved route.");
+rules.Rule("URL001", "Use an approved route.").For(urls).Require(value => allowedRoute(value));
 ```
 
 `CodeMember.WithSignature(new MethodSignature(...))` refines generic arity,
 static shape, constructed type arguments, return type/ref kind and parameter ref
-kinds. `WithParameters` continues to select parameter types. `Calling` retains
+kinds. `WithParameters` continues to select parameter types. `To` retains
 the actual selected method and rejects erroneous binding; it does not equate
 overloads. Assembly qualification retains its existing meaning.
 
 `CodeInvocation.Parameter(name)` returns a group even for an empty expanded
-`params` parameter. `ArgumentsFor(name)` enumerates its values. `SourceIndex`
+`params` parameter. `ArgumentsFor(name)` enumerates its values, and
+`Argument(name)` returns the single `CodeArgument` bound to a parameter, including
+an omitted default; it is null for unknown parameters and expanded params. `SourceIndex`
 records source order independently of the parameter ordinal. Default arguments
 have no editable expression or location; `SourceValues()` deliberately excludes
 them. `WhereArgument` uses **any** matching value; use the parameter group for
@@ -45,14 +47,14 @@ ancestors; `Of<T>()` additionally resolves non-nested constructed targets for
 variance. The contextual symbol overload covers arbitrary exact target types.
 
 ```csharp
-var tests = Code.Methods.WithAttribute(configuredMarkerTypes);
+var tests = Code.TestMethods;
 var owners = tests.ContainingTypes();
 var branches = tests.Body(NestedFunctions.Exclude)
     .ControlFlowNodes(ControlFlowKinds.If | ControlFlowKinds.Loop
         | ControlFlowKinds.ConditionalExpression);
 ```
 
-`WithAttribute` recognizes derived attribute classes against the configured
+`WithAttribute` applies to every declaration kind and recognizes derived attribute classes against the configured
 marker assembly; it does not restrict a consumer-defined derived attribute to
 that assembly. It inspects declared attributes, not runtime inheritance from
 base methods. `symbol.Attributes()` exposes `CodeAttribute` evidence;
@@ -73,8 +75,7 @@ Syntax selections include unreachable code; presence does not prove execution.
 ```csharp
 var checks = tests.Body().NullChecks();
 var nonNullReferences = checks.Where(check =>
-    check.Domain == NullCheckDomain.Reference
-    && check.FlowStateBeforeCheck == NullableFlowState.NotNull);
+    check.Domain == NullCheckDomain.Reference && check.IsKnownNotNullBeforeCheck);
 ```
 
 Null checks recognize null patterns, built-in equality in either order, and
@@ -98,8 +99,9 @@ ordinary method/source roots exclude generated declarations from findings.
 
 ### Composing scoped invocation rules
 
-Method and source-element queries accept `InProject("Api")`, `InFolder("Endpoints")`,
-`InFilesNamed("*Tests.cs")` and `InNamespace("Contoso.Api.**")`. Folder matching uses
+Every source-element query accepts `InProject("Api")` or a glob such as
+`InProject("Contoso.*")`, `InTestProjects()`, `InNonTestProjects()`,
+`InFolder("Endpoints")`, `InFilesNamed("*Tests.cs")` and `InNamespace("Contoso.Api.**")`. Folder matching uses
 whole physical path segments relative to each project, at any depth; it does not use
 MSBuild `Link` folders. Loose-source rules can pass `sourceRoot` to `InFolder`, which
 otherwise uses the invocation directory. Namespace `**` includes its root namespace.
@@ -109,7 +111,7 @@ constructed ancestors. `Code.Types.ImplementingInterface(contract)` includes inh
 interfaces.
 
 ```csharp
-var urls = OperationQueries.Invocations
+var urls = Code.Calls
     .InProject("Api.Tests")
     .OnReceiverOfType<HttpClient>()
     .ToMethodsNamed("GetAsync", "PostAsync")
@@ -193,10 +195,10 @@ when their outer substitutions cannot be resolved.
 base classes. These differ from receiver filtering: an inherited member stays
 owned by its base type, an override is owned by the overriding type, and an
 extension stays owned by its static class in either call spelling. Metadata and
-constructed generic owners retain their identity. `ToMethodsMatchingName("*Async")`
+constructed generic owners retain their identity. `ToMethodsMatching("*Async")`
 uses the existing case-sensitive glob semantics; `ToMethodsNamed` still means
 exact names. Equivalent element predicates are `IsDeclaredOn`,
-`IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `Calling` to
+`IsDeclaredOnOrDerivedFrom`, and `TargetNameMatches`. Compose with `To` to
 retain configured signature constraints. Invalid calls never match.
 
 ## Configured source-input traversal
@@ -239,11 +241,10 @@ at the call site and at each initializer. Traversal does not follow method bodie
 property implementations, or runtime aliases. An adapter match proves no purity,
 runtime object identity, or permission to remove or rewrite that adapter.
 
-Member references expose `AsExpression()` and nullable `Facts` using the same
-evidence as `CodeExpression`. Source-less candidates have neither projection nor
-facts. `member.References.OutsideNameOf()` explicitly excludes compiler-bound
-nameof operands and source-less candidates; ordinary member-reference queries
-retain their current defaults. Fix builders continue to withhold observable
+Member references always have source; `Expression` and `Facts` use the same
+evidence as `CodeExpression`. `member.References.OutsideNameOf()` and
+`type.References.OutsideNameOf()` explicitly exclude compiler-bound nameof
+operands; ordinary reference queries retain them. Fix builders continue to withhold observable
 rewrites independently of reporting filters.
 
 ## Multiple argument roles
@@ -258,3 +259,50 @@ never duplicate a value. `SourceValues(includeReceivers: true)` includes the
 written extension receiver once in both extension spellings; its default remains
 false, preserving the existing explicit-argument-only projection. Original type,
 contextual conversion, source/context identity and collection metadata survive.
+
+## Type references and object creations
+
+`Code.TypeReferences` selects every written reference to a named or keyword type:
+declaration and parameter types, base types, generic arguments, casts, `typeof`,
+`nameof`, attribute names, static member qualifiers and the type in `new T()`.
+Aliases resolve to their target, including global aliases declared in generated
+files, and `var` is not a reference. Keyword spellings count, including `void`,
+`nint` and `nuint`. A qualified name
+such as `System.DateTime` is one reference; a nested type's outer qualifier is a
+separate reference to the outer type. `reference.Type` is the referenced type,
+including constructed arguments, and `RefersTo(type)` matches it.
+`CodeType.References` selects one type's references with name-based discovery.
+
+```csharp
+rules.Rule("ARCH001", "Keep the domain independent of infrastructure.")
+    .For(Code.TypeReferences.InNamespace("Shop.Domain.**")
+        .Where(reference => reference.Type.IsInNamespace("Shop.Infrastructure.**"))
+        .OutsideNameOf())
+    .Forbid();
+```
+
+`Code.ObjectCreations` selects `new T(...)` and target-typed `new(...)`, with the
+bound `Type`, `Constructor`, written `Arguments` and parameter-mapped
+`Argument(name)`. `Of<T>()` and `Of(type)` select one created type exactly; open
+generic descriptors match every construction. Type-parameter creations remain
+selectable but unresolved.
+
+## Fields, properties, parameters and catch clauses
+
+`Code.Fields` yields one candidate per written field variable, sharing the
+declaration's modifiers and type syntax; event fields are excluded. Fields expose
+`IsConst`, `IsStatic`, `IsReadOnly`, `Type`, `TypeIs` and `Initializer`.
+`Code.Properties` exposes accessor shape (`HasGetter`, `HasSetter`, `HasInit`,
+`IsAutoProperty`, true only when the compiler supplies a backing field, so abstract,
+interface, extern and partial-definition properties are excluded), `Type` and `Initializer`. `Code.Parameters` covers methods,
+constructors, operators, delegates, indexers, local functions, primary
+constructors and lambdas, with `Ordinal`, `ContainingSymbol`, `IsLambdaParameter`,
+`HasDefaultValue` and `DefaultValue`. All three report at their identifier and
+share the declaration filters.
+
+`Code.Catches` selects written catch clauses. `ExceptionType` is null for
+`catch { }`; `Catches(type)` matches the declared type exactly and
+`CatchesAnyException` also covers `System.Exception` and `System.Object`.
+`HasFilter`, `Filter`, `Body`, `IsEmpty` and `Rethrows` (a `throw;` outside nested
+handlers and functions) describe the handler. Findings report at the clause
+header, from `catch` through its declaration and filter.

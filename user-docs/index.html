@@ -29,17 +29,17 @@
 <h1>The rule author’s manual</h1>
 <p class="lead">A small language for your team’s conventions.</p>
 
-<p>Turn a convention your team keeps explaining into a small, repeatable check. Drill Press rules are ordinary C#: you choose some code, describe a requirement, and tell the reader how to fix a violation.</p>
+<p>Turn a convention your team keeps explaining into a small, repeatable check. Drill Press rules are ordinary C#: you name the convention, choose the code it governs, and say what must or must not be true.</p>
 <div class="hero-actions"><a class="button" href="first-rule.html">Write your first rule →</a><a href="reference.html">Explore the API field guide</a></div>
 <div class="codeblock"><div class="codehead"><span>A complete rule declaration</span></div><pre tabindex="0" data-check="program" id="example-1"><code>using DrillPress;
 
-var rules = new RuleSet();
-var console = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);
-var productionCalls = ProjectFacts.ProductionFiles.Invocations();
+var rules = new RuleCatalog();
+var writeLine = CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;);
 
-rules.For(productionCalls.Where(call =&gt; call.Calls(console)))
-    .Forbid(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;);</code></pre></div>
-<p>Read it from the inside out: <em>find calls in production files; keep calls to Console.WriteLine; report each one with this message.</em> Test projects are outside this rule’s scope.</p>
+rules.Rule(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;)
+    .For(Code.Calls.To(writeLine).InNonTestProjects())
+    .Forbid();</code></pre></div>
+<p>Read it top to bottom: <em>this is rule TEAM001; it governs calls to Console.WriteLine outside test projects; each one is a finding.</em> The call is identified by the compiler, so aliases, <code>using static</code> imports and every overload are covered without matching text.</p>
 <h2 id="choose">Choose your next step</h2>
 <div class="cards">
 <a class="card" href="first-rule.html"><span>01 / START SMALL</span><h3>A working first rule</h3><p>Create a bundle, run it against a project, and understand its output.</p></a>
@@ -48,11 +48,12 @@ rules.For(productionCalls.Where(call =&gt; call.Calls(console)))
 <a class="card" href="testing.html"><span>04 / BUILD CONFIDENCE</span><h3>Test before you share</h3><p>Small source examples, precise findings, and safe-fix checks.</p></a>
 </div>
 <h2 id="mental-model">Three ideas are enough to start</h2>
-<dl><dt>A candidate is something to inspect.</dt><dd>A file, a method, a type, or a particular call. It carries the source location needed to report a useful finding.</dd>
-<dt>A query chooses candidates.</dt><dd><code>Where</code> narrows the selection. Reuse the same query in several rules when they share a scope.</dd>
-<dt>A rule explains a convention.</dt><dd><code>Forbid</code> reports everything selected. <code>Require</code> reports only the selected candidates that fail its condition.</dd></dl>
+<dl><dt>A rule names a convention.</dt><dd><code>rules.Rule(id, message)</code> gives it a stable identifier and tells the reader what to do next.</dd>
+<dt>A query chooses candidates.</dt><dd>Every query starts from <code>Code</code>: files, types, methods, calls, fields, catch clauses and more. <code>Where</code> and the named filters narrow it. Each candidate knows where to report.</dd>
+<dt>A verdict closes the rule.</dt><dd><code>Forbid()</code> reports everything selected. <code>Require(condition)</code> reports only the candidates that fail it. Both accept an optional safe fix.</dd></dl>
 <h2 id="knowledge">You do not need to know Roslyn first</h2>
 <p>You should be comfortable with C# methods, lambdas, and basic LINQ. Roslyn is the C# compiler’s API: it lets a rule distinguish a real framework call from an unrelated method with the same name. Start with Drill Press’s wrappers.</p>
+<p>Working with a coding agent? Install the bundled <a href="../docs/AGENT_SKILL.md">rule-authoring skill</a>; it carries this manual’s essentials and compiled examples, so the agent needs no online documentation.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <span></span>
 <a href="first-rule.html"><small>NEXT →</small>Write your first rule</a>

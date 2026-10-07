@@ -27,13 +27,13 @@ public sealed class BodyQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var bodies = Code.Methods.Body();
 
         var selected = bodies
-            .Invocations()
+            .Calls()
             .In(solution)
             .Select(call => call.Operation.Syntax.ToString())
             .ToArray();
         var raw = bodies
             .In(solution)
-            .SelectMany(body => body.Invocations())
+            .SelectMany(body => body.Calls())
             .Select(call => call.IsResolved)
             .ToArray();
 

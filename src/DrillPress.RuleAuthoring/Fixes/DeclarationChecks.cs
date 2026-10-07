@@ -3,10 +3,10 @@ using Microsoft.CodeAnalysis;
 namespace DrillPress;
 
 /// <summary>Separate declaration contracts. Equal identity/accessibility alone never proves arbitrary modifier-removal behavior.</summary>
-public static class DeclarationChecks
+internal static class DeclarationChecks
 {
     /// <summary>Compares compiler-declared accessibility for every affected symbol, including merged partial declarations.</summary>
-    public static ProofResult SameDeclaredAccessibility(DeclarationRewrite change) =>
+    public static ProofResult SameDeclaredAccessibility(ModifierChange change) =>
         change.Symbols.All(pair =>
             pair.Before.DeclaredAccessibility == pair.After.DeclaredAccessibility
         )
@@ -14,7 +14,7 @@ public static class DeclarationChecks
             : ProofResult.Disproven;
 
     /// <summary>Compares contextual declaration correspondence, assembly/kind/name/signature and partial-method pairing.</summary>
-    public static ProofResult SameIdentity(DeclarationRewrite change) =>
+    public static ProofResult SameIdentity(ModifierChange change) =>
         change.Symbols.All(pair =>
             RewriteSymbols.Same(pair.Before, pair.After, change.Rewrite.Context)
             && Pairing(pair.Before) == Pairing(pair.After)
@@ -23,13 +23,13 @@ public static class DeclarationChecks
             : ProofResult.Disproven;
 
     /// <summary>Compares accessibility at each containing declaration as well as the selected symbol; it cannot hide a changed declared contract.</summary>
-    public static ProofResult SameContainingAccessibility(DeclarationRewrite change) =>
+    public static ProofResult SameContainingAccessibility(ModifierChange change) =>
         change.Symbols.All(pair => AccessChain(pair.Before).SequenceEqual(AccessChain(pair.After)))
             ? ProofResult.Proven
             : ProofResult.Disproven;
 
     /// <summary>Preserves compiler modifier facts for every declared symbol; additional consumer proof is still required for body/reflection/ABI policy.</summary>
-    public static ProofResult SameContract(DeclarationRewrite change) =>
+    public static ProofResult SameContract(ModifierChange change) =>
         change.Symbols.All(pair => Contract(pair.Before) == Contract(pair.After))
             ? ProofResult.Proven
             : ProofResult.Disproven;

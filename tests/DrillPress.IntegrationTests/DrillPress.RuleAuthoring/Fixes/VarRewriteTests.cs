@@ -93,10 +93,11 @@ public sealed class VarRewriteTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var query = Code.LocalVariables.Concat(Code.ForEachLoops).Concat(Code.OutVariables);
         var declaration = query.In(solution).Single();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("VAR", "Use var.")
             .For(query.WhereVarPreservesType())
-            .Forbid("VAR", "Use var.", fix: item => Fix.For(item).UseVar());
+            .Forbid(fix: item => Fix.For(item).UseVar().Propose());
 
         var canUseVar = declaration.CanUseVar;
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -123,7 +124,7 @@ public sealed class VarRewriteTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
         var declaration = Code.LocalVariables.In(solution).Single();
-        var proposal = Fix.For(declaration).UseVar();
+        var proposal = Fix.For(declaration).UseVar().Propose();
 
         Assert.Equal(expected, declaration.CanUseVar);
         Assert.Null(proposal);
@@ -141,13 +142,14 @@ public sealed class VarRewriteTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             """;
         workspace.AddProject("Primary", [new("A.cs", source)]);
         workspace.AddProject("Aliased", [new("A.cs", source)], symbols: ["ALIAS"]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("VAR", "Use var.")
             .For(
                 Code.LocalVariables.Where(item => item.Source.Project.Name == "Primary")
                     .WhereVarPreservesType()
             )
-            .Forbid("VAR", "Use var.", fix: item => Fix.For(item).UseVar());
+            .Forbid(fix: item => Fix.For(item).UseVar().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -162,10 +164,11 @@ public sealed class VarRewriteTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         const string source = "class A { void M() { /* before */ int /* after */ value = 1; } }";
         workspace.AddProject("Library", [new("A.cs", source)]);
         workspace.AddProject("Other", [new("A.cs", source)], framework: "net9.0");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("VAR", "Use var.")
             .For(Code.LocalVariables.WhereVarPreservesType())
-            .Forbid("VAR", "Use var.", fix: item => Fix.For(item).UseVar());
+            .Forbid(fix: item => Fix.For(item).UseVar().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 

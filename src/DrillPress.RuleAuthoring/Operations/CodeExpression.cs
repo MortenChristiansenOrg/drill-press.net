@@ -49,22 +49,16 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
     /// <summary>Matches this expression's original static type.</summary>
     public bool TypeIs<T>() => TypeIs(CodeType.Of<T>());
 
-    /// <summary>Matches a typed compiler constant, including a present null.</summary>
-    public bool IsConstant<T>(T value) => Is(value);
-
     /// <summary>The compile-time string value, or null when unavailable or a constant null.</summary>
     public string? TextValue => ValueAs<string>() is { HasValue: true } value ? value.Value : null;
 
     /// <summary>Reads a typed compiler constant, preserving absence separately from zero, false or null.</summary>
     public Optional<T> ValueAs<T>() => CompilerConstant.Read<T>(Constant, Type);
 
-    /// <summary>Tests a typed constant; enum comparisons require the same enum identity.</summary>
+    /// <summary>Tests a typed compiler constant, including a present null and nameof results; enum comparisons require the same enum identity.</summary>
     public bool Is<T>(T value) =>
         ValueAs<T>() is { HasValue: true } actual
         && EqualityComparer<T>.Default.Equals(actual.Value, value);
-
-    /// <summary>Tests constant string contents, including nameof results.</summary>
-    public bool IsText(string text) => Is(text);
 
     private IOperation? _implicitReceiver;
     private readonly Lazy<bool> _resolved = new(() =>
@@ -109,6 +103,12 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
 
     /// <summary>The original static type, also available for an implicit this receiver without source syntax.</summary>
     public ITypeSymbol? Type => _implicitReceiver?.Type ?? TypeInfo.Type;
+
+    /// <summary>The compiler's nullable flow state at this expression; None when nullable analysis is disabled or unavailable. This is compile-time evidence, not a runtime guarantee.</summary>
+    public NullableFlowState FlowState => TypeInfo.Nullability.FlowState;
+
+    /// <summary>Whether nullable analysis says the value may be null here, such as a nullable value that has not been checked.</summary>
+    public bool MayBeNull => FlowState == NullableFlowState.MaybeNull;
 
     /// <summary>The declaration annotation where the expression binds to a value declaration; None means no declaration evidence.</summary>
     public NullableAnnotation DeclaredNullability =>

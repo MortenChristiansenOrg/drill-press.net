@@ -75,7 +75,7 @@ public static class InvocationQueries
     ) => calls.Where(call => call.IsDeclaredOnOrDerivedFrom(type));
 
     /// <summary>Selects bound targets by a case-sensitive name glob; exact-name selections remain available through ToMethodsNamed.</summary>
-    public static CodeQuery<CodeInvocation> ToMethodsMatchingName(
+    public static CodeQuery<CodeInvocation> ToMethodsMatching(
         this CodeQuery<CodeInvocation> calls,
         string pattern
     )
@@ -174,14 +174,14 @@ public static class InvocationQueries
                 : []
         );
 
-    /// <summary>Matches a configured method without discarding its actual overload.</summary>
-    public static CodeQuery<CodeInvocation> Calling(
+    /// <summary>Selects calls to a configured method or overload family, in any spelling: instance, static, extension or static import.</summary>
+    public static CodeQuery<CodeInvocation> To(
         this CodeQuery<CodeInvocation> calls,
         CodeMember member
     ) => calls.Where(call => call.IsResolved && call.Calls(member));
 
-    /// <summary>Matches any configured member family or overload.</summary>
-    public static CodeQuery<CodeInvocation> Calling(
+    /// <summary>Selects calls to any configured member family or overload.</summary>
+    public static CodeQuery<CodeInvocation> To(
         this CodeQuery<CodeInvocation> calls,
         ApiSet members
     ) => calls.Where(call => call.IsResolved && members.Contains(call.Target));
@@ -208,7 +208,7 @@ public static class InvocationQueries
         );
     }
 
-    /// <summary>Projects parameter groups without inventing source locations for default arguments.</summary>
+    /// <summary>Projects the arguments bound to a parameter, including omitted defaults, which have no source value and report at their call.</summary>
     public static CodeQuery<CodeArgument> ArgumentsFor(
         this CodeQuery<CodeInvocation> calls,
         string parameterName

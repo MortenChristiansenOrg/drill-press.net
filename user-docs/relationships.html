@@ -33,34 +33,30 @@
 <h2 id="projects">Read evaluated project facts</h2>
 <div class="codeblock"><div class="codehead"><span>Keep a legacy package out of production projects</span></div><pre tabindex="0" data-check="program" id="example-21"><code>using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 
-rules.For(ProjectFacts.ProductionFiles.Where(file =&gt;
-        file.Source.Project.ReferencesPackage(&quot;Newtonsoft.Json&quot;)))
-    .Forbid(&quot;TEAM012&quot;, &quot;Use the application's System.Text.Json contract.&quot;);</code></pre></div>
-<p>This intentionally reports on each ordinary file in the offending project. Project-only diagnostics need an existing source anchor; an empty project cannot be reported by this source-diagnostic protocol. If one finding per project is preferable, build a query that chooses one ordinary file per project.</p>
-<p><code>ProjectFacts.TestFiles</code> and <code>ProductionFiles</code> use the project classification captured by the loader. <code>WithRole(predicate)</code> selects projects using your policy. <code>ReferencesPackage</code> compares direct package identifiers case-insensitively.</p>
-<p><code>AnalysisProject</code> offers <code>Name</code>, <code>ProjectPath</code>, <code>TargetFramework</code>, <code>IsTestProject</code>, <code>Packages</code>, <code>Properties</code>, and <code>SourceRoots</code>. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment.</p>
+rules.Rule(&quot;TEAM015&quot;, &quot;Use the application's System.Text.Json contract.&quot;)
+    .For(Code.Projects.Where(project =&gt;
+        !project.IsTestProject &amp;&amp; project.ReferencesPackage(&quot;Newtonsoft.Json&quot;)))
+    .Forbid();</code></pre></div>
+<p>A project finding reports at the start of the project’s first ordinary source file; an empty project cannot be reported by this source-diagnostic protocol. To report on every file instead, select <code>Code.Files</code> and test <code>file.Source.Project</code>.</p>
+<p><code>InTestProjects()</code> and <code>InNonTestProjects()</code> use the project classification captured by the loader, not project names. <code>ReferencesPackage</code> compares direct package identifiers case-insensitively.</p>
+<p><code>AnalysisProject</code> offers <code>Name</code>, <code>ProjectPath</code>, <code>TargetFramework</code>, <code>IsTestProject</code>, <code>Packages</code>, <code>Properties</code>, <code>SourceRoots</code> and <code>HasType</code>. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment.</p>
 <h2 id="counterparts">Require a counterpart</h2>
-<div class="codeblock"><div class="codehead"><span>Require a named xUnit round-trip test for each concrete codec</span></div><pre tabindex="0" data-check="program" id="example-22"><code>using DrillPress;
-using TypeKind = Microsoft.CodeAnalysis.TypeKind;
+<div class="codeblock"><div class="codehead"><span>Require a named round-trip test for each concrete codec</span></div><pre tabindex="0" data-check="program" id="example-22"><code>using DrillPress;
 
-var rules = new RuleSet();
-var contract = CodeType.Named(&quot;Product.ITextCodec&quot;);
-var codecs = Code.Types.Where(type =&gt;
-    !type.Source.Project.IsTestProject
-    &amp;&amp; type.Symbol is { IsAbstract: false, TypeKind: TypeKind.Class or TypeKind.Struct }
-    &amp;&amp; type.Implements(contract));
-var fact = CodeType.Named(&quot;Xunit.FactAttribute&quot;, &quot;xunit.v3.core&quot;);
-var tests = Code.Methods.Where(method =&gt;
-    method.Source.Project.IsTestProject &amp;&amp; method.HasAttribute(fact));
+var rules = new RuleCatalog();
+var codecs = Code.Types
+    .InNonTestProjects()
+    .ImplementingInterface(CodeType.Named(&quot;Product.ITextCodec&quot;))
+    .Where(type =&gt; !type.IsAbstract &amp;&amp; !type.IsInterface);
 
-rules.For(codecs.WithoutMatching(tests, (codec, test) =&gt;
+rules.Rule(&quot;TEAM016&quot;, &quot;Add a &lt;CodecName&gt;RoundTrip test for this codec.&quot;)
+    .For(codecs.WithoutMatching(Code.TestMethods, (codec, test) =&gt;
         test.Name == $&quot;{codec.Name}RoundTrip&quot;
-        &amp;&amp; codec.Solution.ProjectGraph.Includes(
-            test.Source.Project, codec.Source.Project)))
-    .Forbid(&quot;TEAM013&quot;, &quot;Add an xUnit &lt;CodecName&gt;RoundTrip test for this codec.&quot;);</code></pre></div>
-<p>The missing thing has no source location, so the rule reports on the existing codec. This example selects xUnit v3 Fact attributes, including derived attributes; adapt the configured attribute identity for your framework. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names.</p>
+        &amp;&amp; codec.Solution.ProjectGraph.Includes(test.Source.Project, codec.Source.Project)))
+    .Forbid();</code></pre></div>
+<p>The missing thing has no source location, so the rule reports on the existing codec. <code>Code.TestMethods</code> recognizes xUnit, NUnit and MSTest markers by compiler identity, including derived attributes. This naming convention checks discoverable coverage; it does not prove the test’s assertions are correct. Extend the match with namespace or ownership information if your project has duplicate type names.</p>
 <p>The keyed <code>WithoutMatching(other, key, otherKey, comparer)</code> overload is useful for simple equality and large inventories. The predicate overload handles context-sensitive matching. <code>Join</code> returns matching pairs rather than missing owners.</p>
 <h2 id="graph">Respect project boundaries</h2>
 <p><code>solution.ProjectGraph.Includes(consumer, owner)</code> means the consumer is the owner itself or transitively references that exact evaluated context. <code>DependenciesOf(project)</code> includes the project itself. <code>CompatibleViewsOf(owner)</code> returns separate compatible project sets; it does not merge alternate frameworks or incompatible evaluations.</p>
@@ -77,16 +73,17 @@ rules.For(codecs.WithoutMatching(tests, (codec, test) =&gt;
 <h2 id="implementations">Count concrete implementations</h2>
 <div class="codeblock"><div class="codehead"><span>Find interfaces with one concrete production implementation</span></div><pre tabindex="0" data-check="program" id="example-23"><code>using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 
-rules.For(Code.Interfaces.Where(type =&gt;
-        type.Solution.Implementations.In(type).Any(view =&gt;
-            view.Implementations.Count(item =&gt;
-                !item.Project.IsTestProject &amp;&amp; !item.Symbol.IsAbstract
-                &amp;&amp; item.Symbol.TypeKind is Microsoft.CodeAnalysis.TypeKind.Class
-                    or Microsoft.CodeAnalysis.TypeKind.Struct) == 1)))
-    .Forbid(&quot;TEAM014&quot;, &quot;Consider removing this single-implementation interface.&quot;);</code></pre></div>
-<p><code>InterfaceImplementations.In</code> returns implementation evidence per compatible source view, including abstract types, derived interfaces, test projects, and generated definitions. This consumer chooses its filters and count explicitly. Each result exposes its evaluated project and declared symbol. It does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice.</p>
+rules.Rule(&quot;TEAM017&quot;, &quot;Consider removing this single-implementation interface.&quot;)
+    .For(Code.Interfaces
+        .ImplementationViews()
+        .IgnoringTestProjects()
+        .ConcreteOnly()
+        .WithExactlyOneImplementation())
+    .Forbid();</code></pre></div>
+<p><code>ImplementationViews()</code> returns one <code>ImplementationView</code> per compatible source view of each interface, with its <code>Interface</code>, <code>Projects</code> and <code>Implementations</code>. Before filtering, views include abstract types, derived interfaces, test projects and generated definitions. <code>IgnoringTestProjects()</code>, <code>ConcreteOnly()</code> and <code>WhereImplementation(...)</code> filter inside every view, and <code>WithExactlyOneImplementation()</code> keeps interfaces with exactly one implementation in every view. A view is itself reportable, so per-view policies can use <code>Where(view =&gt; ...)</code> directly.</p>
+<p>The analysis does not know about implementations in unloaded external consumers. Whether the interface should actually be removed is your team’s architectural choice.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="analysis.html"><small>← PREVIOUS</small>Calls and flow</a>
 <a href="facts.html"><small>NEXT →</small>Facts, comparisons, and baselines</a>

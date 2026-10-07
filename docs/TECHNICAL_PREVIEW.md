@@ -134,13 +134,13 @@ aggregates physical locations, filters complete conflicting fix batches, and
 renders compact output or applies the common-safe plan. It loads neither Roslyn,
 MSBuild, nor rule assemblies into its own process.
 
-Define rules in ordinary C# through `RuleSet`, reusable `Code` queries, and
+Define rules in ordinary C# through `RuleCatalog`, reusable `Code` queries, and
 composable conditions. For example, the sample registers its empty-string rule
-with `Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty)))`
+with `CodeType.Of<string>().Member(nameof(string.Empty)).References.OutsideNameOf()`
 and supplies the sample-owned `EmptyStringFix.Create` to `Forbid`.
 Specialized fixes and xUnit conventions live in the sample project; the SDK
 provides general analysis and edit primitives. Its explicit entry point calls
-`new RuleApplication().RunAsync(SampleRuleSet.Create(), args)`; there is no reflection
+`new RuleApplication().RunAsync(SampleRuleCatalog.Create(), args)`; there is no reflection
 discovery or runtime source compilation. Follow the complete examples and safety
 contracts in [rule authoring](RULE_AUTHORING.md), then rebuild and republish the
 bundle with the commands above. The bundle includes five general preview rules

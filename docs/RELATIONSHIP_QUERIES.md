@@ -6,18 +6,23 @@ test projects; consumers choose which of those matter to their policy.
 
 ```csharp
 var production = Code.Interfaces.ImplementationViews()
-    .WhereImplementation(implementation => !implementation.Project.IsTestProject)
-    .WhereConcrete();
+    .IgnoringTestProjects()
+    .ConcreteOnly();
 
-rules.For(production.Where(view => view.Implementations.Count == 1)
-        .At(view => view.Owner))
-    .Forbid("ARCH001", "Reconsider this interface.");
+rules.Rule("ARCH001", "Reconsider this interface.")
+    .For(production.WithExactlyOneImplementation())
+    .Forbid();
 ```
+
+`WithExactlyOneImplementation()` requires exactly one implementation in **every**
+compatible view of the same physical interface; counts `[1, 1]` qualify, while
+`[1, 2]` and `[1, 0]` do not. Each `ImplementationView` is itself reportable at
+its `Interface`, so per-view policies can use `Where(view => ...)` directly.
 
 `WhereImplementation` filters entries inside **every** view. `Where` filters
 entire views. Empty views survive entry filtering, supporting zero-count and
 missing-implementation rules with the interface as their reportable owner.
-`WhereConcrete` means non-abstract class/struct, including records, not public
+`ConcreteOnly` means non-abstract class/struct, including records, not public
 constructibility or DI activation. No cardinality or production/test preference
 is built into discovery.
 

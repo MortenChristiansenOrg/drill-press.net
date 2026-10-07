@@ -41,33 +41,36 @@ public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFix
         var calls = Code
             .Calls.InNonTestProjects()
             .InProjectsWithType(CodeType.Named("Product.Data.DataAccess"));
-        var classified = calls
-            .Select(call => (Call: call, Operation: StandardLinq.Inspect(call)))
-            .At(item => item.Call);
+        var classified = calls.Select(call => (Call: call, Operation: StandardLinq.Inspect(call)));
         var supportedTerminals = classified.Where(item =>
-            item.Value.Operation.Status == LinqClassificationStatus.Supported
-            && item.Value.Operation.Category
+            item.Operation.Status == LinqClassificationStatus.Supported
+            && item.Operation.Category
                 is LinqOperationCategory.Scalar
                     or LinqOperationCategory.Materializer
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("LINQ_FRAMEWORK", "Use a supported framework.")
             .For(
                 classified.Where(item =>
-                    item.Value.Operation.Status == LinqClassificationStatus.UnsupportedFramework
+                    item.Operation.Status == LinqClassificationStatus.UnsupportedFramework
                 )
             )
-            .Forbid("LINQ_FRAMEWORK", "Use a supported framework.");
+            .ReportAt(item => item.Call)
+            .Forbid();
         rules
+            .Rule("LINQ_OPERATION", "Review this overload.")
             .For(
                 classified.Where(item =>
-                    item.Value.Operation.Status == LinqClassificationStatus.UnsupportedOperation
+                    item.Operation.Status == LinqClassificationStatus.UnsupportedOperation
                 )
             )
-            .Forbid("LINQ_OPERATION", "Review this overload.");
+            .ReportAt(item => item.Call)
+            .Forbid();
         rules
-            .For(supportedTerminals.Select(item => item.Value.Call))
-            .Forbid("TERMINAL", "Selected terminal.");
+            .Rule("TERMINAL", "Selected terminal.")
+            .For(supportedTerminals.Select(item => item.Call))
+            .Forbid();
 
         var diagnostics = rules.Evaluate(solution);
 
@@ -508,7 +511,7 @@ public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFix
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var operation = StandardLinq.Inspect(OperationQueries.Invocations.In(solution).Single());
+        var operation = StandardLinq.Inspect(Code.Calls.In(solution).Single());
 
         Assert.Equal(LinqClassificationStatus.Unresolved, operation.Status);
         Assert.Null(operation.Category);

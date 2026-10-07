@@ -11,21 +11,27 @@ public static class RelationshipQueries
         this CodeQuery<ImplementationView> views
     ) => views.WhereImplementation(implementation => !implementation.Project.IsTestProject);
 
-    /// <summary>Selects concrete implementation definitions inside every view.</summary>
+    /// <summary>Keeps only non-abstract class and struct implementations, including records, inside every view. Does not assert public constructibility or DI activation.</summary>
     public static CodeQuery<ImplementationView> ConcreteOnly(
         this CodeQuery<ImplementationView> views
-    ) => views.WhereConcrete();
+    ) =>
+        views.WhereImplementation(implementation =>
+            !implementation.Symbol.IsAbstract
+            && implementation.Symbol.TypeKind is TypeKind.Class or TypeKind.Struct
+        );
 
     /// <summary>Returns interface memberships only when every selected compatible view across the same physical source interface has exactly one selected implementation. Empty view sets and zero-count views do not satisfy the requirement.</summary>
-    public static CodeQuery<CodeDeclaration> WithExactlyOneImplementation(
+    public static CodeQuery<CodeTypeDefinition> WithExactlyOneImplementation(
         this CodeQuery<ImplementationView> views
     ) =>
-        CodeQuery<CodeDeclaration>.Create(solution =>
+        CodeQuery<CodeTypeDefinition>.Create(solution =>
             views
                 .In(solution)
-                .GroupBy(view => (view.Owner.Source.Project.ProjectPath, view.Owner.Location))
+                .GroupBy(view =>
+                    (view.Interface.Source.Project.ProjectPath, view.Interface.Location)
+                )
                 .Where(group => group.All(view => view.Implementations.Count == 1))
-                .SelectMany(group => group.Select(view => view.Owner).Distinct())
+                .SelectMany(group => group.Select(view => view.Interface).Distinct())
         );
 
     /// <summary>Selects only the immediate compiler override edge.</summary>
@@ -36,7 +42,7 @@ public static class RelationshipQueries
 
     /// <summary>Retains each maximal compatible view, including zero-entry views and alternative evaluations of the same framework.</summary>
     public static CodeQuery<ImplementationView> ImplementationViews(
-        this CodeQuery<CodeDeclaration> owners
+        this CodeQuery<CodeTypeDefinition> owners
     ) =>
         owners.SelectMany(owner =>
             owner
@@ -54,15 +60,6 @@ public static class RelationshipQueries
             {
                 Implementations = Array.AsReadOnly(view.Implementations.Where(predicate).ToArray()),
             }
-        );
-
-    /// <summary>Selects non-abstract classes and structs, including records. Does not assert public constructibility or DI activation.</summary>
-    public static CodeQuery<ImplementationView> WhereConcrete(
-        this CodeQuery<ImplementationView> views
-    ) =>
-        views.WhereImplementation(implementation =>
-            !implementation.Symbol.IsAbstract
-            && implementation.Symbol.TypeKind is TypeKind.Class or TypeKind.Struct
         );
 
     /// <summary>Projects every matching override edge, retaining its distance and constructed ancestor signature.</summary>

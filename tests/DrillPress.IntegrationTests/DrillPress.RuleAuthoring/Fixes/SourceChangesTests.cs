@@ -15,21 +15,19 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { int M() => 1; int N() => 1; }")]);
         var compilations = new List<Compilation>();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(Sources.Nodes<LiteralExpressionSyntax>())
-            .Forbid(
-                "EDIT",
-                "Update constants.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
-                        context =>
-                        {
-                            compilations.Add(context.Rewritten);
-                            return context.Edits.Count == 2;
-                        }
-                    )
+            .Rule("EDIT", "Update constants.")
+            .For(Code.Nodes<LiteralExpressionSyntax>())
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
+                    context =>
+                    {
+                        compilations.Add(context.Rewritten);
+                        return context.Edits.Count == 2;
+                    }
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -68,8 +66,8 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             ],
             _ => true
         );
-        var rules = new RuleSet();
-        rules.For(Sources.Files).Forbid("EDIT", "Update the declaration.", fix: _ => proposal);
+        var rules = new RuleCatalog();
+        rules.Rule("EDIT", "Update the declaration.").For(Code.Files).Forbid(fix: _ => proposal);
 
         var safe = proposal.IsSafeIn(project);
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -90,10 +88,11 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             [SourceChanges.Replace(source, new TextSpan(generated.Text.IndexOf('1'), 1), "2")],
             _ => true
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(Sources.Files)
-            .Forbid("EDIT", "Update the generated constant.", fix: _ => proposal);
+            .Rule("EDIT", "Update the generated constant.")
+            .For(Code.Files)
+            .Forbid(fix: _ => proposal);
 
         var safe = proposal.IsSafeIn(project);
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -120,14 +119,14 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("ACCESS", "Use default accessibility.")
             .For(
-                Sources
-                    .Nodes<MemberDeclarationSyntax>()
+                Code.Nodes<MemberDeclarationSyntax>()
                     .Where(node => node.Syntax is TypeDeclarationSyntax)
             )
-            .Forbid("ACCESS", "Use default accessibility.", fix: RemoveInternalToken);
+            .Forbid(fix: RemoveInternalToken);
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -150,8 +149,8 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             "Library",
             [new("A.cs", "class A { int M() => 1; }"), new("B.cs", "class B { int M() => 1; }")]
         );
-        var rules = new RuleSet();
-        var query = CodeQuery<CodeFile>.Create(solution => Sources.Files.In(solution).Take(1));
+        var rules = new RuleCatalog();
+        var query = CodeQuery<CodeFile>.Create(solution => Code.Files.In(solution).Take(1));
         var sources = workspace
             .Analyze(TestContext.Current.CancellationToken)
             .Projects.Single()
@@ -171,12 +170,9 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             )
             .ToArray();
         rules
+            .Rule("EDIT", "Update both protocol constants.")
             .For(query)
-            .Forbid(
-                "EDIT",
-                "Update both protocol constants.",
-                fix: _ => SourceChanges.Propose(edits, _ => true)
-            );
+            .Forbid(fix: _ => SourceChanges.Propose(edits, _ => true));
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -192,21 +188,18 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         var source = new TestSource("Shared.cs", "class Shared { int M() => 1; }");
         workspace.AddProject("First", [source]);
         workspace.AddProject("Second", [source]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("EDIT", "Update the constant.")
             .For(
-                Sources
-                    .Nodes<LiteralExpressionSyntax>()
+                Code.Nodes<LiteralExpressionSyntax>()
                     .Where(node => node.Source.Project.Snapshot.Name == "First")
             )
-            .Forbid(
-                "EDIT",
-                "Update the constant.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
-                        context => context.Original.Snapshot.Name != "Second"
-                    )
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
+                    context => context.Original.Snapshot.Name != "Second"
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -221,17 +214,15 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         var workspace = fixture.Workspace();
         var source = new TestSource("A.cs", "class A { int M() => 1; }");
         workspace.AddProject("Library", [source]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
-            .For(Sources.Nodes<LiteralExpressionSyntax>())
-            .Forbid(
-                "EDIT",
-                "Update the constant.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "\"wrong\"")],
-                        _ => true
-                    )
+            .Rule("EDIT", "Update the constant.")
+            .For(Code.Nodes<LiteralExpressionSyntax>())
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, node.Syntax.Span, "\"wrong\"")],
+                    _ => true
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -248,14 +239,14 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             "Library",
             [new("A.cs", "internal class A { internal void M() { } }")]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("ACCESS", "Remove redundant accessibility.")
             .For(
-                Sources
-                    .Nodes<MemberDeclarationSyntax>()
+                Code.Nodes<MemberDeclarationSyntax>()
                     .Where(node => node.Syntax is TypeDeclarationSyntax or MethodDeclarationSyntax)
             )
-            .Forbid("ACCESS", "Remove redundant accessibility.", fix: RemoveInternalToken);
+            .Forbid(fix: RemoveInternalToken);
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 

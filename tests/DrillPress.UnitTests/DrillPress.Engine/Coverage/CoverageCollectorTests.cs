@@ -15,15 +15,12 @@ public sealed class CoverageCollectorTests
         var report = project.Documents[1];
         var reportPath = report.Path;
         var snapshot = fixture.Snapshot;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV", "Exercise call.")
             .For(Code.Calls.ToMethodsNamed("HitValue"))
-            .Require(
-                global::DrillPress.Coverage.Executed,
-                "COV",
-                "Exercise call.",
-                location: _ => new(reportPath, 0, 5, 1, 1)
-            );
+            .ReportAt(_ => new(reportPath, 0, 5, 1, 1))
+            .Require(global::DrillPress.Coverage.Executed);
 
         var response = await fixture
             .Engine()
@@ -167,10 +164,11 @@ public sealed class CoverageCollectorTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.HasTests = false;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("LINES", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(0), "LINES", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(0));
 
         var diagnostics = await fixture
             .Engine()
@@ -202,8 +200,9 @@ public sealed class CoverageCollectorTests
         var fixture = new CoverageFixture();
         var rules = CoverageFixture.ExecutionRules();
         rules
+            .Rule("COV002", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "COV002", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var first = await fixture
             .Engine()
@@ -401,8 +400,8 @@ public sealed class CoverageCollectorTests
         fixture.Process.State = "partial";
         RuleCondition<CodeFile> minimum = global::DrillPress.Coverage.Line.AtLeast(0);
         RuleCondition<CodeFile> complete = global::DrillPress.Coverage.Line.AtLeast(100);
-        var rules = new RuleSet();
-        rules.For(Code.Files).Require(minimum.And(complete), "COV001", "Exercise file.");
+        var rules = new RuleCatalog();
+        rules.Rule("COV001", "Exercise file.").For(Code.Files).Require(minimum.And(complete));
 
         var diagnostics = await fixture
             .Engine()
@@ -619,7 +618,11 @@ public sealed class CoverageCollectorTests
 
         var diagnostics = await fixture
             .Engine()
-            .AnalyzeAsync(new RuleSet(), fixture.Snapshot, TestContext.Current.CancellationToken);
+            .AnalyzeAsync(
+                new RuleCatalog(),
+                fixture.Snapshot,
+                TestContext.Current.CancellationToken
+            );
 
         Assert.Empty(diagnostics);
         Assert.Equal(0, fixture.Process.Collections);
@@ -725,8 +728,9 @@ public sealed class CoverageCollectorTests
         fixture.Process.LineOnly = !duplicateFunctions;
         var rules = CoverageFixture.ExecutionRules();
         rules
+            .Rule("COV002", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "COV002", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var diagnostics = await fixture
             .Engine()
@@ -780,16 +784,18 @@ public sealed class CoverageCollectorTests
             }
             """
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise reference.")
             .For(Code.MemberReferences.Where(reference => reference.MemberName == "Value"))
-            .Require(global::DrillPress.Coverage.Executed, "COV001", "Exercise reference.");
+            .Require(global::DrillPress.Coverage.Executed);
         rules
+            .Rule("COV002", "Exercise expression.")
             .For(
                 Code.Nodes<Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax>()
                     .Where(node => node.Location.Line == 8)
             )
-            .Require(global::DrillPress.Coverage.Executed, "COV002", "Exercise expression.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var diagnostics = await fixture
             .Engine()
@@ -836,10 +842,11 @@ public sealed class CoverageCollectorTests
         fixture.FileSystem.AddFile("/coverage/SecondTests.csproj", new("<Project />"));
         fixture.Process.StatesByRun.Add(["yes", "no", "no"]);
         fixture.Process.StatesByRun.Add(["no", "yes", "no"]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise project.")
             .For(Code.Projects)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(90), "COV001", "Exercise project.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(90));
 
         var diagnostics = await fixture
             .Engine()
@@ -881,10 +888,11 @@ public sealed class CoverageCollectorTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.Excluded = true;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(0), "COV001", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(0));
 
         var diagnostics = await fixture
             .Engine()
@@ -905,8 +913,8 @@ public sealed class CoverageCollectorTests
             .Calls.Where(executed)
             .Select(call => call)
             .Union(Code.Calls.Where(executed));
-        var rules = new RuleSet();
-        rules.For(query).Forbid("COV001", "Found executed call.");
+        var rules = new RuleCatalog();
+        rules.Rule("COV001", "Found executed call.").For(query).Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -927,10 +935,11 @@ public sealed class CoverageCollectorTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.State = "partial";
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
+            .Rule("COV001", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(90), "COV001", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(90));
 
         var diagnostics = await fixture
             .Engine()

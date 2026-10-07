@@ -103,6 +103,15 @@ public sealed class AnalysisProject
     /// <summary>Direct package references, including requested central versions where available.</summary>
     public IReadOnlyList<PackageReferenceSnapshot> Packages => Array.AsReadOnly(Snapshot.Packages);
 
+    /// <summary>Tests a direct evaluated NuGet reference using NuGet's case-insensitive package identity. Prefer <see cref="HasType"/> for transitive availability.</summary>
+    public bool ReferencesPackage(string packageId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
+        return Snapshot.Packages.Any(package =>
+            string.Equals(package.Id, packageId, StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
     /// <summary>Captured policy properties and explicit MSBuild overrides; this is not the complete environment or evaluated property bag.</summary>
     public IReadOnlyDictionary<string, string> Properties =>
         new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(Snapshot.Properties);

@@ -64,31 +64,52 @@ var trim = CodeType.Of&lt;string&gt;().Member(nameof(string.Trim), []);
 var emptyStringReferences = CodeType.Of&lt;string&gt;().Member(nameof(string.Empty)).References;</code></pre></div>
 <p>Omitting parameters matches every method overload. Passing an empty list—or calling <code>WithParameters()</code>—matches only a parameterless method. A nonempty list matches the parameter types in order. <code>WithParameters</code> creates a new descriptor; it does not narrow the original one.</p>
 <p><code>CodeMember</code> also has a constructor taking declaring type, name, and optional parameters. Its <code>DeclaringType</code> and <code>Name</code> are readable properties. <code>Matches</code> accepts compiler methods, fields, or properties; a parameter-constrained descriptor matches methods only. Reduced extension methods are compared with their original static declaration, so an exact parameter list includes the extension receiver.</p>
-<h2 id="references">References or calls?</h2>
-<p><code>member.References</code> selects named source expressions referring to that member. It includes method groups as well as invoked method names. It does not represent object creation, indexer syntax, or implicit uses. For the actual invocation—including its arguments—use <code>files.Invocations()</code> and <code>call.Calls(member)</code>.</p>
-<p>The lower-level <code>Members.Are&lt;T&gt;(name)</code> and <code>Members.Are(type, name)</code> return reusable conditions for <code>Code.MemberReferences</code>. These and <code>member.References</code> preserve name-based discovery optimizations. A <code>MemberReference</code> exposes <code>ContainingType</code>, <code>MemberName</code>, <code>Location</code>, and optional <code>Source</code>, <code>Syntax</code>, and <code>Symbol</code>.</p>
+<h2 id="references">References, calls, or creations?</h2>
+<p>Choose the selection that matches the use your convention cares about. Each one identifies the member or type by compiler identity.</p>
+<div class="table-wrap"><table><thead><tr><th>Selection</th><th>Covers</th></tr></thead><tbody>
+<tr><td><code>Code.Calls.To(member)</code></td><td>Invocations of the method family or overload, in any spelling: instance, static, extension, or static import. Each call exposes <code>Target</code>, <code>Receiver</code>, <code>Arguments</code> and <code>Argument(&quot;name&quot;)</code>.</td></tr>
+<tr><td><code>member.References</code></td><td>Named source expressions referring to a field, property, or method, including method groups and <code>nameof</code>. Add <code>.OutsideNameOf()</code> to skip compiler-only uses.</td></tr>
+<tr><td><code>Code.ObjectCreations.Of&lt;T&gt;()</code></td><td><code>new T(...)</code> and target-typed <code>new(...)</code>, with the chosen constructor and parameter-mapped arguments.</td></tr>
+<tr><td><code>type.References</code> / <code>Code.TypeReferences</code></td><td>Every written use of a type: declarations, parameters, base lists, generic arguments, casts, <code>typeof</code>, attributes and static qualifiers.</td></tr>
+</tbody></table></div>
+<p>A <code>MemberReference</code> exposes <code>ContainingType</code>, <code>MemberName</code>, <code>Symbol</code>, <code>Expression</code> and <code>Facts</code>. Implicit uses, such as a property read inside a compiler-generated deconstruction, belong to <a href="analysis.html#operations">operation queries</a>.</p>
+<div class="codeblock"><div class="codehead"><span>Keep the domain independent of infrastructure</span></div><pre tabindex="0" data-check="program" id="example-type-references"><code>using DrillPress;
+
+var rules = new RuleCatalog();
+
+rules.Rule(&quot;ARCH001&quot;, &quot;Keep the domain independent of infrastructure.&quot;)
+    .For(Code.TypeReferences
+        .InNamespace(&quot;Shop.Domain.**&quot;)
+        .Where(reference =&gt; reference.Type.IsInNamespace(&quot;Shop.Infrastructure.**&quot;)))
+    .Forbid();
+
+rules.Rule(&quot;TIME001&quot;, &quot;Inject TimeProvider instead of creating timers.&quot;)
+    .For(Code.ObjectCreations.Of&lt;System.Threading.Timer&gt;().InNonTestProjects())
+    .Forbid();</code></pre></div>
+<p>A qualified name such as <code>System.DateTime</code> is one reference; aliases resolve to their target and <code>var</code> is not a reference.</p>
 <h2 id="sets">Configure a family of restricted APIs</h2>
 <div class="codeblock"><div class="codehead"><span>Keep non-repeatable values out of production code</span></div><pre tabindex="0" data-check="program" id="example-12"><code>using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var randomValues = new ApiSet(
     CodeType.Of&lt;Guid&gt;().Member(nameof(Guid.NewGuid)),
     CodeType.Of&lt;Random&gt;().Member(nameof(Random.Next)));
 
-rules.For(ProjectFacts.ProductionFiles.Invocations()
-        .Where(call =&gt; randomValues.Contains(call.Target)))
-    .Forbid(&quot;TEAM004&quot;, &quot;Pass reproducible values into the application core.&quot;);</code></pre></div>
-<p><code>ApiSet.Contains</code> matches compiler methods against any configured descriptor. Scope this policy to the deterministic part of your application; randomness is appropriate in many other places.</p>
+rules.Rule(&quot;TEAM004&quot;, &quot;Pass reproducible values into the application core.&quot;)
+    .For(Code.Calls.To(randomValues).InNamespace(&quot;Shop.Core.**&quot;))
+    .Forbid();</code></pre></div>
+<p><code>To</code> accepts a single member or an <code>ApiSet</code>; <code>ApiSet.Contains</code> tests one compiler method directly. Scope this policy to the deterministic part of your application; randomness is appropriate in many other places.</p>
+<p>When the declaring type does not matter, name-based call filters are available: <code>ToMethodsNamed(&quot;Commit&quot;)</code>, <code>ToMethodsMatching(&quot;*Async&quot;)</code>, <code>ToMethodsDeclaredOn(type)</code>, <code>ToMethodsDeclaredOnOrDerivedFrom(type)</code> and <code>OnReceiverOfType&lt;T&gt;()</code>.</p>
 <h2 id="attributes">Attributes, inheritance, and symbols</h2>
-<p><code>method.HasAttribute(type)</code> and <code>declaration.HasAttribute(type)</code> inspect resolved attributes. <code>declaration.Implements(contract)</code> follows inherited interfaces, not just the interface names written beside the class.</p>
-<p>For raw compiler symbols, <code>Symbols.HasAttribute</code> can include or exclude derived attribute types; <code>Symbols.IsOrDerivesFrom</code> follows base classes; <code>Symbols.Implements</code> follows interfaces. Unresolved types are not guessed.</p>
+<p><code>declaration.HasAttribute(type)</code> and <code>WithAttribute(type)</code> inspect resolved attributes on any declaration, including derived attribute classes. <code>type.Implements(contract)</code> follows inherited interfaces, not just the names written beside the class; <code>DerivesFrom</code> and <code>IsOrDerivesFrom</code> follow base classes. <code>Code.Types.DerivedFrom(type)</code> and <code>ImplementingInterface(type)</code> are the query forms.</p>
+<p>For raw compiler symbols, <code>Symbols.HasAttribute</code> can include or exclude derived attribute types; <code>Symbols.IsOrDerivesFrom</code> follows base classes; <code>Symbols.Implements</code> follows interfaces. <code>symbol.Attributes()</code> wraps attribute data with typed constructor and named values. Unresolved types are not guessed.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="selections.html"><small>← PREVIOUS</small>Select and compose</a>
 <a href="syntax.html"><small>NEXT →</small>Inspect source code</a>
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#types">Describe a type</a><a href="#generics">Open and constructed generics</a><a href="#members">Build members from their declaring type</a><a href="#references">References or calls?</a><a href="#sets">Configure a family of restricted APIs</a><a href="#attributes">Attributes, inheritance, and symbols</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#types">Describe a type</a><a href="#generics">Open and constructed generics</a><a href="#members">Build members from their declaring type</a><a href="#references">References, calls, or creations?</a><a href="#sets">Configure a family of restricted APIs</a><a href="#attributes">Attributes, inheritance, and symbols</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

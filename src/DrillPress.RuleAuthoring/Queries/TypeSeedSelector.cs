@@ -62,7 +62,7 @@ public sealed class TypeSeedSelector(Func<CodeMethod, IEnumerable<TypeSeed>> sel
         ArgumentException.ThrowIfNullOrWhiteSpace(parameter);
         return new(method =>
             Body(method, nested)
-                ?.Invocations()
+                ?.Calls()
                 .Where(call => call.Calls(member) && (where?.Invoke(call) ?? true))
                 .SelectMany(call =>
                     call.Parameter(parameter) is { } mapped

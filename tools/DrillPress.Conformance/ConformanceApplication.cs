@@ -51,13 +51,13 @@ public sealed class ConformanceApplication(
                     .Select(pair => Compare(pair.First, pair.Second, cancellationToken))
                     .ToArray();
                 var liveRules = await engine.EvaluateAsync(
-                    SampleRuleSet.Create(),
+                    SampleRuleCatalog.Create(),
                     snapshot.RequestId,
                     export.Contexts,
                     cancellationToken
                 );
                 var restoredRules = await engine.EvaluateAsync(
-                    SampleRuleSet.Create(),
+                    SampleRuleCatalog.Create(),
                     snapshot.RequestId,
                     reconstructed,
                     cancellationToken

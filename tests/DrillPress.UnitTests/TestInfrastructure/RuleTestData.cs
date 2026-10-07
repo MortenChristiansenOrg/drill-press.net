@@ -1,35 +1,74 @@
+using DrillPress.Testing;
+using Xunit;
+
 namespace DrillPress.UnitTests.TestInfrastructure;
 
 internal static class RuleTestData
 {
-    public static MemberReference Reference<TDeclaringType>(
-        string memberName,
-        string path = "Test.cs",
-        int start = 0
-    ) =>
-        new(
-            CodeType.Of<TDeclaringType>(),
-            memberName,
-            new SourceLocation(path, start, memberName.Length, 1, start + 1)
-        );
+    private const string Declarations = """
+        namespace Sample
+        {
+            public class Target
+            {
+                public static Target A, Any, Empty, End, First, Length, Long, Second;
+            }
+        }
+        """;
 
-    public static RuleSet TargetEmptyRuleSet()
+    /// <summary>An in-memory analysis whose documents read the listed Sample.Target members, one field initializer per line.</summary>
+    public static AnalysisSolution Solution(params (string Path, string[] Members)[] documents)
     {
-        var rules = new RuleSet();
-        var targetType = CodeType.Named("Sample.Target");
+        var workspace = new RuleTestWorkspace([]);
+        workspace.AddProject(
+            "Sample",
+            [
+                new("Target.cs", Declarations),
+                .. documents.Select(document => new TestSource(
+                    document.Path,
+                    Uses(document.Members)
+                )),
+            ],
+            allowErrors: true
+        );
+        return workspace.Analyze(TestContext.Current.CancellationToken);
+    }
+
+    public static RuleCatalog TargetEmptyRuleCatalog()
+    {
+        var rules = new RuleCatalog();
         rules
-            .For(Code.MemberReferences.Where(Members.Are(targetType, "Empty")))
-            .Forbid("TEST001", "Do not use Target.Empty.");
+            .Rule("TEST001", "Do not use Target.Empty.")
+            .For(CodeType.Named("Sample.Target").Member("Empty").References)
+            .Forbid();
         return rules;
     }
 
     public static IReadOnlyList<RuleDiagnostic> Evaluate(
         CodeQuery<MemberReference> query,
-        params MemberReference[] references
+        AnalysisSolution solution
     )
     {
-        var rules = new RuleSet();
-        rules.For(query).Forbid("TEST001", "Test message.");
-        return rules.Evaluate(references);
+        var rules = new RuleCatalog();
+        rules.Rule("TEST001", "Test message.").For(query).Forbid();
+        return rules.Evaluate(solution);
     }
+
+    public static (string Id, string Path, string Text) Describe(RuleDiagnostic diagnostic) =>
+        (
+            diagnostic.Descriptor.Id,
+            diagnostic.Location.FilePath,
+            diagnostic.Source!.Document.Text.Substring(
+                diagnostic.Location.Start,
+                diagnostic.Location.Length
+            )
+        );
+
+    private static string Uses(string[] members) =>
+        "class Use\n{\n"
+        + string.Concat(
+            members.Select(
+                (member, index) => $"    Sample.Target value{index} = Sample.Target.{member};\n"
+            )
+        )
+        + "}\n";
 }

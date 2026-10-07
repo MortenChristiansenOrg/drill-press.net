@@ -30,21 +30,21 @@ public sealed class StringCheckPatternsTests(SdkFixture fixture) : IClassFixture
 
         var builtIn = checks
             .Checks(
-                ConditionPattern.NullTests("missing"),
-                ConditionPattern.IsEmptyString(),
-                ConditionPattern.IsNullOrEmptyString(),
-                ConditionPattern.IsNullOrWhiteSpaceString()
+                ConditionPattern.Null,
+                ConditionPattern.EmptyString,
+                ConditionPattern.NullOrEmptyString,
+                ConditionPattern.NullOrWhiteSpaceString
             )
             .In(solution)
             .Select(match =>
-                $"{match.Is(ConditionPattern.IsNull())}:{match.Is(ConditionPattern.IsEmptyString())}:{match.Is(ConditionPattern.IsNullOrEmptyString())}:{match.Is(ConditionPattern.IsNullOrWhiteSpaceString())}:{match.Is(custom)}"
+                $"{match.Is(ConditionPattern.Null)}:{match.Is(ConditionPattern.EmptyString)}:{match.Is(ConditionPattern.NullOrEmptyString)}:{match.Is(ConditionPattern.NullOrWhiteSpaceString)}:{match.Is(custom)}"
             )
             .ToArray();
         var configured = checks
             .Checks(custom)
             .In(solution)
             .Select(match =>
-                $"{match.Is(custom)}:{match.Is(other)}:{match.Is(ConditionPattern.IsEmptyString())}:{match.Is(ConditionPattern.IsNullOrEmptyString())}"
+                $"{match.Is(custom)}:{match.Is(other)}:{match.Is(ConditionPattern.EmptyString)}:{match.Is(ConditionPattern.NullOrEmptyString)}"
             )
             .ToArray();
 
@@ -90,13 +90,13 @@ public sealed class StringCheckPatternsTests(SdkFixture fixture) : IClassFixture
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var empty = ConditionPattern.IsEmptyString();
+        var empty = ConditionPattern.EmptyString;
         var patterns = new[]
         {
             empty,
-            ConditionPattern.IsNullOrEmptyString(),
-            ConditionPattern.IsNullOrWhiteSpaceString(),
-            ConditionPattern.IsNull(),
+            ConditionPattern.NullOrEmptyString,
+            ConditionPattern.NullOrWhiteSpaceString,
+            ConditionPattern.Null,
         };
 
         var results = Code

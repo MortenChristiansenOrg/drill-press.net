@@ -1,6 +1,7 @@
 using System.IO.Abstractions.TestingHelpers;
 using DrillPress;
 using DrillPress.Manifest;
+using DrillPress.Testing;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
@@ -66,9 +67,11 @@ public sealed class ScopeQueriesTests
             TestContext.Current.CancellationToken
         );
 
-        var selected = Sources.Files.InFolder("Endpoints").InFilesNamed("*Tests.cs").In(solution);
+        var selected = Code.Files.InFolder("Endpoints").InFilesNamed("*Tests.cs").In(solution);
+        var membership = Code.Files.In(solution).Select(file => file.IsInFolder("Endpoints"));
 
         Assert.Same(parent, Assert.Single(selected).Source.Project);
+        Assert.Equal([true, false, false], membership);
     }
 
     [Fact]
@@ -113,10 +116,37 @@ public sealed class ScopeQueriesTests
 
         var counts = new[]
         {
-            Sources.Files.InFolder("Endpoints").In(solution).Count,
-            Sources.Files.InFolder("Endpoints", sourceRoot: "/repo/Endpoints").In(solution).Count,
+            Code.Files.InFolder("Endpoints").In(solution).Count,
+            Code.Files.InFolder("Endpoints", sourceRoot: "/repo/Endpoints").In(solution).Count,
         };
 
         Assert.Equal([1, 0], counts);
+    }
+
+    [Fact]
+    public void Project_scopes_use_globs_and_evaluated_test_classification()
+    {
+        var workspace = new RuleTestWorkspace([]);
+        workspace.AddProject("Shop.Api", [new("Api.cs", "class Api {}")], allowErrors: true);
+        workspace.AddProject(
+            "Shop.Api.Tests",
+            [new("Tests.cs", "class Tests {}")],
+            isTest: true,
+            allowErrors: true
+        );
+        workspace.AddProject("Tools", [new("Tool.cs", "class Tool {}")], allowErrors: true);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var shop = Code.Files.InProject("Shop.*").In(solution).Select(file => file.Name);
+        var exact = Code.Files.InProject("Shop.Api").In(solution).Select(file => file.Name);
+        var tests = Code.Files.InTestProjects().In(solution).Select(file => file.Name);
+        var production = Code.Files.InNonTestProjects().In(solution).Select(file => file.Name);
+        var matches = Code.Files.In(solution).Select(file => file.IsInProject("*.Tests")).ToArray();
+
+        Assert.Equal(["Api.cs", "Tests.cs"], shop);
+        Assert.Equal(["Api.cs"], exact);
+        Assert.Equal(["Tests.cs"], tests);
+        Assert.Equal(["Api.cs", "Tool.cs"], production);
+        Assert.Equal([false, true, false], matches);
     }
 }

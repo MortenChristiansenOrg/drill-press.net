@@ -17,8 +17,7 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
             [new("A.cs", "class A { Missing field; }")],
             allowErrors: true
         );
-        var node = Sources
-            .Nodes<VariableDeclarationSyntax>()
+        var node = Code.Nodes<VariableDeclarationSyntax>()
             .In(workspace.Analyze(TestContext.Current.CancellationToken))
             .Single();
         var type = node
@@ -47,7 +46,7 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var target = solution.Methods.Single(method => method.Name == "Read").Symbol!;
 
-        var references = SymbolQueries.ReferencesTo(target).In(solution);
+        var references = Code.ReferencesTo(target).In(solution);
 
         Assert.Equal(["Read", "Read"], references.Select(reference => reference.Syntax.ToString()));
     }
@@ -63,8 +62,8 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
                 new("B.g.cs", "[System.Obsolete] class B { }", true),
             ]
         );
-        var rules = new RuleSet();
-        rules.For(Sources.Attributes).Forbid("ATTR", "Review the attribute.");
+        var rules = new RuleCatalog();
+        rules.Rule("ATTR", "Review the attribute.").For(Code.Nodes<AttributeSyntax>()).Forbid();
 
         var findings = rules.Evaluate(workspace.Analyze(TestContext.Current.CancellationToken));
 
@@ -89,7 +88,7 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
                 new("B.cs", "partial class A { }"),
             ]
         );
-        var selected = SymbolQueries.Declarations.Where(item =>
+        var selected = Code.Declarations.Where(item =>
             item.Symbol.Kind
                 is SymbolKind.NamedType
                     or SymbolKind.Parameter
@@ -115,8 +114,7 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
             allowErrors: true
         );
 
-        var node = Sources
-            .Nodes<LiteralExpressionSyntax>()
+        var node = Code.Nodes<LiteralExpressionSyntax>()
             .In(workspace.Analyze(TestContext.Current.CancellationToken))
             .Single();
 

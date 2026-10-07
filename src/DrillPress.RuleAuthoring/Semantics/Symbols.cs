@@ -6,7 +6,7 @@ namespace DrillPress;
 public static class Symbols
 {
     /// <summary>Tests whether a member is declared in the selected source type or its class ancestry, retaining constructed type and assembly identity across rewritten contexts.</summary>
-    public static bool IsDeclaredInOrAbove(this ISymbol member, CodeDeclaration owner)
+    public static bool IsDeclaredInOrAbove(this ISymbol member, CodeTypeDefinition owner)
     {
         for (var type = owner.Symbol; type is not null; type = type.BaseType)
             if (

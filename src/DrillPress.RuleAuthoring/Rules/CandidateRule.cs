@@ -3,7 +3,7 @@ namespace DrillPress;
 internal sealed class CandidateRule<T>(
     CodeQuery<T> query,
     RuleDescriptor descriptor,
-    Func<T, SourceLocation>? location,
+    Func<T, ReportTarget?>? target,
     Func<T, FixProposal?>? fix,
     Func<T, object?>? reportKey,
     Func<T, string>? detail,
@@ -20,50 +20,55 @@ internal sealed class CandidateRule<T>(
             return [];
         return query
             .Evaluate(planning)
-            .Where(IsReportable)
             .SelectMany(candidate =>
-                candidate switch
+                PlannedTarget(candidate) switch
                 {
-                    AnalysisProject project => [project],
-                    ICodeElement { Source: { } source } => new[] { source.Project },
-                    _ => planning.Projects,
+                    null => planning.Projects,
+                    { Source: var source } when !IsReportable(source) => [],
+                    var report => candidate switch
+                    {
+                        AnalysisProject project => [project],
+                        ICodeElement element => [element.Source.Project],
+                        _ => [report.Source.Project],
+                    },
                 }
             );
     }
 
-    private static bool IsReportable(T candidate) =>
-        candidate
-            is not ICodeElement
-            {
-                Source: { Document.IsGenerated: true }
-                    or { Project.Snapshot.IsAnalysisTarget: false }
-            };
+    // Unlocated candidates without ReportAt fail later in evaluation; plan every context for them.
+    private ReportTarget? PlannedTarget(T candidate) =>
+        target?.Invoke(candidate)
+        ?? (
+            candidate is ICodeElement or AnalysisProject
+                ? ReportingLocation.Default(candidate)
+                : null
+        );
+
+    // Eligibility follows where a finding lands, so ReportAt cannot anchor findings in generated or non-target source.
+    private static bool IsReportable(AnalysisSource source) =>
+        !source.Document.IsGenerated && source.Project.Snapshot.IsAnalysisTarget;
 
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
         var candidates = query
             .Evaluate(solution)
-            .Where(IsReportable)
             .Select(candidate =>
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();
-                var element = candidate as ICodeElement;
-                if (candidate is AnalysisProject project)
-                    element = project
-                        .Sources.Where(source => !source.Document.IsGenerated)
-                        .Select(source => new CodeFile(source))
-                        .FirstOrDefault();
-                var span = location is not null
-                    ? location(candidate)
-                    : element?.Location
-                        ?? throw new InvalidOperationException(
-                            $"Candidate type '{typeof(T)}' does not expose a source location."
-                        );
+                return (
+                    Candidate: candidate,
+                    Report: target?.Invoke(candidate) ?? ReportingLocation.Default(candidate)
+                );
+            })
+            .Where(item => IsReportable(item.Report.Source))
+            .Select(item =>
+            {
+                var (candidate, report) = item;
                 var proposal = fix?.Invoke(candidate);
                 var outcome = failure?.Invoke(candidate);
                 return (
                     Key: reportKey?.Invoke(candidate),
-                    Diagnostic: new RuleDiagnostic(descriptor, span)
+                    Diagnostic: new RuleDiagnostic(descriptor, report.Location)
                     {
                         Evidence = detail?.Invoke(candidate),
                         Disposition = outcome?.Disposition ?? FindingDisposition.Violation,
@@ -79,7 +84,7 @@ internal sealed class CandidateRule<T>(
                                     }
                             )
                             .ToArray(),
-                        Source = element?.Source,
+                        Source = report.Source,
                         Fix = proposal,
                         Fixes = proposal is null ? [] : [proposal],
                     }

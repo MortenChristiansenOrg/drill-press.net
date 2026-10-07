@@ -5,31 +5,20 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
-/// <summary>Wraps exactly one if/else embedded statement while preserving original syntax, branch ownership and bound references.</summary>
+/// <summary>Adds braces around exactly one if or else embedded statement while preserving its syntax, branch ownership and bound references.</summary>
 public sealed class BlockWrapping
 {
     private readonly AnalysisSource _source;
     private readonly SyntaxNode _statement;
-    private readonly Func<RewriteEvidence, ProofResult>[] _checks;
 
-    internal BlockWrapping(
-        AnalysisSource source,
-        SyntaxNode statement,
-        Func<RewriteEvidence, ProofResult>[] checks
-    )
+    internal BlockWrapping(AnalysisSource source, SyntaxNode statement)
     {
         _source = source;
         _statement = statement;
-        _checks = checks;
     }
 
-    /// <summary>Adds a contextual invariant to the built-in restricted block-wrapping proof.</summary>
-    /// <remarks>Default gates validate editable nongenerated source, one supported if/else statement, safe boundary trivia, unchanged statement/branch ownership and all bound expressions and compiler-supplied arguments in every affected compilation. The library owns this restricted structural equivalence proof.</remarks>
-    public BlockWrapping Require(Func<RewriteEvidence, ProofResult> check) =>
-        new(_source, _statement, [.. _checks, check]);
-
-    /// <summary>Proposes two narrow boundary edits. Unsupported slots, labels, directives and ambiguous header trivia yield no proposal.</summary>
-    /// <remarks>Default gates validate editable nongenerated source, one supported if/else statement, safe boundary trivia, unchanged statement/branch ownership and all bound expressions and compiler-supplied arguments in every affected compilation. The library owns this restricted structural equivalence proof.</remarks>
+    /// <summary>Proposes the two brace insertions, using the file's indentation and line endings. The library owns this restricted equivalence proof; labels, directives and ambiguous header comments yield no proposal.</summary>
+    /// <remarks>Gates: editable ordinary source, a supported if/else branch, safe boundary trivia, and unchanged branch ownership, bound expressions and compiler-supplied arguments in every affected compilation.</remarks>
     public FixProposal? Propose()
     {
         if (
@@ -107,8 +96,7 @@ public sealed class BlockWrapping
         )
             return false;
         return RewriteChecks.SameSourceBindings(evidence) == ProofResult.Proven
-            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven
-            && _checks.All(check => check(evidence) == ProofResult.Proven);
+            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven;
     }
 
     private static bool SameOwner(
