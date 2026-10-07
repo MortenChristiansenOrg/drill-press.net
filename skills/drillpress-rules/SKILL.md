@@ -235,3 +235,6 @@ Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean
   arguments, naming, documentation, a proven replacement fix, braces, modifiers and catches.
 - [examples/ExampleRulesTests.cs](examples/ExampleRulesTests.cs): their tests, including
   scope, `nameof` exclusion and complete fixed text.
+- [examples/TemplateExtractionRules.cs](examples/TemplateExtractionRules.cs) and its
+  [tests](examples/TemplateExtractionRulesTests.cs): a complete, narrow string-template
+  proof using semantic extraction evidence, plus unsupported cases without fixes.

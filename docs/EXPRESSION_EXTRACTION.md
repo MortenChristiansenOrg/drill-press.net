@@ -26,6 +26,13 @@ rules.Rule("TEMPLATE", "Extract the repeated template.")
 
 `ProveHelperExtraction` receives an `ExtractionChange` and returns a Boolean;
 false withholds the fix. Grouping is candidate discovery, not behavioral proof.
+For a complete compiled proof, see
+[TemplateExtractionRules.cs](../skills/drillpress-rules/examples/TemplateExtractionRules.cs)
+and its [tests](../skills/drillpress-rules/examples/TemplateExtractionRulesTests.cs).
+That narrow policy accepts an ordinary interpolation with one string parameter,
+no alignment/format clause and no moved calls. It assumes that consumers observe
+string contents rather than allocation identity/count, resource exhaustion or
+stack inspection. Its unsupported formatting cases keep findings without fixes.
 
 ## Candidate equivalence
 
@@ -87,8 +94,11 @@ Conflicting member insertions are withheld together. An unavailable context cann
 be proved; no claim is made about unloaded downstream projects.
 
 The required consumer proof receives original/rewritten owners, the actual member,
-whether it was reused, per-occurrence rewrite evidence and the whole rewrite
-context. It owns domain equivalence, effects of configured calls, evaluation timing,
+whether it was reused, per-occurrence `ExpressionChange` evidence and the whole rewrite
+context. Each occurrence's `Before`, `After` and `Kept` use the actual original and
+rewritten compilation memberships, including linked contexts without findings;
+`Rewrite` retains the syntax, semantic models and capture mappings.
+The consumer owns domain equivalence, effects of configured calls, evaluation timing,
 culture/formatting assumptions and allocation observability. Structural matching
 never replaces that proof. Unsupported cases retain their diagnostics without fixes.
 

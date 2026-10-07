@@ -281,7 +281,7 @@ proof or `SafeWhen(change => ...)` when you state why the edit preserves behavio
 | `Fix.For(argument)` | `Remove()` | `SafeWhen` |
 | `Fix.For(declaration)` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility tokens that keep the declared accessibility, otherwise `SafeWhen` |
 | `Fix.For(branch)` | `AddBraces()` | `Propose()` |
-| `Fix.For(comment)` | `Remove()` | `Propose()` |
+| `Fix.For(comment)` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `Fix.For(variable)` | `UseVar()` | `Propose()` |
 | `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameter)` | `Propose()` for constants, otherwise `SafeWhen` |
 
@@ -390,3 +390,8 @@ including its final line break, while retaining adjacent blank lines. Inline
 removal keeps a separator when needed. Token correspondence, compilation and
 compiler-supplied argument checks withhold changes that alter parsing or caller
 information, such as subsequent `CallerLineNumber` values.
+
+Use `Remove(preserveLines: true)` to retain every original line break while
+deleting the comment text, including multiline comments. Standalone comment lines
+become empty lines. The same safety checks still apply in every affected loaded
+context; changed `CallerArgumentExpression` text still withholds the fix.

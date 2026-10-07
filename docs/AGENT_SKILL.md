@@ -10,6 +10,7 @@ DrillPress rules in your repository without fetching online documentation. It ho
 | `reference/fixes.md` | Fix builders, what each proof must establish, and custom edits |
 | `reference/testing.md` | `RuleTestWorkspace` options, output assertions and coverage fakes |
 | `examples/ExampleRules.cs`, `examples/ExampleRulesTests.cs` | Eight working rules with their tests |
+| `examples/TemplateExtractionRules.cs`, `examples/TemplateExtractionRulesTests.cs` | A bounded template-extraction proof and tests for accepted and unsupported cases |
 
 The agent reads `SKILL.md` first and opens the reference files only when it needs them.
 
