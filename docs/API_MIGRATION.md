@@ -104,7 +104,7 @@ or `SafeWhen(...)`. Proofs are Boolean; a false proof withholds the fix.
 Replacements are now parenthesized only where the destination requires it, so a
 rewrite of `!string.Equals(a, b)` produces `a != b` rather than `(a != b)`.
 
-### Preview.16 extraction evidence
+### Preview.17 extraction evidence
 
 `ExtractionChange.Occurrences` now contains `ExpressionChange` instead of
 `RewriteEvidence`. Use `occurrence.Before` / `After` for semantic expressions,

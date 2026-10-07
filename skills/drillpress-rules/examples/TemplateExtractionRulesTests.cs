@@ -5,16 +5,18 @@ namespace MyRules.Tests;
 
 public sealed class TemplateExtractionRulesTests
 {
-    [Fact]
-    public async Task A_string_parameter_template_has_a_proven_fix()
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public async Task A_string_parameter_template_has_a_proven_fix(string newline)
     {
-        const string source = """
+        var source = """
             class Routes
             {
                 string First(string value) => $"/api/{value}";
                 string Second(string value) => $"/api/{value}";
             }
-            """;
+            """.ReplaceLineEndings(newline);
 
         var result = await CheckAsync(source);
 
@@ -35,7 +37,7 @@ public sealed class TemplateExtractionRulesTests
                 string Second(string value) => global::Routes.FormatValue(value);
                 private static string FormatValue(string value) => $"/api/{value}";
             }
-            """.ReplaceLineEndings("\n"),
+            """.ReplaceLineEndings(newline),
             result.FixedText("App.cs")
         );
     }

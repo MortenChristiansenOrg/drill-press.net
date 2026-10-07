@@ -7,8 +7,12 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
 public sealed class ExtractionEvidenceTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
-    [Fact]
-    public async Task Semantic_occurrences_use_actual_memberships_including_linked_contexts_without_findings()
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public async Task Semantic_occurrences_use_actual_memberships_including_linked_contexts_without_findings(
+        string newline
+    )
     {
         var workspace = fixture.Workspace();
         var source = new TestSource(
@@ -19,7 +23,7 @@ public sealed class ExtractionEvidenceTests(SdkFixture fixture) : IClassFixture<
                 string First(string first) => $"/api/{first}";
                 string Second(string second) => $"/api/{second}";
             }
-            """
+            """.ReplaceLineEndings(newline)
         );
         workspace.AddProject("Primary", [source]);
         workspace.AddProject("Linked", [source]);
@@ -148,7 +152,7 @@ public sealed class ExtractionEvidenceTests(SdkFixture fixture) : IClassFixture<
                 string Second(string second) => global::A.FormatValue(second);
                 private static string FormatValue(string value) => $"/api/{value}";
             }
-            """.ReplaceLineEndings("\n"),
+            """.ReplaceLineEndings(newline),
             result.FixedText("A.cs")
         );
     }
