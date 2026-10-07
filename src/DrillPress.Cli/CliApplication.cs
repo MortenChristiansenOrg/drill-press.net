@@ -26,6 +26,8 @@ public sealed class CliApplication
         Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
         --version  Show the package and protocol versions.
+        drillpress install-skill [<skills-directory>]  Write this version's rule-authoring agent skill
+        to <skills-directory>/drillpress-rules (default .claude/skills).
         Exit codes: 0 no violations (review findings may appear), 1 violations, 2 failure. Fix failures may retain completed writes.
         """;
 
@@ -55,7 +57,7 @@ public sealed class CliApplication
     }
 
     /// <summary>
-    /// Executes a public check or single-pass fix command, or prints help, and returns its typed process outcome.
+    /// Executes a public check or single-pass fix command, installs the agent skill, or prints help, and returns its typed process outcome.
     /// </summary>
     public async Task<CliExitCode> RunAsync(
         string[] args,
@@ -78,6 +80,13 @@ public sealed class CliApplication
             await standardOutput.WriteAsync(Help.ReplaceLineEndings("\n") + "\n");
             return CliExitCode.Clean;
         }
+        if (args is ["install-skill", .. var skillArguments] && skillArguments.Length <= 1)
+            return await InstallSkillAsync(
+                skillArguments is [var directory] ? directory : SkillInstaller.DefaultDirectory,
+                standardOutput,
+                standardError,
+                cancellationToken
+            );
 
         if (!CliOptions.TryParse(args, out var options, out var optionError))
         {
@@ -271,6 +280,31 @@ public sealed class CliApplication
         }
 
         return path;
+    }
+
+    private async Task<CliExitCode> InstallSkillAsync(
+        string skillsDirectory,
+        TextWriter standardOutput,
+        TextWriter standardError,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var target = await new SkillInstaller(_fileSystem).InstallAsync(
+                skillsDirectory,
+                cancellationToken
+            );
+            await standardOutput.WriteAsync(
+                $"{SkillInstaller.Name} {ComponentVersion.Current} installed in {target}\n"
+            );
+            return CliExitCode.Clean;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            await standardError.WriteLineAsync($"drillpress: {exception.Message}");
+            return CliExitCode.Failure;
+        }
     }
 
     private static async Task WriteRecoveryAsync(TextWriter error, FixApplicationResult result)

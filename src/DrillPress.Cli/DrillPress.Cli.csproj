@@ -17,6 +17,12 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DrillPress.UnitTests" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource
+      Include="../../skills/drillpress-rules/**/*"
+      LogicalName="skill/%(RecursiveDir)%(Filename)%(Extension)"
+    />
+  </ItemGroup>
   <Target Name="IncludePackagedBuildHost" AfterTargets="ComputeFilesToPublish">
     <PropertyGroup>
       <_BuildHostPublishDirectory>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)buildhost-publish'))/</_BuildHostPublishDirectory>
