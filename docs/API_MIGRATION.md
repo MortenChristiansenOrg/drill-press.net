@@ -110,6 +110,12 @@ rewrite of `!string.Equals(a, b)` produces `a != b` rather than `(a != b)`.
   call instead of failing the run.
 - `CodeBranch.IsElseIf` is true only for an `else if` continuation, not for an `if`
   nested directly in a then-branch.
+- Findings that `ReportAt` moves into generated or non-target source are suppressed,
+  like findings on generated candidates; they no longer fail the run.
+- `Code.TypeReferences` includes `void`, and `nint`/`nuint` match `IntPtr`/`UIntPtr`
+  in every query form. Global aliases declared in generated files are recognized.
+- `CodeProperty.IsAutoProperty` requires a compiler-supplied backing field, so
+  abstract, interface, extern and partial-definition properties are excluded.
 
 ## New capabilities
 

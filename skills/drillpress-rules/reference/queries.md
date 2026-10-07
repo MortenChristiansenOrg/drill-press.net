@@ -81,7 +81,7 @@ parameters, symbols):
   `DirectlyOverriding(member)`, `WhereBody(MethodBodyShape)`, `ContainingTypes()`.
 - `CodeField`: `Type`, `TypeIs<T>()`, `IsConst`, `IsReadOnly`, `IsStatic`, `Initializer`, `Declaration`.
 - `CodeProperty`: `Type`, `TypeIs<T>()`, `IsStatic`, `HasGetter`, `HasSetter`, `HasInit`,
-  `IsAutoProperty`, `Initializer`.
+  `IsAutoProperty` (compiler-supplied storage only), `Initializer`.
 - `CodeParameter`: `Type`, `TypeIs<T>()`, `Ordinal`, `ContainingSymbol`, `IsLambdaParameter`,
   `HasDefaultValue`, `DefaultValue`.
 

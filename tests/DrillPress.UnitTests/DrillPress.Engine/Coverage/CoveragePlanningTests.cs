@@ -38,6 +38,45 @@ public sealed class CoveragePlanningTests
     }
 
     [Fact]
+    public async Task Candidates_reported_in_generated_source_launch_no_tests()
+    {
+        var fixture = new CoverageFixture(CoverageFixture.Source, ("Generated.g.cs", "class G {}"));
+        fixture.Process.Fail = true;
+        var project = fixture.Snapshot.Projects[0];
+        var generated = project.Documents[1];
+        var snapshot = CompilationSnapshot.Create(
+            project with
+            {
+                Documents =
+                [
+                    project.Documents[0],
+                    SourceIdentity.Capture(
+                        new DocumentSnapshot(generated.Path, generated.Text, true),
+                        Encoding.UTF8.GetBytes(generated.Text),
+                        "utf-8",
+                        false
+                    ),
+                ],
+            }
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("GENERATED", "Exercise call.")
+            .For(Code.Calls.ToMethodsNamed("Hit"))
+            .ReportAt(call => new CodeFile(
+                call.Source.Project.Sources.Single(source => source.Document.IsGenerated)
+            ))
+            .Require(global::DrillPress.Coverage.Executed);
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+        Assert.Empty(fixture.Process.Calls);
+    }
+
+    [Fact]
     public async Task Shared_clauses_with_no_candidates_launch_no_tests()
     {
         var fixture = new CoverageFixture();

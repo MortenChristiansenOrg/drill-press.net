@@ -185,4 +185,39 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             error.Message
         );
     }
+
+    [Fact]
+    public async Task Findings_redirected_to_generated_source_are_suppressed()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [new("A.cs", "class A { }"), new("Generated.g.cs", "class G { }", Generated: true)]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("PROJECTED", "Projected file.")
+            .For(Code.FilesIncludingGenerated.Select(file => new { File = file }))
+            .ReportAt(item => item.File)
+            .Forbid();
+        rules
+            .Rule("REDIRECTED", "Redirected type.")
+            .For(Code.Types.Where(type => type.Name == "A"))
+            .ReportAt(type => new CodeFile(
+                type.Source.Project.Sources.Single(source => source.Document.IsGenerated)
+            ))
+            .Forbid();
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            PROJECTED Projected file.
+            A.cs
+              1
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+    }
 }

@@ -62,13 +62,21 @@ public sealed class CodeProperty : ICodeDeclaration
     /// <summary>Whether an init accessor is declared.</summary>
     public bool HasInit => Accessor(SyntaxKind.InitAccessorDeclaration) is not null;
 
-    /// <summary>Whether every accessor is written without a body, so the compiler supplies the storage.</summary>
+    /// <summary>Whether every accessor is written without a body and the compiler supplies a backing field. Abstract, interface, extern and partial-definition properties are contracts without storage; properties using the <c>field</c> keyword have bodies and are excluded.</summary>
     public bool IsAutoProperty =>
         Syntax.ExpressionBody is null
         && Syntax.AccessorList is { Accessors.Count: > 0 } accessors
         && accessors.Accessors.All(accessor =>
             accessor.Body is null && accessor.ExpressionBody is null
-        );
+        )
+        && !HasExplicitModifier(Modifier.Partial)
+        && Symbol is { } property
+        && property
+            .ContainingType.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Any(storage =>
+                SymbolEqualityComparer.Default.Equals(storage.AssociatedSymbol, property)
+            );
 
     /// <summary>The written initializer value, if any.</summary>
     public CodeExpression? Initializer =>

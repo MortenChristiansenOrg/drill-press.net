@@ -76,7 +76,12 @@ public sealed class AnalysisSolution
         Implementations = new(this);
         _projectGraph = new(() => new ProjectGraph(this));
         _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
-        _typeReferences = new(() => new TypeReferenceIndex(OrdinarySources, CancellationToken));
+        _typeReferences = new(() =>
+            new TypeReferenceIndex(
+                Projects.SelectMany(project => project.Sources),
+                CancellationToken
+            )
+        );
         _references = new(() =>
             Options.EnableOptimizations
                 ? _memberCandidates.Value.Select(null).ToArray()

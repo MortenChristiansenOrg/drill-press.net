@@ -222,7 +222,8 @@ Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean
   no `Value`; findings on them report at the call. Filter `IsExplicit` when only written
   arguments matter.
 - `Symbol` and `Type` can be null when code does not bind. Unknown facts are not violations.
-- Generated files are excluded from roots and never anchor findings.
+- Generated files are excluded from roots, and findings that land in them, including
+  through `ReportAt`, are suppressed.
 - An `else if` is not a missing brace; `WithoutBraces()` already skips it.
 - `WithExplicitModifier` reads written tokens; `WithAccessibility` reads the compiler's
   effective accessibility, including defaults.

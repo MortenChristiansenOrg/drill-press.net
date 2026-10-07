@@ -167,7 +167,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Generated and linked source · Inspect source code",
     "url": "syntax.html#generated",
-    "text": "Ordinary roots exclude generated files. Code.FilesIncludingGenerated lets advanced facts inspect them, but the evaluator still suppresses findings anchored there. Linked files and alternative target frameworks remain separate compilation memberships; do not collapse them just because the path is the same. AnalysisSource.Document exposes captured text, path, generated classification, and edit eligibility. Tree is the original syntax tree; Model is the shared semantic model; Project owns that compilation context. Prefer these captured values to opening source files yourself."
+    "text": "Ordinary roots exclude generated files. Code.FilesIncludingGenerated lets advanced facts inspect them, but the evaluator still suppresses findings anchored there, including findings that ReportAt moves into a generated file. Linked files and alternative target frameworks remain separate compilation memberships; do not collapse them just because the path is the same. AnalysisSource.Document exposes captured text, path, generated classification, and edit eligibility. Tree is the original syntax tree; Model is the shared semantic model; Project owns that compilation context. Prefer these captured values to opening source files yourself."
   },
   {
     "title": "Calls and flow",

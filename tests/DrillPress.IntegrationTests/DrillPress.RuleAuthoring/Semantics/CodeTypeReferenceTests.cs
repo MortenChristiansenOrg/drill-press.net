@@ -90,6 +90,55 @@ public sealed class CodeTypeReferenceTests(SdkFixture fixture) : IClassFixture<S
     }
 
     [Fact]
+    public void Native_integers_void_and_generated_global_aliases_match_in_every_query_form()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new("GlobalUsings.g.cs", "global using Clock = System.DateTime;", Generated: true),
+                new(
+                    "Use.cs",
+                    "class C { nint n; nuint u; Clock clock; void M() { } object v = typeof(void); }"
+                ),
+            ]
+        );
+        var optimized = workspace.Analyze(TestContext.Current.CancellationToken);
+        var exhaustive = new AnalysisSolution(
+            optimized.Projects,
+            new AnalysisOptions { EnableOptimizations = false },
+            TestContext.Current.CancellationToken
+        );
+        CodeType[] types =
+        [
+            CodeType.Of<IntPtr>(),
+            CodeType.Of<UIntPtr>(),
+            CodeType.Of<DateTime>(),
+            CodeType.Named("System.Void"),
+        ];
+
+        var counts = types
+            .Select(type =>
+                string.Join(
+                    ",",
+                    new[] { optimized, exhaustive }.SelectMany(solution =>
+                        new[]
+                        {
+                            type.References.In(solution).Count,
+                            Code
+                                .TypeReferences.Where(reference => reference.RefersTo(type))
+                                .In(solution)
+                                .Count,
+                        }
+                    )
+                )
+            )
+            .ToArray();
+
+        Assert.Equal(["1,1,1,1", "1,1,1,1", "1,1,1,1", "2,2,2,2"], counts);
+    }
+
+    [Fact]
     public async Task Architecture_rules_can_forbid_dependencies_between_namespaces()
     {
         var workspace = fixture.Workspace();

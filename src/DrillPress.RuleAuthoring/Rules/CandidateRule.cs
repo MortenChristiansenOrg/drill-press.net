@@ -20,35 +20,50 @@ internal sealed class CandidateRule<T>(
             return [];
         return query
             .Evaluate(planning)
-            .Where(IsReportable)
             .SelectMany(candidate =>
-                candidate switch
+                PlannedTarget(candidate) switch
                 {
-                    AnalysisProject project => [project],
-                    ICodeElement element => new[] { element.Source.Project },
-                    _ when target?.Invoke(candidate) is { } selected => [selected.Source.Project],
-                    _ => planning.Projects,
+                    null => planning.Projects,
+                    { Source: var source } when !IsReportable(source) => [],
+                    var report => candidate switch
+                    {
+                        AnalysisProject project => [project],
+                        ICodeElement element => [element.Source.Project],
+                        _ => [report.Source.Project],
+                    },
                 }
             );
     }
 
-    private static bool IsReportable(T candidate) =>
-        candidate
-            is not ICodeElement
-            {
-                Source: { Document.IsGenerated: true }
-                    or { Project.Snapshot.IsAnalysisTarget: false }
-            };
+    // Unlocated candidates without ReportAt fail later in evaluation; plan every context for them.
+    private ReportTarget? PlannedTarget(T candidate) =>
+        target?.Invoke(candidate)
+        ?? (
+            candidate is ICodeElement or AnalysisProject
+                ? ReportingLocation.Default(candidate)
+                : null
+        );
+
+    // Eligibility follows where a finding lands, so ReportAt cannot anchor findings in generated or non-target source.
+    private static bool IsReportable(AnalysisSource source) =>
+        !source.Document.IsGenerated && source.Project.Snapshot.IsAnalysisTarget;
 
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
         var candidates = query
             .Evaluate(solution)
-            .Where(IsReportable)
             .Select(candidate =>
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();
-                var report = target?.Invoke(candidate) ?? ReportingLocation.Default(candidate);
+                return (
+                    Candidate: candidate,
+                    Report: target?.Invoke(candidate) ?? ReportingLocation.Default(candidate)
+                );
+            })
+            .Where(item => IsReportable(item.Report.Source))
+            .Select(item =>
+            {
+                var (candidate, report) = item;
                 var proposal = fix?.Invoke(candidate);
                 var outcome = failure?.Invoke(candidate);
                 return (

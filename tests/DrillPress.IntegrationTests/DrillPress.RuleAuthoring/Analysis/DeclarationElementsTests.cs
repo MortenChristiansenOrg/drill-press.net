@@ -77,6 +77,49 @@ public sealed class DeclarationElementsTests(SdkFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public void Auto_properties_require_compiler_supplied_storage()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Shapes",
+            [
+                new(
+                    "Shapes.cs",
+                    """
+                    interface IShape { int Sides { get; } }
+                    abstract class Shape { public abstract int Area { get; set; } public int Id { get; set; } }
+                    partial class Square
+                    {
+                        public partial int Edge { get; set; }
+                        public partial int Edge { get => field; set => field = value; }
+                        public int Cached { get => field; set => field = value; }
+                        public static extern int Native { get; }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var properties = Code
+            .Properties.In(solution)
+            .Select(property => $"{property.Name}:{property.IsAutoProperty}");
+
+        Assert.Equal(
+            [
+                "Sides:False",
+                "Area:False",
+                "Id:True",
+                "Edge:False",
+                "Edge:False",
+                "Cached:False",
+                "Native:False",
+            ],
+            properties
+        );
+    }
+
+    [Fact]
     public void Parameters_cover_methods_lambdas_and_primary_constructors()
     {
         var solution = Analyze();

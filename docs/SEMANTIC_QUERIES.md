@@ -265,7 +265,9 @@ contextual conversion, source/context identity and collection metadata survive.
 `Code.TypeReferences` selects every written reference to a named or keyword type:
 declaration and parameter types, base types, generic arguments, casts, `typeof`,
 `nameof`, attribute names, static member qualifiers and the type in `new T()`.
-Aliases resolve to their target and `var` is not a reference. A qualified name
+Aliases resolve to their target, including global aliases declared in generated
+files, and `var` is not a reference. Keyword spellings count, including `void`,
+`nint` and `nuint`. A qualified name
 such as `System.DateTime` is one reference; a nested type's outer qualifier is a
 separate reference to the outer type. `reference.Type` is the referenced type,
 including constructed arguments, and `RefersTo(type)` matches it.
@@ -291,7 +293,8 @@ selectable but unresolved.
 declaration's modifiers and type syntax; event fields are excluded. Fields expose
 `IsConst`, `IsStatic`, `IsReadOnly`, `Type`, `TypeIs` and `Initializer`.
 `Code.Properties` exposes accessor shape (`HasGetter`, `HasSetter`, `HasInit`,
-`IsAutoProperty`), `Type` and `Initializer`. `Code.Parameters` covers methods,
+`IsAutoProperty`, true only when the compiler supplies a backing field, so abstract,
+interface, extern and partial-definition properties are excluded), `Type` and `Initializer`. `Code.Parameters` covers methods,
 constructors, operators, delegates, indexers, local functions, primary
 constructors and lambdas, with `Ordinal`, `ContainingSymbol`, `IsLambdaParameter`,
 `HasDefaultValue` and `DefaultValue`. All three report at their identifier and

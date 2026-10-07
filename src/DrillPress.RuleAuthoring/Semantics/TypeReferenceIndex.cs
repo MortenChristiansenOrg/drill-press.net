@@ -27,8 +27,8 @@ internal sealed class TypeReferenceIndex
             _cancellationToken.ThrowIfCancellationRequested();
             if (
                 names is not null
-                && !names.Contains(candidate.Key)
-                && !_aliases.Contains(candidate.Key)
+                && !candidate.Keys.Any(names.Contains)
+                && !_aliases.Contains(candidate.Keys[0])
             )
                 continue;
             if (!_bindings.TryGetValue(candidate, out var reference))
@@ -60,23 +60,50 @@ internal sealed class TypeReferenceIndex
             yield return simple[..^"Attribute".Length];
     }
 
+    // Generated sources, such as SDK global usings, contribute aliases but never candidates.
     private IEnumerable<TypeSyntaxCandidate> Discover(AnalysisSource source)
     {
         var root = source.Tree.GetRoot(source.Project.CancellationToken);
+        if (source.Document.IsGenerated)
+        {
+            foreach (
+                var directive in root.DescendantNodes(node =>
+                        node is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax
+                    )
+                    .OfType<UsingDirectiveSyntax>()
+            )
+                AddAlias(directive);
+            yield break;
+        }
         foreach (var node in root.DescendantNodes())
         {
             _cancellationToken.ThrowIfCancellationRequested();
-            if (node is UsingDirectiveSyntax { Alias.Name.Identifier.ValueText: var alias })
-                _aliases.Add(alias);
+            if (node is UsingDirectiveSyntax directive)
+                AddAlias(directive);
             if (node is PredefinedTypeSyntax predefined && Keyword(predefined) is { } keyword)
-                yield return new(source, predefined, predefined, keyword);
+                yield return new(source, predefined, predefined, [keyword]);
             else if (
                 node is SimpleNameSyntax name
                 && !(name.Parent is AliasQualifiedNameSyntax qualified && qualified.Alias == name)
             )
-                yield return new(source, name, Outermost(name), name.Identifier.ValueText);
+                yield return new(source, name, Outermost(name), Keys(name.Identifier.ValueText));
         }
     }
+
+    private void AddAlias(UsingDirectiveSyntax directive)
+    {
+        if (directive.Alias?.Name.Identifier.ValueText is { } alias)
+            _aliases.Add(alias);
+    }
+
+    // Native-integer keywords are identifiers that bind to IntPtr and UIntPtr; keep the written name for same-named types.
+    private static string[] Keys(string identifier) =>
+        identifier switch
+        {
+            "nint" => [identifier, "IntPtr"],
+            "nuint" => [identifier, "UIntPtr"],
+            _ => [identifier],
+        };
 
     private static ExpressionSyntax Outermost(SimpleNameSyntax name)
     {
@@ -138,6 +165,7 @@ internal sealed class TypeReferenceIndex
             SyntaxKind.FloatKeyword => "Single",
             SyntaxKind.DoubleKeyword => "Double",
             SyntaxKind.DecimalKeyword => "Decimal",
+            SyntaxKind.VoidKeyword => "Void",
             _ => null,
         };
 
@@ -145,6 +173,6 @@ internal sealed class TypeReferenceIndex
         AnalysisSource Source,
         ExpressionSyntax Syntax,
         ExpressionSyntax Reference,
-        string Key
+        IReadOnlyList<string> Keys
     );
 }
