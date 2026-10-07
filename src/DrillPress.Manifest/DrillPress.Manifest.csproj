@@ -7,6 +7,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DrillPress.Engine" />
+    <InternalsVisibleTo Include="DrillPress.Testing" />
     <InternalsVisibleTo Include="DrillPress.BuildHost" />
     <InternalsVisibleTo Include="DrillPress.UnitTests" />
     <InternalsVisibleTo Include="DrillPress.IntegrationTests" />

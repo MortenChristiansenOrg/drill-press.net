@@ -142,8 +142,9 @@ internal sealed class CoverageFixture
     {
         var rules = new RuleSet();
         rules
+            .Rule("COV001", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "HitValue"))
-            .Require(Coverage.Executed, "COV001", "Exercise call.");
+            .Require(Coverage.Executed);
         return rules;
     }
 }

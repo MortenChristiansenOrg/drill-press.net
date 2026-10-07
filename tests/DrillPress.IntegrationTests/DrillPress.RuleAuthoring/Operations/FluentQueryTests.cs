@@ -28,15 +28,11 @@ public sealed class FluentQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var calls = OperationQueries.Invocations.Calling(CodeType.Named("C").Member("Send"));
+        var calls = Code.Calls.To(CodeType.Named("C").Member("Send"));
 
         var union = calls
             .ArgumentsFor("comparison")
-            .Union(
-                OperationQueries
-                    .Invocations.Calling(CodeType.Named("C").Member("Send"))
-                    .ArgumentsFor("comparison")
-            )
+            .Union(Code.Calls.To(CodeType.Named("C").Member("Send")).ArgumentsFor("comparison"))
             .In(solution)
             .Select(argument => argument.IsExplicit)
             .ToArray();
@@ -85,8 +81,8 @@ public sealed class FluentQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
-        var values = OperationQueries
-            .Invocations.OnReceiverOfType(CodeType.Named("Client"))
+        var values = Code
+            .Calls.OnReceiverOfType(CodeType.Named("Client"))
             .ToMethodsNamed("Send", "Get")
             .ArgumentsOfTypes([CodeType.Of<string>(), CodeType.Of<Uri>()], "url", "requestUri")
             .SourceValues()
@@ -171,11 +167,10 @@ public sealed class FluentQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var expressions = Sources
-            .Nodes<LiteralExpressionSyntax>()
+        var expressions = Code.Nodes<LiteralExpressionSyntax>()
             .Select(node => new CodeExpression(node.Source, node.Syntax));
-        var groups = ExpressionGroups.Constants(expressions);
-        var duplicateGroups = groups.Concat(ExpressionGroups.Constants(expressions));
+        var groups = expressions.ConstantGroups();
+        var duplicateGroups = groups.Concat(expressions.ConstantGroups());
 
         var counts = new[]
         {
@@ -275,8 +270,8 @@ public sealed class FluentQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
                     .OptionallyFollowedBy<StringComparison>()
             );
 
-        var matches = OperationQueries
-            .Invocations.Calling(family)
+        var matches = Code
+            .Calls.To(family)
             .WhereArgumentOrMissing(
                 "comparisonType",
                 argument => argument.Is(StringComparison.Ordinal)

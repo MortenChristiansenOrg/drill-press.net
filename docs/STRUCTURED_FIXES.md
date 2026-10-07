@@ -26,7 +26,7 @@ extension syntax and named argument order are preserved; enclosing bindings cann
 be waived by the pair proof.
 
 The value and evaluation-loss proofs are separate and mandatory. Their
-`ArgumentRemovalEvidence` includes the removed bound operation (getter, declaring
+`ArgumentRemovalChange` includes the removed bound operation (getter, declaring
 type/assembly, conversion), both actual calls, configured pair and whole rewritten
 context. A known static property is not generally pure. Initialization, exceptions,
 side effects and observable conversions must be justified locally for this pair.
@@ -72,7 +72,7 @@ functions. Only the selected actual modifier and adjacent horizontal whitespace
 are removed. Comments/newlines/attributes and adjacent tokens survive; directives,
 missing/duplicate tokens and recovery syntax are refused.
 
-`DeclarationRewrite.Symbols` maps every affected declarator. Partial symbols use
+`ModifierChange.Symbols` maps every affected declarator. Partial symbols use
 complete compiler semantics, including generated parts, while only explicitly
 selected ordinary syntax is edited. Identity includes contextual declaration
 correspondence and partial-method pairing; raw symbol equality or a documentation

@@ -40,17 +40,17 @@ public sealed class EnumerationCoverageTests
         });
         var rules = new RuleSet();
         rules
+            .Rule("ADV", "Exercise enumeration.")
             .For(Code.Enumerations)
             .Require(
                 global::DrillPress.Coverage.EnumerationStarted.OnUnknown(
                     "Review advancement mapping."
-                ),
-                "ADV",
-                "Exercise enumeration."
+                )
             );
         rules
+            .Rule("COL", "Exercise collection.")
             .For(Code.Enumerations)
-            .Require(global::DrillPress.Coverage.Executed, "COL", "Exercise collection.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 

@@ -11,8 +11,7 @@ public sealed class CodeBody
 {
     /// <summary>Tests for a resolved call in this body's configured nested-function scope.</summary>
     public bool Calls(CodeMember member, Func<CodeInvocation, bool>? where = null) =>
-        Invocations()
-            .Any(call => call.IsResolved && call.Calls(member) && (where?.Invoke(call) ?? true));
+        Calls().Any(call => call.IsResolved && call.Calls(member) && (where?.Invoke(call) ?? true));
 
     /// <summary>Tests whether this scope passes a typed compiler constant to the specified method parameter.</summary>
     public bool Calls<T>(CodeMember member, string withArgument, T equalTo) =>
@@ -30,6 +29,9 @@ public sealed class CodeBody
 
     /// <summary>The original compilation membership.</summary>
     public AnalysisSource Source { get; }
+
+    /// <summary>Whether the body is an empty block; comments do not count as statements.</summary>
+    public bool IsEmpty => Root is BlockSyntax { Statements.Count: 0 };
 
     /// <summary>The body block or arrow expression, excluding method attributes and defaults.</summary>
     public SyntaxNode Root { get; }
@@ -60,7 +62,7 @@ public sealed class CodeBody
     }
 
     /// <summary>Bound source calls in this body, without a solution-wide operation scan.</summary>
-    public IEnumerable<CodeInvocation> Invocations() =>
+    public IEnumerable<CodeInvocation> Calls() =>
         Nodes<InvocationExpressionSyntax>()
             .SelectMany(node =>
                 node.Operation is IInvocationOperation call

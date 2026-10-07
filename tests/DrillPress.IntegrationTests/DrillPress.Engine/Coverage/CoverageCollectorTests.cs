@@ -144,27 +144,26 @@ public sealed class CoverageCollectorTests : IntegrationTest
         var engine = new AnalysisEngine(FileSystem, process);
         var rules = new RuleSet();
         rules
+            .Rule("COV001", "Exercise call.")
             .For(
                 Code.Calls.Where(call =>
                     call.Target.Name is "Tick" or "Hit" or "Consume" or "ToString" or "LoadAsync"
                 )
             )
-            .Require(global::DrillPress.Coverage.Executed, "COV001", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         rules
+            .Rule("COV002", "Exercise both branches.")
             .For(
                 Code.Nodes<Microsoft.CodeAnalysis.CSharp.Syntax.ReturnStatementSyntax>()
                     .Where(node => node.Syntax.ToString() == "return cached ?? Hit();")
             )
-            .Require(
-                global::DrillPress.Coverage.Line.AtLeast(100),
-                "COV002",
-                "Exercise both branches."
-            );
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         rules
+            .Rule("COV003", "Exercise project.")
             .For(Code.Projects)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(70), "COV003", "Exercise project.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(70));
 
         var simultaneous = await Task.WhenAll(
             engine.AnalyzeAsync(rules, snapshot, TestContext.Current.CancellationToken),

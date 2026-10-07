@@ -17,7 +17,7 @@ public sealed class LineCoverage
                 [method.Source],
                 method.Source.Locate(method.Syntax.Span)
             ),
-            CodeDeclaration declaration => declaration.Source.Project.Coverage.Measure(
+            CodeTypeDefinition declaration => declaration.Source.Project.Coverage.Measure(
                 [declaration.Source],
                 declaration.Source.Locate(declaration.Syntax.Span)
             ),

@@ -19,7 +19,7 @@ internal static class ArgumentTransitionChecks
             .All(pair => RewriteSymbols.Same(pair.First, pair.Second, context));
 
     internal static bool RetainedArguments(
-        ArgumentRemovalEvidence change,
+        ArgumentRemovalChange change,
         IReadOnlyDictionary<string, string> parameters
     )
     {
@@ -88,7 +88,7 @@ internal static class ArgumentTransitionChecks
     }
 
     internal static bool SameDefaults(
-        ArgumentRemovalEvidence change,
+        ArgumentRemovalChange change,
         IReadOnlyDictionary<string, string> parameters
     )
     {
@@ -113,7 +113,7 @@ internal static class ArgumentTransitionChecks
     }
 
     private static bool SameInput(
-        ArgumentRemovalEvidence change,
+        ArgumentRemovalChange change,
         ExpressionSyntax before,
         ExpressionSyntax after
     ) =>

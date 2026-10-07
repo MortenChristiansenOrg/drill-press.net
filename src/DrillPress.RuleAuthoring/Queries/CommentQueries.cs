@@ -17,7 +17,9 @@ public static class CommentQueries
         );
 
     /// <summary>Selects comments owned by each selected type definition's ordinary declaration.</summary>
-    public static CodeQuery<CodeComment> Comments(this CodeQuery<CodeDeclaration> declarations) =>
+    public static CodeQuery<CodeComment> Comments(
+        this CodeQuery<CodeTypeDefinition> declarations
+    ) =>
         Unique(
             declarations.SelectMany(declaration => Read(declaration.Source, declaration.Syntax))
         );

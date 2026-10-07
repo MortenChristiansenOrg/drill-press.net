@@ -3,7 +3,7 @@ namespace DrillPress;
 internal sealed class CandidateRule<T>(
     CodeQuery<T> query,
     RuleDescriptor descriptor,
-    Func<T, SourceLocation>? location,
+    Func<T, ReportTarget?>? target,
     Func<T, FixProposal?>? fix,
     Func<T, object?>? reportKey,
     Func<T, string>? detail,
@@ -25,7 +25,8 @@ internal sealed class CandidateRule<T>(
                 candidate switch
                 {
                     AnalysisProject project => [project],
-                    ICodeElement { Source: { } source } => new[] { source.Project },
+                    ICodeElement element => new[] { element.Source.Project },
+                    _ when target?.Invoke(candidate) is { } selected => [selected.Source.Project],
                     _ => planning.Projects,
                 }
             );
@@ -47,23 +48,12 @@ internal sealed class CandidateRule<T>(
             .Select(candidate =>
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();
-                var element = candidate as ICodeElement;
-                if (candidate is AnalysisProject project)
-                    element = project
-                        .Sources.Where(source => !source.Document.IsGenerated)
-                        .Select(source => new CodeFile(source))
-                        .FirstOrDefault();
-                var span = location is not null
-                    ? location(candidate)
-                    : element?.Location
-                        ?? throw new InvalidOperationException(
-                            $"Candidate type '{typeof(T)}' does not expose a source location."
-                        );
+                var report = target?.Invoke(candidate) ?? ReportingLocation.Default(candidate);
                 var proposal = fix?.Invoke(candidate);
                 var outcome = failure?.Invoke(candidate);
                 return (
                     Key: reportKey?.Invoke(candidate),
-                    Diagnostic: new RuleDiagnostic(descriptor, span)
+                    Diagnostic: new RuleDiagnostic(descriptor, report.Location)
                     {
                         Evidence = detail?.Invoke(candidate),
                         Disposition = outcome?.Disposition ?? FindingDisposition.Violation,
@@ -79,7 +69,7 @@ internal sealed class CandidateRule<T>(
                                     }
                             )
                             .ToArray(),
-                        Source = element?.Source,
+                        Source = report.Source,
                         Fix = proposal,
                         Fixes = proposal is null ? [] : [proposal],
                     }

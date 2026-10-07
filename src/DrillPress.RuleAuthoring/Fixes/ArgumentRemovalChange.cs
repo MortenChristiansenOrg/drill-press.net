@@ -4,9 +4,9 @@ using Microsoft.CodeAnalysis.Operations;
 namespace DrillPress;
 
 /// <summary>Context-local evidence for one argument deletion and verified overload transition.</summary>
-public sealed class ArgumentRemovalEvidence
+public sealed class ArgumentRemovalChange
 {
-    internal ArgumentRemovalEvidence(
+    internal ArgumentRemovalChange(
         RewriteEvidence rewrite,
         IInvocationOperation before,
         IInvocationOperation after,

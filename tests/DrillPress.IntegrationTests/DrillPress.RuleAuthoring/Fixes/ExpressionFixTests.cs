@@ -1,11 +1,10 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
-public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixture>
+public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
     public async Task Semantic_proofs_bind_before_and_after_to_their_actual_compilations()
@@ -16,42 +15,32 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var empty = CodeType.Of<string>().Member("Empty");
         var different = new List<bool>();
         rules
+            .Rule("EMPTY", "Use literal.")
             .For(empty.References)
-            .Forbid(
-                "EMPTY",
-                "Use literal.",
-                fix: reference =>
-                    Fix.For(reference)
-                        .ReplaceWith(Code.Literal(""))
-                        .SafeWhen(change =>
-                        {
-                            var pair = change.Expressions!;
-                            different.Add(
-                                pair.Before.Source.Project.Compilation
-                                    != pair.After.Source.Project.Compilation
-                            );
-                            return pair.Before.RefersTo(empty)
-                                && pair.After.IsConstant("")
-                                && pair.After.TypeIs<string>()
-                                && !pair.After.Source.Document.IsEditable;
-                        })
+            .Forbid(fix: reference =>
+                Fix.For(reference)
+                    .ReplaceWithLiteral("")
+                    .SafeWhen(change =>
+                    {
+                        different.Add(
+                            change.Before.Source.Project.Compilation
+                                != change.After.Source.Project.Compilation
+                        );
+                        return change.Before.RefersTo(empty)
+                            && change.After.Is("")
+                            && change.After.TypeIs<string>()
+                            && !change.After.Source.Document.IsEditable;
+                    })
             );
-        var missing = new MemberReference(
-            CodeType.Of<string>(),
-            "Empty",
-            new("Missing.cs", 0, 0, 1, 1)
-        );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
-        var unavailable = Fix.For(missing).ReplaceWith(Code.Literal("")).SafeWhen(_ => true);
 
         Assert.Equal("class A { string Value => \"\"; }", result.FixedText("A.cs"));
-        Assert.All(different, Assert.True);
-        Assert.Null(unavailable);
+        Assert.Equal([true], different);
     }
 
     [Theory]
-    [InlineData("{0} + {1}", true, "class A { int M(int a, int b) => (a + b); }")]
+    [InlineData("{1} + {0}", true, "class A { int M(int a, int b) => b + a; }")]
     [InlineData("{0} + {0}", false, "class A { int M(int a, int b) => a + b; }")]
     [InlineData("{0}", false, "class A { int M(int a, int b) => a + b; }")]
     public async Task Templates_preserve_precedence_and_account_for_repeated_and_unused_inputs(
@@ -64,21 +53,17 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         workspace.AddProject("Library", [new("A.cs", "class A { int M(int a, int b) => a + b; }")]);
         var rules = new RuleSet();
         rules
+            .Rule("TEMPLATE", "Use mapped expression.")
             .For(Code.Nodes<BinaryExpressionSyntax>())
-            .Forbid(
-                "TEMPLATE",
-                "Use mapped expression.",
-                fix: node =>
-                    Fix.For(node)
-                        .ReplaceWith(
-                            Code.Expression(
-                                template,
-                                Fix.Input(node.Source, node.Syntax.Left),
-                                Fix.Input(node.Source, node.Syntax.Right)
-                            )
-                        )
-                        .MustPreserve(Behavior.Bindings | Behavior.EvaluationCounts)
-                        .SafeWhen(change => change.Expressions!.After.TypeIs<int>())
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression())
+                    .ReplaceWith(
+                        template,
+                        new CodeExpression(node.Source, node.Syntax.Left),
+                        new CodeExpression(node.Source, node.Syntax.Right)
+                    )
+                    .MustPreserve(ExpressionBehavior.EvaluationCounts)
+                    .SafeWhen(change => change.After.TypeIs<int>())
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -108,17 +93,15 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var rules = new RuleSet();
         var references = CodeType.Of<string>().Member("Empty").References;
         rules
+            .Rule("EMPTY", "Keep gated values.")
             .For(references)
-            .Forbid(
-                "EMPTY",
-                "Keep gated values.",
-                fix: reference =>
-                    Fix.For(reference).ReplaceWith(Code.Literal("")).SafeWhen(_ => true)
+            .Forbid(fix: reference =>
+                Fix.For(reference).ReplaceWithLiteral("").SafeWhen(_ => true)
             );
 
         var facts = references
             .In(solution)
-            .Select(reference => new CodeExpression(reference.Source!, reference.Syntax!).Facts)
+            .Select(reference => reference.Facts)
             .Select(fact =>
                 $"{fact.IsInsideExpressionTree}:{fact.IsInsideNameOf}:{fact.HasComments}"
             )
@@ -130,7 +113,7 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
     }
 
     [Theory]
-    [InlineData(true, "class A { bool M(string a, string b) => (a != b); }")]
+    [InlineData(true, "class A { bool M(string a, string b) => a != b; }")]
     [InlineData(false, "class A { bool M(string a, string b) => !(string.Equals(a, b)); }")]
     public async Task Equality_can_absorb_negation_but_still_requires_behavior_proof(
         bool proven,
@@ -144,23 +127,21 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         );
         var rules = new RuleSet();
         rules
-            .For(Code.Calls.Calling(CodeType.Of<string>().Member("Equals")))
-            .Forbid(
-                "EQUAL",
-                "Use equality.",
-                fix: call =>
-                    Fix.For(call)
-                        .ReplaceWithEquality(
-                            Fix.Input(call.ArgumentsFor("a").Single().Value!),
-                            Fix.Input(call.ArgumentsFor("b").Single().Value!),
-                            absorbNegation: true
-                        )
-                        .MustPreserve(
-                            Behavior.EvaluationCounts
-                                | Behavior.EvaluationSequence
-                                | Behavior.NullReceiverBehavior
-                        )
-                        .SafeWhen(_ => proven)
+            .Rule("EQUAL", "Use equality.")
+            .For(Code.Calls.To(CodeType.Of<string>().Member("Equals")))
+            .Forbid(fix: call =>
+                Fix.For(call)
+                    .ReplaceWithEquality(
+                        call.Argument("a")!.Value!,
+                        call.Argument("b")!.Value!,
+                        absorbNegation: true
+                    )
+                    .MustPreserve(
+                        ExpressionBehavior.EvaluationCounts
+                            | ExpressionBehavior.EvaluationOrder
+                            | ExpressionBehavior.NullReceiverBehavior
+                    )
+                    .SafeWhen(_ => proven)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -182,7 +163,6 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
     [InlineData("c / {0}", "a * b", "c / (a * b)")]
     [InlineData("{0}.ToString()", "(long)a", "((long)a).ToString()")]
     [InlineData("{0} + c", "a > 0 ? b : c", "(a > 0 ? b : c) + c")]
-    [InlineData("{0}", "a + b", "a + b")]
     [InlineData("F({0})", "a + b", "F(a + b)")]
     public void Templates_remove_only_parentheses_that_preserve_the_parsed_expression(
         string template,
@@ -197,29 +177,65 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var method = Code.Methods.Named("M").In(solution).Single();
-        var input = Fix.Input(method.Source, method.Syntax.ExpressionBody!.Expression);
+        var body = new CodeExpression(method.Source, method.Syntax.ExpressionBody!.Expression);
 
-        var actual = Code.Expression(template, input).Syntax.NormalizeWhitespace().ToFullString();
+        var proposal = Fix.For(body).ReplaceWith(template, body).SafeWhen(_ => true);
 
-        Assert.Equal(expected, actual);
+        Assert.Equal(expected, proposal!.Edits.Single().Replacement);
     }
 
     [Theory]
-    [InlineData("string.Equals(left, right)", "(left == right)", true)]
-    [InlineData("!string.Equals(left, right)", "(left != right)", true)]
+    [InlineData("F() * 2", "a + b", "(a + b) * 2")]
+    [InlineData("2 * F()", "a + b", "2 * (a + b)")]
+    [InlineData("F() + 2", "a * b", "a * b + 2")]
+    [InlineData("G(F())", "a + b", "G(a + b)")]
+    [InlineData("F().ToString()", "a + b", "(a + b).ToString()")]
+    public void Replacements_are_parenthesized_only_when_the_destination_requires_it(
+        string body,
+        string replacement,
+        string expected
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    $"class A {{ int a, b; int F() => 1; int G(int value) => value; object M() => {body}; }}"
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var call = Code.Calls.In(solution).Single(call => call.Target.Name == "F");
+
+        var proposal = Fix.For(call)
+            .ReplaceWith(Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ParseExpression(replacement))
+            .SafeWhen(_ => true);
+        var method = Code.Methods.Named("M").In(solution).Single();
+        var text = method.Syntax.ExpressionBody!.Expression.ToString();
+        var edit = proposal!.Edits.Single();
+        var start = edit.Start - method.Syntax.ExpressionBody.Expression.SpanStart;
+
+        Assert.Equal(expected, text[..start] + edit.Replacement + text[(start + edit.Length)..]);
+    }
+
+    [Theory]
+    [InlineData("string.Equals(left, right)", "left == right", true)]
+    [InlineData("!string.Equals(left, right)", "left != right", true)]
     [InlineData(
         "string.Equals(left, right, System.StringComparison.Ordinal)",
-        "(left == right)",
+        "left == right",
         true
     )]
     [InlineData(
         "!string.Equals(left, right, System.StringComparison.Ordinal)",
-        "(left != right)",
+        "left != right",
         true
     )]
     [InlineData(
         "string.Equals(left ?? \"missing\", right)",
-        "((left ?? \"missing\") == right)",
+        "(left ?? \"missing\") == right",
         true
     )]
     [InlineData("string.Equals(b: R(), a: L())", "string.Equals(b: R(), a: L())", false)]
@@ -240,27 +256,21 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         workspace.AddProject("Library", [new("A.cs", prefix + expression + "; }")]);
         var rules = new RuleSet();
         rules
-            .For(Code.Calls.Calling(CodeType.Of<string>().Member("Equals")))
-            .Forbid(
-                "EQUAL",
-                "Use equality.",
-                fix: call =>
-                    Fix.For(call)
-                        .ReplaceWithEquality(
-                            Fix.Input(call.ArgumentsFor("a").Single().Value!),
-                            Fix.Input(call.ArgumentsFor("b").Single().Value!),
-                            absorbNegation: true
-                        )
-                        .MustPreserve(
-                            Behavior.EvaluationCounts
-                                | Behavior.EvaluationSequence
-                                | Behavior.NullReceiverBehavior
-                        )
-                        .SafeWhen(change =>
-                            change.RetainedExpressions.All(operand =>
-                                operand.Before.TypeIs<string>()
-                            )
-                        )
+            .Rule("EQUAL", "Use equality.")
+            .For(Code.Calls.To(CodeType.Of<string>().Member("Equals")))
+            .Forbid(fix: call =>
+                Fix.For(call)
+                    .ReplaceWithEquality(
+                        call.Argument("a")!.Value!,
+                        call.Argument("b")!.Value!,
+                        absorbNegation: true
+                    )
+                    .MustPreserve(
+                        ExpressionBehavior.EvaluationCounts
+                            | ExpressionBehavior.EvaluationOrder
+                            | ExpressionBehavior.NullReceiverBehavior
+                    )
+                    .SafeWhen(change => change.Kept.All(operand => operand.Before.TypeIs<string>()))
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -270,8 +280,8 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
     }
 
     [Theory]
-    [InlineData("\"x\".Equals(right, System.StringComparison.Ordinal)", "(\"x\" == right)", true)]
-    [InlineData("!\"x\".Equals(right)", "(\"x\" != right)", true)]
+    [InlineData("\"x\".Equals(right, System.StringComparison.Ordinal)", "\"x\" == right", true)]
+    [InlineData("!\"x\".Equals(right)", "\"x\" != right", true)]
     [InlineData("!left.Equals(right)", "!left.Equals(right)", false)]
     [InlineData("left.Equals(right)", "left.Equals(right)", false)]
     public async Task Equality_checks_instance_receiver_null_behavior_through_negation(
@@ -285,30 +295,21 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         workspace.AddProject("Library", [new("A.cs", prefix + expression + "; }")]);
         var rules = new RuleSet();
         rules
-            .For(Code.Calls.Calling(CodeType.Of<string>().Member("Equals")))
-            .Forbid(
-                "EQUAL",
-                "Use equality.",
-                fix: call =>
-                    Fix.For(call)
-                        .ReplaceWithEquality(
-                            Fix.Input(
-                                call.Source,
-                                (ExpressionSyntax)call.Operation.Instance!.Syntax
-                            ),
-                            Fix.Input(call.ArgumentsFor("value").Single().Value!),
-                            absorbNegation: true
-                        )
-                        .MustPreserve(
-                            Behavior.EvaluationCounts
-                                | Behavior.EvaluationSequence
-                                | Behavior.NullReceiverBehavior
-                        )
-                        .SafeWhen(change =>
-                            change.RetainedExpressions.All(operand =>
-                                operand.Before.TypeIs<string>()
-                            )
-                        )
+            .Rule("EQUAL", "Use equality.")
+            .For(Code.Calls.To(CodeType.Of<string>().Member("Equals")))
+            .Forbid(fix: call =>
+                Fix.For(call)
+                    .ReplaceWithEquality(
+                        call.Receiver!,
+                        call.Argument("value")!.Value!,
+                        absorbNegation: true
+                    )
+                    .MustPreserve(
+                        ExpressionBehavior.EvaluationCounts
+                            | ExpressionBehavior.EvaluationOrder
+                            | ExpressionBehavior.NullReceiverBehavior
+                    )
+                    .SafeWhen(change => change.Kept.All(operand => operand.Before.TypeIs<string>()))
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -324,36 +325,31 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
         workspace.AddProject("Library", [new("A.cs", "class A { bool M(bool value) => !value; }")]);
         var rules = new RuleSet();
         rules
-            .For(Code.Nodes<PrefixUnaryExpressionSyntax>())
-            .Forbid(
-                "NEGATE",
-                "Negate value.",
-                fix: node =>
-                    Fix.For(node)
-                        .ReplaceWith(Code.Expression("!{0}", Fix.Input(node)))
-                        .MustPreserve(Behavior.EvaluationSequence)
-                        .SafeWhen(_ => true)
+            .Rule("NEGATE", "Negate value.")
+            .For(Code.Nodes<PrefixUnaryExpressionSyntax>().Expressions())
+            .Forbid(fix: negation =>
+                Fix.For(negation)
+                    .ReplaceWith("!{0}", negation)
+                    .MustPreserve(ExpressionBehavior.EvaluationOrder)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
         Assert.Equal([true], result.Findings.Select(finding => finding.HasFix));
-        Assert.Equal("class A { bool M(bool value) => (!!value); }", result.FixedText("A.cs"));
+        Assert.Equal("class A { bool M(bool value) => !!value; }", result.FixedText("A.cs"));
     }
 
     [Fact]
-    public async Task No_argument_modifier_proof_is_restricted_to_redundant_top_level_internal()
+    public async Task No_argument_modifier_proof_requires_unchanged_declared_accessibility()
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "internal class A { internal class B {} }")]);
         var rules = new RuleSet();
         rules
+            .Rule("INTERNAL", "Omit redundant accessibility.")
             .For(Code.TypeDeclarations.WithExplicitModifier(Modifier.Internal))
-            .Forbid(
-                "INTERNAL",
-                "Omit redundant accessibility.",
-                fix: type => Fix.For(type).RemoveModifier(Modifier.Internal).Propose()
-            );
+            .Forbid(fix: type => Fix.For(type).RemoveModifier(Modifier.Internal).Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -381,18 +377,27 @@ public sealed class ReadableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
             "a\n\"b",
             StringComparison.Ordinal,
         ];
+        workspace.AddProject("Seed", [new("Seed.cs", "class Seed { object M() => 0; }")]);
+        var seed = Code
+            .Methods.In(workspace.Analyze(TestContext.Current.CancellationToken))
+            .Single();
+        var zero = new CodeExpression(seed.Source, seed.Syntax.ExpressionBody!.Expression);
+        var literals = values.Select(value =>
+            Fix.For(zero).ReplaceWithLiteral(value).SafeWhen(_ => true)!.Edits.Single().Replacement
+        );
         var source =
             "class C { "
             + string.Join(
                 " ",
-                values.Select((value, index) => $"object M{index}() => {Code.Literal(value)};")
+                literals.Select((literal, index) => $"object M{index}() => {literal};")
             )
             + " }";
         workspace.AddProject("Library", [new("A.cs", source)]);
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
         var actual = Code
-            .Methods.In(solution)
+            .Methods.InProject("Library")
+            .In(solution)
             .Select(method =>
                 new CodeExpression(
                     method.Source,

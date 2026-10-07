@@ -6,7 +6,7 @@ namespace DrillPress;
 public sealed class ExpressionGroup : ICodeElement
 {
     internal ExpressionGroup(
-        CodeDeclaration owner,
+        CodeTypeDefinition owner,
         ExpressionGroupKind kind,
         IReadOnlyList<ExpressionOccurrence> occurrences,
         OneHoleTemplateOptions? options
@@ -19,7 +19,7 @@ public sealed class ExpressionGroup : ICodeElement
     }
 
     /// <summary>The deterministic ordinary partial declaration of the containing type; nested types and other contexts remain separate.</summary>
-    public CodeDeclaration Owner { get; }
+    public CodeTypeDefinition Owner { get; }
 
     /// <summary>The kind of bounded candidate equivalence.</summary>
     public ExpressionGroupKind Kind { get; }

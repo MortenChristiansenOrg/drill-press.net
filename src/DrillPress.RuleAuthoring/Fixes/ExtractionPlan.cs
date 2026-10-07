@@ -22,7 +22,7 @@ internal sealed class ExtractionPlan(
     internal string Name { get; } = name;
     internal bool Reused { get; } = reused;
 
-    internal FixProposal Propose(Func<ExtractionEvidence, ProofResult> provesBehavior) =>
+    internal FixProposal Propose(Func<ExtractionChange, bool> provesBehavior) =>
         SourceChanges.Propose(
             edits,
             context => ExtractionValidation.Validate(this, context, provesBehavior)

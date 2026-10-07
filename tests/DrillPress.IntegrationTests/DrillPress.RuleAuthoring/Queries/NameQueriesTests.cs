@@ -30,7 +30,7 @@ public sealed class NameQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var declaration = Code.TypeDeclarations.In(solution).Single();
         var words = declaration.NameWords;
         var contains = declaration.NameContainsWord("A");
-        var selected = Code.TypeDeclarations.WhereNameContainsAnyWord(["A"]).In(solution);
+        var selected = Code.TypeDeclarations.WithNameContainingAnyWord(["A"]).In(solution);
 
         Assert.Empty(words);
         Assert.False(contains);
@@ -53,7 +53,7 @@ public sealed class NameQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
         var methods = Code
-            .Methods.WhereNameContainsAnyWord(["null"], StringComparison.OrdinalIgnoreCase)
+            .Methods.WithNameContainingAnyWord(["null"], StringComparison.OrdinalIgnoreCase)
             .In(solution);
         var method = methods.Single();
         var local = Code.LocalVariables.In(solution).Single();
@@ -74,7 +74,7 @@ public sealed class NameQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
         Assert.True(localSymbol.NameContainsWord("null"));
         Assert.Equal(
             ["HTTPClient2"],
-            Code.Types.WhereNameContainsAnyWord(["HTTP"]).In(solution).Select(type => type.Name)
+            Code.Types.WithNameContainingAnyWord(["HTTP"]).In(solution).Select(type => type.Name)
         );
     }
 

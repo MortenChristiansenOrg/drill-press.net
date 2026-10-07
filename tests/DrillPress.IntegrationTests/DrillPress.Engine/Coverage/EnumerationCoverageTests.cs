@@ -47,8 +47,9 @@ public sealed class EnumerationCoverageTests : CoverageIntegrationTest
         );
         var rules = new RuleSet();
         rules
+            .Rule("ENUM", "Start enumeration.")
             .For(Code.Enumerations)
-            .Require(global::DrillPress.Coverage.EnumerationStarted, "ENUM", "Start enumeration.");
+            .Require(global::DrillPress.Coverage.EnumerationStarted);
 
         var diagnostics = await new AnalysisEngine().AnalyzeAsync(
             rules,

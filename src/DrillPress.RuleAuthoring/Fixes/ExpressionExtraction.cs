@@ -126,29 +126,20 @@ public sealed class ExpressionExtraction
     public ExpressionExtraction InPart(CodeNode<TypeDeclarationSyntax> part) =>
         new(_group, part.Source, part.Syntax, _name, _parameter, _reuse, _collision, _coverage);
 
-    /// <summary>Uses the restricted constant-extraction proof. Templates still require a consumer proof of formatting and moved-call behavior.</summary>
-    /// <remarks>Default gates validate editable ordinary partial parts, trivia and observable contexts, owner/group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context. Template formatting/culture, call effects and evaluation changes still require consumer proof. Only constant extraction has a library-owned no-argument proof.</remarks>
+    /// <summary>Proposes a constant extraction, whose equivalence the library proves. Template groups need <see cref="SafeWhen"/>.</summary>
+    /// <remarks>Gates: editable ordinary partial parts, trivia and observable contexts, owner and group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context.</remarks>
     public FixProposal? Propose() =>
-        _group.Kind == ExpressionGroupKind.Constant ? Propose(_ => ProofResult.Proven) : null;
+        _group.Kind == ExpressionGroupKind.Constant ? SafeWhen(_ => true) : null;
 
-    /// <summary>Provides the required extraction behavior proof; false is Unknown.</summary>
-    public FixProposal? SafeWhen(Func<ExtractionEvidence, bool> proof) =>
-        Propose(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
-
-    /// <summary>Provides a tri-state extraction behavior proof.</summary>
-    public FixProposal? SafeWhen(Func<ExtractionEvidence, ProofResult> proof) => Propose(proof);
-
-    /// <summary>Proposes insertion plus all selected replacements atomically. The required consumer proof owns behavioral assumptions, including allowlisted call effects and formatting/culture.</summary>
-    /// <remarks>Default gates validate editable ordinary partial parts, trivia and observable contexts, owner/group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context. Template formatting/culture, call effects and evaluation changes still require consumer proof. Only constant extraction has a library-owned no-argument proof.</remarks>
-    public FixProposal? Propose(Func<ExtractionEvidence, ProofResult> provesBehavior)
+    /// <summary>Proposes the member insertion and every replacement as one batch when your proof holds; template extraction must justify formatting, culture and moved-call behavior.</summary>
+    /// <remarks>Gates: editable ordinary partial parts, trivia and observable contexts, owner and group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context.</remarks>
+    public FixProposal? SafeWhen(Func<ExtractionChange, bool> proof)
     {
         if (_name is null || _part is null || !Covers(_group.Owner.Source.Project))
             return null;
         return ExtractionPlan
             .Create(_group, _destination, _part, _name, _parameter, _reuse, _collision)
-            ?.Propose(evidence =>
-                Covers(evidence.Context.Original) ? provesBehavior(evidence) : ProofResult.Unknown
-            );
+            ?.Propose(evidence => Covers(evidence.Context.Original) && proof(evidence));
     }
 
     private bool Covers(AnalysisProject project)

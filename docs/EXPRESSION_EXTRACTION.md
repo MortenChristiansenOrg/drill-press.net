@@ -23,7 +23,7 @@ rules.For(templates).Forbid("TEMPLATE", "Extract the repeated template.",
         .Propose(ProveHelperExtraction));
 ```
 
-The named proof functions return `ProofResult` from `ExtractionEvidence`; only
+The named proof functions return `ProofResult` from `ExtractionChange`; only
 `Proven` permits a fix. Grouping is candidate discovery, not behavioral proof.
 
 ## Candidate equivalence

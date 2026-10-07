@@ -26,7 +26,7 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
         var repeatedInputs = CodeQuery<CodeExpression>.Create(solution =>
             expressions.In(solution).Concat(expressions.In(solution))
         );
-        var query = ExpressionGroups.Constants(repeatedInputs);
+        var query = repeatedInputs.ConstantGroups();
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
         var groups = query.In(solution);
@@ -56,8 +56,8 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
 
-        var groups = ExpressionGroups
-            .Constants(Selected())
+        var groups = Selected()
+            .ConstantGroups()
             .In(workspace.Analyze(TestContext.Current.CancellationToken));
 
         Assert.Equal(
@@ -95,9 +95,8 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
 
-        var groups = ExpressionGroups
-            .OneHoleTemplates(
-                Selected(),
+        var groups = Selected()
+            .TemplateGroups(
                 new(
                     TemplateShapes.Interpolation | TemplateShapes.Concatenation,
                     capture => capture.TypeIs(CodeType.Of<int>())
@@ -129,14 +128,14 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
                 ),
             ]
         );
-        var query = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(
-                TemplateShapes.Interpolation,
-                _ => true,
-                new ApiSet(CodeType.Named("A").Member("Encode"))
-            )
-        );
+        var query = Selected()
+            .TemplateGroups(
+                new(
+                    TemplateShapes.Interpolation,
+                    _ => true,
+                    new ApiSet(CodeType.Named("A").Member("Encode"))
+                )
+            );
 
         var groups = query.In(workspace.Analyze(TestContext.Current.CancellationToken));
 
@@ -169,8 +168,8 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
             allowErrors: true
         );
 
-        var groups = ExpressionGroups
-            .Constants(Selected())
+        var groups = Selected()
+            .ConstantGroups()
             .In(workspace.Analyze(TestContext.Current.CancellationToken));
 
         Assert.Empty(groups);
@@ -196,10 +195,7 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
                 ),
             ]
         );
-        var query = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Interpolation, _ => true)
-        );
+        var query = Selected().TemplateGroups(new(TemplateShapes.Interpolation, _ => true));
 
         var groups = query.In(workspace.Analyze(TestContext.Current.CancellationToken));
 
@@ -220,14 +216,9 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var bounded = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Interpolation, _ => true, maximumNodes: 1)
-        );
-        var disallowed = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Interpolation, _ => false)
-        );
+        var bounded = Selected()
+            .TemplateGroups(new(TemplateShapes.Interpolation, _ => true, maximumNodes: 1));
+        var disallowed = Selected().TemplateGroups(new(TemplateShapes.Interpolation, _ => false));
 
         var boundedGroups = bounded.In(solution);
         var disallowedGroups = disallowed.In(solution);
@@ -249,11 +240,11 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
                 ),
             ]
         );
-        var query = ExpressionGroups.Constants(
-            Selected(),
-            additionalEquivalence: (first, second) =>
-                first.Syntax.ToString() == second.Syntax.ToString()
-        );
+        var query = Selected()
+            .ConstantGroups(
+                additionalEquivalence: (first, second) =>
+                    first.Syntax.ToString() == second.Syntax.ToString()
+            );
 
         var groups = query.In(workspace.Analyze(TestContext.Current.CancellationToken));
 
@@ -293,18 +284,12 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var interpolation = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Interpolation, _ => true)
-        );
-        var concatenation = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Concatenation, _ => true)
-        );
-        var both = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Interpolation | TemplateShapes.Concatenation, _ => true)
-        );
+        var interpolation = Selected().TemplateGroups(new(TemplateShapes.Interpolation, _ => true));
+        var concatenation = Selected().TemplateGroups(new(TemplateShapes.Concatenation, _ => true));
+        var both = Selected()
+            .TemplateGroups(
+                new(TemplateShapes.Interpolation | TemplateShapes.Concatenation, _ => true)
+            );
 
         var interpolationGroups = interpolation.In(solution);
         var concatenationGroups = concatenation.In(solution);
@@ -335,10 +320,7 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
                 ),
             ]
         );
-        var query = ExpressionGroups.OneHoleTemplates(
-            Selected(),
-            new(TemplateShapes.Interpolation, _ => true)
-        );
+        var query = Selected().TemplateGroups(new(TemplateShapes.Interpolation, _ => true));
 
         var groups = query.In(workspace.Analyze(TestContext.Current.CancellationToken));
 
@@ -346,8 +328,7 @@ public sealed class ExpressionGroupsTests(SdkFixture fixture) : IClassFixture<Sd
     }
 
     private static CodeQuery<CodeExpression> Selected() =>
-        Sources
-            .Nodes<ArgumentSyntax>()
+        Code.Nodes<ArgumentSyntax>()
             .Where(node =>
                 node.Syntax.Parent?.Parent
                     is InvocationExpressionSyntax

@@ -228,7 +228,7 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
     /// <summary>Matches a configured API independently of aliases, static imports or extension-call spelling.</summary>
     public bool Calls(CodeMember member) => member.Matches(Target);
 
-    /// <summary>Gets the bound argument for a declared parameter, including optional defaults. Returns null when absent.</summary>
-    public IArgumentOperation? Argument(string parameterName) =>
-        Operation.Arguments.FirstOrDefault(argument => argument.Parameter?.Name == parameterName);
+    /// <summary>The single value bound to a declaration parameter, including an omitted optional default; null for unknown parameters and expanded params groups.</summary>
+    public CodeArgument? Argument(string parameterName) =>
+        Parameter(parameterName)?.Values is [var value] ? value : null;
 }

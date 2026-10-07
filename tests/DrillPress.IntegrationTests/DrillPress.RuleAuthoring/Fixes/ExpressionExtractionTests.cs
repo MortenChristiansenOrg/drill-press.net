@@ -73,27 +73,23 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
         );
         var rules = new RuleSet();
         rules
+            .Rule("EXTRACT", "Extract the configured template.")
             .For(
-                ExpressionGroups.OneHoleTemplates(
-                    Selected(),
-                    new(
-                        TemplateShapes.Interpolation,
-                        capture => capture.TypeIs(CodeType.Of<string>()),
-                        new ApiSet(CodeType.Named("A").Member("Encode"))
-                    )
-                )
-            )
-            .Forbid(
-                "EXTRACT",
-                "Extract the configured template.",
-                fix: group =>
-                    Fix.Extract(group)
-                        .ToMethod("Route")
-                        .Propose(evidence =>
-                            evidence.Occurrences.All(change => change.Inputs.Count == 1)
-                                ? ProofResult.Proven
-                                : ProofResult.Unknown
+                Selected()
+                    .TemplateGroups(
+                        new(
+                            TemplateShapes.Interpolation,
+                            capture => capture.TypeIs(CodeType.Of<string>()),
+                            new ApiSet(CodeType.Named("A").Member("Encode"))
                         )
+                    )
+            )
+            .Forbid(fix: group =>
+                Fix.Extract(group)
+                    .ToMethod("Route")
+                    .SafeWhen(evidence =>
+                        evidence.Occurrences.All(change => change.Inputs.Count == 1)
+                    )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -174,31 +170,28 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
                 new("B.cs", "partial class A { void N() { Use(\"/x\"); }}"),
             ]
         );
-        var query = ExpressionGroups.Constants(Selected());
+        var query = Selected().ConstantGroups();
         var rules = new RuleSet();
         rules
+            .Rule("EXTRACT", "Extract.")
             .For(query)
-            .Forbid(
-                "EXTRACT",
-                "Extract.",
-                fix: group =>
-                {
-                    var destination = group
-                        .Occurrences.Single(occurrence =>
-                            occurrence.Expression.Source.Document.Path == "B.cs"
-                        )
-                        .Expression.Source;
-                    var part = destination
-                        .Tree.GetRoot()
-                        .DescendantNodes()
-                        .OfType<TypeDeclarationSyntax>()
-                        .Single();
-                    return Fix.Extract(group)
-                        .ToConstant("Route")
-                        .InPart(new(destination, part))
-                        .Propose(_ => ProofResult.Proven);
-                }
-            );
+            .Forbid(fix: group =>
+            {
+                var destination = group
+                    .Occurrences.Single(occurrence =>
+                        occurrence.Expression.Source.Document.Path == "B.cs"
+                    )
+                    .Expression.Source;
+                var part = destination
+                    .Tree.GetRoot()
+                    .DescendantNodes()
+                    .OfType<TypeDeclarationSyntax>()
+                    .Single();
+                return Fix.Extract(group)
+                    .ToConstant("Route")
+                    .InPart(new(destination, part))
+                    .SafeWhen(_ => true);
+            });
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -232,14 +225,12 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
         );
         var rules = new RuleSet();
         rules
-            .For(ExpressionGroups.Constants(Selected()))
-            .Forbid(
-                "EXTRACT",
-                "Extract.",
-                fix: group =>
-                    Fix.Extract(group)
-                        .ToConstant("Route", collision: ExtractionNameCollision.AddNumericSuffix)
-                        .Propose(_ => ProofResult.Proven)
+            .Rule("EXTRACT", "Extract.")
+            .For(Selected().ConstantGroups())
+            .Forbid(fix: group =>
+                Fix.Extract(group)
+                    .ToConstant("Route", collision: ExtractionNameCollision.AddNumericSuffix)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -283,23 +274,18 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
         workspace.AddProject("Second", [new("A.cs", source)]);
         var rules = new RuleSet();
         rules
+            .Rule("EXTRACT", "Extract.")
             .For(
-                ExpressionGroups.Constants(
-                    Selected()
-                        .Where(expression => expression.Source.Project.Snapshot.Name == "First")
-                )
+                Selected()
+                    .Where(expression => expression.Source.Project.Snapshot.Name == "First")
+                    .ConstantGroups()
             )
-            .Forbid(
-                "EXTRACT",
-                "Extract.",
-                fix: group =>
-                    Fix.Extract(group)
-                        .ToConstant("Route")
-                        .Propose(evidence =>
-                            veto && evidence.Context.Original.Snapshot.Name == "Second"
-                                ? ProofResult.Unknown
-                                : ProofResult.Proven
-                        )
+            .Forbid(fix: group =>
+                Fix.Extract(group)
+                    .ToConstant("Route")
+                    .SafeWhen(evidence =>
+                        !(veto && evidence.Context.Original.Snapshot.Name == "Second")
+                    )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -330,19 +316,14 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
         );
         var rules = new RuleSet();
         rules
+            .Rule("EXTRACT", "Extract.")
             .For(
-                ExpressionGroups.Constants(
-                    Selected()
-                        .Where(expression => expression.Source.Project.Snapshot.Name == "First")
-                )
+                Selected()
+                    .Where(expression => expression.Source.Project.Snapshot.Name == "First")
+                    .ConstantGroups()
             )
-            .Forbid(
-                "EXTRACT",
-                "Extract.",
-                fix: group =>
-                    Fix.Extract(group)
-                        .ToConstant("Route", reuseExisting: false)
-                        .Propose(_ => ProofResult.Proven)
+            .Forbid(fix: group =>
+                Fix.Extract(group).ToConstant("Route", reuseExisting: false).SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -404,17 +385,14 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
         );
         var rules = new RuleSet();
         rules
+            .Rule("EXTRACT", "Extract.")
             .For(
-                ExpressionGroups.OneHoleTemplates(
-                    Selected(),
-                    new(TemplateShapes.Interpolation | TemplateShapes.Concatenation, _ => true)
-                )
+                Selected()
+                    .TemplateGroups(
+                        new(TemplateShapes.Interpolation | TemplateShapes.Concatenation, _ => true)
+                    )
             )
-            .Forbid(
-                "EXTRACT",
-                "Extract.",
-                fix: group => Fix.Extract(group).ToMethod("Route").Propose(_ => ProofResult.Proven)
-            );
+            .Forbid(fix: group => Fix.Extract(group).ToMethod("Route").SafeWhen(_ => true));
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -461,8 +439,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
     }
 
     private static CodeQuery<CodeExpression> Selected() =>
-        Sources
-            .Nodes<ArgumentSyntax>()
+        Code.Nodes<ArgumentSyntax>()
             .Where(node =>
                 node.Syntax.Parent?.Parent
                     is InvocationExpressionSyntax
@@ -476,11 +453,10 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
     {
         var rules = new RuleSet();
         rules
-            .For(ExpressionGroups.Constants(Selected()))
-            .Forbid(
-                "EXTRACT",
-                "Extract the constant.",
-                fix: group => Fix.Extract(group).ToConstant("Route").Propose(_ => behavior)
+            .Rule("EXTRACT", "Extract the constant.")
+            .For(Selected().ConstantGroups())
+            .Forbid(fix: group =>
+                Fix.Extract(group).ToConstant("Route").SafeWhen(_ => behavior == ProofResult.Proven)
             );
         return rules;
     }

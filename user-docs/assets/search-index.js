@@ -137,7 +137,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Methods, types, and all other declarations · Inspect source code",
     "url": "syntax.html#declarations",
-    "text": "CodeMethod exposes Name , IsAsync , HasAttribute , Body , Flow , Reaches , Syntax , Symbol , Source , Solution , and Location . The symbol can be null when binding fails. CodeDeclaration is a named type with Name , Namespace , Implements , HasAttribute , and its source, syntax, symbol, solution, and location. Use files.Declarations() or SymbolQueries.Declarations for fields, properties, events, parameters, locals, accessors, and separate partial declarations. Those return CodeSymbol , with Symbol , Syntax , Source , and Location . SymbolQueries.References selects resolved simple-name references to types, namespaces, and members. ReferencesTo(symbol) follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries."
+    "text": "CodeMethod exposes Name , IsAsync , HasAttribute , Body , Flow , Reaches , Syntax , Symbol , Source , Solution , and Location . The symbol can be null when binding fails. CodeTypeDefinition is a named type with Name , Namespace , Implements , HasAttribute , and its source, syntax, symbol, solution, and location. Use files.Declarations() or SymbolQueries.Declarations for fields, properties, events, parameters, locals, accessors, and separate partial declarations. Those return CodeSymbol , with Symbol , Syntax , Source , and Location . SymbolQueries.References selects resolved simple-name references to types, namespaces, and members. ReferencesTo(symbol) follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries."
   },
   {
     "title": "Report the smallest useful location · Inspect source code",
@@ -435,7 +435,7 @@ window.DRILLPRESS_SEARCH = [
     "text": "Name; IsAsync; HasAttribute; Flow; Reaches; Syntax; Symbol; Source; Solution; Location One ordinary method; its compiler symbol may be absent."
   },
   {
-    "title": "CodeDeclaration · API field guide",
+    "title": "CodeTypeDefinition · API field guide",
     "url": "reference.html#api-codedeclaration",
     "text": "Name; Namespace; Implements; HasAttribute; Syntax; Symbol; Source; Solution; Location One named type definition, with partial declarations deduplicated in the owning context."
   },

@@ -1,17 +1,13 @@
-using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
 
-/// <summary>Lazy declaration and named-reference roots, retaining each ordinary source occurrence and its compilation context.</summary>
-public static class SymbolQueries
+internal static class SymbolQueries
 {
-    /// <summary>All resolved declarations, including fields, properties, events, accessors, parameters and locals. Partial declarations remain separate occurrences.</summary>
-    public static CodeQuery<CodeSymbol> Declarations { get; } = DeclarationsIn(Sources.Files);
+    internal static CodeQuery<CodeSymbol> Declarations { get; } = DeclarationsIn(Sources.Files);
 
-    /// <summary>Discovers declarations only in selected files, avoiding semantic work outside the reporting scope.</summary>
-    public static CodeQuery<CodeSymbol> DeclarationsIn(CodeQuery<CodeFile> files) =>
+    internal static CodeQuery<CodeSymbol> DeclarationsIn(CodeQuery<CodeFile> files) =>
         files
             .SelectMany(file => file.Nodes<SyntaxNode>())
             .SelectMany(node =>
@@ -24,8 +20,7 @@ public static class SymbolQueries
                     : []
             );
 
-    /// <summary>Resolved simple-name references to types, namespaces and members; implicit references are available through operation roots.</summary>
-    public static CodeQuery<CodeSymbol> References { get; } =
+    private static CodeQuery<CodeSymbol> References { get; } =
         Sources
             .Nodes<SimpleNameSyntax>()
             .SelectMany(node =>
@@ -37,8 +32,7 @@ public static class SymbolQueries
                     : []
             );
 
-    /// <summary>Selects references using compiler identity or a loaded source-file identity and declaration span shared across compilations. Metadata symbols rely on compiler identity.</summary>
-    public static CodeQuery<CodeSymbol> ReferencesTo(ISymbol target) =>
+    internal static CodeQuery<CodeSymbol> ReferencesTo(ISymbol target) =>
         CodeQuery<CodeSymbol>.Create(solution =>
         {
             var files = solution

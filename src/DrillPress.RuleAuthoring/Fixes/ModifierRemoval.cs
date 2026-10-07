@@ -1,72 +1,61 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
-/// <summary>An immutable single-token edit with explicit declaration invariants and required behavior proof.</summary>
+/// <summary>An immutable single-token modifier removal with declaration checks and a required behavior proof.</summary>
+/// <remarks>Built-in gates: exactly one matching token in an editable ordinary declaration without directives or errors, matching declared symbols in every affected compilation and unchanged compiler-supplied arguments. Behavior checks are added with <see cref="MustPreserve"/>.</remarks>
 public sealed class ModifierRemoval
 {
+    private static readonly SyntaxKind[] _accessibility =
+    [
+        SyntaxKind.PublicKeyword,
+        SyntaxKind.PrivateKeyword,
+        SyntaxKind.ProtectedKeyword,
+        SyntaxKind.InternalKeyword,
+    ];
+
     private readonly AnalysisSource _source;
-    private readonly SyntaxNode _declaration;
+    private readonly SyntaxNode? _declaration;
     private readonly SyntaxKind _kind;
-    private readonly Func<RewriteEvidence, ProofResult>[] _contextChecks;
-    private readonly Func<DeclarationRewrite, ProofResult>[] _checks;
+    private readonly Func<ModifierChange, ProofResult>[] _checks;
 
     internal ModifierRemoval(
         AnalysisSource source,
-        SyntaxNode declaration,
+        SyntaxNode? declaration,
         SyntaxKind kind,
-        Func<RewriteEvidence, ProofResult>[] contextChecks,
-        Func<DeclarationRewrite, ProofResult>[]? checks = null
+        Func<ModifierChange, ProofResult>[]? checks = null
     )
     {
         _source = source;
         _declaration = declaration;
         _kind = kind;
-        _contextChecks = contextChecks;
         _checks = checks ?? [];
     }
 
-    /// <summary>Adds named declaration invariants without asserting arbitrary semantic equivalence.</summary>
-    public ModifierRemoval MustPreserve(Behavior behavior) =>
-        BehaviorChecks
-            .Declarations(behavior)
-            .Aggregate(this, (builder, check) => builder.Require(check));
+    /// <summary>Adds bounded declaration checks such as unchanged declared accessibility and identity. They do not prove arbitrary modifier changes safe.</summary>
+    public ModifierRemoval MustPreserve(DeclarationBehavior behavior) =>
+        new(_source, _declaration, _kind, [.. _checks, .. BehaviorChecks.Declarations(behavior)]);
 
-    /// <summary>Provides the required declaration behavior proof; false is Unknown.</summary>
-    public FixProposal? SafeWhen(Func<DeclarationRewrite, bool> proof) =>
-        Propose(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
-
-    /// <summary>Provides the required tri-state declaration behavior proof.</summary>
-    public FixProposal? SafeWhen(Func<DeclarationRewrite, ProofResult> proof) => Propose(proof);
-
-    /// <summary>Adds a declaration invariant without authorizing arbitrary behavior changes.</summary>
-    /// <remarks>Default gates require one editable ordinary declaration modifier, safe adjacent trivia, matching declaration symbols and unchanged compiler-supplied arguments in every affected compilation. Accessibility, identity and contract checks are additive for general removals; the no-argument top-level internal removal supplies all three and its restricted equivalence proof.</remarks>
-    public ModifierRemoval Require(Func<DeclarationRewrite, ProofResult> check) =>
-        new(_source, _declaration, _kind, _contextChecks, [.. _checks, check]);
-
-    /// <summary>Uses the restricted proof for redundant explicit internal on a top-level type. Other modifier removals require a behavior proof.</summary>
-    /// <remarks>Default gates require one editable ordinary declaration modifier, safe adjacent trivia, matching declaration symbols and unchanged compiler-supplied arguments in every affected compilation. Accessibility, identity and contract checks are additive for general removals; the no-argument top-level internal removal supplies all three and its restricted equivalence proof.</remarks>
+    /// <summary>Proposes removing an accessibility modifier when every affected symbol keeps its declared accessibility, identity and contract, such as an explicit <c>internal</c> on a top-level type or <c>private</c> on a member. Other modifiers need <see cref="SafeWhen"/>.</summary>
     public FixProposal? Propose() =>
-        _kind == SyntaxKind.InternalKeyword
-        && _declaration is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax
-        && _declaration.Parent is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax
-            ? MustPreserve(Behavior.Accessibility | Behavior.Identity | Behavior.Contract)
-                .Propose(change =>
-                    change.RemovedModifier == Modifier.Internal
-                        ? ProofResult.Proven
-                        : ProofResult.Unknown
+        _accessibility.Contains(_kind)
+            ? MustPreserve(
+                    DeclarationBehavior.Accessibility
+                        | DeclarationBehavior.ContainingAccessibility
+                        | DeclarationBehavior.Identity
+                        | DeclarationBehavior.Contract
                 )
+                .SafeWhen(change => change.Removed.IsKind(_kind))
             : null;
 
-    /// <summary>Proposes the token removal. The consumer must prove its behavior in addition to configured identity/accessibility checks.</summary>
-    /// <remarks>Default gates require one editable ordinary declaration modifier, safe adjacent trivia, matching declaration symbols and unchanged compiler-supplied arguments in every affected compilation. Accessibility, identity and contract checks are additive for general removals; the no-argument top-level internal removal supplies all three and its restricted equivalence proof.</remarks>
-    public FixProposal? Propose(Func<DeclarationRewrite, ProofResult> provesBehavior)
+    /// <summary>Proposes the removal when your proof holds in every affected compilation; false withholds the fix and keeps the finding.</summary>
+    public FixProposal? SafeWhen(Func<ModifierChange, bool> proof)
     {
         if (
-            _declaration.SyntaxTree != _source.Tree
+            _declaration is null
+            || _declaration.SyntaxTree != _source.Tree
             || !_source.Document.IsEditable
             || _source.Document.IsGenerated
             || _declaration.ContainsDirectives
@@ -96,7 +85,7 @@ public sealed class ModifierRemoval
                     )
                     .ToArray();
                 return memberships.Length > 0
-                    && memberships.All(source => Validate(context, source, provesBehavior));
+                    && memberships.All(source => Validate(context, source, proof));
             }
         );
     }
@@ -104,12 +93,12 @@ public sealed class ModifierRemoval
     private bool Validate(
         RewriteContext context,
         AnalysisSource source,
-        Func<DeclarationRewrite, ProofResult> provesBehavior
+        Func<ModifierChange, bool> proof
     )
     {
         var before = source
             .Tree.GetRoot(source.Project.CancellationToken)
-            .FindNode(_declaration.Span, getInnermostNodeForTie: true);
+            .FindNode(_declaration!.Span, getInnermostNodeForTie: true);
         if (before.Span != _declaration.Span || before.RawKind != _declaration.RawKind)
             return false;
         var tokens = DeclarationSyntax
@@ -133,14 +122,13 @@ public sealed class ModifierRemoval
         var oldSymbols = DeclarationSyntax.Symbols(source.Model, before);
         var newSymbols = DeclarationSyntax.Symbols(rewrite.AfterModel, rewrite.After);
         if (
-            tokens.Length != 1
-            || oldSymbols is null
+            oldSymbols is null
             || newSymbols is null
             || oldSymbols.Count != newSymbols.Count
             || oldSymbols.Count == 0
         )
             return false;
-        var evidence = new DeclarationRewrite(
+        var change = new ModifierChange(
             rewrite,
             tokens[0],
             Array.AsReadOnly(
@@ -153,8 +141,7 @@ public sealed class ModifierRemoval
             )
         );
         return RewriteChecks.SameCompilerSuppliedArguments(rewrite) == ProofResult.Proven
-            && _contextChecks.All(check => check(rewrite) == ProofResult.Proven)
-            && _checks.All(check => check(evidence) == ProofResult.Proven)
-            && provesBehavior(evidence) == ProofResult.Proven;
+            && _checks.All(check => check(change) == ProofResult.Proven)
+            && proof(change);
     }
 }

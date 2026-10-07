@@ -25,23 +25,20 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             ]
         );
         var urls = Code
-            .Calls.Calling(CodeType.Named("A").Member("Use"))
+            .Calls.To(CodeType.Named("A").Member("Use"))
             .ArgumentsFor("value")
             .SourceValues();
-        var groups = ExpressionGroups.OneHoleTemplates(
-            urls,
+        var groups = urls.TemplateGroups(
             new(TemplateShapes.Interpolation, capture => capture.TypeIs<string>())
         );
         var rules = new RuleSet();
         rules
+            .Rule("URL", "Extract URL.")
             .For(groups)
-            .Forbid(
-                "URL",
-                "Extract URL.",
-                fix: group =>
-                    Fix.Extract(group)
-                        .ToMethod("CreateUrl", ParameterName.FromCapture)
-                        .SafeWhen(_ => true)
+            .Forbid(fix: group =>
+                Fix.Extract(group)
+                    .ToMethod("CreateUrl", ParameterName.FromCapture)
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -71,11 +68,10 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             ]
         );
         var urls = Code
-            .Calls.Calling(CodeType.Named("A").Member("Use"))
+            .Calls.To(CodeType.Named("A").Member("Use"))
             .ArgumentsFor("value")
             .SourceValues();
-        var groups = ExpressionGroups.OneHoleTemplates(
-            urls,
+        var groups = urls.TemplateGroups(
             new(
                 TemplateShapes.Interpolation,
                 capture => capture.TypeIs<string>(),
@@ -86,19 +82,15 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
         );
         var rules = new RuleSet();
         rules
+            .Rule("URL", "Extract URL.")
             .For(groups)
-            .Forbid(
-                "URL",
-                "Extract URL.",
-                fix: group =>
-                    Fix.Extract(group)
-                        .OnlyWhenGroupCoversAll(urls)
-                        .ToMethod("CreateUrl", ParameterName.FromCapture)
-                        .SafeWhen(change =>
-                            change.Occurrences.All(occurrence =>
-                                occurrence.RetainedExpressions.Count == 1
-                            )
-                        )
+            .Forbid(fix: group =>
+                Fix.Extract(group)
+                    .OnlyWhenGroupCoversAll(urls)
+                    .ToMethod("CreateUrl", ParameterName.FromCapture)
+                    .SafeWhen(change =>
+                        change.Occurrences.All(occurrence => occurrence.Inputs.Count == 1)
+                    )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -129,7 +121,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             ]
         );
         var urls = Code
-            .Calls.Calling(CodeType.Named("A").Member("Use"))
+            .Calls.To(CodeType.Named("A").Member("Use"))
             .ArgumentsFor("value")
             .SourceValues();
         var literals = urls.Where(value =>
@@ -137,12 +129,10 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
         );
         var rules = new RuleSet();
         rules
-            .For(ExpressionGroups.Constants(literals))
-            .Forbid(
-                "URL",
-                "Extract URL.",
-                fix: group =>
-                    Fix.Extract(group).OnlyWhenGroupCoversAll(urls).ToConstant("_url").Propose()
+            .Rule("URL", "Extract URL.")
+            .For(literals.ConstantGroups())
+            .Forbid(fix: group =>
+                Fix.Extract(group).OnlyWhenGroupCoversAll(urls).ToConstant("_url").Propose()
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -169,23 +159,21 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             ]
         );
         var urls = Code
-            .Calls.Calling(CodeType.Named("A").Member("Use"))
+            .Calls.To(CodeType.Named("A").Member("Use"))
             .ArgumentsFor("value")
             .SourceValues();
-        var groups = ExpressionGroups.Constants(urls);
+        var groups = urls.ConstantGroups();
         var rules = new RuleSet();
         rules
+            .Rule("URL", "Extract URL.")
             .For(
                 urls.WithGroupsFrom(groups).Where(membership => membership.UniqueGroup is not null)
             )
-            .Forbid(
-                "URL",
-                "Extract URL.",
-                fix: membership =>
-                    Fix.Extract(membership.UniqueGroup!)
-                        .OnlyWhenGroupCoversAll(urls)
-                        .ToConstant("_url")
-                        .Propose()
+            .Forbid(fix: membership =>
+                Fix.Extract(membership.UniqueGroup!)
+                    .OnlyWhenGroupCoversAll(urls)
+                    .ToConstant("_url")
+                    .Propose()
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -219,17 +207,15 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
         workspace.AddProject("Library", [source], framework: "net10.0");
         workspace.AddProject("Library", [source], framework: "net8.0", symbols: ["EXTRA"]);
         var urls = Code
-            .Calls.Calling(CodeType.Named("A").Member("Use"))
+            .Calls.To(CodeType.Named("A").Member("Use"))
             .ArgumentsFor("value")
             .SourceValues();
         var rules = new RuleSet();
         rules
-            .For(ExpressionGroups.Constants(urls))
-            .Forbid(
-                "URL",
-                "Extract URL.",
-                fix: group =>
-                    Fix.Extract(group).OnlyWhenGroupCoversAll(urls).ToConstant("_url").Propose()
+            .Rule("URL", "Extract URL.")
+            .For(urls.ConstantGroups())
+            .Forbid(fix: group =>
+                Fix.Extract(group).OnlyWhenGroupCoversAll(urls).ToConstant("_url").Propose()
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

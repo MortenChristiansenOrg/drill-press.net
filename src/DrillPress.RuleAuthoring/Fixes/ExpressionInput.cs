@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace DrillPress;
 
 /// <summary>A tracked original operand for constructing replacements without losing occurrence identity.</summary>
-public sealed class ExpressionInput
+internal sealed class ExpressionInput
 {
     internal ExpressionInput(AnalysisSource source, ExpressionSyntax original)
     {
@@ -15,12 +15,12 @@ public sealed class ExpressionInput
     }
 
     /// <summary>The original operand's compilation membership.</summary>
-    public AnalysisSource Source { get; }
+    internal AnalysisSource Source { get; }
 
     /// <summary>The exact original occurrence, not just its symbol or source text.</summary>
-    public ExpressionSyntax Original { get; }
+    internal ExpressionSyntax Original { get; }
 
     /// <summary>Embed this annotated node in a replacement and register the input with MapInputs.</summary>
-    public ExpressionSyntax Syntax { get; }
+    internal ExpressionSyntax Syntax { get; }
     internal SyntaxAnnotation Annotation { get; }
 }

@@ -244,10 +244,11 @@ internal sealed class OccurrenceCoverageCase(
             using DrillPress;
             using DrillPress.Engine;
             var rules = new RuleSet();
-            rules.For(Code.Enumerations).Require(Coverage.EnumerationStarted, "ENUM", "Start enumeration.");
+            rules.Rule("ENUM", "Start enumeration.").For(Code.Enumerations).Require(Coverage.EnumerationStarted);
             RuleCondition<CodeInvocation> executed = Coverage.Executed;
-            rules.For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Consume" or "LoadAsync"))
-                .Require(executed.And(new(_ => false)), "CALL", "Capture call evidence.");
+            rules.Rule("CALL", "Capture call evidence.")
+                .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Consume" or "LoadAsync"))
+                .Require(executed.And(new(_ => false)));
             return (int)await new RuleApplication().RunAsync(rules, args);
             """
         );

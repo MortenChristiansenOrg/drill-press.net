@@ -32,10 +32,10 @@ public sealed class AnalysisSolution
 
     private readonly Lazy<IReadOnlyList<MemberReference>> _references;
     private readonly Lazy<IReadOnlyList<CodeMethod>> _methods;
-    private readonly Lazy<IReadOnlyList<CodeDeclaration>> _types;
+    private readonly Lazy<IReadOnlyList<CodeTypeDefinition>> _types;
     private long _memberBindings;
     private readonly Lazy<MemberCandidateIndex> _memberCandidates;
-    private readonly bool _providedReferences;
+    private readonly Lazy<TypeReferenceIndex> _typeReferences;
     private readonly Dictionary<object, Lazy<object>> _facts = [];
     private readonly Lazy<ProjectGraph> _projectGraph;
 
@@ -76,6 +76,7 @@ public sealed class AnalysisSolution
         Implementations = new(this);
         _projectGraph = new(() => new ProjectGraph(this));
         _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
+        _typeReferences = new(() => new TypeReferenceIndex(OrdinarySources, CancellationToken));
         _references = new(() =>
             Options.EnableOptimizations
                 ? _memberCandidates.Value.Select(null).ToArray()
@@ -95,17 +96,11 @@ public sealed class AnalysisSolution
         _types = new(DiscoverTypes);
     }
 
-    internal AnalysisSolution(IReadOnlyList<MemberReference> references)
-        : this(Array.Empty<AnalysisProject>())
-    {
-        _providedReferences = true;
-        _references = new(() => references);
-    }
-
     internal IEnumerable<MemberReference> SelectMemberReferences(IReadOnlySet<string>? names) =>
-        _providedReferences || !Options.EnableOptimizations
-            ? MemberReferences
-            : _memberCandidates.Value.Select(names);
+        !Options.EnableOptimizations ? MemberReferences : _memberCandidates.Value.Select(names);
+
+    internal IEnumerable<CodeTypeReference> SelectTypeReferences(IReadOnlySet<string>? names) =>
+        _typeReferences.Value.Select(Options.EnableOptimizations ? names : null);
 
     /// <summary>Stops evaluation and discovery within this analysis.</summary>
     public CancellationToken CancellationToken { get; }
@@ -123,7 +118,7 @@ public sealed class AnalysisSolution
     public IReadOnlyList<CodeMethod> Methods => _methods.Value;
 
     /// <summary>Distinct ordinary source type definitions within each context.</summary>
-    public IReadOnlyList<CodeDeclaration> Types => _types.Value;
+    public IReadOnlyList<CodeTypeDefinition> Types => _types.Value;
 
     /// <summary>Cached source implementation analysis over compatible source graphs.</summary>
     public InterfaceImplementations Implementations { get; }
@@ -149,9 +144,9 @@ public sealed class AnalysisSolution
             .SelectMany(project => project.Sources)
             .Where(source => !source.Document.IsGenerated);
 
-    private IReadOnlyList<CodeDeclaration> DiscoverTypes()
+    private IReadOnlyList<CodeTypeDefinition> DiscoverTypes()
     {
-        var result = new List<CodeDeclaration>();
+        var result = new List<CodeTypeDefinition>();
         foreach (var project in Projects)
         {
             CancellationToken.ThrowIfCancellationRequested();
@@ -178,7 +173,7 @@ public sealed class AnalysisSolution
                         && seen.Add(symbol)
                     )
                     {
-                        result.Add(new CodeDeclaration(this, source, syntax, symbol));
+                        result.Add(new CodeTypeDefinition(this, source, syntax, symbol));
                     }
                 }
             }
@@ -215,16 +210,7 @@ public sealed class AnalysisSolution
                     and { ContainingType: { IsAnonymousType: false } type } symbol
             )
             {
-                yield return new MemberReference(
-                    CodeType.FromSymbol(type),
-                    symbol.Name,
-                    source.Locate(expression.Span)
-                )
-                {
-                    Source = source,
-                    Syntax = expression,
-                    Symbol = symbol,
-                };
+                yield return new MemberReference(source, expression, symbol);
             }
         }
     }

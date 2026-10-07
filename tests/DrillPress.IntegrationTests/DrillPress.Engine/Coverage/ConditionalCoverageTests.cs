@@ -83,12 +83,13 @@ public sealed class ConditionalCoverageTests : CoverageIntegrationTest
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
         var rules = new RuleSet();
         rules
+            .Rule("PROBE", "Capture call evidence.")
             .For(
                 Code.Calls.Where(call =>
                     call.Target.Name is "Hit" or "Test" or "Consume" or "Identity" or "LoadAsync"
                 )
             )
-            .Require(executed.And(new(_ => false)), "PROBE", "Capture call evidence.");
+            .Require(executed.And(new(_ => false)));
         var engine = new AnalysisEngine();
 
         var response = await engine.EvaluateAsync(

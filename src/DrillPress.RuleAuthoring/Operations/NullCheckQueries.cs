@@ -13,7 +13,9 @@ public static class NullCheckQueries
         In(bodies.Nodes<ExpressionSyntax>());
 
     /// <summary>Recognizes checks in a syntax selection, returning only the outermost supported negation/parenthesis shape per occurrence.</summary>
-    public static CodeQuery<CodeNullCheck> In(CodeQuery<CodeNode<ExpressionSyntax>> expressions) =>
+    internal static CodeQuery<CodeNullCheck> In(
+        CodeQuery<CodeNode<ExpressionSyntax>> expressions
+    ) =>
         CodeQuery<CodeNullCheck>.Create(solution =>
         {
             var nodes = expressions.In(solution);
@@ -27,7 +29,7 @@ public static class NullCheckQueries
         });
 
     /// <summary>Recognizes a single complete Boolean check; unsupported custom operators and invalid bindings return no match.</summary>
-    public static CodeNullCheck? Match(CodeExpression condition)
+    internal static CodeNullCheck? Match(CodeExpression condition)
     {
         if (!condition.IsResolved || condition.Operation is not { } operation)
             return null;

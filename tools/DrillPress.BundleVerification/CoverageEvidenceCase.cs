@@ -75,9 +75,9 @@ internal sealed class CoverageEvidenceCase(
                 workspace.WithCoverage(facts => facts.ForCall("Policy.cs", "Hit()")
                     .Unknown(CoverageReason.UnsupportedExpressionMapping));
                 var policyRules = new RuleSet();
-                policyRules.For(Code.Calls.Where(call => call.Target.Name == "Hit"))
-                    .Require(Coverage.Executed.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping),
-                        "POL", "Verify execution.");
+                policyRules.Rule("POL", "Verify execution.")
+                    .For(Code.Calls.Where(call => call.Target.Name == "Hit"))
+                    .Require(Coverage.Executed.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping));
                 var result = await workspace.CheckAsync(policyRules);
                 var finding = result.Findings.Single();
                 var evidence = finding.Coverage.Single();
@@ -85,11 +85,13 @@ internal sealed class CoverageEvidenceCase(
                 return 0;
             }
             var rules = new RuleSet();
-            rules.For(CodeType.Of<string>().Member("Empty").References)
-                .Require(Coverage.Executed, "COV", "Exercise source occurrence.");
-            rules.For(CodeType.Of<string>().Member("Empty").References)
+            rules.Rule("COV", "Exercise source occurrence.")
+                .For(CodeType.Of<string>().Member("Empty").References)
+                .Require(Coverage.Executed);
+            rules.Rule("POL", "Verify execution.")
+                .For(CodeType.Of<string>().Member("Empty").References)
                 .Require(Coverage.Executed.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping)
-                    .OnUnknown("Inspect coverage evidence."), "POL", "Verify execution.");
+                    .OnUnknown("Inspect coverage evidence."));
             return (int)await new RuleApplication().RunAsync(rules, args);
             """
         );

@@ -114,9 +114,7 @@ public sealed class CodeMemberTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             .Member("Save")
             .WithParameters(CodeType.Of<string>(), CodeType.Of<int>());
 
-        var calls = OperationQueries.Invocations.In(
-            workspace.Analyze(TestContext.Current.CancellationToken)
-        );
+        var calls = Code.Calls.In(workspace.Analyze(TestContext.Current.CancellationToken));
 
         Assert.Equal([true, false, false], calls.Select(call => call.Calls(addText)));
         Assert.Equal([false, false, true], calls.Select(call => call.Calls(save)));

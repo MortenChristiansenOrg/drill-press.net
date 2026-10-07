@@ -10,13 +10,7 @@ public static class BodyQueries
     public static CodeQuery<CodeBody> Body(
         this CodeQuery<CodeMethod> methods,
         NestedFunctions nested = NestedFunctions.Exclude
-    ) =>
-        methods.SelectMany(method =>
-            ((SyntaxNode?)method.Syntax.Body ?? method.Syntax.ExpressionBody?.Expression)
-                is { } root
-                ? new[] { new CodeBody(method.Source, root, nested) }
-                : []
-        );
+    ) => methods.SelectMany(method => method.Body(nested) is { } body ? new[] { body } : []);
 
     /// <summary>Projects syntax once per contextual occurrence, including when input scopes overlap.</summary>
     public static CodeQuery<CodeNode<TSyntax>> Nodes<TSyntax>(this CodeQuery<CodeBody> bodies)
@@ -28,12 +22,12 @@ public static class BodyQueries
                 .DistinctBy(node => (node.Source, node.Syntax.Span, node.Syntax.RawKind))
         );
 
-    /// <summary>Selects resolved invocation operations in the chosen scopes.</summary>
-    public static CodeQuery<CodeInvocation> Invocations(this CodeQuery<CodeBody> bodies) =>
+    /// <summary>Selects resolved calls in the chosen scopes, honoring each scope's nested-function policy.</summary>
+    public static CodeQuery<CodeInvocation> Calls(this CodeQuery<CodeBody> bodies) =>
         CodeQuery<CodeInvocation>.Create(solution =>
             bodies
                 .In(solution)
-                .SelectMany(body => body.Invocations())
+                .SelectMany(body => body.Calls())
                 .Where(call => call.IsResolved)
                 .DistinctBy(call => (call.Source, call.Operation.Syntax.Span))
         );

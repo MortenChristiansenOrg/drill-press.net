@@ -37,20 +37,17 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         };
         var rules = new RuleSet();
         rules
+            .Rule("GROUP", "Update shared values.")
             .For(Code.Files.InProject("Reporter"))
             .ReportOncePer(file => file.Name[0])
-            .Forbid(
-                "GROUP",
-                "Update shared values.",
-                fix: file =>
-                {
-                    var target = targets[destinations[file.Name]];
-                    return SourceChanges.Propose(
-                        [SourceChanges.Replace(target.Source, target.Syntax.Span, "2")],
-                        _ => true
-                    );
-                }
-            );
+            .Forbid(fix: file =>
+            {
+                var target = targets[destinations[file.Name]];
+                return SourceChanges.Propose(
+                    [SourceChanges.Replace(target.Source, target.Syntax.Span, "2")],
+                    _ => true
+                );
+            });
         var expected = targets
             .Values.OrderBy(node => node.Source.Document.FileIdentity)
             .Select(node => SourceChanges.Replace(node.Source, node.Syntax.Span, "2"))
@@ -90,16 +87,14 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         workspace.AddProject("Library", [new("A.cs", text)]);
         var rules = new RuleSet();
         rules
+            .Rule("ONE", "Use three.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
             .ReportOncePer(_ => "method")
-            .Forbid(
-                "ONE",
-                "Use three.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "3")],
-                        _ => true
-                    )
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, node.Syntax.Span, "3")],
+                    _ => true
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -119,22 +114,19 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         var rules = new RuleSet();
         var evaluated = new List<string>();
         rules
+            .Rule("ONE", "Use four.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
             .ReportOncePer(_ => "owner")
-            .Forbid(
-                "ONE",
-                "Use four.",
-                fix: node =>
-                {
-                    evaluated.Add(node.Syntax.ToString());
-                    return node.Syntax.ToString() == "1"
-                        ? null
-                        : SourceChanges.Propose(
-                            [SourceChanges.Replace(node.Source, node.Syntax.Span, "4")],
-                            _ => true
-                        );
-                }
-            );
+            .Forbid(fix: node =>
+            {
+                evaluated.Add(node.Syntax.ToString());
+                return node.Syntax.ToString() == "1"
+                    ? null
+                    : SourceChanges.Propose(
+                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "4")],
+                        _ => true
+                    );
+            });
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -156,16 +148,14 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         );
         var rules = new RuleSet();
         rules
+            .Rule("ONE", "Conflicting edits.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
             .ReportOncePer(_ => "owner")
-            .Forbid(
-                "ONE",
-                "Conflicting edits.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, new(22, 1), node.Syntax.ToString())],
-                        _ => true
-                    )
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, new(22, 1), node.Syntax.ToString())],
+                    _ => true
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -181,19 +171,17 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         workspace.AddProject("Library", [new("A.cs", "class A { int Value = 1; }")]);
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var rules = new RuleSet();
-        rules.For(Code.LocalVariables).Forbid("EMPTY", "No locals.");
+        rules.Rule("EMPTY", "No locals.").For(Code.LocalVariables).Forbid();
         rules
+            .Rule("BAD", "Bad anchor.")
             .For(Code.Types)
-            .Forbid(
-                "BAD",
-                "Bad anchor.",
-                at: _ => Microsoft.CodeAnalysis.CSharp.SyntaxFactory.IdentifierName("missing")
-            );
+            .ReportAt(_ => Microsoft.CodeAnalysis.CSharp.SyntaxFactory.IdentifierName("missing"))
+            .Forbid();
 
         var error = Assert.Throws<ArgumentException>(() => rules.Evaluate(solution));
 
         Assert.Equal(
-            "The selected syntax must belong to the candidate's original compilation. (Parameter 'part')",
+            "The selected syntax must belong to the candidate's original compilation. (Parameter 'syntax')",
             error.Message
         );
     }

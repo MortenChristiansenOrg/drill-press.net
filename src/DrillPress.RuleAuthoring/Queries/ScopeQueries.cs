@@ -3,39 +3,40 @@ using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
 
-/// <summary>Physical document and semantic namespace scopes for reportable source candidates.</summary>
+/// <summary>Project, file, folder and namespace scopes shared by every reportable source element.</summary>
 public static class ScopeQueries
 {
-    /// <summary>Selects source candidates using evaluated test classification, without project naming assumptions.</summary>
+    /// <summary>Selects elements in projects that BuildHost classifies as test projects, without project naming assumptions.</summary>
+    public static CodeQuery<T> InTestProjects<T>(this CodeQuery<T> query)
+        where T : ICodeElement => query.Where(element => element.Source.Project.IsTestProject);
+
+    /// <summary>Selects elements in projects that BuildHost does not classify as test projects.</summary>
     public static CodeQuery<T> InNonTestProjects<T>(this CodeQuery<T> query)
-        where T : ICodeElement =>
-        query.Where(element => element.Source is { Project.IsTestProject: false });
+        where T : ICodeElement => query.Where(element => !element.Source.Project.IsTestProject);
 
-    /// <summary>Selects source candidates whose evaluated context uniquely contains the configured type identity.</summary>
+    /// <summary>Selects elements whose evaluated compilation uniquely contains the configured type identity, including through transitive references.</summary>
     public static CodeQuery<T> InProjectsWithType<T>(this CodeQuery<T> query, CodeType type)
-        where T : ICodeElement =>
-        query.Where(element => element.Source?.Project.HasType(type) == true);
+        where T : ICodeElement => query.Where(element => element.Source.Project.HasType(type));
 
-    /// <summary>Selects candidates in the named evaluated project, using an ordinal name comparison.</summary>
-    public static CodeQuery<T> InProject<T>(this CodeQuery<T> query, string name)
+    /// <summary>Selects elements in evaluated projects whose name matches a case-sensitive glob, such as <c>Contoso.Api</c> or <c>Contoso.*</c>.</summary>
+    public static CodeQuery<T> InProject<T>(this CodeQuery<T> query, string pattern)
         where T : ICodeElement
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return query.Where(element => element.IsDeclaredInProject(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
+        var match = new PathPattern(pattern);
+        return query.Where(element => match.Matches(element.Source.Project.Name));
     }
 
-    /// <summary>Tests the candidate's evaluated project name.</summary>
-    public static bool IsDeclaredInProject(this ICodeElement element, string name) =>
-        element.Source?.Project.Name == name;
+    /// <summary>Tests the element's evaluated project name against a case-sensitive glob.</summary>
+    public static bool IsInProject(this ICodeElement element, string pattern) =>
+        new PathPattern(pattern).Matches(element.Source.Project.Name);
 
     /// <summary>Matches filename globs, excluding the containing directories.</summary>
     public static CodeQuery<T> InFilesNamed<T>(this CodeQuery<T> query, string pattern)
         where T : ICodeElement
     {
         var match = new PathPattern(pattern);
-        return query.Where(element =>
-            element.Source is { } source && match.Matches(new CodeFile(source).Name)
-        );
+        return query.Where(element => match.Matches(new CodeFile(element.Source).Name));
     }
 
     /// <summary>Matches whole physical folder segments at any depth relative to the project. Loose sources use sourceRoot, or the invocation directory captured when analysis began. Linked-item logical folders are not consulted.</summary>
@@ -48,9 +49,7 @@ public static class ScopeQueries
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folder);
         var match = new PathPattern("**/" + folder.Replace('\\', '/').Trim('/') + "/**");
-        return query.Where(element =>
-            element.Source is { } source && match.Matches(RelativePath(source, sourceRoot))
-        );
+        return query.Where(element => match.Matches(RelativePath(element.Source, sourceRoot)));
     }
 
     /// <summary>Matches namespace segments; * matches one segment and a trailing ** includes the root and all descendants.</summary>
@@ -73,8 +72,7 @@ public static class ScopeQueries
 
     private static bool MatchesNamespace(ICodeElement element, PathPattern pattern)
     {
-        if (element.Source is not { } source)
-            return false;
+        var source = element.Source;
         var symbol = source.Model.GetEnclosingSymbol(
             element.Location.Start,
             source.Project.CancellationToken

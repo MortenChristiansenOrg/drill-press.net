@@ -139,7 +139,7 @@ public sealed class RuleDefinitionTests(SdkFixture fixture) : IClassFixture<SdkF
                     _ => true
                 )
             );
-        policy.For(Code.Types).ReportOncePer(_ => "owner").Forbid(at: type => type);
+        policy.For(Code.Types).ReportOncePer(_ => "owner").ReportAt(type => type).Forbid();
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 

@@ -1,13 +1,11 @@
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-
 namespace DrillPress;
 
-/// <summary>Explicit declaration-part and statement selections for style conventions.</summary>
+/// <summary>Declaration-part and statement selections for style conventions.</summary>
 public static class StyleQueries
 {
     /// <summary>Selects explicit local, foreach and out declarations whose inferred type and binding survive replacement with var.</summary>
-    public static CodeQuery<CodeTypedDeclaration> WhereVarPreservesType(
-        this CodeQuery<CodeTypedDeclaration> declarations
+    public static CodeQuery<CodeVariableDeclaration> WhereVarPreservesType(
+        this CodeQuery<CodeVariableDeclaration> declarations
     ) => declarations.Where(declaration => declaration.CanUseVar);
 
     /// <summary>Selects written top-level declaration parts.</summary>
@@ -15,20 +13,14 @@ public static class StyleQueries
         this CodeQuery<CodeTypeDeclaration> types
     ) => types.Where(type => type.IsTopLevel);
 
-    /// <summary>Selects actual modifier tokens on each declaration part.</summary>
-    public static CodeQuery<CodeTypeDeclaration> WithExplicitModifier(
-        this CodeQuery<CodeTypeDeclaration> types,
-        Modifier modifier
-    ) => types.Where(type => type.HasExplicitModifier(modifier));
-
     /// <summary>Selects semantically explicit types, including an actual type named var.</summary>
-    public static CodeQuery<CodeTypedDeclaration> WithExplicitType(
-        this CodeQuery<CodeTypedDeclaration> declarations
+    public static CodeQuery<CodeVariableDeclaration> WithExplicitType(
+        this CodeQuery<CodeVariableDeclaration> declarations
     ) => declarations.Where(declaration => declaration.HasExplicitType);
 
     /// <summary>Selects local declaration groups with an initializer for every variable.</summary>
-    public static CodeQuery<CodeTypedDeclaration> WithInitializer(
-        this CodeQuery<CodeTypedDeclaration> declarations
+    public static CodeQuery<CodeVariableDeclaration> WithInitializer(
+        this CodeQuery<CodeVariableDeclaration> declarations
     ) => declarations.Where(declaration => declaration.HasInitializer);
 
     /// <summary>Selects if statements with an else, including else-if continuations marked by Else.IsElseIf.</summary>

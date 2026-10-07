@@ -145,7 +145,7 @@ public sealed class CodeTypeTests(SemanticRuleFixture fixture) : IClassFixture<S
             "delegate void D(); enum E { Value } partial class C { } partial class C { } record R;"
         );
         var rules = new RuleSet();
-        rules.For(Code.Types).Forbid("TYPE001", "Review type.");
+        rules.Rule("TYPE001", "Review type.").For(Code.Types).Forbid();
 
         var diagnostics = rules.Evaluate(new AnalysisSolution([project]));
 

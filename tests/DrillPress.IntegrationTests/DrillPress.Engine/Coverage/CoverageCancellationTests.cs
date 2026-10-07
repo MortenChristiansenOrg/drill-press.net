@@ -37,8 +37,9 @@ public sealed class CoverageCancellationTests : IntegrationTest
         );
         var rules = new RuleSet();
         rules
+            .Rule("COV001", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(90), "COV001", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(90));
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             TestContext.Current.CancellationToken
         );

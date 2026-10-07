@@ -29,7 +29,7 @@ public sealed class TypeQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
             )
             .TraverseTypes(new TypeTraversal().ThroughProperties());
 
-        var declarations = results.Declarations().In(solution);
+        var declarations = results.Definitions().In(solution);
 
         Assert.Equal(
             ["A", "B", "Box", "Root", "C"],
@@ -62,7 +62,7 @@ public sealed class TypeQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
 
         Assert.Equal(TypeTraversalStatus.Unresolved, result.Status);
         Assert.Empty(result.Types);
-        Assert.Empty(results.Declarations().In(solution));
+        Assert.Empty(results.Definitions().In(solution));
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class TypeQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
             )
             .WhereType(type => type.ContainingAssembly.Name == "Library");
 
-        var declarations = results.Declarations().In(solution);
+        var declarations = results.Definitions().In(solution);
         var traversals = results.In(solution);
 
         Assert.Equal(["A", "B", "Box"], declarations.Select(declaration => declaration.Name));
@@ -214,7 +214,7 @@ public sealed class TypeQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
             )
             .TraverseTypes(new TypeTraversal().ThroughProperties());
 
-        var declarations = results.Declarations(project => project.Name == "Models").In(solution);
+        var declarations = results.Definitions(project => project.Name == "Models").In(solution);
 
         Assert.Equal(
             ["net9.0:Model", "net9.0:Nested", "net10.0:Model", "net10.0:Nested"],
@@ -291,7 +291,7 @@ public sealed class TypeQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
             .WhereType(_ => false);
 
         var status = results.In(solution).Select(result => result.Status).ToArray();
-        var declarations = results.Declarations().In(solution);
+        var declarations = results.Definitions().In(solution);
 
         Assert.Equal([TypeTraversalStatus.Unresolved], status);
         Assert.Empty(declarations);

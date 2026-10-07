@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis.Text;
 
@@ -8,11 +9,17 @@ public sealed class RuleTestResult
 {
     private readonly CompilationSnapshot _snapshot;
     private readonly ValidatedResult _result;
+    private readonly IFileSystem _fileSystem;
 
-    internal RuleTestResult(CompilationSnapshot snapshot, ValidatedResult result)
+    internal RuleTestResult(
+        CompilationSnapshot snapshot,
+        ValidatedResult result,
+        IFileSystem fileSystem
+    )
     {
         _snapshot = snapshot;
         _result = result;
+        _fileSystem = fileSystem;
         var files = snapshot
             .Projects.SelectMany(project => project.Documents)
             .GroupBy(document => document.FileIdentity)
@@ -37,6 +44,9 @@ public sealed class RuleTestResult
 
     /// <summary>Physical findings after agreement across contexts, including withheld fixes.</summary>
     public IReadOnlyList<TestFinding> Findings { get; }
+
+    /// <summary>The findings exactly as the CLI prints them: each rule once, then files and line:column locations, with '+' marking a validated fix. Empty when clean.</summary>
+    public string Output => new CompactDiagnosticRenderer(_fileSystem).Render(_result);
 
     /// <summary>Applies only the validated plan to captured text. No OS files are written.</summary>
     public string FixedText(string path)

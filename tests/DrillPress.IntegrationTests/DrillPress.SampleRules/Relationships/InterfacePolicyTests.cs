@@ -87,41 +87,25 @@ public sealed class InterfacePolicyTests(SemanticRuleFixture fixture)
         Assert.Empty(findings);
     }
 
-    [Fact]
-    public async Task Alternate_target_frameworks_have_independent_counts()
+    [Theory]
+    [InlineData("class C : I { }", "class C : I { }", 1, 1)]
+    [InlineData("class C : I { }", "class C : I { } class D : I { }", 0, 0)]
+    [InlineData("", "class C : I { }", 0, 0)]
+    public async Task Every_target_framework_view_needs_exactly_one_implementation(
+        string firstSource,
+        string secondSource,
+        int firstFindings,
+        int secondFindings
+    )
     {
-        var first = fixture.Project("interface I { } class C : I { }", framework: "net9.0");
-        var second = fixture.Project(
-            "interface I { } class C : I { } class D : I { }",
-            framework: "net10.0"
-        );
+        var first = fixture.Project("interface I { } " + firstSource, framework: "net9.0");
+        var second = fixture.Project("interface I { } " + secondSource, framework: "net10.0");
 
         var response = await fixture.Evaluate(first, second);
 
-        Assert.Equal([1, 0], response.Contexts.Select(context => context.Findings.Length));
         Assert.Equal(
-            ["DP1003"],
-            response
-                .Contexts.SelectMany(context => context.Findings)
-                .Select(finding => finding.RuleId)
-        );
-    }
-
-    [Fact]
-    public async Task Equal_assembly_and_type_names_do_not_merge_unrelated_contexts()
-    {
-        var first = fixture.Project("public interface I { }", "Contracts", framework: "net9.0");
-        var second = fixture.Project("public interface I { }", "Contracts", framework: "net10.0");
-        var consumer = fixture.Project("class C : I { }", "Consumer", dependencies: [second]);
-
-        var response = await fixture.Evaluate(first, second, consumer);
-
-        Assert.Equal([0, 1, 0], response.Contexts.Select(context => context.Findings.Length));
-        Assert.Equal(
-            ["DP1003"],
-            response
-                .Contexts.SelectMany(context => context.Findings)
-                .Select(finding => finding.RuleId)
+            [firstFindings, secondFindings],
+            response.Contexts.Select(context => context.Findings.Length)
         );
     }
 

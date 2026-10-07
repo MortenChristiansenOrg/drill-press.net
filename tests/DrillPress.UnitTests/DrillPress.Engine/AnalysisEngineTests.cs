@@ -247,7 +247,7 @@ public sealed class AnalysisEngineTests
         };
         var selected = TestSnapshots.CreateProject("Selected.cs", "class Selected { }");
         var rules = new RuleSet();
-        rules.For(Sources.FilesIncludingGenerated).Forbid("TEST001", "Selected files only.");
+        rules.Rule("TEST001", "Selected files only.").For(Code.FilesIncludingGenerated).Forbid();
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
             rules,
@@ -271,15 +271,12 @@ public sealed class AnalysisEngineTests
         var selected = TestSnapshots.CreateProject("Selected.cs", "class Selected { }");
         var rules = new RuleSet();
         rules
-            .For(Sources.Files)
-            .Forbid(
-                "TEST001",
-                "Selected files only.",
-                fix: _ => new FixProposal(
-                    [new SourceEdit("Dependency.cs", "fingerprint", 0, 0, "", "// change")],
-                    _ => true
-                )
-            );
+            .Rule("TEST001", "Selected files only.")
+            .For(Code.Files)
+            .Forbid(fix: _ => new FixProposal(
+                [new SourceEdit("Dependency.cs", "fingerprint", 0, 0, "", "// change")],
+                _ => true
+            ));
 
         var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
             rules,
@@ -426,7 +423,7 @@ public sealed class AnalysisEngineTests
     {
         var snapshot = TestSnapshots.Create("class Source { }", "Source.cs");
         var rules = new RuleSet();
-        rules.For(Sources.Files).Forbid("R", "Fix the file.", fixComplexity: complexity);
+        rules.Rule("R", "Fix the file.", fixComplexity: complexity).For(Code.Files).Forbid();
         var engine = new AnalysisEngine(_fileSystem);
 
         var response = await engine.EvaluateAsync(

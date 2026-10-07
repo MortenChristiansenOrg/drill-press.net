@@ -58,8 +58,9 @@ public sealed class CoverageProcessTests : IntegrationTest
         );
         var rules = new RuleSet();
         rules
+            .Rule("COV001", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(0), "COV001", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(0));
 
         var response = await new AnalysisEngine(FileSystem, process, cache).EvaluateAsync(
             rules,

@@ -20,8 +20,7 @@ public sealed class BindingProofTests(SdkFixture fixture) : IClassFixture<SdkFix
                 ),
             ]
         );
-        var node = Sources
-            .Nodes<InvocationExpressionSyntax>()
+        var node = Code.Nodes<InvocationExpressionSyntax>()
             .In(workspace.Analyze(TestContext.Current.CancellationToken))
             .Single(candidate => candidate.Syntax.ToString() == "Value()");
 
@@ -43,8 +42,7 @@ public sealed class BindingProofTests(SdkFixture fixture) : IClassFixture<SdkFix
                 ),
             ]
         );
-        var node = Sources
-            .Nodes<ArgumentListSyntax>()
+        var node = Code.Nodes<ArgumentListSyntax>()
             .In(workspace.Analyze(TestContext.Current.CancellationToken))
             .Single();
 

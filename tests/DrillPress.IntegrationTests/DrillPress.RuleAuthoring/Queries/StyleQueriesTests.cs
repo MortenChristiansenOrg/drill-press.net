@@ -91,15 +91,14 @@ public sealed class StyleQueriesTests(SdkFixture fixture) : IClassFixture<SdkFix
         );
         var rules = new RuleSet();
         rules
+            .Rule("BRACES", "Add braces.")
             .For(
                 Code.IfStatements.WithElse()
                     .Where(statement => statement.BranchWithoutBraces is not null)
             )
-            .Forbid(
-                "BRACES",
-                "Add braces.",
-                at: statement => statement.BranchWithoutBraces!,
-                fix: statement => Fix.For(statement.BranchWithoutBraces!).AddBraces().Propose()
+            .ReportAt(statement => statement.BranchWithoutBraces!)
+            .Forbid(fix: statement =>
+                Fix.For(statement.BranchWithoutBraces!).AddBraces().Propose()
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

@@ -1,11 +1,19 @@
 namespace DrillPress;
 
-/// <summary>Collects compiled rule declarations and evaluates them against discovered candidates.</summary>
+/// <summary>Collects rule definitions. Every rule starts with <see cref="Rule(string, string, RuleFixComplexity?)"/>, followed by one or more typed clauses.</summary>
+/// <example>
+/// <code>
+/// var rules = new RuleSet();
+/// rules.Rule("TEAM001", "Use the application logger instead of Console.WriteLine.")
+///     .For(Code.Calls.To(CodeType.Named("System.Console").Member("WriteLine")))
+///     .Forbid();
+/// </code>
+/// </example>
 public sealed class RuleSet
 {
-    private readonly List<CompiledRule> _rules = [];
+    private readonly List<RuleRegistration> _rules = [];
 
-    internal bool RequiresCoverage { get; private set; }
+    internal bool RequiresCoverage => _rules.Any(rule => rule.RequiresCoverage);
 
     internal IReadOnlySet<AnalysisProject> CoverageContexts(AnalysisSolution solution)
     {
@@ -23,28 +31,38 @@ public sealed class RuleSet
             .ToHashSet();
     }
 
-    /// <summary>Begins a rule declaration over candidates selected by <paramref name="query"/>.</summary>
-    public RuleScope<T> For<T>(CodeQuery<T> query) => new(this, query);
-
-    /// <summary>Reserves a unique rule identity for explicitly composed typed clauses, sharing remediation and optional typical fix effort.</summary>
+    /// <summary>Reserves a unique rule identity with its single-line remediation message and optional typical agent fix effort. Add clauses with <see cref="RuleDefinition.For{T}(CodeQuery{T})"/>.</summary>
+    /// <param name="id">The stable, unique rule identifier shown in output.</param>
+    /// <param name="message">What to do instead, shown once per rule.</param>
+    /// <param name="fixComplexity">Optional estimate of the effort an agent needs for a typical fix.</param>
     public RuleDefinition Rule(
         string id,
         string message,
         RuleFixComplexity? fixComplexity = null
     ) => Rule(new RuleDescriptor(id, message) { FixComplexity = fixComplexity });
 
-    /// <summary>Reserves the descriptor's identity for typed clauses. Other declarations, including another definition with the same descriptor, cannot reuse its ID.</summary>
-    public RuleDefinition Rule(RuleDescriptor descriptor) => new(this, Register(descriptor));
+    /// <summary>Reserves a configured descriptor's identity. No other definition can reuse its ID.</summary>
+    public RuleDefinition Rule(RuleDescriptor descriptor)
+    {
+        ValidateDescriptor(descriptor);
+        if (_rules.Any(rule => rule.Descriptor.Id == descriptor.Id))
+            throw new InvalidOperationException(
+                $"Rule id '{descriptor.Id}' is registered more than once."
+            );
+        var registration = new RuleRegistration(descriptor);
+        _rules.Add(registration);
+        return new(registration);
+    }
 
-    /// <summary>Evaluates every registered rule and returns diagnostics in deterministic order.</summary>
-    public IReadOnlyList<RuleDiagnostic> Evaluate(
-        IReadOnlyList<MemberReference> memberReferences
-    ) => Evaluate(new AnalysisSolution(memberReferences));
-
-    /// <summary>Evaluates all registered rules over one shared source graph.</summary>
+    /// <summary>Evaluates every registered rule over one shared source graph and returns diagnostics in deterministic order.</summary>
+    /// <exception cref="InvalidOperationException">A rule has no <c>Forbid</c> or <c>Require</c> clause.</exception>
     public IReadOnlyList<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
         solution.CancellationToken.ThrowIfCancellationRequested();
+        if (_rules.FirstOrDefault(rule => rule.IsEmpty) is { } empty)
+            throw new InvalidOperationException(
+                $"Rule '{empty.Descriptor.Id}' has no clause; end each For(...) with Forbid(...) or Require(...)."
+            );
         var diagnostics = new List<RuleDiagnostic>();
         foreach (var rule in _rules)
         {
@@ -58,56 +76,6 @@ public sealed class RuleSet
             .ThenBy(diagnostic => diagnostic.Location.FilePath, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.Start)
             .ToArray();
-    }
-
-    internal void Add<T>(
-        CodeQuery<T> query,
-        RuleDescriptor descriptor,
-        Func<T, SourceLocation>? location,
-        Func<T, FixProposal?>? fix,
-        Func<T, object?>? reportKey = null,
-        Func<T, string>? detail = null,
-        Func<T, IReadOnlyList<CoverageEvidence>>? coverageFacts = null,
-        Func<T, ConditionFailure>? failure = null,
-        CodeQuery<AnalysisProject>? coverageScope = null,
-        RuleRegistration? registration = null
-    )
-    {
-        if (registration is null)
-            ValidateRegistration(descriptor);
-        RequiresCoverage |= query.RequiresCoverage || coverageScope is not null;
-        var clause = new CandidateRule<T>(
-            query,
-            descriptor,
-            location,
-            fix,
-            reportKey,
-            detail,
-            coverageFacts,
-            failure,
-            coverageScope
-        );
-        if (registration is null)
-            _rules.Add(clause);
-        else
-            registration.Add(clause);
-    }
-
-    private RuleRegistration Register(RuleDescriptor descriptor)
-    {
-        ValidateRegistration(descriptor);
-        var registration = new RuleRegistration(descriptor);
-        _rules.Add(registration);
-        return registration;
-    }
-
-    private void ValidateRegistration(RuleDescriptor descriptor)
-    {
-        ValidateDescriptor(descriptor);
-        if (_rules.Any(rule => rule.Id == descriptor.Id))
-            throw new InvalidOperationException(
-                $"Rule id '{descriptor.Id}' is registered more than once."
-            );
     }
 
     private static void ValidateDescriptor(RuleDescriptor descriptor)

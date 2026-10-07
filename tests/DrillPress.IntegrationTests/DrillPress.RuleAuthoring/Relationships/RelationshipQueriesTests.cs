@@ -73,12 +73,12 @@ public sealed class RelationshipQueriesTests(SdkFixture fixture) : IClassFixture
         var views = Code
             .Interfaces.ImplementationViews()
             .WhereImplementation(implementation => !implementation.Project.IsTestProject)
-            .WhereConcrete();
+            .ConcreteOnly();
 
         var actual = views
             .In(solution)
             .Select(view =>
-                $"{view.Owner.Name}:{string.Join(',', view.Implementations.Select(implementation => implementation.Symbol.Name).Order())}"
+                $"{view.Interface.Name}:{string.Join(',', view.Implementations.Select(implementation => implementation.Symbol.Name).Order())}"
             )
             .ToArray();
         var counts = views.In(solution).Select(view => view.Implementations.Count).ToArray();
@@ -117,7 +117,7 @@ public sealed class RelationshipQueriesTests(SdkFixture fixture) : IClassFixture
         var contracts = Code
             .Interfaces.Where(type => type.Name == "I")
             .ImplementationViews()
-            .WhereConcrete()
+            .ConcreteOnly()
             .In(solution)
             .SelectMany(view => view.Implementations)
             .SelectMany(implementation =>

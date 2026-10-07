@@ -24,18 +24,21 @@ public sealed record InterfaceImplementationView(
     IReadOnlyList<InterfaceImplementation> Implementations
 );
 
-/// <summary>A queryable implementation view retaining an ordinary source owner for zero-count diagnostics.</summary>
-/// <param name="Owner">The interface whose compatible views were selected.</param>
+/// <summary>An interface's implementations in one compatible project view; reported at the interface, so zero-count views remain reportable.</summary>
+/// <param name="Interface">The interface whose compatible views were selected.</param>
 /// <param name="Projects">The complete compatible graph, unaffected by implementation filtering.</param>
 /// <param name="Implementations">The selected definition-based entries, possibly empty.</param>
 public sealed record ImplementationView(
-    CodeDeclaration Owner,
+    CodeTypeDefinition Interface,
     IReadOnlyList<AnalysisProject> Projects,
     IReadOnlyList<InterfaceImplementation> Implementations
-)
+) : ICodeElement
 {
-    /// <summary>The interface declaration represented in this compatible project view.</summary>
-    public CodeDeclaration Interface => Owner;
+    /// <summary>The interface's compilation membership.</summary>
+    public AnalysisSource Source => Interface.Source;
+
+    /// <summary>The interface name.</summary>
+    public SourceLocation Location => Interface.Location;
 }
 
 /// <summary>Evidence for an actual override edge to a configured ancestor.</summary>

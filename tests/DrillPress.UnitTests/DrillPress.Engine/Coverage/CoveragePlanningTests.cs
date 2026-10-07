@@ -48,7 +48,7 @@ public sealed class CoveragePlanningTests
             .For(Code.Calls.ToMethodsNamed("Missing").Expressions())
             .Require(global::DrillPress.Coverage.Executed);
         policy.For(Code.Enumerations).Require(global::DrillPress.Coverage.EnumerationStarted);
-        rules.For(Code.Calls.ToMethodsNamed("Hit")).Forbid("STYLE", "Use another API.");
+        rules.Rule("STYLE", "Use another API.").For(Code.Calls.ToMethodsNamed("Hit")).Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -113,6 +113,7 @@ public sealed class CoveragePlanningTests
         var counterparts = hits.Where(executed).Select(call => call);
         var rules = new RuleSet();
         rules
+            .Rule("COVERAGE", "Exercise call.")
             .For(
                 hits.WithoutMatching(
                     counterparts,
@@ -120,7 +121,7 @@ public sealed class CoveragePlanningTests
                     call => call.Location.Start
                 )
             )
-            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var diagnostics = await fixture
             .Engine()
@@ -142,13 +143,14 @@ public sealed class CoveragePlanningTests
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
         var rules = new RuleSet();
         rules
+            .Rule("COVERAGE", "Exercise call.")
             .For(
                 hits.WithoutMatching(
                     hits.Where(executed),
                     (left, right) => left.Location == right.Location
                 )
             )
-            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var diagnostics = await fixture
             .Engine()
@@ -172,13 +174,15 @@ public sealed class CoveragePlanningTests
             .Select(call => call);
         var rules = new RuleSet();
         rules
+            .Rule("KEY", "Exercise call.")
             .For(hits.WithoutMatching(counterparts, call => call.Location, call => call.Location))
-            .Require(global::DrillPress.Coverage.Executed, "KEY", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
         rules
+            .Rule("REL", "Exercise call.")
             .For(
                 hits.WithoutMatching(counterparts, (left, right) => left.Location == right.Location)
             )
-            .Require(global::DrillPress.Coverage.Executed, "REL", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var diagnostics = await fixture
             .Engine()
@@ -202,8 +206,9 @@ public sealed class CoveragePlanningTests
         );
         var rules = new RuleSet();
         rules
+            .Rule("UNMATCHED", "Unexpected unmatched call.")
             .For(hits.WithoutMatching(uncertain, (left, right) => left.Location == right.Location))
-            .Forbid("UNMATCHED", "Unexpected unmatched call.");
+            .Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -220,11 +225,13 @@ public sealed class CoveragePlanningTests
         fixture.Process.Fail = true;
         var rules = new RuleSet();
         rules
+            .Rule("COVERAGE", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name == "Missing"))
-            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
         rules
+            .Rule("STYLE", "Use another API.")
             .For(Code.Calls.Where(call => call.Target.Name == "Hit"))
-            .Forbid("STYLE", "Use another API.");
+            .Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -240,8 +247,9 @@ public sealed class CoveragePlanningTests
         var fixture = new CoverageFixture();
         var rules = new RuleSet();
         rules
+            .Rule("COVERAGE", "Exercise call.")
             .For(Code.Calls.InProject("Product.Data"))
-            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var diagnostics = await fixture
             .Engine()
@@ -279,8 +287,9 @@ public sealed class CoveragePlanningTests
         var snapshot = CompilationSnapshot.Create(target, other);
         var rules = new RuleSet();
         rules
+            .Rule("COVERAGE", "Exercise call.")
             .For(Code.Calls.InProject(target.Name).Where(call => call.Target.Name == "Hit"))
-            .Require(global::DrillPress.Coverage.Executed, "COVERAGE", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
 
         var diagnostics = await fixture
             .Engine()
@@ -305,9 +314,13 @@ public sealed class CoveragePlanningTests
             .Calls.Where(executed.And(new(call => call.Target.Name == "Hit")))
             .Select(call => call)
             .Union(Code.Calls.Where(new RuleCondition<CodeInvocation>(call => false).And(executed)))
-            .At(call => call);
+            .Select(call => (Call: call, call.Target.Name));
         var rules = new RuleSet();
-        rules.For(covered).Forbid("COVERED", "Selected covered call.");
+        rules
+            .Rule("COVERED", "Selected covered call.")
+            .For(covered)
+            .ReportAt(pair => pair.Call)
+            .Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -324,6 +337,7 @@ public sealed class CoveragePlanningTests
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
         var rules = new RuleSet();
         rules
+            .Rule("SELECTED", "Selected call.")
             .For(
                 Code.Calls.Where(
                     new RuleCondition<CodeInvocation>(call => call.Target.Name == "Hit").And(
@@ -331,7 +345,7 @@ public sealed class CoveragePlanningTests
                     )
                 )
             )
-            .Forbid("SELECTED", "Selected call.");
+            .Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -347,6 +361,7 @@ public sealed class CoveragePlanningTests
         var fixture = new CoverageFixture();
         var rules = new RuleSet();
         rules
+            .Rule("COVERED", "Selected covered call.")
             .For(
                 Code.Calls.Where(call =>
                     call.Target.Name == "Hit"
@@ -358,7 +373,7 @@ public sealed class CoveragePlanningTests
                 Code.Projects.Where(project => project.Name == fixture.Snapshot.Projects[0].Name)
             )
             .ReportOncePer(call => call.Target.Name)
-            .Forbid("COVERED", "Selected covered call.");
+            .Forbid();
 
         var diagnostics = await fixture
             .Engine()
@@ -374,8 +389,9 @@ public sealed class CoveragePlanningTests
         var fixture = new CoverageFixture();
         var rules = new RuleSet();
         rules
+            .Rule("LINES", "Exercise project.")
             .For(Code.Projects)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "LINES", "Exercise project.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var diagnostics = await fixture
             .Engine()
@@ -391,8 +407,9 @@ public sealed class CoveragePlanningTests
         var fixture = new CoverageFixture();
         var rules = new RuleSet();
         rules
+            .Rule("LINES", "Exercise file.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "LINES", "Exercise file.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var diagnostics = await fixture
             .Engine()
@@ -408,8 +425,9 @@ public sealed class CoveragePlanningTests
         var fixture = new CoverageFixture();
         var rules = new RuleSet();
         rules
+            .Rule("LINES", "Exercise method.")
             .For(Code.Methods.Where(method => method.Name == "Run"))
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "LINES", "Exercise method.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var diagnostics = await fixture
             .Engine()

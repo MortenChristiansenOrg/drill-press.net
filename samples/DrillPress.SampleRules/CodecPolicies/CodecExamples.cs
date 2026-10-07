@@ -14,7 +14,7 @@ internal sealed class CodecExamples
     internal CodecExamples(CodecSources code)
     {
         _code = code;
-        RoundTripTests = code.Methods.Where(XunitTests.AreTests).Where(IsNamedRoundTripTest);
+        RoundTripTests = code.TestMethods.InTestProjects().NameMatching("*RoundTrip");
         _stringLiterals = code
             .Files.Nodes<LiteralExpressionSyntax>()
             .Where(node => node.Constant is { HasValue: true, Value: string });
@@ -28,11 +28,12 @@ internal sealed class CodecExamples
     }
 
     internal CodeQuery<CodeMethod> RoundTripTests { get; }
-    internal CodeQuery<
-        LocatedCandidate<(CodeDeclaration Reader, CodeDeclaration Writer)>
-    > ReaderWriterInventoryMismatches { get; }
+    internal CodeQuery<(
+        CodeTypeDefinition Reader,
+        CodeTypeDefinition Writer
+    )> ReaderWriterInventoryMismatches { get; }
 
-    internal bool IsRoundTripTestFor(CodeDeclaration codec, CodeMethod example) =>
+    internal bool IsRoundTripTestFor(CodeTypeDefinition codec, CodeMethod example) =>
         example.Name == $"{codec.Name}RoundTrip"
         && codec.Solution.ProjectGraph.Includes(example.Source.Project, codec.Source.Project);
 
@@ -53,14 +54,15 @@ internal sealed class CodecExamples
 
     internal CodeQuery<CodeNode<SwitchExpressionSyntax>> RepeatedSwitchExpressions(
         int minimumTokens
-    ) => DuplicateSyntax.In(_code.Files.Nodes<SwitchExpressionSyntax>(), minimumTokens);
+    ) => _code.Files.Nodes<SwitchExpressionSyntax>().Duplicates(minimumTokens);
 
-    private CodeQuery<
-        LocatedCandidate<(CodeDeclaration Reader, CodeDeclaration Writer)>
-    > FindReaderWriterInventoryMismatches()
+    private CodeQuery<(
+        CodeTypeDefinition Reader,
+        CodeTypeDefinition Writer
+    )> FindReaderWriterInventoryMismatches()
     {
-        var readers = _code.Types.Where(type => type.Name == "ReaderFormats");
-        var writers = _code.Types.Where(type => type.Name == "WriterFormats");
+        var readers = _code.Types.Named("ReaderFormats");
+        var writers = _code.Types.Named("WriterFormats");
         return readers
             .Join(
                 writers,
@@ -68,25 +70,19 @@ internal sealed class CodecExamples
                 writer => writer.Source.Project,
                 (reader, writer) => (Reader: reader, Writer: writer)
             )
-            .Where(pair => !HaveTheSameFormats(pair.Reader, pair.Writer))
-            .At(pair => pair.Reader);
+            .Where(pair => !HaveTheSameFormats(pair.Reader, pair.Writer));
     }
 
-    private static bool HaveTheSameFormats(CodeDeclaration reader, CodeDeclaration writer) =>
+    private static bool HaveTheSameFormats(CodeTypeDefinition reader, CodeTypeDefinition writer) =>
         new SetComparison<string>(DeclaredFormats(reader), DeclaredFormats(writer)).AreEqual;
 
-    private static IEnumerable<string> DeclaredFormats(CodeDeclaration declaration) =>
+    private static IEnumerable<string> DeclaredFormats(CodeTypeDefinition declaration) =>
         declaration
             .Symbol.GetMembers()
             .OfType<IFieldSymbol>()
             .Where(field => field.HasConstantValue)
             .Select(field => field.ConstantValue)
             .OfType<string>();
-
-    private static bool IsNamedRoundTripTest(CodeMethod method) =>
-        method.Source.Project.IsTestProject
-        && method.Symbol is { } symbol
-        && symbol.Name.AsSpan().EndsWith("RoundTrip");
 
     // Only the resolved string-literal selection calls this conversion.
     private static string StringValue(CodeNode<LiteralExpressionSyntax> literal) =>

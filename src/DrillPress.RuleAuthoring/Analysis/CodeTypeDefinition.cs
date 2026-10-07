@@ -3,10 +3,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
 
-/// <summary>One distinct named type definition, with a deterministic ordinary-source declaration.</summary>
-public sealed class CodeDeclaration : ICodeElement
+/// <summary>One distinct named type definition per compilation, reported at a deterministic ordinary-source declaration. Use <see cref="CodeTypeDeclaration"/> for individual partial parts.</summary>
+public sealed class CodeTypeDefinition : ICodeDeclaration
 {
-    internal CodeDeclaration(
+    internal CodeTypeDefinition(
         AnalysisSolution solution,
         AnalysisSource source,
         MemberDeclarationSyntax syntax,
@@ -42,6 +42,8 @@ public sealed class CodeDeclaration : ICodeElement
     /// <summary>The bound original type definition.</summary>
     public INamedTypeSymbol Symbol { get; }
 
+    ISymbol? ICodeDeclaration.Symbol => Symbol;
+
     /// <summary>The unqualified declared type name.</summary>
     public string Name => Symbol.Name;
 
@@ -54,15 +56,42 @@ public sealed class CodeDeclaration : ICodeElement
             ? ""
             : Symbol.ContainingNamespace.ToDisplayString();
 
+    /// <summary>The declared accessibility, including the implicit internal or private default.</summary>
+    public Accessibility Accessibility => Symbol.DeclaredAccessibility;
+
+    /// <summary>Whether any partial part of this type writes the modifier token.</summary>
+    public bool HasExplicitModifier(Modifier modifier) =>
+        Symbol.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax(Source.Project.CancellationToken) is { } part
+            && DeclarationSyntax.HasModifier(part, modifier)
+        );
+
+    /// <summary>Whether this is a class, including records and abstract or static classes.</summary>
+    public bool IsClass => Symbol.TypeKind == TypeKind.Class;
+
+    /// <summary>Whether this is an interface.</summary>
+    public bool IsInterface => Symbol.TypeKind == TypeKind.Interface;
+
+    /// <summary>Whether this is a struct, including record structs.</summary>
+    public bool IsStruct => Symbol.TypeKind == TypeKind.Struct;
+
+    /// <summary>Whether this is an enum.</summary>
+    public bool IsEnum => Symbol.TypeKind == TypeKind.Enum;
+
+    /// <summary>Whether this is a record class or record struct.</summary>
+    public bool IsRecord => Symbol.IsRecord;
+
+    /// <summary>Whether the type is abstract, including interfaces.</summary>
+    public bool IsAbstract => Symbol.IsAbstract;
+
+    /// <summary>Whether the type is static.</summary>
+    public bool IsStatic => Symbol.IsStatic;
+
+    /// <summary>Whether the type is nested in another type.</summary>
+    public bool IsNested => Symbol.ContainingType is not null;
+
     /// <summary>Tests all inherited and constructed interfaces by semantic identity.</summary>
     public bool Implements(CodeType contract) => Symbols.Implements(Symbol, contract);
-
-    /// <summary>Tests semantic attributes, including derived attribute types.</summary>
-    public bool HasAttribute(CodeType attribute) => Symbols.HasAttribute(Symbol, attribute);
-
-    /// <summary>Matches an attribute's marker identity and compiler-recorded values.</summary>
-    public bool HasAttribute(CodeType attribute, Func<CodeAttribute, bool> where) =>
-        Symbol.HasAttribute(attribute, where);
 
     /// <summary>Tests the strict base-class chain, excluding this definition.</summary>
     public bool DerivesFrom(CodeType type) => Symbol.DerivesFrom(type);

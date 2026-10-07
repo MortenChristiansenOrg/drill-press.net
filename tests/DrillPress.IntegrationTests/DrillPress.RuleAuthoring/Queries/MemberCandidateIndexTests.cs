@@ -21,27 +21,34 @@ public sealed class MemberCandidateIndexTests(SemanticRuleFixture fixture)
             }
             """
         );
-        var empty = Members.Are<string>("Empty");
-        var length = Members.Are<string>("Length");
-        var unknown = new RuleCondition<MemberReference>(reference =>
-            reference.MemberName == "Value"
-        );
+        var empty = CodeType.Of<string>().Member("Empty").References;
+        var length = CodeType.Of<string>().Member("Length").References;
+        var unknown = Code.MemberReferences.Where(reference => reference.MemberName == "Value");
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences.Where(empty)).Forbid("A", "Empty");
-        rules.For(Code.MemberReferences.Where(empty.Or(length))).Forbid("B", "Union");
-        rules.For(Code.MemberReferences.Where(empty.And(length))).Forbid("C", "Intersection");
+        rules.Rule("A", "Empty").For(empty).Forbid();
+        rules.Rule("B", "Union").For(empty.Union(length)).Forbid();
         rules
-            .For(Code.MemberReferences.Where(empty.Or(unknown)))
-            .Forbid("D", "Unrestricted alternative");
-        rules.For(Code.MemberReferences.Where(empty.Not())).Forbid("E", "Complement");
+            .Rule("C", "Intersection")
+            .For(empty.Where(reference => reference.MemberName == "Length"))
+            .Forbid();
+        rules.Rule("D", "Unrestricted alternative").For(empty.Union(unknown)).Forbid();
         rules
-            .For(Code.MemberReferences.Where(empty.Or(length).ExceptWhen(length)))
-            .Forbid("F", "Exception");
+            .Rule("E", "Complement")
+            .For(Code.MemberReferences.ExceptWhen(reference => reference.MemberName == "Empty"))
+            .Forbid();
         rules
-            .For(Code.MemberReferences.Where(empty.Or(length)).Where(length))
-            .Forbid("G", "Chained intersection");
-        rules.For(Code.MemberReferences.ExceptWhen(empty)).Forbid("H", "Query exception");
-        rules.For(Code.MemberReferences).Forbid("I", "All references after filtered queries");
+            .Rule("F", "Exception")
+            .For(empty.Union(length).ExceptWhen(reference => reference.MemberName == "Length"))
+            .Forbid();
+        rules
+            .Rule("G", "Chained intersection")
+            .For(length.Where(reference => reference.Symbol.ContainingType.Name == "String"))
+            .Forbid();
+        rules.Rule("H", "Query exception").For(empty.ExceptWhen(_ => true)).Forbid();
+        rules
+            .Rule("I", "All references after filtered queries")
+            .For(Code.MemberReferences)
+            .Forbid();
         var exhaustive = new AnalysisSolution(
             [project],
             new AnalysisOptions { EnableOptimizations = false }
@@ -79,8 +86,8 @@ public sealed class MemberCandidateIndexTests(SemanticRuleFixture fixture)
         var profile = new PipelineProfile(true, writer, "rules");
         var solution = new AnalysisSolution([project], new AnalysisOptions { Profile = profile });
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences.Where(Members.Are<string>("Empty"))).Forbid("A", "First");
-        rules.For(Code.MemberReferences.Where(Members.Are<string>("Empty"))).Forbid("B", "Second");
+        rules.Rule("A", "First").For(CodeType.Of<string>().Member("Empty").References).Forbid();
+        rules.Rule("B", "Second").For(CodeType.Of<string>().Member("Empty").References).Forbid();
 
         var diagnostics = rules.Evaluate(solution);
 

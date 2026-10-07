@@ -6,115 +6,60 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace DrillPress;
 
-/// <summary>An immutable bound argument-removal plan requiring separate value, evaluation-loss and overload-behavior proofs.</summary>
+/// <summary>An immutable argument removal. Removing an argument changes the selected overload, so the plan needs the expected overload change plus separate proofs that the removed value and its evaluation do not matter.</summary>
+/// <remarks>Built-in gates: editable ordinary source without interior comments, outside nameof and expression trees; one explicit, non-params, non-receiver argument; and, in every affected compilation, the expected constructed overload change, unchanged remaining arguments, conversions, evaluation order, enclosing bindings and compiler-supplied arguments.</remarks>
 public sealed class ArgumentRemoval
 {
     private readonly AnalysisSource _source;
     private readonly SyntaxNode _syntax;
     private readonly string _parameter;
-    private readonly Func<RewriteEvidence, ProofResult>[] _contextChecks;
     private readonly MethodTransition? _transition;
-    private readonly Func<ArgumentRemovalEvidence, ProofResult>? _value;
-    private readonly Func<ArgumentRemovalEvidence, ProofResult>? _evaluation;
-    private readonly Func<ArgumentRemovalEvidence, ProofResult>? _defaults;
+    private readonly Func<ArgumentRemovalChange, bool>? _value;
+    private readonly Func<ArgumentRemovalChange, bool>? _evaluation;
+    private readonly Func<ArgumentRemovalChange, bool>? _defaults;
 
     internal ArgumentRemoval(
         AnalysisSource source,
         SyntaxNode syntax,
         string parameter,
-        Func<RewriteEvidence, ProofResult>[] checks,
         MethodTransition? transition = null,
-        Func<ArgumentRemovalEvidence, ProofResult>? value = null,
-        Func<ArgumentRemovalEvidence, ProofResult>? evaluation = null,
-        Func<ArgumentRemovalEvidence, ProofResult>? defaults = null
+        Func<ArgumentRemovalChange, bool>? value = null,
+        Func<ArgumentRemovalChange, bool>? evaluation = null,
+        Func<ArgumentRemovalChange, bool>? defaults = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parameter);
         _source = source;
         _syntax = syntax;
         _parameter = parameter;
-        _contextChecks = checks;
         _transition = transition;
         _value = value;
         _evaluation = evaluation;
         _defaults = defaults;
     }
 
-    /// <summary>Requires the actual call to move between these unambiguous descriptors with unchanged constructed type arguments and an inferred identity parameter map.</summary>
+    /// <summary>Requires the call to move from one exact overload to another, keeping its constructed type arguments; parameters with equal names and types correspond.</summary>
     public ArgumentRemoval ExpectOverloadChange(CodeMember from, CodeMember to) =>
-        RequireTransition(new MethodTransition(from, to));
+        ExpectTransition(new MethodTransition(from, to));
 
-    /// <summary>Proves the removed semantic value; false is Unknown and does not approve losing its evaluation.</summary>
-    public ArgumentRemoval RequireRemovedValue(Func<ArgumentRemovalEvidence, bool> proof) =>
-        RequireRemovedValue(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
+    /// <summary>Requires an explicitly configured overload pair and parameter map, for transitions that descriptors cannot express.</summary>
+    public ArgumentRemoval ExpectTransition(MethodTransition transition) =>
+        new(_source, _syntax, _parameter, transition, _value, _evaluation, _defaults);
 
-    /// <summary>Separately approves removal of getter, conversion and initialization evaluation; false is Unknown.</summary>
-    public ArgumentRemoval RequireRemovedEvaluation(Func<ArgumentRemovalEvidence, bool> proof) =>
-        RequireRemovedEvaluation(change =>
-            proof(change) ? ProofResult.Proven : ProofResult.Unknown
-        );
+    /// <summary>Proves that the removed value equals what the new overload uses, such as <c>change =&gt; change.RemovedValue?.RefersTo(ordinal) == true</c>. This does not approve losing its evaluation.</summary>
+    public ArgumentRemoval RequireRemovedValue(Func<ArgumentRemovalChange, bool> proof) =>
+        new(_source, _syntax, _parameter, _transition, proof, _evaluation, _defaults);
 
-    /// <summary>Supplies the final overload behavior proof after value, evaluation, binding and transition gates. False is Unknown.</summary>
-    public FixProposal? SafeWhen(Func<ArgumentRemovalEvidence, bool> proof) =>
-        Propose(change => proof(change) ? ProofResult.Proven : ProofResult.Unknown);
+    /// <summary>Separately approves no longer evaluating the removed expression, including getters, conversions, initialization, side effects and exceptions.</summary>
+    public ArgumentRemoval RequireRemovedEvaluation(Func<ArgumentRemovalChange, bool> proof) =>
+        new(_source, _syntax, _parameter, _transition, _value, proof, _defaults);
 
-    /// <summary>Supplies the final tri-state overload behavior proof.</summary>
-    public FixProposal? SafeWhen(Func<ArgumentRemovalEvidence, ProofResult> proof) =>
-        Propose(proof);
+    /// <summary>Approves compiler-supplied optional arguments that change at this call. Other calls' compiler-supplied values remain protected.</summary>
+    public ArgumentRemoval RequireSynthesizedArguments(Func<ArgumentRemovalChange, bool> proof) =>
+        new(_source, _syntax, _parameter, _transition, _value, _evaluation, proof);
 
-    /// <summary>Requires the actual before/after overloads to match this exact contextual pair and parameter map.</summary>
-    public ArgumentRemoval RequireTransition(MethodTransition transition) =>
-        new(
-            _source,
-            _syntax,
-            _parameter,
-            _contextChecks,
-            transition,
-            _value,
-            _evaluation,
-            _defaults
-        );
-
-    /// <summary>Requires proof that the removed value denotes the configured semantic default; this does not prove that losing evaluation is harmless.</summary>
-    public ArgumentRemoval RequireRemovedValue(Func<ArgumentRemovalEvidence, ProofResult> proof) =>
-        new(
-            _source,
-            _syntax,
-            _parameter,
-            _contextChecks,
-            _transition,
-            proof,
-            _evaluation,
-            _defaults
-        );
-
-    /// <summary>Requires separate approval for losing the exact getter/value/conversion evaluation, including initialization, side effects and exceptions.</summary>
-    public ArgumentRemoval RequireRemovedEvaluation(
-        Func<ArgumentRemovalEvidence, ProofResult> proof
-    ) => new(_source, _syntax, _parameter, _contextChecks, _transition, _value, proof, _defaults);
-
-    /// <summary>Explicitly approves changed synthesized arguments at this one verified call. Other calls' compiler-supplied values remain protected.</summary>
-    public ArgumentRemoval RequireSynthesizedArguments(
-        Func<ArgumentRemovalEvidence, ProofResult> proof
-    ) => new(_source, _syntax, _parameter, _contextChecks, _transition, _value, _evaluation, proof);
-
-    /// <summary>Adds an invariant to the default retained-argument and enclosing-binding checks.</summary>
-    /// <remarks>Default gates reject noneditable/generated source, interior trivia, nameof/expression trees, receivers, defaults and expanded params. Every affected compilation must preserve the expected constructed overload transition, retained arguments/conversions/evaluation order, enclosing bindings and compiler-supplied arguments. Value equivalence, loss of evaluation and overload behavior require separate proofs; synthesized argument changes at the selected call require explicit approval.</remarks>
-    public ArgumentRemoval Require(Func<RewriteEvidence, ProofResult> check) =>
-        new(
-            _source,
-            _syntax,
-            _parameter,
-            [.. _contextChecks, check],
-            _transition,
-            _value,
-            _evaluation,
-            _defaults
-        );
-
-    /// <summary>Creates an atomic edit only with all three required proofs. Expanded params, receivers, absent arguments and ambiguous trivia are not removable.</summary>
-    /// <remarks>Default gates reject noneditable/generated source, interior trivia, nameof/expression trees, receivers, defaults and expanded params. Every affected compilation must preserve the expected constructed overload transition, retained arguments/conversions/evaluation order, enclosing bindings and compiler-supplied arguments. Value equivalence, loss of evaluation and overload behavior require separate proofs; synthesized argument changes at the selected call require explicit approval.</remarks>
-    public FixProposal? Propose(Func<ArgumentRemovalEvidence, ProofResult> provesOverloadBehavior)
+    /// <summary>Proposes the removal when the overload change is expected, the value and evaluation proofs hold, and your final proof that both overloads behave the same holds in every affected compilation.</summary>
+    public FixProposal? SafeWhen(Func<ArgumentRemovalChange, bool> proof)
     {
         if (
             _transition is null
@@ -147,7 +92,7 @@ public sealed class ArgumentRemoval
                     )
                     .ToArray();
                 return sources.Length > 0
-                    && sources.All(source => Validate(context, source, provesOverloadBehavior));
+                    && sources.All(source => Validate(context, source, proof));
             }
         );
     }
@@ -155,7 +100,7 @@ public sealed class ArgumentRemoval
     private bool Validate(
         RewriteContext context,
         AnalysisSource source,
-        Func<ArgumentRemovalEvidence, ProofResult> provesBehavior
+        Func<ArgumentRemovalChange, bool> provesBehavior
     )
     {
         var syntax =
@@ -188,7 +133,7 @@ public sealed class ArgumentRemoval
             )
         )
             return false;
-        var evidence = new ArgumentRemovalEvidence(
+        var evidence = new ArgumentRemovalChange(
             rewrite,
             before.Operation,
             after,
@@ -202,12 +147,11 @@ public sealed class ArgumentRemoval
             && RewriteChecks.CompilerSuppliedArguments(rewrite, syntax) == ProofResult.Proven
             && (
                 ArgumentTransitionChecks.SameDefaults(evidence, parameters)
-                || _defaults?.Invoke(evidence) == ProofResult.Proven
+                || _defaults?.Invoke(evidence) == true
             )
-            && _contextChecks.All(check => check(rewrite) == ProofResult.Proven)
-            && _value!(evidence) == ProofResult.Proven
-            && _evaluation!(evidence) == ProofResult.Proven
-            && provesBehavior(evidence) == ProofResult.Proven;
+            && _value!(evidence)
+            && _evaluation!(evidence)
+            && provesBehavior(evidence);
     }
 
     private CodeArgument? Removable(CodeInvocation call) =>

@@ -4,11 +4,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace DrillPress;
 
 /// <summary>A written local, foreach or declaration-expression type, preserving the containing declaration group.</summary>
-public sealed class CodeTypedDeclaration : ICodeElement
+public sealed class CodeVariableDeclaration : ICodeElement
 {
     private readonly Lazy<bool> _canUseVar;
 
-    internal CodeTypedDeclaration(AnalysisSource source, SyntaxNode syntax, TypeSyntax type)
+    internal CodeVariableDeclaration(AnalysisSource source, SyntaxNode syntax, TypeSyntax type)
     {
         Source = source;
         Syntax = syntax;

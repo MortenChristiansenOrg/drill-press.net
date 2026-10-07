@@ -7,8 +7,8 @@ namespace DrillPress;
 public static class DuplicateSyntax
 {
     /// <summary>Selects every occurrence of a repeated syntax shape with at least the requested token count. Groups stay within each compilation context.</summary>
-    public static CodeQuery<CodeNode<TSyntax>> In<TSyntax>(
-        CodeQuery<CodeNode<TSyntax>> query,
+    public static CodeQuery<CodeNode<TSyntax>> Duplicates<TSyntax>(
+        this CodeQuery<CodeNode<TSyntax>> query,
         int minimumTokens = 12
     )
         where TSyntax : SyntaxNode

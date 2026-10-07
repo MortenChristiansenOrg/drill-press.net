@@ -31,9 +31,7 @@ public sealed class OperationQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             [CodeType.Of<List<string>[]>()]
         );
 
-        var call = OperationQueries
-            .Invocations.In(workspace.Analyze(TestContext.Current.CancellationToken))
-            .Single();
+        var call = Code.Calls.In(workspace.Analyze(TestContext.Current.CancellationToken)).Single();
 
         Assert.True(call.Calls(expected));
         Assert.False(call.Calls(wrongRank));
@@ -53,9 +51,7 @@ public sealed class OperationQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
 
-        var calls = OperationQueries.Invocations.In(
-            workspace.Analyze(TestContext.Current.CancellationToken)
-        );
+        var calls = Code.Calls.In(workspace.Analyze(TestContext.Current.CancellationToken));
 
         Assert.Equal(
             ["F(1)", "F(2)", "F(3)", "F(4)", "L()"],
@@ -77,13 +73,11 @@ public sealed class OperationQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
 
-        var call = OperationQueries
-            .Invocations.In(workspace.Analyze(TestContext.Current.CancellationToken))
-            .Single();
+        var call = Code.Calls.In(workspace.Analyze(TestContext.Current.CancellationToken)).Single();
 
-        Assert.Equal("x", call.Argument("name")!.Value.ConstantValue.Value);
-        Assert.Equal(2, call.Argument("count")!.Value.ConstantValue.Value);
-        Assert.Equal(ArgumentKind.DefaultValue, call.Argument("enabled")!.ArgumentKind);
+        Assert.Equal("x", call.Argument("name")!.TextValue);
+        Assert.Equal(2, call.Argument("count")!.ValueAs<int>().Value);
+        Assert.Equal(ArgumentKind.DefaultValue, call.Argument("enabled")!.Kind);
         Assert.True(
             call.Calls(
                 new(

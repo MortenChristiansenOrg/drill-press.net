@@ -7,7 +7,7 @@ using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
-public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixture>
+public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Theory]
     [InlineData("bool", "bool value", "!value", "(!value)")]
@@ -27,18 +27,15 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         workspace.AddProject("Library", [new("A.cs", declaration + "Value(value).ToString(); }")]);
         var rules = new RuleSet();
         rules
+            .Rule("VALUE", "Inline the known expression.")
             .For(
-                Sources
-                    .Nodes<InvocationExpressionSyntax>()
+                Code.Nodes<InvocationExpressionSyntax>()
                     .Where(node => node.Syntax.ToString() == "Value(value)")
             )
-            .Forbid(
-                "VALUE",
-                "Inline the known expression.",
-                fix: node =>
-                    Fix.For(node)
-                        .ReplaceWith(SyntaxFactory.ParseExpression(replacement))
-                        .Propose(_ => ProofResult.Proven)
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression())
+                    .ReplaceWith(SyntaxFactory.ParseExpression(replacement))
+                    .SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -62,18 +59,13 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         );
         var rules = new RuleSet();
         rules
+            .Rule("VALUE", "Inline the default value.")
             .For(
-                Sources
-                    .Nodes<InvocationExpressionSyntax>()
+                Code.Nodes<InvocationExpressionSyntax>()
                     .Where(node => node.Syntax.ToString() == "Value()")
             )
-            .Forbid(
-                "VALUE",
-                "Inline the default value.",
-                fix: node =>
-                    Fix.For(node)
-                        .ReplaceWith(SyntaxFactory.ParseExpression("1"))
-                        .Propose(_ => ProofResult.Proven)
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression()).ReplaceWithLiteral(1).SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -94,18 +86,13 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         workspace.AddProject("Library", [new("A.cs", source)]);
         var rules = new RuleSet();
         rules
+            .Rule("VALUE", "Use a literal.")
             .For(
-                Sources
-                    .Nodes<InvocationExpressionSyntax>()
+                Code.Nodes<InvocationExpressionSyntax>()
                     .Where(node => node.Syntax.ToString() == "Value()")
             )
-            .Forbid(
-                "VALUE",
-                "Use a literal.",
-                fix: node =>
-                    Fix.For(node)
-                        .ReplaceWith(SyntaxFactory.ParseExpression("1"))
-                        .Propose(_ => ProofResult.Proven)
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression()).ReplaceWithLiteral(1).SafeWhen(_ => true)
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -191,13 +178,10 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var node = Sources
-            .Nodes<InvocationExpressionSyntax>()
+        var node = Code.Nodes<InvocationExpressionSyntax>()
             .In(solution)
             .Single(node => node.Syntax.ToString() == "Value()");
-        var proposal = Fix.For(node)
-            .ReplaceWith(SyntaxFactory.ParseExpression("1"))
-            .Propose(_ => ProofResult.Proven);
+        var proposal = Fix.For(node.AsExpression()).ReplaceWithLiteral(1).SafeWhen(_ => true);
 
         var safe = proposal!.IsSafeIn(project);
 
@@ -225,33 +209,15 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var call = Sources
-            .Nodes<InvocationExpressionSyntax>()
-            .In(solution)
-            .Single(node => node.Syntax.ToString().StartsWith("Compare("));
-        var left = Fix.Input(
-            call.Source,
-            call.Syntax.ArgumentList.Arguments.Single(argument =>
-                argument.NameColon!.Name.Identifier.ValueText == "left"
-            ).Expression
-        );
-        var right = Fix.Input(
-            call.Source,
-            call.Syntax.ArgumentList.Arguments.Single(argument =>
-                argument.NameColon!.Name.Identifier.ValueText == "right"
-            ).Expression
-        );
-        var replacement = SyntaxFactory.BinaryExpression(
-            SyntaxKind.EqualsExpression,
-            left.Syntax,
-            right.Syntax
-        );
+        var call = Code.Calls.In(solution).Single(call => call.Target.Name == "Compare");
+        var left = call.Argument("left")!.Value!;
+        var right = call.Argument("right")!.Value!;
         var proposal = Fix.For(call)
-            .ReplaceWith(replacement)
-            .MapInputs(left, right)
-            .Require(RewriteChecks.SameEvaluationSequence)
-            .Require(RewriteChecks.SameReceiverNullBehavior)
-            .Propose(_ => ProofResult.Proven);
+            .ReplaceWith("{0} == {1}", left, right)
+            .MustPreserve(
+                ExpressionBehavior.EvaluationOrder | ExpressionBehavior.NullReceiverBehavior
+            )
+            .SafeWhen(_ => true);
 
         var safe = proposal!.IsSafeIn(project);
 
@@ -267,15 +233,11 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             [new("A.cs", "class A { int Next() => 1; int M() => Next(); }")]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var call = Sources.Nodes<InvocationExpressionSyntax>().In(solution).Single();
-        var input = Fix.Input(call);
+        var call = Code.Nodes<InvocationExpressionSyntax>().In(solution).Single().AsExpression();
         var proposal = Fix.For(call)
-            .ReplaceWith(
-                SyntaxFactory.BinaryExpression(SyntaxKind.AddExpression, input.Syntax, input.Syntax)
-            )
-            .MapInputs(input)
-            .Require(RewriteChecks.SameEvaluationCounts)
-            .Propose(_ => ProofResult.Proven);
+            .ReplaceWith("{0} + {0}", call)
+            .MustPreserve(ExpressionBehavior.EvaluationCounts)
+            .SafeWhen(_ => true);
 
         var safe = proposal!.IsSafeIn(project);
 
@@ -287,24 +249,12 @@ public sealed class FixBuilderTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         var rules = new RuleSet();
         var member = CodeType.Of<string>().Member(nameof(string.Empty));
         rules
-            .For(Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty))))
-            .Forbid(
-                "EMPTY",
-                "Use a literal.",
-                fix: reference =>
-                    Fix.For(reference.Source!, reference.Syntax!)
-                        .ReplaceWith(
-                            SyntaxFactory.LiteralExpression(
-                                SyntaxKind.StringLiteralExpression,
-                                SyntaxFactory.Literal("")
-                            )
-                        )
-                        .Propose(change =>
-                            change.BeforeModel.GetSymbolInfo(change.Before).Symbol is { } symbol
-                            && member.Matches(symbol)
-                                ? ProofResult.Proven
-                                : ProofResult.Unknown
-                        )
+            .Rule("EMPTY", "Use a literal.")
+            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+            .Forbid(fix: reference =>
+                Fix.For(reference)
+                    .ReplaceWithLiteral("")
+                    .SafeWhen(change => change.Before.RefersTo(member))
             );
         return rules;
     }

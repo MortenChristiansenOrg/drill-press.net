@@ -3,9 +3,9 @@ using Microsoft.CodeAnalysis;
 namespace DrillPress;
 
 /// <summary>The selected declaration and every affected declared symbol after a modifier edit.</summary>
-public sealed class DeclarationRewrite
+public sealed class ModifierChange
 {
-    internal DeclarationRewrite(
+    internal ModifierChange(
         RewriteEvidence rewrite,
         SyntaxToken removed,
         IReadOnlyList<SymbolRewrite> symbols

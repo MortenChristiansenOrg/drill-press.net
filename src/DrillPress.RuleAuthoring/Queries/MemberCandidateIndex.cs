@@ -87,15 +87,6 @@ internal sealed class MemberCandidateIndex
             return null;
         }
 
-        return new MemberReference(
-            CodeType.FromSymbol(symbol.ContainingType),
-            symbol.Name,
-            candidate.Source.Locate(candidate.Syntax.Span)
-        )
-        {
-            Source = candidate.Source,
-            Syntax = candidate.Syntax,
-            Symbol = symbol,
-        };
+        return new MemberReference(candidate.Source, candidate.Syntax, symbol);
     }
 }

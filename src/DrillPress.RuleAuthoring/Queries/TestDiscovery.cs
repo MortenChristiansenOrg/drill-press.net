@@ -2,29 +2,41 @@ using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
 
-/// <summary>Static xUnit v2/v3 marker discovery. It does not execute framework discovery or expand theory data.</summary>
-public static class TestDiscovery
+internal static class TestDiscovery
 {
     private static readonly CodeType[] _markers =
     [
         CodeType.Named("Xunit.FactAttribute", "xunit.core"),
         CodeType.Named("Xunit.FactAttribute", "xunit.v3.core"),
         CodeType.Named("Xunit.FactAttribute", "xunit.v3.core.aot"),
+        CodeType.Named("NUnit.Framework.TestAttribute", "nunit.framework"),
+        CodeType.Named("NUnit.Framework.TestCaseAttribute", "nunit.framework"),
+        CodeType.Named("NUnit.Framework.TestCaseSourceAttribute", "nunit.framework"),
+        CodeType.Named("NUnit.Framework.TheoryAttribute", "nunit.framework"),
+        CodeType.Named(
+            "Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute",
+            "Microsoft.VisualStudio.TestPlatform.TestFramework"
+        ),
+        CodeType.Named(
+            "Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute",
+            "MSTest.TestFramework"
+        ),
     ];
 
-    /// <summary>Written methods bearing an xUnit marker, including derived attributes and inherited markers on overrides. A base method is emitted once at its own declaration.</summary>
-    public static CodeQuery<CodeMethod> TestMethods { get; } =
+    internal static CodeQuery<CodeMethod> TestMethods { get; } =
         Code.Methods.Where(method => method.Symbol is { } symbol && IsTest(symbol));
 
-    /// <summary>Concrete source classes in evaluated test projects declaring or inheriting marked test methods.</summary>
-    public static CodeQuery<CodeDeclaration> TestClasses { get; } = Classes();
+    internal static CodeQuery<CodeTypeDefinition> TestClasses { get; } =
+        Classes(abstractBases: false);
 
-    /// <summary>Includes abstract test base classes only when requested; implicit inherited method copies are never emitted by TestMethods.</summary>
-    public static CodeQuery<CodeDeclaration> Classes(bool includeAbstract = false) =>
+    internal static CodeQuery<CodeTypeDefinition> AbstractTestClasses { get; } =
+        Classes(abstractBases: true);
+
+    private static CodeQuery<CodeTypeDefinition> Classes(bool abstractBases) =>
         Code.Types.Where(type =>
             type.Source.Project.IsTestProject
             && type.Symbol.TypeKind == TypeKind.Class
-            && (includeAbstract || !type.Symbol.IsAbstract)
+            && type.Symbol.IsAbstract == abstractBases
             && HasTests(type.Symbol)
         );
 

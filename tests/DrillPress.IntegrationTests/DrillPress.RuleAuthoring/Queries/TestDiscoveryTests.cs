@@ -130,14 +130,100 @@ public sealed class TestDiscoveryTests(SdkFixture fixture) : IClassFixture<SdkFi
             .Select(method => $"{method.ContainingType?.Name}.{method.Name}")
             .ToArray();
         var classes = Code.TestClasses.In(solution).Select(type => type.Name).ToArray();
-        var includingBases = TestDiscovery
-            .Classes(includeAbstract: true)
-            .In(solution)
-            .Select(type => type.Name)
-            .ToArray();
+        var bases = Code.AbstractTestClasses.In(solution).Select(type => type.Name).ToArray();
 
         Assert.Equal(["Base.Written", "Base.Data", "Second.Written", "HiddenBase.Hidden"], methods);
         Assert.Equal(["First", "Second"], classes);
-        Assert.Equal(["Base", "First", "Second", "HiddenBase"], includingBases);
+        Assert.Equal(["Base", "HiddenBase"], bases);
+    }
+
+    [Fact]
+    public void NUnit_and_MSTest_markers_select_tests_including_derived_and_data_driven_markers()
+    {
+        var workspace = fixture.Workspace();
+        var nunit = workspace.AddProject(
+            "nunit.framework",
+            [
+                new(
+                    "NUnit.cs",
+                    """
+                    namespace NUnit.Framework
+                    {
+                        public class TestAttribute : System.Attribute { }
+                        public class TestCaseAttribute : System.Attribute { public TestCaseAttribute(params object[] values) { } }
+                        public class TestCaseSourceAttribute : System.Attribute { public TestCaseSourceAttribute(string name) { } }
+                        public class TheoryAttribute : System.Attribute { }
+                    }
+                    """
+                ),
+            ]
+        );
+        var mstest = workspace.AddProject(
+            "Microsoft.VisualStudio.TestPlatform.TestFramework",
+            [
+                new(
+                    "MSTest.cs",
+                    """
+                    namespace Microsoft.VisualStudio.TestTools.UnitTesting
+                    {
+                        public class TestMethodAttribute : System.Attribute { }
+                        public class DataTestMethodAttribute : TestMethodAttribute { }
+                    }
+                    """
+                ),
+            ]
+        );
+        workspace.AddProject(
+            "Tests",
+            [
+                new(
+                    "Tests.cs",
+                    """
+                    using NUnit.Framework;
+                    using Microsoft.VisualStudio.TestTools.UnitTesting;
+                    class NUnitTests
+                    {
+                        [Test] public void Plain() { }
+                        [TestCase(1)] public void Case(int value) { }
+                        [TestCaseSource("Values")] public void Source(int value) { }
+                        [Theory] public void Theory(int value) { }
+                        public void Helper() { }
+                    }
+                    class MSTests
+                    {
+                        [TestMethod] public void Plain() { }
+                        [DataTestMethod] public void Data() { }
+                    }
+                    abstract class Lookalike { [Xunit.Fact] public void Inherited() { } }
+                    class Concrete : Lookalike { }
+                    """
+                ),
+            ],
+            isTest: true,
+            dependencies: [nunit, mstest]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var methods = Code
+            .TestMethods.In(solution)
+            .Select(method => $"{method.ContainingType?.Name}.{method.Name}")
+            .ToArray();
+        var classes = Code.TestClasses.In(solution).Select(type => type.Name).ToArray();
+        var bases = Code.AbstractTestClasses.In(solution).Select(type => type.Name).ToArray();
+
+        Assert.Equal(
+            [
+                "NUnitTests.Plain",
+                "NUnitTests.Case",
+                "NUnitTests.Source",
+                "NUnitTests.Theory",
+                "MSTests.Plain",
+                "MSTests.Data",
+                "Lookalike.Inherited",
+            ],
+            methods
+        );
+        Assert.Equal(["NUnitTests", "MSTests", "Concrete"], classes);
+        Assert.Equal(["Lookalike"], bases);
     }
 }

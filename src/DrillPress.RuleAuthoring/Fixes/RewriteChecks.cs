@@ -39,7 +39,7 @@ public static class RewriteChecks
     }
 
     /// <summary>Preserves expression and converted types plus enclosing member/operator binding, excluding the intentionally replaced root's symbol.</summary>
-    /// <remarks>Already enforced by expression replacement through <see cref="FixBuilder.Propose"/>; add only transformation-specific obligations there.</remarks>
+    /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameEnclosingBindings(RewriteEvidence change)
     {
         foreach (var before in change.Before.AncestorsAndSelf().OfType<ExpressionSyntax>())
@@ -65,7 +65,7 @@ public static class RewriteChecks
     }
 
     /// <summary>Checks that registered retained inputs keep their syntax, symbol and conversions, independently of evaluation count.</summary>
-    /// <remarks>Already enforced by expression replacement through <see cref="FixBuilder.Propose"/>; add only transformation-specific obligations there.</remarks>
+    /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameRetainedBindings(RewriteEvidence change)
     {
         foreach (var input in change.Inputs)
@@ -177,7 +177,7 @@ public static class RewriteChecks
         };
 
     /// <summary>Compares compiler-supplied argument constants on retained calls, including caller-line and caller-argument-expression values outside the edited expression.</summary>
-    /// <remarks>Already enforced by expression replacement through <see cref="FixBuilder.Propose"/>; add only transformation-specific obligations there.</remarks>
+    /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change) =>
         CompilerSuppliedArguments(change, null);
 

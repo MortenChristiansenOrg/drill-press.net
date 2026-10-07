@@ -23,20 +23,28 @@ public sealed class ConditionPattern
     /// <summary>The built-in classification, independent of the consumer's display name.</summary>
     public ConditionPatternKind Kind { get; }
 
-    /// <summary>Recognizes empty comparisons, string constant patterns and Length == 0, retaining negation polarity. These forms are not declared null-safe or interchangeable.</summary>
-    public static ConditionPattern IsEmptyString() =>
+    /// <summary>Null and nullable-presence tests (<c>is null</c>, <c>== null</c>, <c>HasValue</c> and negations); the matching branch is the null outcome.</summary>
+    public static ConditionPattern Null { get; } =
+        new(
+            "null",
+            expression =>
+                NullCheckQueries.Match(expression) is { } check
+                    ? (check.CheckedValue, check.Polarity == NullCheckPolarity.IsNull)
+                    : null,
+            ConditionPatternKind.Null
+        );
+
+    /// <summary>Empty-string tests (<c>== ""</c>, <c>== string.Empty</c>, <c>is ""</c>, <c>Length == 0</c> and negations). These forms are not null-safe or interchangeable.</summary>
+    public static ConditionPattern EmptyString { get; } =
         new("empty", StringCheckPatterns.Empty, ConditionPatternKind.EmptyString);
 
-    /// <summary>Recognizes only the framework's null-or-empty call predicate, including negation.</summary>
-    public static ConditionPattern IsNullOrEmptyString() =>
+    /// <summary>The framework <c>string.IsNullOrEmpty</c> predicate, including negation.</summary>
+    public static ConditionPattern NullOrEmptyString { get; } =
         StringCall("IsNullOrEmpty", ConditionPatternKind.NullOrEmptyString);
 
-    /// <summary>Recognizes only the framework's null-or-whitespace call predicate, including negation.</summary>
-    public static ConditionPattern IsNullOrWhiteSpaceString() =>
+    /// <summary>The framework <c>string.IsNullOrWhiteSpace</c> predicate, including negation.</summary>
+    public static ConditionPattern NullOrWhiteSpaceString { get; } =
         StringCall("IsNullOrWhiteSpace", ConditionPatternKind.NullOrWhiteSpaceString);
-
-    /// <summary>Recognizes null tests with the matching branch denoting the null outcome.</summary>
-    public static ConditionPattern IsNull() => NullTests();
 
     private static ConditionPattern StringCall(string name, ConditionPatternKind kind)
     {
@@ -48,19 +56,8 @@ public sealed class ConditionPattern
         return new(name, call._match, kind);
     }
 
-    /// <summary>The consumer's classification, such as null, empty or whitespace.</summary>
+    /// <summary>The classification name, such as null, empty or a custom pattern's name.</summary>
     public string Name { get; }
-
-    /// <summary>Recognizes built-in null/presence checks; the matching outcome always denotes null or missing value.</summary>
-    public static ConditionPattern NullTests(string name = "null") =>
-        new(
-            name,
-            expression =>
-                NullCheckQueries.Match(expression) is { } check
-                    ? (check.CheckedValue, check.Polarity == NullCheckPolarity.IsNull)
-                    : null,
-            ConditionPatternKind.Null
-        );
 
     /// <summary>Recognizes an exact configured Boolean method and one explicit bound parameter, normalizing ordinary negation and Boolean comparisons.</summary>
     public static ConditionPattern ForCall(

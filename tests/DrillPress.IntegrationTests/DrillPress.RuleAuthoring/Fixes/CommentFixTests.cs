@@ -37,8 +37,9 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         workspace.AddProject("Library", [new("A.cs", source)]);
         var rules = new RuleSet();
         rules
+            .Rule("COMMENT", "Remove phase labels.")
             .For(Code.Methods.Body().Comments())
-            .Forbid("COMMENT", "Remove phase labels.", fix: comment => Fix.For(comment).Remove());
+            .Forbid(fix: comment => Fix.For(comment).Remove().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -64,8 +65,9 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         workspace.AddProject("Library", [new("A.cs", source)]);
         var rules = new RuleSet();
         rules
+            .Rule("COMMENT", "Remove comment.")
             .For(Code.Files.Comments())
-            .Forbid("COMMENT", "Remove comment.", fix: comment => Fix.For(comment).Remove());
+            .Forbid(fix: comment => Fix.For(comment).Remove().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -90,11 +92,13 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         workspace.AddProject("Library", [new("A.cs", source)]);
         var rules = new RuleSet();
         rules
+            .Rule("COMMENT", "Remove comment.")
             .For(Code.Files.Comments())
-            .Forbid("COMMENT", "Remove comment.", fix: comment => Fix.For(comment).Remove());
+            .Forbid(fix: comment => Fix.For(comment).Remove().Propose());
         rules
+            .Rule("VAR", "Use var.")
             .For(Code.LocalVariables.WhereVarPreservesType())
-            .Forbid("VAR", "Use var.", fix: declaration => Fix.For(declaration).UseVar());
+            .Forbid(fix: declaration => Fix.For(declaration).UseVar().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -132,8 +136,9 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         workspace.AddProject("Library", [new("A.cs", source)]);
         var rules = new RuleSet();
         rules
+            .Rule("COMMENT", "Remove comment.")
             .For(Code.Files.Comments())
-            .Forbid("COMMENT", "Remove comment.", fix: comment => Fix.For(comment).Remove());
+            .Forbid(fix: comment => Fix.For(comment).Remove().Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 

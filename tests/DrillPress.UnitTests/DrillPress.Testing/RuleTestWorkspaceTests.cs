@@ -156,8 +156,9 @@ public sealed class RuleTestWorkspaceTests
         );
         var rules = new RuleSet();
         rules
+            .Rule("LINES", "Exercise source.")
             .For(Code.Files)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(50), "LINES", "Exercise source.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(50));
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
@@ -198,8 +199,9 @@ public sealed class RuleTestWorkspaceTests
         workspace.WithCoverage(facts => facts.ForFile("Calls.cs").Lines(4, 4));
         var rules = new RuleSet();
         rules
+            .Rule("LINES", "Exercise source.")
             .For(Code.Projects)
-            .Require(global::DrillPress.Coverage.Line.AtLeast(100), "LINES", "Exercise source.");
+            .Require(global::DrillPress.Coverage.Line.AtLeast(100));
 
         var first = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
         var second = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -233,8 +235,9 @@ public sealed class RuleTestWorkspaceTests
     {
         var rules = new RuleSet();
         rules
+            .Rule("CALL", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name == "Hit"))
-            .Require(global::DrillPress.Coverage.Executed, "CALL", "Exercise call.");
+            .Require(global::DrillPress.Coverage.Executed);
         return rules;
     }
 

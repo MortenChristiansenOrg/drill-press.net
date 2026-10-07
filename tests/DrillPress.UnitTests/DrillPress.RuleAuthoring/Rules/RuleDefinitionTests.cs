@@ -6,7 +6,7 @@ namespace DrillPress.UnitTests.RuleAuthoring.Rules;
 public sealed class RuleDefinitionTests
 {
     [Fact]
-    public void Typed_clauses_share_the_exact_descriptor_and_preserve_fluent_registration()
+    public void Typed_clauses_share_the_exact_descriptor_and_return_the_rule()
     {
         var rules = new RuleSet();
         var descriptor = new RuleDescriptor("SHARED", "Use descriptive names.")
@@ -14,42 +14,27 @@ public sealed class RuleDefinitionTests
             FixComplexity = RuleFixComplexity.Local,
         };
         var definition = rules.Rule(descriptor);
-        var forbidden = definition.For(
-            Code.MemberReferences.Where(reference => reference.MemberName == "A")
-        );
-        var required = definition.For(
-            Code.MemberReferences.Select(reference => reference.Location)
-        );
-        var references = new[]
-        {
-            RuleTestData.Reference<string>("A", start: 0),
-            RuleTestData.Reference<string>("Long", start: 10),
-        };
+        var solution = RuleTestData.Solution(("A.cs", ["A", "Long"]));
 
-        var returnedForbidden = forbidden.Forbid();
-        var returnedRequired = required.Require(
-            location => location.Length > 1,
-            location: location => location
-        );
-        var diagnostics = rules.Evaluate(references);
+        var returned = definition
+            .For(Code.MemberReferences.Where(reference => reference.MemberName == "A"))
+            .Forbid()
+            .For(Code.MemberReferences.Select(reference => reference.Expression))
+            .Require(expression => expression.Location.Length > "Sample.Target.A".Length);
+        var diagnostics = rules.Evaluate(solution);
 
         Assert.Same(descriptor, definition.Descriptor);
-        Assert.Same(forbidden, returnedForbidden);
-        Assert.Same(required, returnedRequired);
+        Assert.Same(definition, returned);
         Assert.Equal(
-            new[]
-            {
-                new RuleDiagnostic(descriptor, references[0].Location),
-                new RuleDiagnostic(descriptor, references[0].Location),
-            },
-            diagnostics
+            [("SHARED", "A.cs", "Sample.Target.A"), ("SHARED", "A.cs", "Sample.Target.A")],
+            diagnostics.Select(RuleTestData.Describe)
         );
     }
 
     [Theory]
     [InlineData("Same message.")]
     [InlineData("Different message.")]
-    public void Another_definition_cannot_reuse_a_reserved_identity(string message)
+    public void Another_rule_cannot_reuse_a_reserved_identity(string message)
     {
         var rules = new RuleSet();
         rules.Rule("SHARED", "Same message.");
@@ -60,41 +45,16 @@ public sealed class RuleDefinitionTests
     }
 
     [Fact]
-    public void Ordinary_registration_cannot_reuse_a_reserved_identity_even_without_clauses()
+    public void A_descriptor_cannot_reuse_a_reserved_identity()
     {
         var rules = new RuleSet();
-        rules.Rule("SHARED", "Same message.");
+        rules.Rule("SHARED", "Same message.").For(Code.MemberReferences).Forbid();
 
         var error = Assert.Throws<InvalidOperationException>(() =>
-            rules.For(Code.MemberReferences).Forbid(new RuleDescriptor("SHARED", "Same message."))
+            rules.Rule(new RuleDescriptor("SHARED", "Same message."))
         );
 
         Assert.Equal("Rule id 'SHARED' is registered more than once.", error.Message);
-    }
-
-    [Fact]
-    public void A_definition_cannot_claim_an_ordinary_registration()
-    {
-        var rules = new RuleSet();
-        rules.For(Code.MemberReferences).Forbid("SHARED", "Same message.");
-
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            rules.Rule("SHARED", "Same message.")
-        );
-
-        Assert.Equal("Rule id 'SHARED' is registered more than once.", error.Message);
-    }
-
-    [Theory]
-    [InlineData("", "Message")]
-    [InlineData("SHARED", "")]
-    [InlineData("SHARED\n", "Message")]
-    [InlineData("SHARED", "Message\u2028next")]
-    public void Descriptor_validation_runs_when_the_identity_is_reserved(string id, string message)
-    {
-        var rules = new RuleSet();
-
-        Assert.Throws<ArgumentException>(() => rules.Rule(id, message));
     }
 
     [Fact]

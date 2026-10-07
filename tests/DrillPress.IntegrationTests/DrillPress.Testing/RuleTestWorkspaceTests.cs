@@ -83,6 +83,43 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
     }
 
     [Fact]
+    public async Task Output_matches_the_compact_cli_format_including_fix_markers()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new("B.cs", "class B\n{\n    string Value => string.Empty;\n}\n"),
+                new("A.cs", "class A\n{\n    string Value => nameof(string.Empty);\n}\n"),
+            ]
+        );
+        var empty = CodeType.Of<string>().Member(nameof(string.Empty));
+        var rules = new RuleSet();
+        rules
+            .Rule("EMPTY", "Use \"\" instead of string.Empty.")
+            .For(empty.References)
+            .Forbid(fix: reference =>
+                Fix.For(reference)
+                    .ReplaceWithLiteral("")
+                    .SafeWhen(change => change.Before.RefersTo(empty) && change.After.Is(""))
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            EMPTY Use "" instead of string.Empty.
+            A.cs
+              3:28
+            B.cs
+              +3:21
+
+            """.Replace("\r\n", "\n"),
+            result.Output
+        );
+    }
+
+    [Fact]
     public void Per_project_language_options_control_available_syntax()
     {
         var workspace = fixture.Workspace();
@@ -141,18 +178,17 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
                 .Select(source => new CodeFile(source))
         );
         rules
+            .Rule("GENERATED", "Do not report generated files.")
             .For(allFiles.Where(file => file.Source.Document.IsGenerated))
-            .Forbid("GENERATED", "Do not report generated files.");
+            .Forbid();
         rules
-            .For(Code.MemberReferences.Where(Members.Are<string>(nameof(string.Empty))))
-            .Forbid(
-                "EMPTY",
-                "Use a literal.",
-                fix: reference =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(reference.Source!, reference.Syntax!.Span, "\"\"")],
-                        _ => true
-                    )
+            .Rule("EMPTY", "Use a literal.")
+            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+            .Forbid(fix: reference =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(reference.Source!, reference.Syntax!.Span, "\"\"")],
+                    _ => true
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -170,28 +206,24 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { int M() => 1; }")]);
         var rules = new RuleSet();
-        var literals = Sources.Nodes<LiteralExpressionSyntax>();
+        var literals = Code.Nodes<LiteralExpressionSyntax>();
         rules
+            .Rule("FIRST", "Use two.")
             .For(literals)
-            .Forbid(
-                "FIRST",
-                "Use two.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
-                        _ => true
-                    )
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, node.Syntax.Span, "2")],
+                    _ => true
+                )
             );
         rules
+            .Rule("SECOND", "Use three.")
             .For(literals)
-            .Forbid(
-                "SECOND",
-                "Use three.",
-                fix: node =>
-                    SourceChanges.Propose(
-                        [SourceChanges.Replace(node.Source, node.Syntax.Span, "3")],
-                        _ => true
-                    )
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, node.Syntax.Span, "3")],
+                    _ => true
+                )
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

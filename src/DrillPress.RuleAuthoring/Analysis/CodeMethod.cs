@@ -1,4 +1,3 @@
-using DrillPress;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -6,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace DrillPress;
 
 /// <summary>A source method with lazy symbol binding and reusable body analysis.</summary>
-public sealed class CodeMethod : ICodeElement
+public sealed class CodeMethod : ICodeDeclaration
 {
     private readonly Lazy<IMethodSymbol?> _symbol;
 
@@ -44,11 +43,34 @@ public sealed class CodeMethod : ICodeElement
     /// <summary>The declared symbol, or null for an unresolved declaration.</summary>
     public IMethodSymbol? Symbol => _symbol.Value;
 
+    ISymbol? ICodeDeclaration.Symbol => Symbol;
+
     /// <summary>The declared identifier, available even when semantic binding fails.</summary>
     public string Name => Syntax.Identifier.ValueText;
 
     /// <summary>Identifier words preserving casing, including acronym and digit boundaries.</summary>
     public IReadOnlyList<string> NameWords => CodeIdentifier.NamedWords(Name);
+
+    /// <summary>The declared accessibility, including the implicit private default; NotApplicable when unresolved.</summary>
+    public Accessibility Accessibility =>
+        Symbol?.DeclaredAccessibility ?? Accessibility.NotApplicable;
+
+    /// <summary>Whether the written declaration contains this modifier token.</summary>
+    public bool HasExplicitModifier(Modifier modifier) =>
+        DeclarationSyntax.HasModifier(Syntax, modifier);
+
+    /// <summary>Whether the method is static, from the written modifier when binding fails.</summary>
+    public bool IsStatic => Symbol?.IsStatic ?? HasExplicitModifier(Modifier.Static);
+
+    /// <summary>Whether the bound declaration is asynchronous; false for unresolved declarations.</summary>
+    public bool IsAsync => Symbol?.IsAsync == true;
+
+    /// <summary>Whether the bound method returns void; false for unresolved declarations.</summary>
+    public bool ReturnsVoid => Symbol?.ReturnsVoid == true;
+
+    /// <summary>Matches the bound return type, including constructed generic arguments.</summary>
+    public bool ReturnTypeIs(CodeType type) =>
+        Symbol?.ReturnType is { } actual && type.Matches(actual);
 
     /// <summary>Whether a block or expression body was written; abstract and extern declarations have no body.</summary>
     public bool HasBody => Syntax.Body is not null || Syntax.ExpressionBody is not null;
@@ -59,19 +81,22 @@ public sealed class CodeMethod : ICodeElement
     /// <summary>Whether the declaration has no body or an empty block; expression bodies always contain executable syntax.</summary>
     public bool HasNoStatements => !HasBody || HasEmptyBody;
 
-    /// <summary>Whether the bound declaration is asynchronous; false for unresolved declarations.</summary>
-    public bool IsAsync => Symbol?.IsAsync == true;
+    /// <summary>The written parameters in declaration order.</summary>
+    public IReadOnlyList<CodeParameter> Parameters =>
+        Array.AsReadOnly(
+            Syntax
+                .ParameterList.Parameters.Select(parameter => new CodeParameter(Source, parameter))
+                .ToArray()
+        );
 
-    /// <summary>Tests semantic attributes; unresolved declarations do not match.</summary>
-    public bool HasAttribute(CodeType attribute) =>
-        Symbol is { } symbol && Symbols.HasAttribute(symbol, attribute);
-
-    /// <summary>Matches an applied attribute and its recorded values; unresolved methods do not match.</summary>
-    public bool HasAttribute(CodeType attribute, Func<CodeAttribute, bool> where) =>
-        Symbol?.HasAttribute(attribute, where) == true;
+    /// <summary>The executable body, excluding nested functions by default; null for abstract and extern declarations.</summary>
+    public CodeBody? Body(NestedFunctions nested = NestedFunctions.Exclude) =>
+        ((SyntaxNode?)Syntax.Body ?? Syntax.ExpressionBody?.Expression) is { } root
+            ? new(Source, root, nested)
+            : null;
 
     /// <summary>The containing source type when binding succeeds; malformed declarations retain their syntax candidate.</summary>
-    public CodeDeclaration? ContainingType =>
+    public CodeTypeDefinition? ContainingType =>
         Symbol?.ContainingType is { } type
             ? Solution.Types.FirstOrDefault(candidate =>
                 candidate.Source.Project == Source.Project

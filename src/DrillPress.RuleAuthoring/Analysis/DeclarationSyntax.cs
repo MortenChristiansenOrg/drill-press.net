@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
@@ -15,8 +16,14 @@ internal static class DeclarationSyntax
             BaseFieldDeclarationSyntax field => field.Modifiers,
             AccessorDeclarationSyntax accessor => accessor.Modifiers,
             LocalFunctionStatementSyntax function => function.Modifiers,
+            ParameterSyntax parameter => parameter.Modifiers,
+            VariableDeclaratorSyntax { Parent.Parent: BaseFieldDeclarationSyntax field } =>
+                field.Modifiers,
             _ => default,
         };
+
+    internal static bool HasModifier(SyntaxNode node, Modifier modifier) =>
+        Modifiers(node).Any((SyntaxKind)modifier);
 
     internal static IReadOnlyList<ISymbol>? Symbols(SemanticModel model, SyntaxNode node)
     {

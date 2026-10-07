@@ -13,7 +13,7 @@ internal static class VarRewrite
                 | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
         );
 
-    internal static bool CanUseVar(CodeTypedDeclaration declaration)
+    internal static bool CanUseVar(CodeVariableDeclaration declaration)
     {
         declaration.Source.Project.CancellationToken.ThrowIfCancellationRequested();
         if (!Eligible(declaration))
@@ -36,7 +36,7 @@ internal static class VarRewrite
         return Validate(context, source, declaration);
     }
 
-    internal static FixProposal Propose(CodeTypedDeclaration declaration) =>
+    internal static FixProposal Propose(CodeVariableDeclaration declaration) =>
         SourceChanges.Propose(
             [SourceChanges.Replace(declaration.Source, declaration.TypeSyntax.Span, "var")],
             context =>
@@ -47,7 +47,7 @@ internal static class VarRewrite
                     .All(source => Validate(context, source, declaration))
         );
 
-    private static bool Eligible(CodeTypedDeclaration declaration)
+    private static bool Eligible(CodeVariableDeclaration declaration)
     {
         if (
             !declaration.HasExplicitType
@@ -121,7 +121,7 @@ internal static class VarRewrite
     private static bool Validate(
         RewriteContext context,
         AnalysisSource source,
-        CodeTypedDeclaration selected
+        CodeVariableDeclaration selected
     )
     {
         var before = source

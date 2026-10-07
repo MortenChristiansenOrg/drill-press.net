@@ -9,36 +9,36 @@ public sealed class RuleSetTests
     public void Evaluate_orders_diagnostics_by_rule_path_and_source_position()
     {
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences).Forbid("Z002", "Later rule.");
-        rules.For(Code.MemberReferences).Forbid("A001", "Earlier rule.");
-        var references = new[]
-        {
-            RuleTestData.Reference<string>("Second", "B.cs", 20),
-            RuleTestData.Reference<string>("First", "A.cs", 10),
-        };
+        rules.Rule("Z002", "Later rule.").For(Code.MemberReferences).Forbid();
+        rules.Rule("A001", "Earlier rule.").For(Code.MemberReferences).Forbid();
+        var solution = RuleTestData.Solution(("B.cs", ["Second"]), ("A.cs", ["First", "Any"]));
 
-        var diagnostics = rules.Evaluate(references);
+        var diagnostics = rules.Evaluate(solution);
 
-        Assert.Collection(
-            diagnostics,
-            diagnostic => Assert.Equal(("A001", "A.cs", 10), Describe(diagnostic)),
-            diagnostic => Assert.Equal(("A001", "B.cs", 20), Describe(diagnostic)),
-            diagnostic => Assert.Equal(("Z002", "A.cs", 10), Describe(diagnostic)),
-            diagnostic => Assert.Equal(("Z002", "B.cs", 20), Describe(diagnostic))
+        Assert.Equal(
+            [
+                ("A001", "A.cs", "Sample.Target.First"),
+                ("A001", "A.cs", "Sample.Target.Any"),
+                ("A001", "B.cs", "Sample.Target.Second"),
+                ("Z002", "A.cs", "Sample.Target.First"),
+                ("Z002", "A.cs", "Sample.Target.Any"),
+                ("Z002", "B.cs", "Sample.Target.Second"),
+            ],
+            diagnostics.Select(RuleTestData.Describe)
         );
     }
 
     [Fact]
-    public void Forbid_rejects_duplicate_rule_ids()
+    public void Rule_rejects_duplicate_rule_ids()
     {
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences).Forbid("TEST001", "First message.");
+        rules.Rule("TEST001", "First message.").For(Code.MemberReferences).Forbid();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            rules.For(Code.MemberReferences).Forbid("TEST001", "Second message.")
+            rules.Rule("TEST001", "Second message.")
         );
 
-        Assert.Contains("registered more than once", exception.Message);
+        Assert.Equal("Rule id 'TEST001' is registered more than once.", exception.Message);
     }
 
     [Theory]
@@ -47,15 +47,25 @@ public sealed class RuleSetTests
     [InlineData("TEST\n001", "Message")]
     [InlineData("TEST001", "Message\rnext")]
     [InlineData("TEST001", "Message\u2028next")]
-    public void Forbid_rejects_blank_or_multiline_rule_identity_or_message(
-        string id,
-        string message
-    )
+    public void Rule_rejects_blank_or_multiline_rule_identity_or_message(string id, string message)
     {
         var rules = new RuleSet();
 
-        Assert.Throws<ArgumentException>(() =>
-            rules.For(Code.MemberReferences).Forbid(id, message)
+        Assert.Throws<ArgumentException>(() => rules.Rule(id, message));
+    }
+
+    [Fact]
+    public void A_rule_without_a_terminated_clause_fails_evaluation_with_guidance()
+    {
+        var rules = new RuleSet();
+        rules.Rule("TEST001", "Forgotten.").For(Code.MemberReferences);
+        var solution = RuleTestData.Solution();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => rules.Evaluate(solution));
+
+        Assert.Equal(
+            "Rule 'TEST001' has no clause; end each For(...) with Forbid(...) or Require(...).",
+            exception.Message
         );
     }
 
@@ -66,13 +76,10 @@ public sealed class RuleSetTests
         cancellation.Cancel();
         var solution = new AnalysisSolution([], cancellation.Token);
         var rules = new RuleSet();
-        rules.For(Code.MemberReferences).Forbid("TEST001", "Stop evaluation.");
+        rules.Rule("TEST001", "Stop evaluation.").For(Code.MemberReferences).Forbid();
 
         Assert.Throws<OperationCanceledException>(() => rules.Evaluate(solution));
     }
-
-    private static (string Id, string Path, int Start) Describe(RuleDiagnostic diagnostic) =>
-        (diagnostic.Descriptor.Id, diagnostic.Location.FilePath, diagnostic.Location.Start);
 
     [Fact]
     public void Invalid_complexity_is_rejected_at_registration()
@@ -80,9 +87,7 @@ public sealed class RuleSetTests
         var rules = new RuleSet();
 
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            rules
-                .For(Code.MemberReferences)
-                .Forbid("R", "Message.", fixComplexity: (RuleFixComplexity)99)
+            rules.Rule("R", "Message.", fixComplexity: (RuleFixComplexity)99)
         );
 
         Assert.Equal("descriptor", exception.ParamName);

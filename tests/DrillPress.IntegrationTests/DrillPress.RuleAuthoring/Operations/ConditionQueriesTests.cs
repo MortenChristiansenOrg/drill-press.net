@@ -45,14 +45,13 @@ public sealed class ConditionQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var root = Sources
-            .Nodes<IdentifierNameSyntax>()
+        var root = Code.Nodes<IdentifierNameSyntax>()
             .In(solution)
             .First(node => node.Syntax.Identifier.ValueText == "input");
         var resolver = new MemberKeyResolver();
         var patterns = new[]
         {
-            ConditionPattern.NullTests(),
+            ConditionPattern.Null,
             ConditionPattern.ForCall(
                 CodeType.Of<string>().Member("IsNullOrEmpty"),
                 "value",
@@ -82,7 +81,7 @@ public sealed class ConditionQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             )
             .Where(check =>
                 check
-                    .MatchingBranch?.Invocations()
+                    .MatchingBranch?.Calls()
                     .Any(call =>
                         call.Calls(CodeType.Named("C").Member("Error"))
                         && call.Parameter("key")?.Values.Single().Value is { } key
@@ -128,7 +127,7 @@ public sealed class ConditionQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         Assert.False(check.MatchingOutcome);
         Assert.Equal(
             ["Error()"],
-            check.MatchingBranch!.Invocations().Select(call => call.Operation.Syntax.ToString())
+            check.MatchingBranch!.Calls().Select(call => call.Operation.Syntax.ToString())
         );
     }
 }

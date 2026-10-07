@@ -1,5 +1,4 @@
 using DrillPress;
-using DrillPress.SampleRules.Relationships;
 
 namespace DrillPress.SampleRules;
 
@@ -9,49 +8,44 @@ public static class SampleRuleSet
     {
         var rules = new RuleSet();
         ShowcaseRules.Register(rules);
-        var tests = XunitTests.Methods.Select(method => new TestBody(method));
+        var tests = Code.TestMethods.Select(method => new TestBody(method));
 
         rules
+            .Rule("DP1001", "Keep at most two empty lines in a test.")
             .For(tests)
-            .Require(
-                new(method => method.EmptyLines.Count <= 2),
-                "DP1001",
-                "Keep at most two empty lines in a test.",
-                method => method.EmptyLines[2]
-            );
+            .ReportAt(test => test.EmptyLines[2])
+            .Require(test => test.EmptyLines.Count <= 2);
         rules
-            .For(tests.Where(new(method => method.EarlyAssertion is not null)))
-            .Forbid(
-                "DP1002",
-                "Move assertions after the final empty line.",
-                method => method.EarlyAssertion!
-            );
+            .Rule("DP1002", "Move assertions after the final empty line.")
+            .For(tests.Where(test => test.EarlyAssertion is not null))
+            .ReportAt(test => test.EarlyAssertion)
+            .Forbid();
         rules
-            .For(Code.Interfaces.Where(InterfacePolicy.HasSingleProductionImplementation))
-            .Forbid(
-                "DP1003",
-                "Remove interfaces with exactly one concrete non-test implementation."
-            );
+            .Rule("DP1003", "Remove interfaces with exactly one concrete non-test implementation.")
+            .For(
+                Code.Interfaces.ImplementationViews()
+                    .IgnoringTestProjects()
+                    .ConcreteOnly()
+                    .WithExactlyOneImplementation()
+            )
+            .Forbid();
         rules
-            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References.OutsideNameOf())
-            .Forbid(
+            .Rule(
                 "DP1004",
                 "Use the empty string literal \"\" instead of string.Empty.",
-                fix: EmptyStringFix.Create,
                 fixComplexity: RuleFixComplexity.Trivial
-            );
+            )
+            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References.OutsideNameOf())
+            .Forbid(fix: EmptyStringFix.Create);
         rules
+            .Rule("DP1005", "Avoid passing StringComparer.Ordinal.")
             .For(
                 CodeType
                     .Of<StringComparer>()
                     .Member(nameof(StringComparer.Ordinal))
                     .References.Where(OrdinalComparerFix.IsArgument)
             )
-            .Forbid(
-                "DP1005",
-                "Avoid passing StringComparer.Ordinal.",
-                fix: OrdinalComparerFix.Create
-            );
+            .Forbid(fix: OrdinalComparerFix.Create);
         return rules;
     }
 }

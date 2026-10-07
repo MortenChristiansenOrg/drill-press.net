@@ -171,22 +171,21 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
             """
             using DrillPress;
             using DrillPress.Engine;
-            using NullableFlowState = Microsoft.CodeAnalysis.NullableFlowState;
-            using Microsoft.CodeAnalysis.CSharp.Syntax;
 
             var rules = new RuleSet();
-            rules.For(OperationQueries.NullChecks.Where(check =>
-                check.Condition.Syntax is IsPatternExpressionSyntax &&
-                check.FlowStateBeforeCheck == NullableFlowState.NotNull))
-                .Forbid("NULL001", "Unexpected non-null check.");
-            rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
-                .Forbid("EMPTY", "Use an empty literal.", fix: reference =>
+            rules.Rule("NULL001", "Unexpected non-null check.")
+                .For(Code.NullChecks.Where(check =>
+                    check.Form == NullCheckForm.Pattern && check.IsKnownNotNullBeforeCheck))
+                .Forbid();
+            rules.Rule("EMPTY", "Use an empty literal.")
+                .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+                .Forbid(fix: reference =>
                     SourceChanges.Propose(
-                        [SourceChanges.Replace(reference.Source!, reference.Syntax!.Span, "\"\"")],
+                        [SourceChanges.Replace(reference.Source, reference.Syntax.Span, "\"\"")],
                         context => context.Original.Sources
-                            .Where(source => source.Document.FileIdentity == reference.Source!.Document.FileIdentity)
+                            .Where(source => source.Document.FileIdentity == reference.Source.Document.FileIdentity)
                             .All(source => BindingProof.PreservesEnclosingExpressions(
-                                source, source.Tree.GetRoot().FindNode(reference.Syntax!.Span, getInnermostNodeForTie: true), "\"\""))));
+                                source, source.Tree.GetRoot().FindNode(reference.Syntax.Span, getInnermostNodeForTie: true), "\"\""))));
             return (int)await new RuleApplication().RunAsync(rules, args);
             """
         );

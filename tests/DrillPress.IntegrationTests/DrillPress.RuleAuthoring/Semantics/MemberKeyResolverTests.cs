@@ -38,7 +38,7 @@ public sealed class MemberKeyResolverTests(SdkFixture fixture) : IClassFixture<S
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var nodes = Sources.Nodes<ExpressionSyntax>().In(solution).ToArray();
+        var nodes = Code.Nodes<ExpressionSyntax>().In(solution).ToArray();
         var root = nodes.First(node => node.Syntax.ToString() == "input");
         var keyNode = nodes.First(node => node.Syntax.ToString() == key);
         var checkedNode = nodes.Last(node => node.Syntax.ToString() == access);
@@ -69,12 +69,10 @@ public sealed class MemberKeyResolverTests(SdkFixture fixture) : IClassFixture<S
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var root = Sources
-            .Nodes<IdentifierNameSyntax>()
+        var root = Code.Nodes<IdentifierNameSyntax>()
             .In(solution)
             .First(node => node.Syntax.Identifier.ValueText == "input");
-        var key = Sources
-            .Nodes<LiteralExpressionSyntax>()
+        var key = Code.Nodes<LiteralExpressionSyntax>()
             .In(solution)
             .Single(node => node.Syntax.Token.ValueText == "external");
         var mapped = new MemberKeyResolver(members: (type, _) => type.GetMembers("Name"));

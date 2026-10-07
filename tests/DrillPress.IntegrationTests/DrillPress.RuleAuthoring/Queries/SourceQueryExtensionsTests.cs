@@ -23,11 +23,11 @@ public sealed class SourceQueryExtensionsTests(SdkFixture fixture) : IClassFixtu
                 ),
             ]
         );
-        var files = Sources.Files.Where(file => file.Name.AsSpan().StartsWith("Selected"));
+        var files = Code.Files.Where(file => file.Name.AsSpan().StartsWith("Selected"));
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
 
         var nodes = files.Nodes<LiteralExpressionSyntax>().In(solution);
-        var calls = files.Invocations().In(solution);
+        var calls = files.Calls().In(solution);
         var declarations = files.Declarations().In(solution);
 
         Assert.Equal(["1"], nodes.Select(node => node.Syntax.ToString()));

@@ -14,7 +14,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
         Dictionary<ISymbol, Dictionary<string, INamedTypeSymbol>>
     > _indexes = [];
     private readonly Dictionary<
-        CodeDeclaration,
+        CodeTypeDefinition,
         IReadOnlyList<InterfaceImplementationView>
     > _matches = [];
     private long _indexEntries;
@@ -32,7 +32,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
 
     /// <summary>Returns implementations in each maximal compatible view, including test projects and abstract types. Partial and constructed generic occurrences count once per source definition and evaluated context.</summary>
     /// <remarks>Consumers choose project scope, concrete-type filters and cardinality. Alternate frameworks are kept separate; generated implementations participate. Only loaded source definitions are returned, not external metadata consumers.</remarks>
-    public IReadOnlyList<InterfaceImplementationView> In(CodeDeclaration declaration)
+    public IReadOnlyList<InterfaceImplementationView> In(CodeTypeDefinition declaration)
     {
         solution.CancellationToken.ThrowIfCancellationRequested();
         if (!_matches.TryGetValue(declaration, out var matches))
@@ -53,7 +53,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
 
     private IReadOnlyList<InterfaceImplementation> FindInView(
         AnalysisProject[] projects,
-        CodeDeclaration declaration
+        CodeTypeDefinition declaration
     )
     {
         var implementations = new Dictionary<string, InterfaceImplementation>();

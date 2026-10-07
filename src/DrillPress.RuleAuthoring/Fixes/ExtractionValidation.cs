@@ -11,7 +11,7 @@ internal static class ExtractionValidation
     internal static bool Validate(
         ExtractionPlan plan,
         RewriteContext context,
-        Func<ExtractionEvidence, ProofResult> provesBehavior
+        Func<ExtractionChange, bool> provesBehavior
     )
     {
         var destinations = context
@@ -84,7 +84,7 @@ internal static class ExtractionValidation
             && SameOtherBindings(context)
             && provesBehavior(
                 new(context, beforeOwner, afterOwner, member, plan.Reused, evidence.AsReadOnly())
-            ) == ProofResult.Proven;
+            );
     }
 
     private static List<ExpressionOccurrence>? ReadOccurrences(
