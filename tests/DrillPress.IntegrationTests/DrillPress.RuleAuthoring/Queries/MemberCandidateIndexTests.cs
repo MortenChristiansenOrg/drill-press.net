@@ -24,7 +24,7 @@ public sealed class MemberCandidateIndexTests(SemanticRuleFixture fixture)
         var empty = CodeType.Of<string>().Member("Empty").References;
         var length = CodeType.Of<string>().Member("Length").References;
         var unknown = Code.MemberReferences.Where(reference => reference.MemberName == "Value");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("A", "Empty").For(empty).Forbid();
         rules.Rule("B", "Union").For(empty.Union(length)).Forbid();
         rules
@@ -85,7 +85,7 @@ public sealed class MemberCandidateIndexTests(SemanticRuleFixture fixture)
         using var writer = new StringWriter();
         var profile = new PipelineProfile(true, writer, "rules");
         var solution = new AnalysisSolution([project], new AnalysisOptions { Profile = profile });
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("A", "First").For(CodeType.Of<string>().Member("Empty").References).Forbid();
         rules.Rule("B", "Second").For(CodeType.Of<string>().Member("Empty").References).Forbid();
 

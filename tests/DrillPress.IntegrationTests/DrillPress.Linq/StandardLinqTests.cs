@@ -48,7 +48,7 @@ public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFix
                 is LinqOperationCategory.Scalar
                     or LinqOperationCategory.Materializer
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("LINQ_FRAMEWORK", "Use a supported framework.")
             .For(

@@ -11,7 +11,7 @@ namespace DrillPress.Engine;
 public sealed class AnalysisEngine
 {
     internal BundleResponse EvaluateFixture(
-        RuleSet rules,
+        RuleCatalog rules,
         string requestId,
         IReadOnlyList<CompilationContext> contexts,
         Action<AnalysisSolution> prepare,
@@ -71,7 +71,7 @@ public sealed class AnalysisEngine
     /// <param name="snapshot">The compilation snapshot to analyze.</param>
     /// <param name="cancellationToken">Stops analysis.</param>
     public async Task<IReadOnlyList<RuleDiagnostic>> AnalyzeAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         CompilationSnapshot snapshot,
         CancellationToken cancellationToken = default
     )
@@ -115,14 +115,14 @@ public sealed class AnalysisEngine
 
     /// <summary>Evaluates each compilation independently and associates every finding with its source membership.</summary>
     public Task<BundleResponse> EvaluateAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         CompilationSnapshot snapshot,
         CancellationToken cancellationToken = default
     ) => EvaluateAsync(rules, snapshot, new AnalysisOptions(), cancellationToken);
 
     /// <summary>Evaluates a snapshot with explicit execution strategy and phase measurements.</summary>
     public async Task<BundleResponse> EvaluateAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         CompilationSnapshot snapshot,
         AnalysisOptions options,
         CancellationToken cancellationToken = default
@@ -151,7 +151,7 @@ public sealed class AnalysisEngine
 
     /// <summary>Evaluates prepared live or reconstructed contexts, enabling semantic conformance comparisons.</summary>
     public Task<BundleResponse> EvaluateAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         string requestId,
         IReadOnlyList<CompilationContext> compilations,
         CancellationToken cancellationToken = default
@@ -159,7 +159,7 @@ public sealed class AnalysisEngine
 
     /// <summary>Evaluates prepared contexts with the same options used for snapshot-based execution.</summary>
     public async Task<BundleResponse> EvaluateAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         string requestId,
         IReadOnlyList<CompilationContext> compilations,
         AnalysisOptions options,

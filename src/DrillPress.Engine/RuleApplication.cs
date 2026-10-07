@@ -27,7 +27,7 @@ public sealed class RuleApplication
     /// clean, findings, or failure exit code understood by the coordinator.
     /// </summary>
     public async Task<RuleExitCode> RunAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         string[] args,
         TextWriter? standardOutput = null,
         TextWriter? standardError = null,

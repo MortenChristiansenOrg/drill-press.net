@@ -35,7 +35,7 @@ public sealed class RuleApplicationTests
         var output = new StringWriter();
 
         var exitCode = await new RuleApplication(_fileSystem).RunAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             ["check", path],
             output,
             TextWriter.Null,
@@ -81,7 +81,7 @@ public sealed class RuleApplicationTests
         var output = new StringWriter();
 
         var exitCode = await new RuleApplication(_fileSystem).RunAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             ["check", path],
             output,
             TextWriter.Null,
@@ -116,7 +116,7 @@ public sealed class RuleApplicationTests
         var error = new StringWriter();
 
         var result = await new RuleApplication(_fileSystem).RunAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             ["check", "snapshot.json"],
             output,
             error,
@@ -137,7 +137,7 @@ public sealed class RuleApplicationTests
         var error = new StringWriter();
 
         var exitCode = await new RuleApplication(_fileSystem).RunAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             ["check"],
             TextWriter.Null,
             error,

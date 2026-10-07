@@ -38,7 +38,7 @@ public sealed class EnumerationCoverageTests
             facts.ForEnumeration(loops[1]).NotStarted();
             facts.ForEnumeration(loops[2]).Unknown(CoverageReason.UnsupportedEnumerationMapping);
         });
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ADV", "Exercise enumeration.")
             .For(Code.Enumerations)

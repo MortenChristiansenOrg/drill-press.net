@@ -45,7 +45,7 @@ public sealed class EnumerationCoverageTests : CoverageIntegrationTest
             }
             """
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ENUM", "Start enumeration.")
             .For(Code.Enumerations)

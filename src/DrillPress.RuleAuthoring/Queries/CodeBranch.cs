@@ -15,7 +15,7 @@ public sealed class CodeBranch(AnalysisSource source, StatementSyntax syntax) : 
     public bool HasBraces => Syntax is BlockSyntax;
 
     /// <summary>Whether an else branch continues an else-if chain.</summary>
-    public bool IsElseIf => Syntax is IfStatementSyntax;
+    public bool IsElseIf => Syntax is IfStatementSyntax { Parent: ElseClauseSyntax };
 
     /// <summary>The complete statement span.</summary>
     public SourceLocation Location => Source.Locate(Syntax.Span);

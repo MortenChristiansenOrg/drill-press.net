@@ -432,4 +432,37 @@ public sealed class InvocationQueriesTests(SdkFixture fixture) : IClassFixture<S
 
         Assert.Equal(["First:object:True"], values);
     }
+
+    [Fact]
+    public async Task Omitted_default_arguments_report_at_their_call()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Calls",
+            [
+                new(
+                    "Calls.cs",
+                    "class C\n{\n    void Send(int timeout = -1) { }\n\n    void M()\n    {\n        Send();\n        Send(timeout: -1);\n        Send(5);\n    }\n}\n"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("TIMEOUT", "Pass a bounded timeout.")
+            .For(Code.Calls.ToMethodsNamed("Send").ArgumentsFor("timeout"))
+            .Require(argument => !argument.Is(-1));
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            TIMEOUT Pass a bounded timeout.
+            Calls.cs
+              7:9
+              8:23
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+    }
 }

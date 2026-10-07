@@ -56,7 +56,7 @@ public sealed class CoverageProcessTests : IntegrationTest
             FileSystem,
             CreateTemporaryDirectory("drillpress-coverage-cache-").FullName
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COV001", "Exercise file.")
             .For(Code.Files)

@@ -51,8 +51,10 @@ for Release builds, managed/native execution, all target shapes, and the
 
 Writing your own conventions? Start with the [rule author’s manual](user-docs/index.html).
 Open `user-docs/index.html` in a browser for the searchable, offline HTML guide,
-including examples, an API field guide, and light/dark themes. Repository
-maintenance and acceptance-gate documentation remains in `docs/`.
+including examples, an API field guide, and light/dark themes. Coding agents can
+install the bundled [rule-authoring skill](docs/AGENT_SKILL.md) to write rules,
+fixes and tests without online documentation. Repository maintenance and
+acceptance-gate documentation remains in `docs/`.
 
 Install Git and a .NET 10 SDK, then clone and build the repository. A specific
 SDK patch or feature-band build is not required; see [global.json](global.json)
@@ -241,8 +243,8 @@ the single `DrillPress` namespace, including queries, semantic facts and fix bui
 The base rules SDK contains general analysis, query, diagnostic, and edit APIs.
 The xUnit layout, single-implementation interface, empty-string, ordinal-comparer,
 and implicit-accessibility conventions belong entirely to the sample bundle.
-See the [policy helper migration guide](docs/SDK_CAPABILITIES.md#migrating-policy-helpers-out-of-the-sdk)
-when updating an earlier consumer.
+See the [API migration guide](docs/API_MIGRATION.md) when updating an earlier
+consumer.
 
 Optional maintained LINQ declaration categories and sequence input roles are
 available in `DrillPress.Linq`; see [the catalogue](docs/LINQ_CATALOGUE.md).

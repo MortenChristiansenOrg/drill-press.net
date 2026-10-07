@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace DrillPress;
 
@@ -47,6 +48,28 @@ public static class DeclarationQueries
         CodeType attribute,
         Func<CodeAttribute, bool> where
     ) => declaration.Attributes().Any(applied => applied.Matches(attribute) && where(applied));
+
+    /// <summary>Whether a <c>///</c> or <c>/** */</c> documentation comment precedes the written declaration; any documented part counts for a partial type definition.</summary>
+    public static bool HasDocumentationComment(this ICodeDeclaration declaration) =>
+        declaration is CodeTypeDefinition type
+            ? type.Symbol.DeclaringSyntaxReferences.Any(reference =>
+                DeclarationSyntax.HasDocumentation(
+                    reference.GetSyntax(type.Source.Project.CancellationToken)
+                )
+            )
+            : DeclarationSyntax.Owner(declaration) is { } syntax
+                && DeclarationSyntax.HasDocumentation(syntax);
+
+    /// <summary>The written modifier token, for reporting at it with <c>ReportAt</c>; <c>default</c> when this declaration's own syntax does not contain it. A partial type definition searches the part at its location.</summary>
+    public static SyntaxToken ExplicitModifier(
+        this ICodeDeclaration declaration,
+        Modifier modifier
+    ) =>
+        DeclarationSyntax.Owner(declaration) is { } syntax
+            ? DeclarationSyntax
+                .Modifiers(syntax)
+                .FirstOrDefault(token => token.IsKind((SyntaxKind)modifier))
+            : default;
 
     /// <summary>Selects declarations with any of the exact ordinal names.</summary>
     public static CodeQuery<T> Named<T>(this CodeQuery<T> declarations, params string[] names)

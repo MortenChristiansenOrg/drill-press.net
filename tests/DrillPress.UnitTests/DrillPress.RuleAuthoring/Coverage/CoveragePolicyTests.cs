@@ -131,7 +131,7 @@ public sealed class CoveragePolicyTests
                 CoverageReason.UnsupportedExpressionMapping
             );
         var calls = Code.Calls.Where(call => call.Target.Name == "Choose");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("FAIL", "Verify both requirements.")
             .For(calls)
@@ -156,7 +156,7 @@ public sealed class CoveragePolicyTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.Fail = true;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("CALL", "Verify execution.")
             .For(Code.Calls)
@@ -190,9 +190,9 @@ public sealed class CoveragePolicyTests
         Assert.Equal("reasons", absent.ParamName);
     }
 
-    private static RuleSet Rules(CoverageRequirement requirement)
+    private static RuleCatalog Rules(CoverageRequirement requirement)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("CALL", "Calls require verified execution.")
             .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Skip" or "Choose"))
@@ -214,7 +214,7 @@ public sealed class CoveragePolicyTests
                 .ForCall("Calls.cs", "Choose()")
                 .Executed()
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("CALL", "Verify execution.")
             .For(Code.Calls.Where(call => call.Target.Name is "Hit" or "Skip" or "Choose"))

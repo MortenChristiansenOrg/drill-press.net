@@ -8,7 +8,7 @@ public sealed class RuleDefinitionTests
     [Fact]
     public void Typed_clauses_share_the_exact_descriptor_and_return_the_rule()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var descriptor = new RuleDescriptor("SHARED", "Use descriptive names.")
         {
             FixComplexity = RuleFixComplexity.Local,
@@ -36,7 +36,7 @@ public sealed class RuleDefinitionTests
     [InlineData("Different message.")]
     public void Another_rule_cannot_reuse_a_reserved_identity(string message)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("SHARED", "Same message.");
 
         var error = Assert.Throws<InvalidOperationException>(() => rules.Rule("SHARED", message));
@@ -47,7 +47,7 @@ public sealed class RuleDefinitionTests
     [Fact]
     public void A_descriptor_cannot_reuse_a_reserved_identity()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("SHARED", "Same message.").For(Code.MemberReferences).Forbid();
 
         var error = Assert.Throws<InvalidOperationException>(() =>
@@ -60,7 +60,7 @@ public sealed class RuleDefinitionTests
     [Fact]
     public void Invalid_shared_fix_effort_is_rejected_before_any_clause_is_registered()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
 
         var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
             rules.Rule("SHARED", "Message.", (RuleFixComplexity)99)

@@ -15,78 +15,80 @@ see [conditions and type graphs](CONDITIONS_AND_TYPES.md).
 
 ## Where changes belong
 
-The `DrillPress.RuleAuthoring` project is organized by responsibility. Except
-for the small `DrillPress` rule/query facade, folder names match namespaces.
+The `DrillPress.RuleAuthoring` project is organized by responsibility. Every
+public type lives in the `DrillPress` namespace, and `Code` is the single
+discovery root.
 
-| Folder / namespace | Responsibility |
+| Folder | Responsibility |
 | --- | --- |
-| `Rules` / `DrillPress` | Registration, Boolean conditions, diagnostics and candidate contracts |
-| `Queries` | Lazy query composition, source files, syntax nodes and anchored custom results; `CodeQuery` and predicate extensions remain in `DrillPress` |
-| `Analysis` | Solution, project, source, method and named-type views |
-| `Semantics` | Type/member identities, attributes, declarations and references |
-| `Operations` | Compiler operations, invocations and argument mapping |
+| `Rules` | Registration, clauses, Boolean conditions, diagnostics and element contracts |
+| `Queries` | Lazy query composition, files, syntax nodes, scopes, statements, comments and type traversal |
+| `Analysis` | Solution, project, source, type, method, field, property and parameter views |
+| `Semantics` | Type/member identities, attributes, declared symbols, member and type references |
+| `Operations` | Compiler operations, calls, object creations, arguments and null checks |
 | `Flow` | Method-local CFG, data flow and nullable state |
 | `Relationships` | Source inheritance, declaration ownership and bound invocation paths |
-| `Projects` | Evaluated project roles, packages and compatible source graphs |
+| `Projects` | Compatible source graphs |
 | `Facts` | Consumer facts cached per solution or evaluated project |
-| `Collections` | Inventory comparison and repeated token shapes |
+| `Collections` | Inventory comparison, expression groups and repeated token shapes |
 | `Configuration` | Immutable API sets and path patterns |
 | `Baselines` | Accepted .NET source state and symbol comparisons |
-| `Fixes` | Edit construction and contextual compiler proofs |
+| `Fixes` | Typed edit builders and contextual compiler proofs |
 
 `DrillPress.Testing` is a separate consumer test-kit project using the
 `DrillPress.Testing` namespace. It references the production evaluator and
-validator. Test projects mirror the production folders. This is a source-level
-SDK change: earlier bundles must update imports for types moved out of the
-root namespace. XML documentation is generated for authoring and testing APIs.
+validator. Test projects mirror the production folders. XML documentation is
+generated for authoring and testing APIs.
 
 ## Reading and writing rules
 
 ```csharp
 using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var adapters = new PathPattern("**/Tracing/*.cs");
 var consoleOutput = CodeType.Named("System.Console").Member("WriteLine");
 
-rules.For(OperationQueries.Invocations.Where(call => call.Calls(consoleOutput)))
-    .Require(call => adapters.Matches(call.Source.Document.Path),
-        "TEAM001", "Keep console output in the Tracing adapter.");
+rules.Rule("TEAM001", "Keep console output in the Tracing adapter.")
+    .For(Code.Calls.To(consoleOutput))
+    .Require(call => adapters.Matches(call.Source.Document.Path));
 ```
 
 `Forbid` reports selected candidates. `Require` reports candidates failing its
-predicate. Both accept exact location selectors and optional fix factories.
-`Where` and `ExceptWhen` accept lambdas or reusable `RuleCondition<T>` objects.
-Named conditions retain `And`, `Or`, `Not` and short-circuit evaluation.
+predicate. `ReportAt` chooses a precise reported span and `fix:` supplies an
+optional correction. `Where` and `ExceptWhen` accept lambdas or reusable
+`RuleCondition<T>` objects. Named conditions retain `And`, `Or`, `Not` and
+short-circuit evaluation.
 
-Use `files.Invocations()`, `files.Declarations()` or `files.Nodes<TSyntax>()`
-when a policy applies to a small file scope. This avoids binding unrelated
-projects. Paths are case-sensitive; `PathPattern` matches the entire supplied
-path, normalizes slashes, and supports `*`, `?`, `**` and optional directories
-with `**/`. It does not guess a repository root or access the filesystem.
+Use `files.Calls()`, `files.Declarations()`, `files.Operations<T>()` or
+`files.Nodes<TSyntax>()` when a policy applies to a small file scope. This avoids
+binding unrelated projects. Paths are case-sensitive; `PathPattern` matches the
+entire supplied path, normalizes slashes, and supports `*`, `?`, `**` and optional
+directories with `**/`. It does not guess a repository root or access the filesystem.
 
-`Sources.Files`, `Sources.Projects`, `Sources.Nodes<TSyntax>()`,
-`Sources.Attributes`, `SymbolQueries.Declarations`, `SymbolQueries.References`,
-`OperationQueries.Of<TOperation>()` and the existing `Code` roots share one
-analysis. Declarations include fields, properties, events, parameters, locals
-and partial occurrences. References select resolved simple names; implicit
-uses belong to operation queries. `Code.Types` continues to deduplicate partial
-named types within each evaluated context.
+`Code.Files`, `Code.Projects`, `Code.Nodes<TSyntax>()`, `Code.Declarations`,
+`Code.ReferencesTo(symbol)`, `Code.Operations<TOperation>()` and the typed roots
+share one analysis. Declarations include fields, properties, events, parameters,
+locals and partial occurrences. References select resolved simple names; implicit
+uses belong to operation queries. `Code.Types` deduplicates partial named types
+within each evaluated context.
 
 `CodeNode` exposes its original syntax, compiler operation, constant and nullable
-type information. `CodeInvocation` exposes the chosen overload, receiver and
+type information; `node.AsExpression()` turns an expression node into a
+`CodeExpression`. `CodeInvocation` exposes the chosen overload, receiver and
 `Argument("parameterName")`, including named arguments and implicit defaults.
 `CodeType.Member(name)` creates a member on that declaring type. Its `References`
 query selects fields, properties or method references, including aliases and
 static imports, while retaining the engine's name-based discovery optimization.
 For example, `CodeType.Of<string>().Member(nameof(string.Empty)).References`
-is ready to pass to `rules.For(...)`.
+is ready to pass to `For(...)`. `CodeType.References` selects every written
+reference to a type, with the same name-based optimization.
 
 `member.WithParameters(CodeType.Of<string>())` selects an exact method overload;
 `member.WithParameters()` selects only the parameterless overload. Omitting
 parameter selection matches all overloads. The original descriptor is unchanged.
-The constructor and `type.Member(name, parameters)` remain available. `CodeType`
-supports assembly qualification, constructed generic identities and arrays.
+`CodeType.Constructor(...)` describes constructors. `CodeType` supports assembly
+qualification, constructed generic identities and arrays.
 For open generics, prefer `CodeType.Named("System.Buffers.ArrayPool<>")` or
 `CodeType.Named("System.Collections.Generic.Dictionary<,>")`. Empty slots
 normalize to CLR metadata arity (`ArrayPool` followed by a backtick and `1`,
@@ -104,10 +106,10 @@ hatches for policies requiring compiler detail.
 
 ```csharp
 var sleep = CodeType.Named("System.Threading.Thread").Member("Sleep");
-var blockingAsyncMethods = Code.Methods.Where(method => method.IsAsync && method.Reaches(sleep));
 
-rules.For(blockingAsyncMethods)
-    .Forbid("TEAM002", "Keep blocking sleeps out of asynchronous call paths.");
+rules.Rule("TEAM002", "Keep blocking sleeps out of asynchronous call paths.")
+    .For(Code.Methods.Where(method => method.IsAsync && method.Reaches(sleep)))
+    .Forbid();
 ```
 
 Start from the object whose information you need: `method.Flow` gives its cached
@@ -117,9 +119,9 @@ solution-wide analysis. These are entry points into the existing analysis, not
 separate caches or alternate matching semantics.
 
 `CodeQuery<T>.Create` is the public extension point. A query can `Select`,
-`SelectMany`, `Join` or `WithoutMatching` another query and can be read with
-`In(solution)`. Each query instance has one materialized result per analysis;
-custom roots are shared across derived selections. Enumeration observes
+`SelectMany`, `Join`, `Union`, `Concat` or `WithoutMatching` another query and can
+be read with `In(solution)`. Each query instance has one materialized result per
+analysis; custom roots are shared across derived selections. Enumeration observes
 cancellation. Keep selectors and conditions pure, and retain the query instance
 when sharing it across rules.
 
@@ -133,31 +135,33 @@ sequentially; arbitrary parallel access to all Roslyn wrappers and relationship
 indexes is not a supported execution model.
 
 ```csharp
-var codecs = Code.Types.Where(type => type.Implements(codecContract));
-var roundTrips = Code.Methods.Where(method => method.Source.Project.IsTestProject);
+var codecs = Code.Types.ImplementingInterface(codecContract);
+var roundTrips = Code.TestMethods.NameMatching("*RoundTrip");
 
-rules.For(codecs.WithoutMatching(roundTrips,
+rules.Rule("TEAM003", "Provide a round-trip example for each codec.")
+    .For(codecs.WithoutMatching(roundTrips,
         codec => (codec.Name + "RoundTrip", codec.Source.Project.TargetFramework),
         method => (method.Name, method.Source.Project.TargetFramework)))
-    .Forbid("TEAM003", "Provide a round-trip example for each codec.");
+    .Forbid();
 ```
 
 Keys are explicit policy: include framework, namespace, ownership or project
 identity as required. For dependency-sensitive matching, use the predicate
 overload and `solution.ProjectGraph.Includes(consumer, owner)`, as the complete showcase
 does. `CompatibleViewsOf` retains separate alternative evaluations. A missing
-counterpart is reported on its existing owner. Use `.At(result => result.Owner)`
-to anchor a custom fact or joined tuple. Project-only requirements likewise need
-an existing ordinary source anchor; diagnostics on absent files or empty
-projects are not represented by the current source diagnostic protocol.
+counterpart is reported on its existing owner. Use `.ReportAt(result => result.Owner)`
+to report a custom fact or joined tuple at an existing element. Project-only
+requirements report at the project's first ordinary source file; diagnostics on
+absent files or empty projects are not represented by the current source
+diagnostic protocol.
 
 ## Analysis boundaries
 
 | Capability | Implemented contract | Deliberate boundary |
 | --- | --- | --- |
 | Syntax and trivia | Original Roslyn syntax/text, paths, modifiers, comments, generated classification, precise spans | No universal primary-type or human-quality judgment |
-| Semantics | Resolved identities, attributes, generic definitions, conversions, constants, overloads and nullable state | Ambiguous bindings are never guessed |
-| Operations and flow | Cached operation roots, compiler CFG/data-flow sets, nullable flow at an expression | No interprocedural alias, transaction, token-provenance or general behavioral-equivalence engine |
+| Semantics | Resolved identities, attributes, generic definitions, conversions, constants, overloads, type references and nullable state | Ambiguous bindings are never guessed |
+| Operations and flow | Cached operation roots, calls, object creations, compiler CFG/data-flow sets, nullable flow at an expression | No interprocedural alias, transaction, token-provenance or general behavioral-equivalence engine |
 | Relationships | Inheritance, source ownership, references, callers and bound invocation paths, generated call bodies included | Paths follow invocation targets; constructor/property/event edges, dynamic dispatch, reflection, delegate dispatch (including lambda bodies) and DI resolution are not inferred |
 | Project facts | Context identity, test classification, source edges, TFM, nullable/compiler settings, direct packages including central versions, source-root items and selected policy properties | No transitive package inventory or indiscriminate export of environment/MSBuild properties |
 | Baselines | Added/modified source, previous accessibility, changed declarations including partials, using accepted analyses | No Git integration, rename detection, migration deployment state or baseline CLI transport |
@@ -165,11 +169,11 @@ projects are not represented by the current source diagnostic protocol.
 | Sets and duplicates | Keyed comparisons and exact repeated token shapes ignoring trivia | No semantic clone detector; repeated syntax does not prove equivalent behavior |
 | Requirements | Joins, contextual absence checks and source-anchored missing counterparts | Consumers supply ownership and naming policy |
 | Facts | Lazy values per analysis or evaluated project, composable with built-in queries | Cache identity is the fact instance; values are not serialized |
-| Fixes | Multi-file text batches, caller-supplied semantic proof, compiler checks and binding helpers | No file create/delete/move or solution-wide rename/inlining refactoring engine |
-| Consumer tests | Explicit references or runtime defaults, multiple projects/contexts, generated source, exact findings, fixed text and withheld fixes | Framework labels do not select reference packs; no OS file writes or target builds |
+| Fixes | Multi-file text batches, typed builders, caller-supplied semantic proof, compiler checks and binding helpers | No file create/delete/move or solution-wide rename/inlining refactoring engine |
+| Consumer tests | Explicit references or runtime defaults, multiple projects/contexts, generated source, exact findings, CLI-format output, fixed text and withheld fixes | Framework labels do not select reference packs; no OS file writes or target builds |
 
 Generated sources contribute compiler semantics and can be inspected through
-`Sources.FilesIncludingGenerated`; reporting candidates normally exclude them.
+`Code.FilesIncludingGenerated`; reporting candidates normally exclude them.
 The evaluator also suppresses custom candidates anchored to generated source.
 Linked files remain separate memberships until final physical aggregation.
 Alternate frameworks use separate compilations, symbols and caches. Compare
@@ -181,6 +185,9 @@ runtime execution cannot reach the API.
 
 ## Safe corrections
 
+Typed builders from `Fix.For(...)` cover expression replacement, argument and
+modifier removal, braces, comments, `var` and extraction; see the
+[fix contracts](RULE_AUTHORING.md#fix-contracts). For hand-built edits,
 `SourceChanges.Replace` constructs an exact original-text/fingerprint edit.
 `SourceChanges.Propose` takes a complete batch and a required
 `Func<RewriteContext, bool>` proof. It checks source eligibility, inactive text,
@@ -211,11 +218,20 @@ var workspace = new RuleTestWorkspace();
 workspace.AddProject("Example", [new TestSource("Example.cs", sourceText)]);
 var result = await workspace.CheckAsync(rules, cancellationToken);
 
-Assert.Equal(expectedFindings, result.Findings);
+Assert.Equal(
+    """
+    TEAM001 Use the application logger instead of Console.WriteLine.
+    Example.cs
+      3:26
+
+    """,
+    result.Output);
 Assert.Equal(expectedSource, result.FixedText("Example.cs"));
 ```
 
-`TestFinding` contains rule ID, path, exact line/column/text, `HasFix`, readable
+`Output` renders findings exactly as the CLI prints them, with `+` marking a
+validated fix; assert the complete value. `Findings` contains `TestFinding`
+records with rule ID, path, exact line/column/text, `HasFix`, readable
 `Evidence`, and typed `Coverage` facts. [Synthetic coverage fixtures](COVERAGE.md#synthetic-rule-policy-fixtures)
 support deterministic coverage-policy tests without a collector.
 The test kit runs the production evaluator and validator, so withheld fixes are
@@ -254,46 +270,46 @@ These helpers compose the existing SDK; they are sample-specific vocabulary, not
 another rule engine or a new public SDK API. For example:
 
 ```csharp
-rules.For(code.Calls.Where(CodecBehavior.WritesToConsole))
-    .Require(CodecBehavior.IsInTracingAdapter,
-        "SDK2002", "Keep console output in the Tracing adapter.");
+rules.Rule("SDK2002", "Keep console output in the Tracing adapter.")
+    .For(code.Calls.To(CodecBehavior.ConsoleWriteLine))
+    .Require(CodecBehavior.IsInTracingAdapter);
 
-rules.For(code.TextCodecs.WithoutMatching(examples.RoundTripTests, examples.IsRoundTripTestFor))
-    .Forbid("SDK2004", "Provide an xUnit <CodecName>RoundTrip test for each text codec.");
+rules.Rule("SDK2004", "Provide an xUnit <CodecName>RoundTrip test for each text codec.")
+    .For(code.TextCodecs.WithoutMatching(examples.RoundTripTests, examples.IsRoundTripTestFor))
+    .Forbid();
 ```
 
 The showcase's production call policies exclude test setup. Round-trip coverage
-requires genuine xUnit Fact/Theory methods for concrete production codecs in a compatible test project, using
-the explicit `<CodecName>RoundTrip` naming convention; this checks discoverable
-coverage, not whether the assertions prove correctness. The buffer policy flags
-captured locals initialized directly by `ArrayPool<T>.Rent`, independently of
-variable names. It deliberately prohibits all such captures, even callbacks
-invoked before `Return`; it does not infer aliases, escaping delegates or lease
-lifetimes. The runnable `PooledUtf8Decoder` shows why that ownership convention
-is useful. Inventory and duplicate-example policies remain explicit team
-conventions, not general claims that all duplication is harmful.
+requires discovered test methods for concrete production codecs in a compatible
+test project, using the explicit `<CodecName>RoundTrip` naming convention; this
+checks discoverable coverage, not whether the assertions prove correctness. The
+buffer policy flags captured locals initialized directly by `ArrayPool<T>.Rent`,
+independently of variable names. It deliberately prohibits all such captures,
+even callbacks invoked before `Return`; it does not infer aliases, escaping
+delegates or lease lifetimes. The runnable `PooledUtf8Decoder` shows why that
+ownership convention is useful. Inventory and duplicate-example policies remain
+explicit team conventions, not general claims that all duplication is harmful.
 
-## Migrating policy helpers out of the SDK
+## Policy helpers belong to consumers
 
-This is a breaking alpha API change. `XunitTests`, `TestBody`, `TestAssertion`,
-`CodeMethod.Body`, `EmptyStringFix`, `OrdinalComparerFix`, and `ModifierFix`
-are no longer SDK APIs. The examples live under `samples/DrillPress.SampleRules`
-in its `Testing` and `Fixes` namespaces. They are consumer implementations,
-not an additional dependency or automatic convention set. Use semantic attributes,
-`CodeMethod.Syntax`, compiler operations, and custom query/fact composition to
-implement the policy your bundle needs. The separate `DrillPress.Testing`
-consumer test kit remains available.
+The SDK supplies analysis primitives, not repository conventions. Test layout,
+the single-implementation interface rule, empty-string and comparer preferences
+and implicit accessibility live in `samples/DrillPress.SampleRules`. Use semantic
+attributes, `Code.TestMethods`, compiler operations, and custom query/fact
+composition to implement the policy your bundle needs. The separate
+`DrillPress.Testing` consumer test kit remains available.
 
-Replace `solution.Implementations.HasExactlyOne(type)` with
-`solution.Implementations.In(type)`. Each `InterfaceImplementationView` contains
+`solution.Implementations.In(type)` returns each compatible view with its
 `Projects` and `Implementations`; each implementation exposes `Project` and
 `Symbol`. Results include test projects, abstract types, derived interfaces, and
-generated definitions. Filter these explicitly, then choose a count or other
-condition within each compatible view. Partial and constructed generic occurrences
-are deduplicated by source definition and context. Alternate evaluations remain
-separate; unloaded external consumers are not inferred. Discovery is cached and
-uses the existing indexed path when optimizations are enabled.
+generated definitions. `Code.Interfaces.ImplementationViews().IgnoringTestProjects()
+.ConcreteOnly().WithExactlyOneImplementation()` filters those views and requires
+exactly one implementation in every view. Partial and constructed generic
+occurrences are deduplicated by source definition and context. Alternate
+evaluations remain separate; unloaded external consumers are not inferred.
+Discovery is cached and uses the existing indexed path when optimizations are
+enabled.
 
-The shared binding proof no longer has a special exception for the
-`Distinct<string>` overload pair. Consumers that intentionally change an overload
-must supply and test their own behavioral proof through `SourceChanges.Propose`.
+The shared binding proof has no special exception for the `Distinct<string>`
+overload pair. Consumers that intentionally change an overload declare it with
+`ExpectOverloadChange` and supply their own behavioral proof.

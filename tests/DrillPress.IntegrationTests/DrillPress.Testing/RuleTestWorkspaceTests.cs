@@ -94,7 +94,7 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
             ]
         );
         var empty = CodeType.Of<string>().Member(nameof(string.Empty));
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EMPTY", "Use \"\" instead of string.Empty.")
             .For(empty.References)
@@ -171,7 +171,7 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
             symbols: ["FEATURE"]
         );
         workspace.AddProject("Library", [source], framework: "net10.0");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var allFiles = CodeQuery<CodeFile>.Create(solution =>
             solution
                 .Projects.SelectMany(project => project.Sources)
@@ -205,7 +205,7 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { int M() => 1; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var literals = Code.Nodes<LiteralExpressionSyntax>();
         rules
             .Rule("FIRST", "Use two.")

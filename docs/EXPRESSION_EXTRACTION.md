@@ -1,30 +1,31 @@
 # Selected expression grouping and extraction
 
-Use `ExpressionGroups` with an ordinary `CodeQuery<CodeExpression>` selecting the
-sites your rule owns. The SDK groups only those inputs; it does not search for
-additional occurrences or impose route, naming, or request-API policy.
+Call `ConstantGroups()` or `TemplateGroups(options)` on an ordinary
+`CodeQuery<CodeExpression>` selecting the sites your rule owns. The SDK groups
+only those inputs; it does not search for additional occurrences or impose
+route, naming, or request-API policy.
 
 ```csharp
-var constants = ExpressionGroups.Constants(selectedExpressions);
-var templates = ExpressionGroups.OneHoleTemplates(selectedExpressions,
+var constants = selectedExpressions.ConstantGroups();
+var templates = selectedExpressions.TemplateGroups(
     new OneHoleTemplateOptions(
         TemplateShapes.Interpolation | TemplateShapes.Concatenation,
         capture => capture.TypeIs(CodeType.Of<string>()),
         new ApiSet(configuredEncoder)));
 
-rules.For(constants).Forbid("CONSTANT", "Extract the repeated value.",
-    fix: group => Fix.Extract(group)
-        .ToConstant("SharedValue")
-        .Propose(ProveConstantExtraction));
+rules.Rule("CONSTANT", "Extract the repeated value.")
+    .For(constants)
+    .Forbid(fix: group => Fix.Extract(group).ToConstant("SharedValue").Propose());
 
-rules.For(templates).Forbid("TEMPLATE", "Extract the repeated template.",
-    fix: group => Fix.Extract(group)
+rules.Rule("TEMPLATE", "Extract the repeated template.")
+    .For(templates)
+    .Forbid(fix: group => Fix.Extract(group)
         .ToMethod("FormatValue", parameterName: "value")
-        .Propose(ProveHelperExtraction));
+        .SafeWhen(ProveHelperExtraction));
 ```
 
-The named proof functions return `ProofResult` from `ExtractionChange`; only
-`Proven` permits a fix. Grouping is candidate discovery, not behavioral proof.
+`ProveHelperExtraction` receives an `ExtractionChange` and returns a Boolean;
+false withholds the fix. Grouping is candidate discovery, not behavioral proof.
 
 ## Candidate equivalence
 
@@ -119,6 +120,6 @@ missing or invalid names fall back to `value`; an explicit string name overrides
 this policy.
 
 Constant groups support `Fix.Extract(group).ToConstant("_url").Propose()` under
-the library's restricted constant proof. Templates still require `SafeWhen` or
-an explicit `Propose` proof. Attaching the same extraction to every occurrence
+the library's restricted constant proof. Templates still require `SafeWhen`.
+Attaching the same extraction to every occurrence
 produces one deduplicated atomic edit batch.

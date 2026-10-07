@@ -71,7 +71,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract the configured template.")
             .For(
@@ -171,7 +171,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             ]
         );
         var query = Selected().ConstantGroups();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract.")
             .For(query)
@@ -223,7 +223,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract.")
             .For(Selected().ConstantGroups())
@@ -272,7 +272,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             "class A { static void Use(string value) {} void M() { Use(\"/x\"); Use(\"/x\"); }}";
         workspace.AddProject("First", [new("A.cs", source)]);
         workspace.AddProject("Second", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract.")
             .For(
@@ -314,7 +314,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
                 new("Second.cs", "partial class A { const string Value = \"second\"; }"),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract.")
             .For(
@@ -383,7 +383,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract.")
             .For(
@@ -449,9 +449,9 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
             )
             .Select(node => new CodeExpression(node.Source, node.Syntax.Expression));
 
-    private static RuleSet Constants(ProofResult behavior = ProofResult.Proven)
+    private static RuleCatalog Constants(ProofResult behavior = ProofResult.Proven)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EXTRACT", "Extract the constant.")
             .For(Selected().ConstantGroups())

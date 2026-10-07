@@ -12,7 +12,7 @@ public sealed class CoveragePlanningTests
     public async Task Shared_explicit_collection_scope_survives_clause_reporting_configuration()
     {
         var fixture = new CoverageFixture();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("SHARED", "Selected covered call.");
         policy
             .For(
@@ -42,7 +42,7 @@ public sealed class CoveragePlanningTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.Fail = true;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("SHARED", "Exercise selected queries.");
         policy
             .For(Code.Calls.ToMethodsNamed("Missing").Expressions())
@@ -85,7 +85,7 @@ public sealed class CoveragePlanningTests
         fixture.FileSystem.AddFile(unrelated.ProjectPath, new MockFileData("<Project />"));
         fixture.FileSystem.AddFile(unrelatedPath, new MockFileData(unrelatedText));
         var snapshot = CompilationSnapshot.Create([target, unrelated]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("SHARED", "Exercise selected queries.");
         policy
             .For(Code.Calls.ToMethodsNamed("Hit").Expressions())
@@ -111,7 +111,7 @@ public sealed class CoveragePlanningTests
         var hits = Code.Calls.Where(call => call.Target.Name == "Hit");
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
         var counterparts = hits.Where(executed).Select(call => call);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERAGE", "Exercise call.")
             .For(
@@ -141,7 +141,7 @@ public sealed class CoveragePlanningTests
         fixture.Process.State = "no";
         var hits = Code.Calls.Where(call => call.Target.Name == "Hit");
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERAGE", "Exercise call.")
             .For(
@@ -172,7 +172,7 @@ public sealed class CoveragePlanningTests
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
         var counterparts = hits.Where(new RuleCondition<CodeInvocation>(_ => true).Or(executed))
             .Select(call => call);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("KEY", "Exercise call.")
             .For(hits.WithoutMatching(counterparts, call => call.Location, call => call.Location))
@@ -204,7 +204,7 @@ public sealed class CoveragePlanningTests
             call => call.Location,
             call => call.Location
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("UNMATCHED", "Unexpected unmatched call.")
             .For(hits.WithoutMatching(uncertain, (left, right) => left.Location == right.Location))
@@ -223,7 +223,7 @@ public sealed class CoveragePlanningTests
     {
         var fixture = new CoverageFixture();
         fixture.Process.Fail = true;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERAGE", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name == "Missing"))
@@ -245,7 +245,7 @@ public sealed class CoveragePlanningTests
     public async Task A_project_outside_the_selected_project_scope_launches_no_coverage_processes()
     {
         var fixture = new CoverageFixture();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERAGE", "Exercise call.")
             .For(Code.Calls.InProject("Product.Data"))
@@ -285,7 +285,7 @@ public sealed class CoveragePlanningTests
         fixture.FileSystem.AddFile(otherPath, new MockFileData("<Project />"));
         fixture.FileSystem.AddFile(otherSource, new MockFileData(CoverageFixture.Source));
         var snapshot = CompilationSnapshot.Create(target, other);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERAGE", "Exercise call.")
             .For(Code.Calls.InProject(target.Name).Where(call => call.Target.Name == "Hit"))
@@ -315,7 +315,7 @@ public sealed class CoveragePlanningTests
             .Select(call => call)
             .Union(Code.Calls.Where(new RuleCondition<CodeInvocation>(call => false).And(executed)))
             .Select(call => (Call: call, call.Target.Name));
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERED", "Selected covered call.")
             .For(covered)
@@ -335,7 +335,7 @@ public sealed class CoveragePlanningTests
     {
         var fixture = new CoverageFixture();
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("SELECTED", "Selected call.")
             .For(
@@ -359,7 +359,7 @@ public sealed class CoveragePlanningTests
     public async Task Explicit_collection_scope_supports_custom_callbacks_that_read_coverage()
     {
         var fixture = new CoverageFixture();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COVERED", "Selected covered call.")
             .For(
@@ -387,7 +387,7 @@ public sealed class CoveragePlanningTests
     public async Task Project_line_requirements_collect_for_their_selected_context()
     {
         var fixture = new CoverageFixture();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("LINES", "Exercise project.")
             .For(Code.Projects)
@@ -405,7 +405,7 @@ public sealed class CoveragePlanningTests
     public async Task File_line_requirements_collect_for_their_selected_context()
     {
         var fixture = new CoverageFixture();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("LINES", "Exercise file.")
             .For(Code.Files)
@@ -423,7 +423,7 @@ public sealed class CoveragePlanningTests
     public async Task Method_line_requirements_collect_for_their_selected_context()
     {
         var fixture = new CoverageFixture();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("LINES", "Exercise method.")
             .For(Code.Methods.Where(method => method.Name == "Run"))

@@ -144,7 +144,7 @@ public sealed class RuleTestWorkspace
 
     /// <summary>Runs the production evaluator and response validator, including cross-context safety and conflict withholding.</summary>
     public Task<RuleTestResult> CheckAsync(
-        RuleSet rules,
+        RuleCatalog rules,
         CancellationToken cancellationToken = default
     )
     {

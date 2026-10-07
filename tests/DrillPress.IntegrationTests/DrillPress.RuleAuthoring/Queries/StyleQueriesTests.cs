@@ -77,7 +77,7 @@ public sealed class StyleQueriesTests(SdkFixture fixture) : IClassFixture<SdkFix
     }
 
     [Fact]
-    public async Task Branches_expose_else_if_and_add_braces_without_recomputing_syntax()
+    public async Task Inconsistent_branches_expose_else_if_and_add_braces_without_recomputing_syntax()
     {
         var workspace = fixture.Workspace();
         workspace.AddProject(
@@ -89,16 +89,16 @@ public sealed class StyleQueriesTests(SdkFixture fixture) : IClassFixture<SdkFix
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("BRACES", "Add braces.")
             .For(
                 Code.IfStatements.WithElse()
-                    .Where(statement => statement.BranchWithoutBraces is not null)
+                    .Where(statement => statement.InconsistentlyBracedBranch is not null)
             )
-            .ReportAt(statement => statement.BranchWithoutBraces!)
+            .ReportAt(statement => statement.InconsistentlyBracedBranch!)
             .Forbid(fix: statement =>
-                Fix.For(statement.BranchWithoutBraces!).AddBraces().Propose()
+                Fix.For(statement.InconsistentlyBracedBranch!).AddBraces().Propose()
             );
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
@@ -121,5 +121,39 @@ public sealed class StyleQueriesTests(SdkFixture fixture) : IClassFixture<SdkFix
             result.FixedText("B.cs")
         );
         Assert.Equal([false, true], elseKinds);
+    }
+
+    [Fact]
+    public async Task Every_unbraced_branch_is_selected_except_else_if_continuations()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Branches",
+            [
+                new(
+                    "B.cs",
+                    "class C\n{\n    void M(bool a, bool b)\n    {\n        if (a)\n            if (b)\n                M(b, a);\n        if (a) { } else if (b) M(a, a); else { }\n    }\n}\n"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("BRACES", "Add braces.")
+            .For(Code.IfStatements.Branches().WithoutBraces())
+            .Forbid();
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            BRACES Add braces.
+            B.cs
+              6:13
+              7:17
+              8:32
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
     }
 }

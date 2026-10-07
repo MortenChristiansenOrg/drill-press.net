@@ -71,7 +71,7 @@ public sealed class AnalysisEngineTests
         var snapshot = CompilationSnapshot.Create(project);
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -102,7 +102,7 @@ public sealed class AnalysisEngineTests
         var snapshot = TestSnapshots.Create(source, "Values.cs");
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -138,7 +138,7 @@ public sealed class AnalysisEngineTests
         );
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -172,7 +172,7 @@ public sealed class AnalysisEngineTests
         var snapshot = CompilationSnapshot.Create(first, second);
 
         var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -210,7 +210,7 @@ public sealed class AnalysisEngineTests
         var snapshot = CompilationSnapshot.Create(dependency, selected);
 
         var response = await new AnalysisEngine(_fileSystem).EvaluateAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             new AnalysisOptions { EnableOptimizations = optimize },
             TestContext.Current.CancellationToken
@@ -246,7 +246,7 @@ public sealed class AnalysisEngineTests
             IsAnalysisTarget = false,
         };
         var selected = TestSnapshots.CreateProject("Selected.cs", "class Selected { }");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("TEST001", "Selected files only.").For(Code.FilesIncludingGenerated).Forbid();
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
@@ -269,7 +269,7 @@ public sealed class AnalysisEngineTests
             IsAnalysisTarget = false,
         };
         var selected = TestSnapshots.CreateProject("Selected.cs", "class Selected { }");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Selected files only.")
             .For(Code.Files)
@@ -367,7 +367,7 @@ public sealed class AnalysisEngineTests
         );
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -403,7 +403,7 @@ public sealed class AnalysisEngineTests
         );
 
         var diagnostics = await new AnalysisEngine(_fileSystem).AnalyzeAsync(
-            RuleTestData.TargetEmptyRuleSet(),
+            RuleTestData.TargetEmptyRuleCatalog(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -422,7 +422,7 @@ public sealed class AnalysisEngineTests
     )
     {
         var snapshot = TestSnapshots.Create("class Source { }", "Source.cs");
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("R", "Fix the file.", fixComplexity: complexity).For(Code.Files).Forbid();
         var engine = new AnalysisEngine(_fileSystem);
 

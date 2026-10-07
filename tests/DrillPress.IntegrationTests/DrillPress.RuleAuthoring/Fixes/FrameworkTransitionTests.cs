@@ -37,7 +37,7 @@ public sealed class FrameworkTransitionTests : IntegrationTest
             snapshotPath,
             TestContext.Current.CancellationToken
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var distinct = CodeType.Framework("System.Linq.Enumerable").Member("Distinct");
         var enumerable = CodeType.Framework("System.Collections.Generic.IEnumerable<>");
         var comparer = CodeType.Framework("System.Collections.Generic.IEqualityComparer<>");

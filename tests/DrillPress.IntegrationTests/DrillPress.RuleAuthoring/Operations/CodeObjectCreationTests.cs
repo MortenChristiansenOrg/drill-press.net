@@ -75,7 +75,7 @@ public sealed class CodeObjectCreationTests(SdkFixture fixture) : IClassFixture<
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("HTTP001", "Use IHttpClientFactory instead of creating HttpClient.")
             .For(Code.ObjectCreations.Of<System.Net.Http.HttpClient>())

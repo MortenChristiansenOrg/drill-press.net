@@ -8,7 +8,7 @@ public sealed class RuleClauseTests
     [Fact]
     public void Forbid_reports_each_candidate_and_returns_the_rule_for_further_clauses()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var rule = rules.Rule("TEST001", "Test message.");
         var solution = RuleTestData.Solution(("A.cs", ["Empty"]));
 
@@ -30,7 +30,7 @@ public sealed class RuleClauseTests
     [InlineData(RuleFixComplexity.Architectural)]
     public void Declarations_preserve_optional_complexity(RuleFixComplexity? complexity)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("A", "Forbid.", fixComplexity: complexity).For(Code.MemberReferences).Forbid();
         rules
             .Rule("B", "Require.", fixComplexity: complexity)
@@ -58,7 +58,7 @@ public sealed class RuleClauseTests
     [Fact]
     public void Candidates_without_a_location_must_choose_one()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Pair.")
             .For(Code.MemberReferences.Select(reference => (reference, reference.MemberName)))
@@ -76,7 +76,7 @@ public sealed class RuleClauseTests
     [Fact]
     public void Report_at_anchors_candidates_without_their_own_location()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Pair.")
             .For(
@@ -99,7 +99,7 @@ public sealed class RuleClauseTests
     [Fact]
     public void Report_at_null_keeps_the_candidate_location()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Reference.")
             .For(Code.MemberReferences)
@@ -120,7 +120,7 @@ public sealed class RuleClauseTests
     [Fact]
     public void Report_at_rejects_locations_outside_the_candidate_compilation()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Reference.")
             .For(Code.MemberReferences)

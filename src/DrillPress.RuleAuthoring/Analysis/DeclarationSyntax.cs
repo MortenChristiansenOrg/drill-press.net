@@ -25,6 +25,31 @@ internal static class DeclarationSyntax
     internal static bool HasModifier(SyntaxNode node, Modifier modifier) =>
         Modifiers(node).Any((SyntaxKind)modifier);
 
+    // The written node that owns a declaration's modifiers, attributes and documentation.
+    internal static SyntaxNode? Owner(ICodeDeclaration declaration) =>
+        declaration switch
+        {
+            CodeMethod method => method.Syntax,
+            CodeTypeDeclaration part => part.Syntax,
+            CodeTypeDefinition type => type.Syntax,
+            CodeField field => field.Declaration,
+            CodeProperty property => property.Syntax,
+            CodeParameter parameter => parameter.Syntax,
+            CodeSymbol
+            {
+                Syntax: VariableDeclaratorSyntax { Parent.Parent: BaseFieldDeclarationSyntax field }
+            } => field,
+            CodeSymbol symbol => symbol.Syntax,
+            _ => null,
+        };
+
+    internal static bool HasDocumentation(SyntaxNode node) =>
+        node.GetLeadingTrivia()
+            .Any(trivia =>
+                trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
+                || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia)
+            );
+
     internal static IReadOnlyList<ISymbol>? Symbols(SemanticModel model, SyntaxNode node)
     {
         var declarations = node is BaseFieldDeclarationSyntax field

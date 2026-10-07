@@ -33,39 +33,46 @@
 <h2 id="invocations">Inspect calls and arguments</h2>
 <div class="codeblock"><div class="codehead"><span>Disallow an infinite timeout on a specific API</span></div><pre tabindex="0" data-check="program" id="example-16"><code>using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var send = CodeType.Named(&quot;Product.Transport&quot;).Member(&quot;Send&quot;);
 
-rules.For(OperationQueries.Invocations
-        .Where(call =&gt; call.Calls(send))
-        .Where(call =&gt; call.Argument(&quot;timeoutMilliseconds&quot;)?.Value.ConstantValue
-            is { HasValue: true, Value: -1 }))
-    .Forbid(&quot;TEAM008&quot;, &quot;Pass a bounded timeout to Transport.Send.&quot;);</code></pre></div>
-<p><code>CodeInvocation.Target</code> is the chosen method overload. <code>Calls</code> compares it to your <code>CodeMember</code>. <code>Argument("name")</code> returns the argument mapped to that declared parameter, including optional defaults; it returns null when the parameter is absent. A named argument appearing first in the source is not necessarily the first declared parameter.</p>
-<p><code>Operation</code> exposes the compiler’s invocation object. Its <code>Instance</code> is the receiver (the object before the dot), if any. <code>Source</code> and <code>Location</code> retain the original context and complete call span.</p>
+rules.Rule(&quot;TEAM008&quot;, &quot;Pass a bounded timeout to Transport.Send.&quot;)
+    .For(Code.Calls.To(send)
+        .WhereArgument(&quot;timeoutMilliseconds&quot;, argument =&gt; argument.Is(-1)))
+    .Forbid();</code></pre></div>
+<p><code>CodeInvocation.Target</code> is the chosen method overload; <code>To</code> and <code>Calls</code> compare it to your <code>CodeMember</code> whichever way the call is spelled. <code>Argument(&quot;name&quot;)</code> returns the argument bound to that declared parameter, including an omitted optional default; it returns null for an unknown parameter. A named argument appearing first in the source is not necessarily the first declared parameter, and parameter names keep working when callers reorder them.</p>
+<div class="table-wrap"><table><thead><tr><th>Member</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>argument.Is(value)</code>, <code>IsOmittedOr(value)</code>, <code>ValueAs&lt;T&gt;()</code>, <code>TextValue</code></td><td>Compiler constant values, including defaults supplied by the compiler.</td></tr>
+<tr><td><code>argument.IsExplicit</code>, <code>Value</code>, <code>Location</code></td><td>Written arguments have a source expression and location; findings on omitted defaults report at the call.</td></tr>
+<tr><td><code>call.Receiver</code>, <code>WhereReceiver(...)</code>, <code>OnReceiverOfType&lt;T&gt;()</code></td><td>The object before the dot, including an extension method’s first argument.</td></tr>
+<tr><td><code>calls.ArgumentsFor(&quot;name&quot;)</code>, <code>.SourceValues()</code></td><td>Turn calls into argument or written-value candidates that report at the argument.</td></tr>
+</tbody></table></div>
 <h2 id="operations">Look beyond ordinary calls</h2>
-<p>An <em>operation</em> describes what bound code does. A <code>new</code> expression is an object-creation operation; a method call is an invocation operation. Operations can include things the compiler adds implicitly, such as conversions.</p>
+<p>An <em>operation</em> describes what bound code does. A <code>new</code> expression is an object-creation operation; a method call is an invocation operation. Operations can include things the compiler adds implicitly, such as conversions. Object creation has its own root:</p>
 <div class="codeblock"><div class="codehead"><span>Flag a legacy serializer being constructed</span></div><pre tabindex="0" data-check="program" id="example-17"><code>using DrillPress;
 using Microsoft.CodeAnalysis.Operations;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var legacy = CodeType.Named(&quot;Product.LegacySerializer&quot;);
 
-rules.For(OperationQueries.Of&lt;IObjectCreationOperation&gt;()
-        .Where(item =&gt; item.Operation.Constructor is { } constructor
-            &amp;&amp; legacy.Matches(constructor.ContainingType)))
-    .Forbid(&quot;TEAM009&quot;, &quot;Create the supported serializer instead.&quot;);</code></pre></div>
-<p><code>OperationQueries.All</code>, <code>Of&lt;T&gt;()</code>, and <code>Invocations</code> share ordinary-source roots. <code>InFiles(files)</code> and <code>InvocationsIn(files)</code> restrict discovery; the latter is also available as <code>files.Invocations()</code>. Discovery covers bodies, accessors, initializers, attributes, top-level code, and nested functions—not just methods selected by <code>Code.Methods</code>.</p>
+rules.Rule(&quot;TEAM009&quot;, &quot;Create the supported serializer instead.&quot;)
+    .For(Code.ObjectCreations.Of(legacy))
+    .Forbid();
+
+rules.Rule(&quot;TEAM012&quot;, &quot;Avoid lock statements; use the async coordinator.&quot;)
+    .For(Code.Operations&lt;ILockOperation&gt;())
+    .Forbid();</code></pre></div>
+<p><code>Code.Operations&lt;T&gt;()</code> covers any operation kind, and <code>files.Operations&lt;T&gt;()</code> restricts it to a file selection. Discovery covers bodies, accessors, initializers, attributes, top-level code, and nested functions—not just methods selected by <code>Code.Methods</code>.</p>
 <p><code>CodeOperation&lt;T&gt;</code> gives you the typed <code>Operation</code>, <code>ContainingSymbol</code> when resolvable, <code>Source</code>, and <code>Location</code>. Implicit operations may share a source span. Invalid operations can remain visible; check the facts your conclusion depends on.</p>
 <h2 id="paths">Follow a call path</h2>
 <div class="codeblock"><div class="codehead"><span>Find blocking sleeps beneath async entry points</span></div><pre tabindex="0" data-check="program" id="example-18"><code>using DrillPress;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var sleep = CodeType.Named(&quot;System.Threading.Thread&quot;).Member(&quot;Sleep&quot;);
 
-rules.For(Code.Methods.Where(method =&gt;
-        method.IsAsync &amp;&amp; method.Reaches(sleep)))
-    .Forbid(&quot;TEAM010&quot;, &quot;Use an awaited delay along asynchronous call paths.&quot;);</code></pre></div>
+rules.Rule(&quot;TEAM010&quot;, &quot;Use an awaited delay along asynchronous call paths.&quot;)
+    .For(Code.Methods.Where(method =&gt; method.IsAsync &amp;&amp; method.Reaches(sleep)))
+    .Forbid();</code></pre></div>
 <p><code>method.Reaches(member)</code> follows statically bound calls through loaded source, including helpers in referenced projects and generated implementations. It terminates cycles. It does not infer reflection, runtime interface dispatch, dependency injection, or delegate dispatch into a lambda. An uncalled local function is not attributed to its enclosing method.</p>
 <div class="note"><strong>“Not found” is not a proof of safety</strong><p>A negative result only says the modeled source call paths did not reach that target. It does not prove that runtime execution cannot call it.</p></div>
 <h2 id="flow">Use method-local flow facts</h2>
@@ -81,32 +88,28 @@ var methodsWithClosures = Code.Methods.Where(method =&gt;
 <p>This is evidence to build on, not a rule forbidding every closure. In the <a href="../samples/CodecExamples/PooledUtf8Decoder.cs">pooled-buffer example</a>, a captured local initialized by <code>ArrayPool&lt;T&gt;.Rent</code> indicates a concrete ownership concern. The rule does not claim to prove delegate escape or lease lifetime.</p>
 <h2 id="nullable">Read nullable state at a call site</h2>
 <div class="codeblock"><div class="codehead"><span>Find potentially null text receivers</span></div><pre tabindex="0" data-check="program" id="example-20"><code>using DrillPress;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using RuleSet = DrillPress.RuleSet;
 
-var rules = new RuleSet();
+var rules = new RuleCatalog();
 var trim = CodeType.Of&lt;string&gt;().Member(nameof(string.Trim)).WithParameters();
 
-rules.For(OperationQueries.Invocations.Where(call =&gt;
-        call.Calls(trim)
-        &amp;&amp; call.Operation.Instance is { } receiver
-        &amp;&amp; call.Source.Model.GetTypeInfo(receiver.Syntax,
-            call.Source.Project.CancellationToken).Nullability.FlowState
-                == NullableFlowState.MaybeNull))
-    .Forbid(&quot;TEAM011&quot;, &quot;Handle missing input before trimming text.&quot;);</code></pre></div>
-<p>Here the semantic model connects the receiver’s written expression to its compiler type information. The pattern check handles static calls or other cases without a receiver. Keep these details in a named helper when the registration becomes difficult to read.</p>
-<p>The <code>RuleSet</code> alias is deliberate: <code>Microsoft.CodeAnalysis</code> also has a type with that name. The alias selects Drill Press’s rule set while making the compiler’s extension methods available.</p>
+rules.Rule(&quot;TEAM011&quot;, &quot;Handle missing input before trimming text.&quot;)
+    .For(Code.Calls.To(trim).WhereReceiver(receiver =&gt; receiver.MayBeNull))
+    .Forbid();</code></pre></div>
+<p><code>CodeExpression.MayBeNull</code> reads the compiler’s nullable flow state at that expression; <code>FlowState</code> and <code>DeclaredNullability</code> expose the raw values. Flow state is a compile-time judgment, not a runtime guarantee, and is <code>None</code> where nullable analysis is disabled. Static calls have no receiver, so <code>WhereReceiver</code> skips them.</p>
+<p><code>Code.NullChecks</code> selects written null tests (<code>== null</code>, <code>is null</code>, <code>is not null</code>, <code>??</code> and friends) with their checked value, polarity and the flow state before the check, so redundant-check rules need no pattern matching of their own.</p>
 <h2 id="coverage">Require test execution</h2>
 <p>Use <code>Coverage.Executed</code> to require execution of selected calls, member references, or other source expressions. Use <code>Coverage.Line.AtLeast(90)</code> for percentage requirements over files, methods, types, or projects.</p>
 <div class="codeblock"><div class="codehead"><span>Require tests for critical code</span></div><pre tabindex="0" data-check="program" id="example-coverage"><code>using DrillPress;
 
-var rules = new RuleSet();
-rules.For(Code.Calls.Where(call =&gt; call.Target.Name == &quot;Commit&quot;))
-    .Require(Coverage.Executed, &quot;TEAM013&quot;, &quot;Exercise each commit in tests.&quot;);
-rules.For(Code.Files.Where(file =&gt; file.Folder.EndsWith(&quot;/Domain&quot;)))
-    .Require(Coverage.Line.AtLeast(90), &quot;TEAM014&quot;, &quot;Exercise domain code.&quot;);
-</code></pre></div>
+var rules = new RuleCatalog();
+
+rules.Rule(&quot;TEAM013&quot;, &quot;Exercise each commit in tests.&quot;)
+    .For(Code.Calls.ToMethodsNamed(&quot;Commit&quot;))
+    .Require(Coverage.Executed);
+
+rules.Rule(&quot;TEAM014&quot;, &quot;Exercise domain code.&quot;)
+    .For(Code.Files.InFolder(&quot;Domain&quot;))
+    .Require(Coverage.Line.AtLeast(90));</code></pre></div>
 <p>The analysis engine discovers referencing test projects, arranges collection before evaluation, and reuses successful reports while source, build, test inputs, and environment match. No collector package or report configuration belongs in your rules. The first check needs NuGet access to install the tool automatically.</p>
 <p>Evidence has three states: covered, uncovered, and unknown. A covered line containing <code>cached ?? store.Load()</code> does not prove that <code>Load</code> ran. Missing, excluded, stale, or ambiguous evidence fails the requirement; findings identify the occurrence and state. Line findings include measured percentages and counts. Zero coverable lines fail. Direct in-memory rule evaluation without prepared evidence returns unknown.</p>
 <p>Use <code>--refresh-coverage</code> when tests depend on changing external state. See the <a href="../docs/COVERAGE.md">coverage integration guide</a> for discovery boundaries, symbol matching, conservative expression mapping, and cache inputs.</p>

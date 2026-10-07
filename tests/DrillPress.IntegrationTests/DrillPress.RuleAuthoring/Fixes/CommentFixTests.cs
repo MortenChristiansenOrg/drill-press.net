@@ -35,7 +35,7 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             }
             """.ReplaceLineEndings(newline);
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COMMENT", "Remove phase labels.")
             .For(Code.Methods.Body().Comments())
@@ -63,7 +63,7 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COMMENT", "Remove comment.")
             .For(Code.Files.Comments())
@@ -90,7 +90,7 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             }
             """;
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COMMENT", "Remove comment.")
             .For(Code.Files.Comments())
@@ -134,7 +134,7 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             }
             """;
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COMMENT", "Remove comment.")
             .For(Code.Files.Comments())

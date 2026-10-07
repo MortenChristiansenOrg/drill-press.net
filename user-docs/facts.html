@@ -31,20 +31,21 @@
 
 <p>When several rules need the same calculated information, give it a name and compute it once. When a policy compares two inventories or an accepted version of source, make the comparison explicit.</p>
 <h2 id="custom">Create a custom query</h2>
-<div class="codeblock"><div class="codehead"><span>Choose one reportable file per production project</span></div><pre tabindex="0" data-check="program" id="example-24"><code>using DrillPress;
+<div class="codeblock"><div class="codehead"><span>Find public type names reused across namespaces</span></div><pre tabindex="0" data-check="program" id="example-24"><code>using DrillPress;
+using Microsoft.CodeAnalysis;
 
-var files = Sources.Files.Where(file =&gt; !file.Source.Project.IsTestProject);
-var firstFilePerProject = CodeQuery&lt;CodeFile&gt;.Create(solution =&gt;
-    files.In(solution)
-        .GroupBy(file =&gt; file.Source.Project)
-        .Select(group =&gt; group.OrderBy(file =&gt; file.Path).First()));
+var publicTypes = Code.Types.WithAccessibility(Accessibility.Public);
+var ambiguous = CodeQuery&lt;CodeTypeDefinition&gt;.Create(solution =&gt;
+    publicTypes.In(solution)
+        .GroupBy(type =&gt; type.Name)
+        .Where(group =&gt; group.Select(type =&gt; type.Namespace).Distinct().Count() &gt; 1)
+        .SelectMany(group =&gt; group));
 
-var rules = new RuleSet();
-rules.For(firstFilePerProject).Require(
-    file =&gt; file.Source.Project.Properties.TryGetValue(&quot;Nullable&quot;, out var value)
-        &amp;&amp; value == &quot;enable&quot;,
-    &quot;TEAM015&quot;, &quot;Enable nullable reference types for this project.&quot;);</code></pre></div>
-<p><code>Create</code> takes a function from <code>AnalysisSolution</code> to candidates. <code>In(solution)</code> reads an existing query. Reuse these instances and keep selection functions pure. For long custom loops, observe <code>solution.CancellationToken</code>. Missing captured properties are not the same as a complete MSBuild evaluation; choose conservative policy behavior.</p>
+var rules = new RuleCatalog();
+rules.Rule(&quot;TEAM018&quot;, &quot;Give public types unique names across namespaces.&quot;)
+    .For(ambiguous)
+    .Forbid();</code></pre></div>
+<p><code>Create</code> takes a function from <code>AnalysisSolution</code> to candidates; use it when a decision needs the whole selection at once, such as grouping. <code>In(solution)</code> reads an existing query. Reuse these instances and keep selection functions pure. For long custom loops, observe <code>solution.CancellationToken</code>.</p>
 <h2 id="facts">Cache reusable facts</h2>
 <div class="codeblock"><div class="codehead"><span>Share an inventory of public type names</span></div><pre tabindex="0" data-check="program" id="example-25"><code>using DrillPress;
 using Microsoft.CodeAnalysis;
@@ -74,34 +75,31 @@ Console.WriteLine(string.Join(&quot;, &quot;, formats.Missing));    // xml
 Console.WriteLine(string.Join(&quot;, &quot;, formats.Unexpected)); // yaml
 Console.WriteLine(formats.AreEqual);                      // False</code></pre></div>
 <p><code>SetComparison&lt;T&gt;</code> compares membership, not occurrence counts. It supports a custom equality comparer. Duplicate inputs do not change the result.</p>
-<p><code>DuplicateSyntax.In(query, minimumTokens)</code> reports every occurrence of an exact repeated token shape within a compilation context. It ignores comments and whitespace but preserves identifier spelling and literal text. A repeated shape does not prove equivalent behavior or justify an automatic extraction.</p>
+<p><code>nodes.Duplicates(minimumTokens)</code> selects every occurrence of an exact repeated token shape within a compilation context. It ignores comments and whitespace but preserves identifier spelling and literal text. A repeated shape does not prove equivalent behavior or justify an automatic extraction.</p>
 <h2 id="anchors">Anchor calculated results</h2>
 <div class="codeblock"><div class="codehead"><span>Keep a custom value attached to the type that owns it</span></div><pre tabindex="0" data-check="program" id="example-27"><code>using DrillPress;
 
-var documentedTypes = Code.Types.Select(type =&gt; new
-{
-    Type = type,
-    Summary = type.Symbol.GetDocumentationCommentXml()
-});
-var undocumented = documentedTypes
-    .Where(item =&gt; string.IsNullOrWhiteSpace(item.Summary))
-    .At(item =&gt; item.Type);
+var rules = new RuleCatalog();
 
-var rules = new RuleSet();
-rules.For(undocumented).Forbid(&quot;TEAM016&quot;, &quot;Document this type's purpose.&quot;);</code></pre></div>
-<p><code>At</code> produces a <code>LocatedCandidate&lt;T&gt;</code>: your calculated <code>Value</code> plus the existing anchor’s <code>Location</code> and <code>Source</code>. This also works for joined tuples and missing-counterpart checks.</p>
+rules.Rule(&quot;TEAM019&quot;, &quot;Describe this type's purpose in its summary.&quot;)
+    .For(Code.Types
+        .Select(type =&gt; (Type: type, Summary: type.Symbol.GetDocumentationCommentXml()))
+        .Where(item =&gt; item.Summary?.Contains(&quot;&lt;summary&gt;&quot;) != true))
+    .ReportAt(item =&gt; item.Type)
+    .Forbid();</code></pre></div>
+<p>A tuple, anonymous object or record has no location of its own; <code>ReportAt</code> anchors it to an existing candidate while the rule keeps working with the calculated value. This also works for joined pairs and custom facts. Whether a declaration has any documentation comment at all is built in as <code>HasDocumentationComment()</code>.</p>
 <h2 id="baseline">Compare with accepted source</h2>
 <div class="codeblock"><div class="codehead"><span>Create a change-aware rule factory</span></div><pre tabindex="0" data-check="program" id="example-28"><code>using DrillPress;
 
-static RuleSet CreateRules(SourceBaseline accepted)
+static RuleCatalog CreateRules(SourceBaseline accepted)
 {
-    var rules = new RuleSet();
-    var legacyFiles = new PathPattern(&quot;**/Legacy/**/*.cs&quot;);
+    var rules = new RuleCatalog();
 
-    rules.For(accepted.ChangedFiles.Where(file =&gt;
-            accepted.ChangeOf(file) == SourceChange.Added
-            &amp;&amp; legacyFiles.Matches(file.Path)))
-        .Forbid(&quot;TEAM017&quot;, &quot;Add new implementations outside the legacy layer.&quot;);
+    rules.Rule(&quot;TEAM020&quot;, &quot;Add new implementations outside the legacy layer.&quot;)
+        .For(accepted.ChangedFiles
+            .InFolder(&quot;Legacy&quot;)
+            .Where(file =&gt; accepted.ChangeOf(file) == SourceChange.Added))
+        .Forbid();
 
     return rules;
 }</code></pre></div>

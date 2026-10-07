@@ -19,7 +19,7 @@ public sealed class DescriptorTransitionTests(SdkFixture fixture) : IClassFixtur
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var distinct = CodeType.Framework("System.Linq.Enumerable").Member("Distinct");
         var enumerable = CodeType.Framework("System.Collections.Generic.IEnumerable<>");
         var comparer = CodeType.Framework("System.Collections.Generic.IEqualityComparer<>");
@@ -67,7 +67,7 @@ public sealed class DescriptorTransitionTests(SdkFixture fixture) : IClassFixtur
         workspace.AddProject("Library", [new("A.cs", text)]);
         var owner = CodeType.Named("A");
         var from = owner.Member("Pick").WithParameters(CodeType.Of<int>(), CodeType.Of<bool>());
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("REMOVE", "Remove flag.")
             .For(Code.Calls.To(from).ArgumentsFor("flag"))

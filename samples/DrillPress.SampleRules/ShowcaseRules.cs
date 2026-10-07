@@ -7,15 +7,15 @@ namespace DrillPress.SampleRules;
 public static class ShowcaseRules
 {
     /// <summary>Creates configured codec policies. Supplying an accepted source analysis additionally enables change-aware review.</summary>
-    public static RuleSet Create(SourceBaseline? accepted = null)
+    public static RuleCatalog Create(SourceBaseline? accepted = null)
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         Register(rules, accepted);
         return rules;
     }
 
     /// <summary>Registers examples scoped to projects whose names start with CodecExamples, including their test projects.</summary>
-    public static void Register(RuleSet rules, SourceBaseline? accepted = null)
+    public static void Register(RuleCatalog rules, SourceBaseline? accepted = null)
     {
         var code = new CodecSources();
         var examples = new CodecExamples(code);

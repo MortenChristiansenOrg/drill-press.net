@@ -182,6 +182,80 @@ public sealed class DeclarationElementsTests(SdkFixture fixture) : IClassFixture
         Assert.Equal(["token"], prefixed);
     }
 
+    [Fact]
+    public async Task Documentation_rules_can_require_comments_on_public_declarations()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "Api.cs",
+                    "/// <summary>Documented.</summary>\npublic partial class Api\n{\n    /// <summary>Documented.</summary>\n    public int Count;\n    public int Missing() => 0;\n    private int Hidden() => 0;\n}\npartial class Api { }\npublic interface IUndocumented { }\n"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("DOC001", "Document every public API.")
+            .For(Code.Types.WithAccessibility(Accessibility.Public))
+            .Require(type => type.HasDocumentationComment())
+            .For(Code.Methods.WithAccessibility(Accessibility.Public))
+            .Require(method => method.HasDocumentationComment())
+            .For(Code.Fields.WithAccessibility(Accessibility.Public))
+            .Require(field => field.HasDocumentationComment());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            DOC001 Document every public API.
+            Api.cs
+              6:16
+              10:18
+
+            """.Replace("\r\n", "\n"),
+            result.Output
+        );
+    }
+
+    [Fact]
+    public async Task Findings_can_report_at_an_explicit_modifier()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "Types.cs",
+                    "internal sealed class Hidden { }\npublic class Shown { private int _count; }\n"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("MOD001", "Omit default modifiers.")
+            .For(Code.TypeDeclarations.TopLevel().WithExplicitModifier(Modifier.Internal))
+            .ReportAt(type => type.ExplicitModifier(Modifier.Internal))
+            .Forbid()
+            .For(Code.Fields.WithExplicitModifier(Modifier.Private))
+            .ReportAt(field => field.ExplicitModifier(Modifier.Private))
+            .Forbid();
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            MOD001 Omit default modifiers.
+            Types.cs
+              1
+              2:22
+
+            """.Replace("\r\n", "\n"),
+            result.Output
+        );
+    }
+
     private AnalysisSolution Analyze()
     {
         var workspace = fixture.Workspace();

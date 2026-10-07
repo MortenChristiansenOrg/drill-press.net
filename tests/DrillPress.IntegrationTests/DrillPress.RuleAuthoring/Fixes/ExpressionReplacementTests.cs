@@ -25,7 +25,7 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
         var declaration =
             $"class A {{ {type} Value({parameter}) => {replacement}; string M({parameter}) => ";
         workspace.AddProject("Library", [new("A.cs", declaration + "Value(value).ToString(); }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("VALUE", "Inline the known expression.")
             .For(
@@ -57,7 +57,7 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("VALUE", "Inline the default value.")
             .For(
@@ -84,7 +84,7 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
         var source =
             "class A { int Value() => 1; void Pick(long a, long b) {} void Pick(byte a, byte b) {} void M() => Pick(Value(), Value()); }";
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("VALUE", "Use a literal.")
             .For(
@@ -244,9 +244,9 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
         Assert.False(safe);
     }
 
-    private static RuleSet EmptyRules()
+    private static RuleCatalog EmptyRules()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var member = CodeType.Of<string>().Member(nameof(string.Empty));
         rules
             .Rule("EMPTY", "Use a literal.")

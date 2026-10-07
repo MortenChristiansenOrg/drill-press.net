@@ -105,7 +105,7 @@ public sealed class SemanticRuleFixture
 
     public Task<BundleResponse> Evaluate(params AnalysisProject[] projects) =>
         new AnalysisEngine().EvaluateAsync(
-            SampleRuleSet.Create(),
+            SampleRuleCatalog.Create(),
             "test-request",
             projects
                 .Select(project => new CompilationContext(project.Snapshot, project.Compilation))

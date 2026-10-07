@@ -15,7 +15,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { int M() => 1; int N() => 1; }")]);
         var compilations = new List<Compilation>();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EDIT", "Update constants.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
@@ -66,7 +66,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             ],
             _ => true
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("EDIT", "Update the declaration.").For(Code.Files).Forbid(fix: _ => proposal);
 
         var safe = proposal.IsSafeIn(project);
@@ -88,7 +88,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             [SourceChanges.Replace(source, new TextSpan(generated.Text.IndexOf('1'), 1), "2")],
             _ => true
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EDIT", "Update the generated constant.")
             .For(Code.Files)
@@ -119,7 +119,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ACCESS", "Use default accessibility.")
             .For(
@@ -149,7 +149,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             "Library",
             [new("A.cs", "class A { int M() => 1; }"), new("B.cs", "class B { int M() => 1; }")]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var query = CodeQuery<CodeFile>.Create(solution => Code.Files.In(solution).Take(1));
         var sources = workspace
             .Analyze(TestContext.Current.CancellationToken)
@@ -188,7 +188,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         var source = new TestSource("Shared.cs", "class Shared { int M() => 1; }");
         workspace.AddProject("First", [source]);
         workspace.AddProject("Second", [source]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EDIT", "Update the constant.")
             .For(
@@ -214,7 +214,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         var workspace = fixture.Workspace();
         var source = new TestSource("A.cs", "class A { int M() => 1; }");
         workspace.AddProject("Library", [source]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EDIT", "Update the constant.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
@@ -239,7 +239,7 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
             "Library",
             [new("A.cs", "internal class A { internal void M() { } }")]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ACCESS", "Remove redundant accessibility.")
             .For(

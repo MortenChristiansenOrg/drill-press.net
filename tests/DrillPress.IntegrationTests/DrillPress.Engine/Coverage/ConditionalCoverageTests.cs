@@ -81,7 +81,7 @@ public sealed class ConditionalCoverageTests : CoverageIntegrationTest
             """
         );
         RuleCondition<CodeInvocation> executed = global::DrillPress.Coverage.Executed;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("PROBE", "Capture call evidence.")
             .For(

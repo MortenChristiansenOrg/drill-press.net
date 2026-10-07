@@ -34,31 +34,39 @@
 <p>Reference the <code>DrillPress.Testing</code> NuGet package at the same exact alpha version as your SDK (or <code>src/DrillPress.Testing/DrillPress.Testing.csproj</code> when working from source) from your test project, along with your rule project and your chosen test framework. The test kit runs the real evaluator and response validator. It does not need a target project on disk.</p>
 <p><code>RuleTestWorkspace()</code> uses the host runtime’s assembly references for convenience. You can supply an explicit list of compiler <code>MetadataReference</code> objects when you need exact reference packs or synthetic assemblies. The default constructor reads reference assemblies; the target source and edit results stay in memory.</p>
 <h2 id="first-test">Assert the complete finding and source text</h2>
-<div class="codeblock"><div class="codehead"><span>An xUnit test for a consumer spelling rule</span></div><pre tabindex="0" data-check="library" id="example-31"><code>using DrillPress;
+<div class="codeblock"><div class="codehead"><span>An xUnit test for a rule and its fix</span></div><pre tabindex="0" data-check="library" id="example-31"><code>using DrillPress;
 using DrillPress.Testing;
 using Xunit;
 
 public class EmptyStringRuleTests
 {
     [Fact]
-    public async Task Reports_the_empty_string_field()
+    public async Task Replaces_string_Empty_with_a_literal()
     {
         var workspace = new RuleTestWorkspace();
         workspace.AddProject(&quot;Example&quot;, [new TestSource(&quot;Example.cs&quot;,
             &quot;class C { string Value =&gt; string.Empty; }&quot;)]);
-        var rules = new RuleSet();
-        rules.For(CodeType.Of&lt;string&gt;().Member(nameof(string.Empty)).References)
-            .Forbid(&quot;TEAM018&quot;, &quot;Use the empty string literal instead of string.Empty.&quot;);
+        var rules = new RuleCatalog();
+        rules.Rule(&quot;TEAM021&quot;, &quot;Use \&quot;\&quot; instead of string.Empty.&quot;)
+            .For(CodeType.Of&lt;string&gt;().Member(nameof(string.Empty)).References.OutsideNameOf())
+            .Forbid(fix: reference =&gt; Fix.For(reference)
+                .ReplaceWithLiteral(&quot;&quot;)
+                .SafeWhen(change =&gt; change.After.Is(&quot;&quot;)));
 
-        var result = await workspace.CheckAsync(rules);
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            [new TestFinding(&quot;TEAM018&quot;, &quot;Example.cs&quot;, 1, 26, &quot;string.Empty&quot;, false)],
-            result.Findings);
-        Assert.Equal(&quot;class C { string Value =&gt; string.Empty; }&quot;, result.FixedText(&quot;Example.cs&quot;));
+            &quot;&quot;&quot;
+            TEAM021 Use &quot;&quot; instead of string.Empty.
+            Example.cs
+              +1:27
+
+            &quot;&quot;&quot;,
+            result.Output);
+        Assert.Equal(&quot;class C { string Value =&gt; \&quot;\&quot;; }&quot;, result.FixedText(&quot;Example.cs&quot;));
     }
 }</code></pre></div>
-<p><code>TestFinding</code> includes rule ID, path, physical line and column, exact highlighted text, and <code>HasFix</code>. This rule offers no fix, so <code>FixedText</code> returns the original source. For rules that offer fixes, assert the complete resulting text and check it in another workspace to verify that no findings remain.</p>
+<p><code>result.Output</code> is exactly what the CLI prints: each rule once, then each file and its <code>line:column</code> locations, with <code>+</code> marking a fix that survived validation. Asserting the whole output checks the rule, location and fix availability in one readable value; normalize <code>\r\n</code> if your sources use Windows line endings. <code>result.Findings</code> offers the same data as <code>TestFinding</code> values with the exact highlighted text. <code>FixedText</code> applies only validated fixes and returns the original source when none survive.</p>
 <h2 id="contexts">Model the contexts your policy depends on</h2>
 <p><code>AddProject</code> returns an <code>AnalysisProject</code>. Dependencies must already belong to the workspace. Its options are:</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Purpose</th></tr></thead><tbody>
@@ -80,9 +88,9 @@ workspace.AddProject(&quot;Product.Tests&quot;, [
     new TestSource(&quot;Tests.cs&quot;, &quot;class Tests { Codec value = new(); }&quot;)
 ], isTest: true, dependencies: [production]);</code></pre></div>
 <p>Use the same source path and text across projects to test linked-file agreement. Use different reference sets for real framework differences. For xUnit attribute detection, <code>isTest: true</code> alone is not enough: include real xUnit references and Fact/Theory attributes.</p>
-<h2 id="xunit">Keep test-framework conventions in your bundle</h2>
-<p>The SDK exposes <code>CodeMethod.HasAttribute</code>, syntax, semantic symbols, and custom facts. Your bundle selects its test framework and defines layout or assertion conventions. <a href="../samples/DrillPress.SampleRules/Testing/XunitTests.cs">The sample xUnit selector</a> and <a href="../samples/DrillPress.SampleRules/Testing/TestBody.cs">sample body analysis</a> demonstrate this separation using public SDK APIs.</p>
-<p><code>CodeMethod</code> has no test-specific body property. Inspect <code>method.Syntax.Body</code> or create a cached consumer fact when several rules share body analysis. <code>DrillPress.Testing</code> is the framework-independent test kit for your rules.</p>
+<h2 id="xunit">Rules about tests</h2>
+<p><code>Code.TestMethods</code> and <code>Code.TestClasses</code> recognize xUnit, NUnit and MSTest markers by compiler identity, so rules about tests need no attribute lists of their own. Layout and assertion conventions stay in your bundle: the <a href="../samples/DrillPress.SampleRules/Testing/TestBody.cs">sample body analysis</a> shows a cached consumer fact built from public APIs.</p>
+<p>To test such rules, add the real test-framework assemblies to the workspace with <code>references</code>, and mark the project with <code>isTest: true</code>. The project flag alone does not make a method a test.</p>
 <p>When a fixture's exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore.</p>
 <h2 id="baselines">Test an accepted baseline</h2>
 <div class="codeblock"><div class="codehead"><span>Compare two in-memory versions</span></div><pre tabindex="0" data-check="program" id="example-34"><code>using DrillPress;
@@ -113,7 +121,7 @@ var changes = baseline.ChangedFiles.In(after.Analyze());
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and source text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Keep test-framework conventions in your bundle</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and source text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Rules about tests</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

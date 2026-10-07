@@ -41,7 +41,7 @@ public sealed class RuleConditionTests
     [Fact]
     public void Require_reports_failed_conditions_at_the_selected_location()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var location = new SourceLocation("Target.cs", 0, 9, 1, 1);
         var condition = new RuleCondition<MemberReference>(reference =>
             reference.MemberName == "Length"
@@ -72,7 +72,7 @@ public sealed class RuleConditionTests
         var fail = new RuleCondition<MemberReference>(_ =>
             throw new InvalidOperationException("Unexpected evaluation.")
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Expected finding.")
             .For(Code.MemberReferences.Where(never.And(fail).Or(never.Not().Or(fail))))

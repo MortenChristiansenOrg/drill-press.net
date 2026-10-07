@@ -35,7 +35,7 @@ public sealed class CoverageCancellationTests : IntegrationTest
             GetOutputPath("DrillPress.TestProcess", "tests"),
             readyPath
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COV001", "Exercise file.")
             .For(Code.Files)

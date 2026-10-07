@@ -74,7 +74,7 @@ internal sealed class CoverageEvidenceCase(
                     "namespace System { public class Object {} public class ValueType {} public struct Void {} } class C { static void Hit() {} void M() { Hit(); } }")]);
                 workspace.WithCoverage(facts => facts.ForCall("Policy.cs", "Hit()")
                     .Unknown(CoverageReason.UnsupportedExpressionMapping));
-                var policyRules = new RuleSet();
+                var policyRules = new RuleCatalog();
                 policyRules.Rule("POL", "Verify execution.")
                     .For(Code.Calls.Where(call => call.Target.Name == "Hit"))
                     .Require(Coverage.Executed.ReviewUnknownFor(CoverageReason.UnsupportedExpressionMapping));
@@ -84,7 +84,7 @@ internal sealed class CoverageEvidenceCase(
                 Console.Write($"{finding.Disposition} {evidence.State} {evidence.SatisfiesRequirement} {evidence.IsReviewEligible}");
                 return 0;
             }
-            var rules = new RuleSet();
+            var rules = new RuleCatalog();
             rules.Rule("COV", "Exercise source occurrence.")
                 .For(CodeType.Of<string>().Member("Empty").References)
                 .Require(Coverage.Executed);

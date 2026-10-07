@@ -33,9 +33,9 @@ internal static class RuleTestData
         return workspace.Analyze(TestContext.Current.CancellationToken);
     }
 
-    public static RuleSet TargetEmptyRuleSet()
+    public static RuleCatalog TargetEmptyRuleCatalog()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEST001", "Do not use Target.Empty.")
             .For(CodeType.Named("Sample.Target").Member("Empty").References)
@@ -48,7 +48,7 @@ internal static class RuleTestData
         AnalysisSolution solution
     )
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("TEST001", "Test message.").For(query).Forbid();
         return rules.Evaluate(solution);
     }

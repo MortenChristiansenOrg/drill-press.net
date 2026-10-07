@@ -243,7 +243,7 @@ internal sealed class OccurrenceCoverageCase(
             """
             using DrillPress;
             using DrillPress.Engine;
-            var rules = new RuleSet();
+            var rules = new RuleCatalog();
             rules.Rule("ENUM", "Start enumeration.").For(Code.Enumerations).Require(Coverage.EnumerationStarted);
             RuleCondition<CodeInvocation> executed = Coverage.Executed;
             rules.Rule("CALL", "Capture call evidence.")

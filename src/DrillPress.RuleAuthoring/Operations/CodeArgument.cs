@@ -79,14 +79,10 @@ public sealed class CodeArgument : ICodeElement
         }
     }
 
-    /// <summary>The explicit value's span. Callers must choose their own fallback for implicit values.</summary>
+    /// <summary>The written value's span; null for an omitted default or other implicit value. Findings on such arguments report at the call.</summary>
     public SourceLocation? Location => Value?.Location;
 
-    SourceLocation ICodeElement.Location =>
-        Location
-        ?? throw new InvalidOperationException(
-            "An implicit argument requires an explicit reporting location."
-        );
+    SourceLocation ICodeElement.Location => Location ?? Invocation.Location;
 
     /// <summary>The source name-colon, absent for positional, implicit and expanded element values.</summary>
     public string? Name =>

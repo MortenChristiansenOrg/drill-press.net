@@ -11,7 +11,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { string Value => string.Empty; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var empty = CodeType.Of<string>().Member("Empty");
         var different = new List<bool>();
         rules
@@ -51,7 +51,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { int M(int a, int b) => a + b; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("TEMPLATE", "Use mapped expression.")
             .For(Code.Nodes<BinaryExpressionSyntax>())
@@ -90,7 +90,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
             ]
         );
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var references = CodeType.Of<string>().Member("Empty").References;
         rules
             .Rule("EMPTY", "Keep gated values.")
@@ -125,7 +125,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
             "Library",
             [new("A.cs", "class A { bool M(string a, string b) => !(string.Equals(a, b)); }")]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EQUAL", "Use equality.")
             .For(Code.Calls.To(CodeType.Of<string>().Member("Equals")))
@@ -254,7 +254,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
         const string prefix =
             "class A { string L() => \"l\"; string R() => \"r\"; System.StringComparison Comparison() => System.StringComparison.Ordinal; bool M(string left, string right) => ";
         workspace.AddProject("Library", [new("A.cs", prefix + expression + "; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EQUAL", "Use equality.")
             .For(Code.Calls.To(CodeType.Of<string>().Member("Equals")))
@@ -293,7 +293,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
         var workspace = fixture.Workspace();
         const string prefix = "class A { bool M(string left, string right) => ";
         workspace.AddProject("Library", [new("A.cs", prefix + expression + "; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("EQUAL", "Use equality.")
             .For(Code.Calls.To(CodeType.Of<string>().Member("Equals")))
@@ -323,7 +323,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { bool M(bool value) => !value; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("NEGATE", "Negate value.")
             .For(Code.Nodes<PrefixUnaryExpressionSyntax>().Expressions())
@@ -345,7 +345,7 @@ public sealed class ExpressionFixTests(SdkFixture fixture) : IClassFixture<SdkFi
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "internal class A { internal class B {} }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("INTERNAL", "Omit redundant accessibility.")
             .For(Code.TypeDeclarations.WithExplicitModifier(Modifier.Internal))

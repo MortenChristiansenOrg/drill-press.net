@@ -45,7 +45,7 @@ public sealed class ArgumentRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
             },
             new Dictionary<string, string> { ["value"] = "value" }
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ARGUMENT", "Omit the approved default.")
             .For(Code.Calls.To(CodeType.Named("A").Member("Pick")))
@@ -153,7 +153,7 @@ public sealed class ArgumentRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
         Assert.Equal(source, result.FixedText("A.cs"));
     }
 
-    private static RuleSet Rules(
+    private static RuleCatalog Rules(
         ProofResult evaluation,
         SpecialType destination = SpecialType.System_String
     )
@@ -178,7 +178,7 @@ public sealed class ArgumentRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
             },
             new Dictionary<string, string> { ["first"] = "first", ["second"] = "second" }
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ARGUMENT", "Omit the approved default.")
             .For(Code.Calls.To(CodeType.Named("Api").Member("Choose")))

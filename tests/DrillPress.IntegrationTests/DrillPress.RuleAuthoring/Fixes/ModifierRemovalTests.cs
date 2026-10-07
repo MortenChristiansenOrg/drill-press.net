@@ -24,7 +24,7 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("MODIFIER", "Omit this token.")
             .For(Code.Methods.WithExplicitModifier(Modifier.Internal))
@@ -70,7 +70,7 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("MODIFIER", "Omit this token.")
             .For(Code.Methods.WithExplicitModifier(modifier))
@@ -89,7 +89,7 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { private int first, second; }")]);
         var names = Array.Empty<string>();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("MODIFIER", "Omit this token.")
             .For(Code.Fields.Named("first"))
@@ -123,7 +123,7 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
                 new("A.g.cs", "internal partial class A {}", true),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("MODIFIER", "Omit this token.")
             .For(Code.Types)
@@ -146,7 +146,7 @@ public sealed class ModifierRemovalTests(SdkFixture fixture) : IClassFixture<Sdk
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { static void M() {} }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("MODIFIER", "Omit this token.")
             .For(Code.Methods)

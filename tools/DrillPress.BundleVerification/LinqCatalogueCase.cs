@@ -50,7 +50,6 @@ public sealed class LinqCatalogueCase(
             using DrillPress.Presets;
             using DrillPress.Testing;
             using Microsoft.CodeAnalysis;
-            using RuleSet = DrillPress.RuleSet;
 
             var fileSystem = new FileSystem();
             var references = fileSystem.File.ReadAllLines(args[0])
@@ -73,7 +72,7 @@ public sealed class LinqCatalogueCase(
                 var operation = StandardLinq.Inspect(call);
                 Console.WriteLine($"{operation.Status} {operation.Surface} {operation.Category} {operation.SequenceConsumption}: {string.Join(",", operation.SequenceInputs.Select(input => input.Role + ":" + input.Value.Syntax))}");
             }
-            var rules = new RuleSet();
+            var rules = new RuleCatalog();
             var policy = rules.Rule("LINQ", "Review consuming operations.");
             policy.For(Code.Calls.Where(call => StandardLinq.Inspect(call).SequenceConsumption == LinqSequenceConsumption.MayEnumerate).Expressions())
                 .Require(Coverage.Executed);

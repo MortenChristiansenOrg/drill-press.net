@@ -142,7 +142,7 @@ public sealed class CoverageCollectorTests : IntegrationTest
         );
         var process = new CountingCoverageProcess();
         var engine = new AnalysisEngine(FileSystem, process);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COV001", "Exercise call.")
             .For(

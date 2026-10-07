@@ -23,7 +23,7 @@ public sealed class CoverageTests
         var solution = RuleTestData.Solution(("A.cs", ["Empty"]));
         var reference = Assert.Single(Code.MemberReferences.In(solution));
         var project = reference.Source.Project;
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("COV001", "Exercise reference.")
             .For(Code.MemberReferences)

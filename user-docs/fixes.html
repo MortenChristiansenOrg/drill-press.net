@@ -30,11 +30,42 @@
 <p class="lead">A useful correction needs more than compilable code.</p>
 
 <p>A finding can propose a correction, but “the edited code compiles” is not enough. A fix must preserve the behavior your policy promises to preserve in every affected loaded compilation.</p>
+<h2 id="builders">Start from what you selected</h2>
+<p>A fix factory receives the violating candidate and returns a <code>FixProposal</code> or null. Returning null keeps the finding but offers no fix. <code>Forbid</code> and <code>Require</code> both accept the optional <code>fix</code> argument. Start the proposal with <code>Fix.For(candidate)</code>; the candidate’s type decides which edits are available.</p>
+<div class="codeblock"><div class="codehead"><span>Three fixes, three builders</span></div><pre tabindex="0" data-check="program" id="example-fix-builders"><code>using DrillPress;
+
+var rules = new RuleCatalog();
+var empty = CodeType.Of&lt;string&gt;().Member(nameof(string.Empty));
+
+rules.Rule(&quot;TEAM022&quot;, &quot;Use \&quot;\&quot; instead of string.Empty.&quot;)
+    .For(empty.References.OutsideNameOf())
+    .Forbid(fix: reference =&gt; Fix.For(reference)
+        .ReplaceWithLiteral(&quot;&quot;)
+        .SafeWhen(change =&gt; change.Before.RefersTo(empty) &amp;&amp; change.After.Is(&quot;&quot;)));
+
+rules.Rule(&quot;TEAM023&quot;, &quot;Add braces to if and else branches.&quot;)
+    .For(Code.IfStatements.Branches().WithoutBraces())
+    .Forbid(fix: branch =&gt; Fix.For(branch).AddBraces().Propose());
+
+rules.Rule(&quot;TEAM024&quot;, &quot;Use var when the type is apparent.&quot;)
+    .For(Code.LocalVariables.WithExplicitType().WithInitializer().WhereVarPreservesType())
+    .Forbid(fix: declaration =&gt; Fix.For(declaration).UseVar().Propose());</code></pre></div>
+<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Edits</th><th>Finish with</th></tr></thead><tbody>
+<tr><td>Expression, member reference, object creation or call</td><td><code>ReplaceWithLiteral(value)</code>, <code>ReplaceWith(&quot;{0} == {1}&quot;, a, b)</code>, <code>ReplaceWithEquality(a, b)</code>, <code>ReplaceWith(syntax)</code></td><td><code>SafeWhen(change =&gt; ...)</code></td></tr>
+<tr><td>Call or <code>CodeArgument</code></td><td><code>RemoveArgument(&quot;name&quot;)</code> / <code>Remove()</code> with <code>ExpectOverloadChange</code>, <code>RequireRemovedValue</code> and <code>RequireRemovedEvaluation</code></td><td><code>SafeWhen(...)</code></td></tr>
+<tr><td>Any declaration</td><td><code>RemoveModifier(Modifier.Private)</code></td><td><code>Propose()</code> for accessibility that does not change; otherwise <code>SafeWhen(...)</code></td></tr>
+<tr><td><code>CodeBranch</code></td><td><code>AddBraces()</code></td><td><code>Propose()</code></td></tr>
+<tr><td><code>CodeComment</code></td><td><code>Remove()</code></td><td><code>Propose()</code></td></tr>
+<tr><td><code>CodeVariableDeclaration</code></td><td><code>UseVar()</code></td><td><code>Propose()</code></td></tr>
+<tr><td><code>ExpressionGroup</code></td><td><code>Fix.Extract(group).ToConstant(name)</code> / <code>ToMethod(name, parameterName)</code></td><td><code>Propose()</code> for constants; <code>SafeWhen(...)</code> for templates</td></tr>
+</tbody></table></div>
+<p><code>Propose()</code> means the library owns the whole proof for that edit. <code>SafeWhen(proof)</code> means you supply the part only your policy knows: the proof receives the change, with <code>Before</code> and <code>After</code> bound to the original and rewritten compilations, and returning false withholds the fix while keeping the finding. Template holes keep original operands unchanged, and parentheses are added only where precedence requires them.</p>
+<p>Every builder already rejects generated and inactive source, interior comments and directives, compiler errors, and changed bindings of the surrounding code and kept operands. <code>MustPreserve(ExpressionBehavior.EvaluationCounts | ExpressionBehavior.EvaluationOrder)</code> adds library-owned checks of how often and in what order kept operands run.</p>
 <h2 id="existing">Keep correction policy in your bundle</h2>
-<p>A fix factory receives the violating candidate and returns a <code>FixProposal</code> or null. Returning null keeps the finding but offers no fix. <code>Forbid</code> and <code>Require</code> both accept the optional <code>fix</code> argument.</p>
-<p>The SDK provides generic edit construction and compiler checks. It does not choose between <code>string.Empty</code> and <code>""</code>, explicit and implicit accessibility, or explicit and default comparers. The <a href="../samples/DrillPress.SampleRules/Fixes/EmptyStringFix.cs">sample spelling fix</a> and <a href="../samples/DrillPress.SampleRules/Fixes/OrdinalComparerFix.cs">sample comparer fix</a> show consumer-owned policies and their conservative proofs.</p>
+<p>The SDK provides edit construction and compiler checks. It does not choose between <code>string.Empty</code> and <code>""</code>, explicit and implicit accessibility, or explicit and default comparers. The <a href="../samples/DrillPress.SampleRules/Fixes/EmptyStringFix.cs">sample spelling fix</a> and <a href="../samples/DrillPress.SampleRules/Fixes/OrdinalComparerFix.cs">sample comparer fix</a> show consumer-owned policies and their conservative proofs.</p>
 <p>Replacing a field access with a constant can change an enclosing overload. Removing an argument can change behavior even when the resulting call compiles. Keep those proofs with the policy that needs them.</p>
-<h2 id="proposal">Build an exact edit proposal</h2>
+<h2 id="proposal">Build a custom edit</h2>
+<p>When no builder fits, propose raw text edits and supply the complete proof yourself.</p>
 <div class="codeblock"><div class="codehead"><span>A helper that requires the caller to supply its proof</span></div><pre tabindex="0" data-check="program" id="example-30"><code>using DrillPress;
 using Microsoft.CodeAnalysis.Text;
 
@@ -65,7 +96,7 @@ static FixProposal ProposeReplacement(
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#existing">Keep correction policy in your bundle</a><a href="#proposal">Build an exact edit proposal</a><a href="#binding">Check binding without overstating it</a><a href="#agreement">Validation and application are separate</a><a href="#test-fixes">Test the fixes you withhold</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#builders">Start from what you selected</a><a href="#existing">Keep correction policy in your bundle</a><a href="#proposal">Build a custom edit</a><a href="#binding">Check binding without overstating it</a><a href="#agreement">Validation and application are separate</a><a href="#test-fixes">Test the fixes you withhold</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

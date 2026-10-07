@@ -94,7 +94,7 @@ public sealed class CodeTypeReferenceTests(SdkFixture fixture) : IClassFixture<S
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Shop", [new("Order.cs", Source)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ARCH001", "Keep the domain independent of infrastructure.")
             .For(

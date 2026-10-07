@@ -84,7 +84,7 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("BLOCK", "Wrap the selected statement.")
             .For(
@@ -115,7 +115,7 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("BLOCK", "Wrap the selected statement.")
             .For(
@@ -133,9 +133,9 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
     }
 
-    private static RuleSet Rules()
+    private static RuleCatalog Rules()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("BLOCK", "Wrap the selected statement.")
             .For(

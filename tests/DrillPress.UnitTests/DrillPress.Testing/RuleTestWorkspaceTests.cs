@@ -154,7 +154,7 @@ public sealed class RuleTestWorkspaceTests
                 .ForFile("Zero.cs")
                 .Lines(0, 0)
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("LINES", "Exercise source.")
             .For(Code.Files)
@@ -197,7 +197,7 @@ public sealed class RuleTestWorkspaceTests
         var workspace = new RuleTestWorkspace([]);
         workspace.AddProject("Product", [new("Calls.cs", Source)]);
         workspace.WithCoverage(facts => facts.ForFile("Calls.cs").Lines(4, 4));
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("LINES", "Exercise source.")
             .For(Code.Projects)
@@ -231,9 +231,9 @@ public sealed class RuleTestWorkspaceTests
         Assert.Equal("reasons", invalid.ParamName);
     }
 
-    private static RuleSet ExecutionRules()
+    private static RuleCatalog ExecutionRules()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("CALL", "Exercise call.")
             .For(Code.Calls.Where(call => call.Target.Name == "Hit"))

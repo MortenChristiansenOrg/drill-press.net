@@ -47,7 +47,7 @@ public sealed class RuleDefinitionTests(SdkFixture fixture) : IClassFixture<SdkF
                 .ForEnumeration(loops[1])
                 .Unknown(CoverageReason.UnsupportedEnumerationMapping)
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("DATA002", "Exercise each data query.");
         policy
             .For(Code.Calls.ToMethodsNamed("Query", "AsyncQuery").Expressions())
@@ -128,7 +128,7 @@ public sealed class RuleDefinitionTests(SdkFixture fixture) : IClassFixture<SdkF
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("C.cs", "class C { int A = 1; int B = 2; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("SHARED", "Update the class.");
         policy
             .For(Code.Nodes<LiteralExpressionSyntax>())
@@ -165,7 +165,7 @@ public sealed class RuleDefinitionTests(SdkFixture fixture) : IClassFixture<SdkF
     {
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("C.cs", "class C { int A = 1; }")]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("SHARED", "Update the value.");
         policy
             .For(Code.Nodes<LiteralExpressionSyntax>())
@@ -199,7 +199,7 @@ public sealed class RuleDefinitionTests(SdkFixture fixture) : IClassFixture<SdkF
         const string text =
             "class C { void M(int n) { switch (n) { case 1: break; case 2: break; } } }";
         workspace.AddProject("Library", [new("C.cs", text)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var policy = rules.Rule("SHARED", "Update the cases.");
         policy
             .For(Code.Nodes<LiteralExpressionSyntax>().Where(node => node.Syntax.ToString() == "1"))

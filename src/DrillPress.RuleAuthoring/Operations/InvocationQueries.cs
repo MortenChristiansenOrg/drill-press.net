@@ -208,7 +208,7 @@ public static class InvocationQueries
         );
     }
 
-    /// <summary>Projects parameter groups without inventing source locations for default arguments.</summary>
+    /// <summary>Projects the arguments bound to a parameter, including omitted defaults, which have no source value and report at their call.</summary>
     public static CodeQuery<CodeArgument> ArgumentsFor(
         this CodeQuery<CodeInvocation> calls,
         string parameterName

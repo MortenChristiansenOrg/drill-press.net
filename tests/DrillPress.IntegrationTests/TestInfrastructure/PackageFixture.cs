@@ -172,7 +172,7 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
             using DrillPress;
             using DrillPress.Engine;
 
-            var rules = new RuleSet();
+            var rules = new RuleCatalog();
             rules.Rule("NULL001", "Unexpected non-null check.")
                 .For(Code.NullChecks.Where(check =>
                     check.Form == NullCheckForm.Pattern && check.IsKnownNotNullBeforeCheck))

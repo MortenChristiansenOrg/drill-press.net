@@ -68,8 +68,10 @@ public sealed class ScopeQueriesTests
         );
 
         var selected = Code.Files.InFolder("Endpoints").InFilesNamed("*Tests.cs").In(solution);
+        var membership = Code.Files.In(solution).Select(file => file.IsInFolder("Endpoints"));
 
         Assert.Same(parent, Assert.Single(selected).Source.Project);
+        Assert.Equal([true, false, false], membership);
     }
 
     [Fact]

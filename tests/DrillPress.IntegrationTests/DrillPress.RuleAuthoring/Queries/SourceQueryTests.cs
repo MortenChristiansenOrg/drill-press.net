@@ -62,7 +62,7 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
                 new("B.g.cs", "[System.Obsolete] class B { }", true),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("ATTR", "Review the attribute.").For(Code.Nodes<AttributeSyntax>()).Forbid();
 
         var findings = rules.Evaluate(workspace.Analyze(TestContext.Current.CancellationToken));

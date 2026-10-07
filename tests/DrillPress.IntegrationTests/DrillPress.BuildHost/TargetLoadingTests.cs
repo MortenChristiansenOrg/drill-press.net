@@ -28,7 +28,7 @@ public sealed class TargetLoadingTests : IntegrationTest
             TestContext.Current.CancellationToken
         );
         var findings = await new AnalysisEngine().AnalyzeAsync(
-            SampleRuleSet.Create(),
+            SampleRuleCatalog.Create(),
             snapshot,
             TestContext.Current.CancellationToken
         );
@@ -242,7 +242,7 @@ public sealed class TargetLoadingTests : IntegrationTest
             TestContext.Current.CancellationToken
         );
         var findings = await new AnalysisEngine().AnalyzeAsync(
-            SampleRuleSet.Create(),
+            SampleRuleCatalog.Create(),
             snapshot,
             TestContext.Current.CancellationToken
         );

@@ -31,7 +31,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
         var groups = urls.TemplateGroups(
             new(TemplateShapes.Interpolation, capture => capture.TypeIs<string>())
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("URL", "Extract URL.")
             .For(groups)
@@ -80,7 +80,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             ),
             minimumOccurrences: 1
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("URL", "Extract URL.")
             .For(groups)
@@ -127,7 +127,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
         var literals = urls.Where(value =>
             value.Syntax is Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("URL", "Extract URL.")
             .For(literals.ConstantGroups())
@@ -163,7 +163,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             .ArgumentsFor("value")
             .SourceValues();
         var groups = urls.ConstantGroups();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("URL", "Extract URL.")
             .For(
@@ -210,7 +210,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
             .Calls.To(CodeType.Named("A").Member("Use"))
             .ArgumentsFor("value")
             .SourceValues();
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("URL", "Extract URL.")
             .For(urls.ConstantGroups())

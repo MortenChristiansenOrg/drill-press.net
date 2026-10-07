@@ -2,11 +2,11 @@ using DrillPress;
 
 namespace DrillPress.SampleRules;
 
-public static class SampleRuleSet
+public static class SampleRuleCatalog
 {
-    public static RuleSet Create()
+    public static RuleCatalog Create()
     {
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         ShowcaseRules.Register(rules);
         var tests = Code.TestMethods.Select(method => new TestBody(method));
 

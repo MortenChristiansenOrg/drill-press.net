@@ -50,7 +50,7 @@ public sealed class StandardLinqPackageTests(PackageFixture fixture) : Integrati
             var workspace = new RuleTestWorkspace();
             workspace.AddProject("Consumer", [new("Calls.cs",
                 "using System.Linq; class C { void M(int[] items) { _ = items.Where(x => x > 0); _ = items.Count(); } }")]);
-            var rules = new RuleSet();
+            var rules = new RuleCatalog();
             var policy = rules.Rule("SCALAR", "Found scalar.");
             policy.For(Code.Calls.Where(call => StandardLinq.Inspect(call).SequenceConsumption == LinqSequenceConsumption.MayEnumerate).Expressions())
                 .Require(Coverage.Executed);

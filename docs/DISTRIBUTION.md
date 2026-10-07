@@ -21,7 +21,7 @@ protocol compatibility requires the full version, including the prerelease suffi
 | `DrillPress.Engine` | `RuleApplication` and compiled bundle execution | RuleAuthoring, Manifest |
 | `DrillPress.Testing` | Existing in-process consumer test workspace | Engine |
 | `DrillPress.Manifest` | Snapshot, response, diagnostic, and edit contracts | None |
-| `DrillPress.Cli` | .NET tool command `drillpress` | Bundled runtime files; no consumer package references |
+| `DrillPress.Cli` | .NET tool command `drillpress`, including `install-skill` for the [agent skill](AGENT_SKILL.md) | Bundled runtime files; no consumer package references |
 
 Each library ships its XML API documentation. Its exported public types are the
 public API surface. Roslyn syntax, symbol, compilation, operation, and metadata
@@ -71,11 +71,11 @@ when your bundle can prove the replacement safe:
 ```csharp
 using DrillPress;
 using DrillPress.Engine;
-using DrillPress;
 
-var rules = new RuleSet();
-rules.For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
-    .Forbid("EMPTY", "Use an empty literal.");
+var rules = new RuleCatalog();
+rules.Rule("EMPTY", "Use an empty literal.")
+    .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+    .Forbid();
 return (int)await new RuleApplication().RunAsync(rules, args);
 ```
 

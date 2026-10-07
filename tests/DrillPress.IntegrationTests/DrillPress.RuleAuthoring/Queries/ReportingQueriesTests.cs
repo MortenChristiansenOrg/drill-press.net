@@ -35,7 +35,7 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             ["B1.cs"] = "Middle.cs",
             ["B2.cs"] = "Right.cs",
         };
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("GROUP", "Update shared values.")
             .For(Code.Files.InProject("Reporter"))
@@ -85,7 +85,7 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         const string text =
             "class A { void M(int n) { switch (n) { case 1: break; case 2: break; } } }";
         workspace.AddProject("Library", [new("A.cs", text)]);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ONE", "Use three.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
@@ -111,7 +111,7 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             "Library",
             [new("A.cs", "class A { int First = 1; int Second = 2; int Third = 3; }")]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         var evaluated = new List<string>();
         rules
             .Rule("ONE", "Use four.")
@@ -146,7 +146,7 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
             "Library",
             [new("A.cs", "class A { int First = 1; int Second = 2; }")]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ONE", "Conflicting edits.")
             .For(Code.Nodes<LiteralExpressionSyntax>())
@@ -170,7 +170,7 @@ public sealed class ReportingQueriesTests(SdkFixture fixture) : IClassFixture<Sd
         var workspace = fixture.Workspace();
         workspace.AddProject("Library", [new("A.cs", "class A { int Value = 1; }")]);
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules.Rule("EMPTY", "No locals.").For(Code.LocalVariables).Forbid();
         rules
             .Rule("BAD", "Bad anchor.")

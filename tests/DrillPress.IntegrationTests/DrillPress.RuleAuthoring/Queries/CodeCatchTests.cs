@@ -66,7 +66,7 @@ public sealed class CodeCatchTests(SdkFixture fixture) : IClassFixture<SdkFixtur
                 ),
             ]
         );
-        var rules = new RuleSet();
+        var rules = new RuleCatalog();
         rules
             .Rule("ERR001", "Handle or rethrow the exception.")
             .For(Code.Catches.Where(clause => clause.IsEmpty))

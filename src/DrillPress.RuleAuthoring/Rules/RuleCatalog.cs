@@ -3,13 +3,13 @@ namespace DrillPress;
 /// <summary>Collects rule definitions. Every rule starts with <see cref="Rule(string, string, RuleFixComplexity?)"/>, followed by one or more typed clauses.</summary>
 /// <example>
 /// <code>
-/// var rules = new RuleSet();
+/// var rules = new RuleCatalog();
 /// rules.Rule("TEAM001", "Use the application logger instead of Console.WriteLine.")
 ///     .For(Code.Calls.To(CodeType.Named("System.Console").Member("WriteLine")))
 ///     .Forbid();
 /// </code>
 /// </example>
-public sealed class RuleSet
+public sealed class RuleCatalog
 {
     private readonly List<RuleRegistration> _rules = [];
 

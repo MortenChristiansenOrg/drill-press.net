@@ -47,10 +47,16 @@ public static class ScopeQueries
     )
         where T : ICodeElement
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
-        var match = new PathPattern("**/" + folder.Replace('\\', '/').Trim('/') + "/**");
+        var match = FolderPattern(folder);
         return query.Where(element => match.Matches(RelativePath(element.Source, sourceRoot)));
     }
+
+    /// <summary>Tests whole physical folder segments with the same rules as InFolder.</summary>
+    public static bool IsInFolder(
+        this ICodeElement element,
+        string folder,
+        string? sourceRoot = null
+    ) => FolderPattern(folder).Matches(RelativePath(element.Source, sourceRoot));
 
     /// <summary>Matches namespace segments; * matches one segment and a trailing ** includes the root and all descendants.</summary>
     public static CodeQuery<T> InNamespace<T>(this CodeQuery<T> query, string pattern)
@@ -63,6 +69,12 @@ public static class ScopeQueries
     /// <summary>Tests the candidate's semantic namespace with the same segment rules as InNamespace.</summary>
     public static bool IsInNamespace(this ICodeElement element, string pattern) =>
         MatchesNamespace(element, NamespacePattern(pattern));
+
+    private static PathPattern FolderPattern(string folder)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+        return new("**/" + folder.Replace('\\', '/').Trim('/') + "/**");
+    }
 
     private static PathPattern NamespacePattern(string pattern)
     {

@@ -13,21 +13,7 @@ public sealed class DeclarationFix
     internal DeclarationFix(ICodeDeclaration declaration)
     {
         _source = declaration.Source;
-        _declaration = declaration switch
-        {
-            CodeMethod method => method.Syntax,
-            CodeTypeDeclaration part => part.Syntax,
-            CodeTypeDefinition type => type.Syntax,
-            CodeField field => field.Declaration,
-            CodeProperty property => property.Syntax,
-            CodeParameter parameter => parameter.Syntax,
-            CodeSymbol
-            {
-                Syntax: VariableDeclaratorSyntax { Parent.Parent: BaseFieldDeclarationSyntax field }
-            } => field,
-            CodeSymbol symbol => symbol.Syntax,
-            _ => null,
-        };
+        _declaration = DeclarationSyntax.Owner(declaration);
     }
 
     /// <summary>Removes one written modifier token, keeping surrounding comments and trivia. Use <c>Propose()</c> for accessibility modifiers whose removal keeps the declared accessibility; other modifiers need <c>SafeWhen(...)</c>.</summary>
