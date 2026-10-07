@@ -15,6 +15,9 @@ might require opt-in flags for more detailed information, etc.
   Batch related review fixes into one push so each revision triggers one useful
   CI run. Native parity is a release gate; run it locally when changing native
   compatibility rather than adding routine or scheduled CI runs.
+- An instruction to release the NuGet packages does not imply that a pull request
+  should be merged. Merge a pull request ONLY when the user directly instructs you
+  to merge it.
 - Run the repository-local CSharpier on all changed C# and XML code before
   committing: `dotnet tool restore`, then `dotnet csharpier format <changed-paths>`.
   Use `dotnet csharpier format .` for the entire solution and
