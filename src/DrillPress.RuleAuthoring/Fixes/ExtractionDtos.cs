@@ -18,14 +18,14 @@ public enum ExtractionNameCollision
 /// <param name="AfterOwner">The corresponding type after all edits.</param>
 /// <param name="Member">The exact constant or one-parameter helper used by every replacement.</param>
 /// <param name="Reused">Whether an existing constant was reused instead of inserting a member.</param>
-/// <param name="Occurrences">All selected occurrences present in this context, with retained capture mappings.</param>
+/// <param name="Occurrences">All selected expressions present in this context, bound to their original and rewritten compilations, with retained captures and raw evidence through <see cref="ExpressionChange.Rewrite"/>.</param>
 public sealed record ExtractionChange(
     RewriteContext Context,
     INamedTypeSymbol BeforeOwner,
     INamedTypeSymbol AfterOwner,
     ISymbol Member,
     bool Reused,
-    IReadOnlyList<RewriteEvidence> Occurrences
+    IReadOnlyList<ExpressionChange> Occurrences
 );
 
 /// <summary>Policies for deriving an extracted helper's parameter name.</summary>

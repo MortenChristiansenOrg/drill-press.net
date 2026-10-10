@@ -88,7 +88,7 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
                 Fix.Extract(group)
                     .ToMethod("Route")
                     .SafeWhen(evidence =>
-                        evidence.Occurrences.All(change => change.Inputs.Count == 1)
+                        evidence.Occurrences.All(change => change.Kept.Count == 1)
                     )
             );
 

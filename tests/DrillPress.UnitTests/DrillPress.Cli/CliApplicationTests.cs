@@ -201,6 +201,8 @@ public sealed class CliApplicationTests
                 "SKILL.md",
                 "examples/ExampleRules.cs",
                 "examples/ExampleRulesTests.cs",
+                "examples/TemplateExtractionRules.cs",
+                "examples/TemplateExtractionRulesTests.cs",
                 "reference/fixes.md",
                 "reference/queries.md",
                 "reference/testing.md",
