@@ -187,16 +187,40 @@ public sealed class InstalledPackageTests(PackageFixture fixture) : IntegrationT
 
         Assert.NotNull(package.GetEntry($"lib/net10.0/{id}.dll"));
         Assert.NotNull(package.GetEntry($"lib/net10.0/{id}.xml"));
-        Assert.NotNull(package.GetEntry("README.md"));
-        Assert.NotNull(package.GetEntry("LICENSE"));
-        Assert.Equal(
-            "MIT",
-            metadata.Descendants().Single(element => element.Name.LocalName == "license").Value
-        );
         Assert.All(
             dependencies,
             dependency =>
                 Assert.Equal($"[{fixture.Version}]", dependency.Attribute("version")!.Value)
+        );
+    }
+
+    [Theory]
+    [InlineData("DrillPress.Manifest")]
+    [InlineData("DrillPress.RuleAuthoring")]
+    [InlineData("DrillPress.Linq")]
+    [InlineData("DrillPress.Engine")]
+    [InlineData("DrillPress.Testing")]
+    [InlineData("DrillPress.Cli")]
+    public void Release_packages_include_readme_license_and_icon(string id)
+    {
+        using var stream = FileSystem.File.OpenRead(
+            FileSystem.Path.Combine(fixture.Feed, $"{id}.{fixture.Version}.nupkg")
+        );
+        using var package = new ZipArchive(stream, ZipArchiveMode.Read);
+        using var manifest = package.GetEntry(id + ".nuspec")!.Open();
+
+        var metadata = XDocument.Load(manifest);
+
+        Assert.NotNull(package.GetEntry("README.md"));
+        Assert.NotNull(package.GetEntry("LICENSE"));
+        Assert.NotNull(package.GetEntry("icon.png"));
+        Assert.Equal(
+            "MIT",
+            metadata.Descendants().Single(element => element.Name.LocalName == "license").Value
+        );
+        Assert.Equal(
+            "icon.png",
+            metadata.Descendants().Single(element => element.Name.LocalName == "icon").Value
         );
     }
 }
