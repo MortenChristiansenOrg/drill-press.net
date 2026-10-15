@@ -11,6 +11,15 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     : IntegrationTest,
         IClassFixture<CompilerFixture>
 {
+    private static readonly string AnalyzersPath = RepositoryPath(
+        "fixtures",
+        "CompilerSnapshot",
+        "Analyzers",
+        "bin",
+        "Release",
+        "netstandard2.0",
+        "Analyzers.dll"
+    );
     private readonly CompilerFixture _fixture = fixture;
 
     [Fact]
@@ -225,6 +234,165 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         Assert.Contains("Requested generator failure.", result.StandardError);
         Assert.False(FileSystem.File.Exists(output));
     }
+
+    [Fact]
+    public async Task Validation_applies_analyzer_suppressors_and_honors_warning_exemptions()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            """
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsNotAsErrors>CS8032</WarningsNotAsErrors>
+            """,
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+                public string Name { get; set; }
+            }
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: {FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "Context.cs")}(5,19): error CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.{Environment.NewLine}"
+            ),
+            result
+        );
+    }
+
+    [Fact]
+    public async Task Validation_accepts_a_project_whose_only_errors_are_suppressed()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            """
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsNotAsErrors>CS8032</WarningsNotAsErrors>
+            """,
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+            }
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.True(
+            FileSystem.File.Exists(
+                FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json")
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Validation_reports_suppressor_exceptions_configured_as_errors()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            "<WarningsAsErrors>AD0001</WarningsAsErrors>",
+            """
+            public sealed class ThrowingSet<T> { }
+            public sealed class Context
+            {
+                public ThrowingSet<string> Values { get; set; }
+            }
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.StartsWith(
+            "DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: error AD0001: Analyzer 'CompilerSnapshot.Fixtures.FixtureSetSuppressor' threw an exception of type 'System.InvalidOperationException' with message 'Requested suppressor failure.'.",
+            result.StandardError
+        );
+    }
+
+    [Fact]
+    public async Task Validation_reports_analyzer_load_failures_configured_as_errors()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "public sealed class Context { }",
+            """
+            is_global = true
+            dotnet_diagnostic.CS8032.severity = error
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: error CS8032: An instance of analyzer CompilerSnapshot.Fixtures.UnconstructibleAnalyzer cannot be created from {AnalyzersPath}: Exception has been thrown by the target of an invocation.{Environment.NewLine}"
+            ),
+            result
+        );
+    }
+
+    private async Task<string> CreateAnalyzedProjectAsync(
+        string properties,
+        string source,
+        string globalConfig = ""
+    )
+    {
+        var root = CreateTemporaryDirectory("drillpress-analyzers-").FullName;
+        var target = FileSystem.Path.Combine(root, "Analyzed.csproj");
+        await FileSystem.File.WriteAllTextAsync(
+            target,
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <Nullable>enable</Nullable>
+                {properties}
+                <IsTestProject>false</IsTestProject>
+              </PropertyGroup>
+              <ItemGroup>
+                <Analyzer Include="{AnalyzersPath}" />
+                <GlobalAnalyzerConfigFiles Include="fixture.globalconfig" />
+              </ItemGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(root, "Context.cs"),
+            source,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(root, "fixture.globalconfig"),
+            globalConfig,
+            TestContext.Current.CancellationToken
+        );
+        await RestoreAsync(target);
+        return target;
+    }
+
+    private Task<ProcessResult> ValidateAsync(string target) =>
+        RunProcessAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.BuildHost"),
+                "export",
+                target,
+                FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
+                "--validate-compilation",
+            ],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
 
     private Task<ProcessResult> ExportAsync(string output, params string[] options) =>
         RunProcessAsync(

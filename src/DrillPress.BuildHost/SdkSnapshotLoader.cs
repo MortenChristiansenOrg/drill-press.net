@@ -199,7 +199,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         var generated = RunGenerators(liveProject, compilation, cancellationToken);
         compilation = generated.Compilation;
         ThrowLoadFailures(failures);
-        CompilationValidation.Validate(compilation, options.ValidateCompilation, cancellationToken);
+        await CompilationValidation.ValidateAsync(
+            compilation,
+            liveProject,
+            options.ValidateCompilation,
+            cancellationToken
+        );
         var diagnosticIds = await GetDiagnosticIdsAsync(liveProject, cancellationToken);
         var snapshot = new CompilerCapture(_fileSystem).Capture(
             project.Name,
@@ -352,26 +357,10 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         CancellationToken cancellationToken
     )
     {
-        var loadFailures = new List<string>();
-        foreach (
-            var reference in project.AnalyzerReferences.OfType<Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference>()
-        )
-        {
-            reference.AnalyzerLoadFailed += (_, args) => loadFailures.Add(args.Message);
-        }
-
-        var generators = project
-            .AnalyzerReferences.SelectMany(reference =>
-                reference.GetGenerators(LanguageNames.CSharp)
-            )
-            .ToArray();
-        if (loadFailures.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"Analyzer loading failed in '{project.Name}': {string.Join("; ", loadFailures)}"
-            );
-        }
-
+        var generators = ProjectAnalyzers.Load(
+            project,
+            reference => reference.GetGenerators(LanguageNames.CSharp)
+        );
         if (generators.Length == 0)
         {
             return new GeneratedCompilation(compilation, []);

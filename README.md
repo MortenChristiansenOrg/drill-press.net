@@ -182,7 +182,9 @@ MSBuild properties are rejected in loose mode. These defaults are deliberately
 independent of nearby project settings.
 
 Fast export permits ordinary compiler errors. `--validate-compilation` explicitly
-enumerates compiler errors and rejects an invalid target. Generator exceptions,
+enumerates compiler errors and rejects an invalid target. Like a real build, it
+applies the project's analyzer `DiagnosticSuppressor`s first, so errors that
+packages suppress (such as EF Core's CS8618 on `DbSet` properties) do not fail it. Generator exceptions,
 missing inputs, incomplete project graphs, and load failures fail both modes.
 Semantic selections do not guess unresolved symbols; syntax queries retain erroneous code.
 Source project references remain compilation
@@ -205,6 +207,7 @@ Run compiler conformance:
 ```sh
 dotnet build fixtures/CompilerSnapshot/Interop/Interop.csproj -c Release
 dotnet build fixtures/CompilerSnapshot/Generator/Generator.csproj -c Release
+dotnet build fixtures/CompilerSnapshot/Analyzers/Analyzers.csproj -c Release
 dotnet restore fixtures/CompilerSnapshot/Selected.slnx
 dotnet run --project tools/DrillPress.Conformance -c Release -- \
   fixtures/CompilerSnapshot/Selected.slnx artifacts/conformance/fixture.json
