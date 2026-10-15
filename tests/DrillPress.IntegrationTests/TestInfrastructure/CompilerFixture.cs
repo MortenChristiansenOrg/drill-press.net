@@ -10,7 +10,7 @@ public sealed class CompilerFixture : IntegrationTest, IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        foreach (var project in new[] { "Generator", "Interop" })
+        foreach (var project in new[] { "Generator", "Interop", "Analyzers" })
         {
             var result = await RunProcessAsync(
                 "dotnet",

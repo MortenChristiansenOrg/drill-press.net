@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -6,6 +7,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace CompilerSnapshot.Fixtures;
 
 // Mirrors EF Core's DbSet suppressor: FixtureSet properties are assigned by their host.
+// ThrowingSet properties make the suppressor fail, as a defective package suppressor would.
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class FixtureSetSuppressor : DiagnosticSuppressor
 {
@@ -34,6 +36,8 @@ public sealed class FixtureSetSuppressor : DiagnosticSuppressor
                     : context
                         .GetSemanticModel(tree)
                         .GetDeclaredSymbol(property, context.CancellationToken) as IPropertySymbol;
+            if (symbol != null && symbol.Type.Name == "ThrowingSet")
+                throw new InvalidOperationException("Requested suppressor failure.");
             if (symbol != null && symbol.Type.Name == "FixtureSet")
                 context.ReportSuppression(Suppression.Create(Uninitialized, diagnostic));
         }

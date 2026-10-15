@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -7,6 +8,9 @@ namespace DrillPress.BuildHost;
 
 internal static class CompilationValidation
 {
+    // The compiler reports analyzers that cannot be constructed as this configurable warning.
+    private const string AnalyzerLoadFailureId = "CS8032";
+
     public static void Validate(
         CSharpCompilation compilation,
         bool validate,
@@ -28,18 +32,36 @@ internal static class CompilationValidation
         if (!validate)
             return;
 
-        var suppressors = ProjectAnalyzers.Load(
+        var (suppressors, failures) = ProjectAnalyzers.TryLoad(
             project,
             reference => reference.GetAnalyzers(LanguageNames.CSharp).OfType<DiagnosticSuppressor>()
         );
-        ThrowErrors(
-            compilation,
-            suppressors.Length == 0
-                ? compilation.GetDiagnostics(cancellationToken)
-                : await compilation
-                    .WithAnalyzers([.. suppressors], project.AnalyzerOptions)
-                    .GetAllDiagnosticsAsync(cancellationToken)
-        );
+        if (
+            failures.Length > 0
+            && IsError(AnalyzerLoadFailureId, DiagnosticSeverity.Warning, compilation.Options)
+        )
+            throw ProjectAnalyzers.LoadFailure(project, failures);
+        if (suppressors.Length == 0)
+        {
+            ThrowErrors(compilation, compilation.GetDiagnostics(cancellationToken));
+            return;
+        }
+
+        // Suppressor exceptions can surface after diagnostics are collected, so capture them explicitly.
+        var exceptions = new ConcurrentQueue<Diagnostic>();
+        var diagnostics = await compilation
+            .WithAnalyzers(
+                [.. suppressors],
+                new CompilationWithAnalyzersOptions(
+                    project.AnalyzerOptions,
+                    (_, _, diagnostic) => exceptions.Enqueue(diagnostic),
+                    concurrentAnalysis: true,
+                    logAnalyzerExecutionTime: false,
+                    reportSuppressedDiagnostics: false
+                )
+            )
+            .GetAllDiagnosticsAsync(cancellationToken);
+        ThrowErrors(compilation, diagnostics.Concat(exceptions).Distinct());
     }
 
     private static void ThrowErrors(
@@ -48,7 +70,10 @@ internal static class CompilationValidation
     )
     {
         var errors = diagnostics
-            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Where(diagnostic =>
+                diagnostic.Severity == DiagnosticSeverity.Error
+                || IsError(diagnostic.Id, diagnostic.Severity, compilation.Options)
+            )
             .ToArray();
         if (errors.Length > 0)
         {
@@ -57,4 +82,16 @@ internal static class CompilationValidation
             );
         }
     }
+
+    // Mirrors WarningsAsErrors, NoWarn and TreatWarningsAsErrors for diagnostics reported outside the compilation.
+    private static bool IsError(
+        string id,
+        DiagnosticSeverity severity,
+        CompilationOptions options
+    ) =>
+        options.SpecificDiagnosticOptions.TryGetValue(id, out var report)
+        && report != ReportDiagnostic.Default
+            ? report == ReportDiagnostic.Error
+            : severity == DiagnosticSeverity.Warning
+                && options.GeneralDiagnosticOption == ReportDiagnostic.Error;
 }

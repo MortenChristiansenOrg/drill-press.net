@@ -227,18 +227,68 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     }
 
     [Fact]
-    public async Task Validation_applies_analyzer_suppressors_to_warnings_reported_as_errors()
+    public async Task Validation_applies_analyzer_suppressors_and_tolerates_unconstructible_analyzers()
     {
-        var root = CreateTemporaryDirectory("drillpress-suppressor-").FullName;
-        var target = FileSystem.Path.Combine(root, "Suppressed.csproj");
-        var generator = RepositoryPath(
+        var target = await CreateAnalyzedProjectAsync(
+            "CS8618",
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+                public string Name { get; set; }
+            }
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: {FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "Context.cs")}(5,19): error CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.{Environment.NewLine}"
+            ),
+            result
+        );
+    }
+
+    [Fact]
+    public async Task Validation_reports_suppressor_exceptions_configured_as_errors()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            "AD0001",
+            """
+            public sealed class ThrowingSet<T> { }
+            public sealed class Context
+            {
+                public ThrowingSet<string> Values { get; set; }
+            }
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.StartsWith(
+            "DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: error AD0001: Analyzer 'CompilerSnapshot.Fixtures.FixtureSetSuppressor' threw an exception of type 'System.InvalidOperationException' with message 'Requested suppressor failure.'.",
+            result.StandardError
+        );
+    }
+
+    private async Task<string> CreateAnalyzedProjectAsync(string warningsAsErrors, string source)
+    {
+        var root = CreateTemporaryDirectory("drillpress-analyzers-").FullName;
+        var target = FileSystem.Path.Combine(root, "Analyzed.csproj");
+        var analyzers = RepositoryPath(
             "fixtures",
             "CompilerSnapshot",
-            "Generator",
+            "Analyzers",
             "bin",
             "Release",
             "netstandard2.0",
-            "Generator.dll"
+            "Analyzers.dll"
         );
         await FileSystem.File.WriteAllTextAsync(
             target,
@@ -247,48 +297,36 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
               <PropertyGroup>
                 <TargetFramework>net10.0</TargetFramework>
                 <Nullable>enable</Nullable>
-                <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+                <WarningsAsErrors>{warningsAsErrors}</WarningsAsErrors>
                 <IsTestProject>false</IsTestProject>
               </PropertyGroup>
-              <ItemGroup><Analyzer Include="{generator}" /></ItemGroup>
+              <ItemGroup><Analyzer Include="{analyzers}" /></ItemGroup>
             </Project>
             """,
             TestContext.Current.CancellationToken
         );
         await FileSystem.File.WriteAllTextAsync(
             FileSystem.Path.Combine(root, "Context.cs"),
-            """
-            namespace Fixture;
-            public interface IContract { string Value { get; } }
-            public sealed class FixtureSet<T> { }
-            public sealed class Context
-            {
-                public FixtureSet<string> Items { get; set; }
-                public string Name { get; set; }
-            }
-            """,
+            source,
             TestContext.Current.CancellationToken
         );
         await RestoreAsync(target);
+        return target;
+    }
 
-        var result = await RunProcessAsync(
+    private Task<ProcessResult> ValidateAsync(string target) =>
+        RunProcessAsync(
             "dotnet",
             [
                 GetOutputPath("DrillPress.BuildHost"),
                 "export",
                 target,
-                FileSystem.Path.Combine(root, "snapshot.json"),
+                FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
                 "--validate-compilation",
             ],
             RepositoryRoot,
             TestContext.Current.CancellationToken
         );
-
-        Assert.Equal(2, result.ExitCode);
-        Assert.Equal("", result.StandardOutput);
-        Assert.Contains("has 1 errors", result.StandardError);
-        Assert.Contains("error CS8618: Non-nullable property 'Name'", result.StandardError);
-    }
 
     private Task<ProcessResult> ExportAsync(string output, params string[] options) =>
         RunProcessAsync(
