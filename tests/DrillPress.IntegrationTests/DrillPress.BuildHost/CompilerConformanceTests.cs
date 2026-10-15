@@ -226,6 +226,70 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         Assert.False(FileSystem.File.Exists(output));
     }
 
+    [Fact]
+    public async Task Validation_applies_analyzer_suppressors_to_warnings_reported_as_errors()
+    {
+        var root = CreateTemporaryDirectory("drillpress-suppressor-").FullName;
+        var target = FileSystem.Path.Combine(root, "Suppressed.csproj");
+        var generator = RepositoryPath(
+            "fixtures",
+            "CompilerSnapshot",
+            "Generator",
+            "bin",
+            "Release",
+            "netstandard2.0",
+            "Generator.dll"
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            target,
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <Nullable>enable</Nullable>
+                <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+                <IsTestProject>false</IsTestProject>
+              </PropertyGroup>
+              <ItemGroup><Analyzer Include="{generator}" /></ItemGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(root, "Context.cs"),
+            """
+            namespace Fixture;
+            public interface IContract { string Value { get; } }
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+                public string Name { get; set; }
+            }
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await RestoreAsync(target);
+
+        var result = await RunProcessAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.BuildHost"),
+                "export",
+                target,
+                FileSystem.Path.Combine(root, "snapshot.json"),
+                "--validate-compilation",
+            ],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.Contains("has 1 errors", result.StandardError);
+        Assert.Contains("error CS8618: Non-nullable property 'Name'", result.StandardError);
+    }
+
     private Task<ProcessResult> ExportAsync(string output, params string[] options) =>
         RunProcessAsync(
             "dotnet",
