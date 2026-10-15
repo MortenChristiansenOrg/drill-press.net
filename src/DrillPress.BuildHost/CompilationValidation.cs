@@ -8,9 +8,6 @@ namespace DrillPress.BuildHost;
 
 internal static class CompilationValidation
 {
-    // The compiler reports analyzers that cannot be constructed as this configurable warning.
-    private const string AnalyzerLoadFailureId = "CS8032";
-
     public static void Validate(
         CSharpCompilation compilation,
         bool validate,
@@ -36,33 +33,42 @@ internal static class CompilationValidation
             project,
             reference => reference.GetAnalyzers(LanguageNames.CSharp).OfType<DiagnosticSuppressor>()
         );
-        if (
-            failures.Length > 0
-            && IsError(AnalyzerLoadFailureId, DiagnosticSeverity.Warning, compilation.Options)
-        )
-            throw ProjectAnalyzers.LoadFailure(project, failures);
-        if (suppressors.Length == 0)
-        {
-            ThrowErrors(compilation, compilation.GetDiagnostics(cancellationToken));
-            return;
-        }
-
         // Suppressor exceptions can surface after diagnostics are collected, so capture them explicitly.
         var exceptions = new ConcurrentQueue<Diagnostic>();
-        var diagnostics = await compilation
-            .WithAnalyzers(
-                [.. suppressors],
-                new CompilationWithAnalyzersOptions(
-                    project.AnalyzerOptions,
-                    (_, _, diagnostic) => exceptions.Enqueue(diagnostic),
-                    concurrentAnalysis: true,
-                    logAnalyzerExecutionTime: false,
-                    reportSuppressedDiagnostics: false
-                )
-            )
-            .GetAllDiagnosticsAsync(cancellationToken);
-        ThrowErrors(compilation, diagnostics.Concat(exceptions).Distinct());
+        var diagnostics =
+            suppressors.Length == 0
+                ? compilation.GetDiagnostics(cancellationToken)
+                : await compilation
+                    .WithAnalyzers(
+                        [.. suppressors],
+                        new CompilationWithAnalyzersOptions(
+                            project.AnalyzerOptions,
+                            (_, _, diagnostic) => exceptions.Enqueue(diagnostic),
+                            concurrentAnalysis: true,
+                            logAnalyzerExecutionTime: false,
+                            reportSuppressedDiagnostics: false
+                        )
+                    )
+                    .GetAllDiagnosticsAsync(cancellationToken);
+        // Diagnostics reported outside the compilation still follow the project's severity configuration.
+        var external = CompilationWithAnalyzers.GetEffectiveDiagnostics(
+            failures.Select(LoadFailure).Concat(exceptions.Distinct()),
+            compilation
+        );
+        ThrowErrors(compilation, diagnostics.Concat(external));
     }
+
+    // Real builds report analyzers that cannot be created as this configurable warning.
+    private static Diagnostic LoadFailure(string message) =>
+        Diagnostic.Create(
+            "CS8032",
+            "Compiler",
+            message,
+            DiagnosticSeverity.Warning,
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true,
+            warningLevel: 1
+        );
 
     private static void ThrowErrors(
         CSharpCompilation compilation,
@@ -70,10 +76,7 @@ internal static class CompilationValidation
     )
     {
         var errors = diagnostics
-            .Where(diagnostic =>
-                diagnostic.Severity == DiagnosticSeverity.Error
-                || IsError(diagnostic.Id, diagnostic.Severity, compilation.Options)
-            )
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
         if (errors.Length > 0)
         {
@@ -82,16 +85,4 @@ internal static class CompilationValidation
             );
         }
     }
-
-    // Mirrors WarningsAsErrors, NoWarn and TreatWarningsAsErrors for diagnostics reported outside the compilation.
-    private static bool IsError(
-        string id,
-        DiagnosticSeverity severity,
-        CompilationOptions options
-    ) =>
-        options.SpecificDiagnosticOptions.TryGetValue(id, out var report)
-        && report != ReportDiagnostic.Default
-            ? report == ReportDiagnostic.Error
-            : severity == DiagnosticSeverity.Warning
-                && options.GeneralDiagnosticOption == ReportDiagnostic.Error;
 }

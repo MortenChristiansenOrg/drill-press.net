@@ -11,6 +11,15 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     : IntegrationTest,
         IClassFixture<CompilerFixture>
 {
+    private static readonly string AnalyzersPath = RepositoryPath(
+        "fixtures",
+        "CompilerSnapshot",
+        "Analyzers",
+        "bin",
+        "Release",
+        "netstandard2.0",
+        "Analyzers.dll"
+    );
     private readonly CompilerFixture _fixture = fixture;
 
     [Fact]
@@ -227,10 +236,13 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     }
 
     [Fact]
-    public async Task Validation_applies_analyzer_suppressors_and_tolerates_unconstructible_analyzers()
+    public async Task Validation_applies_analyzer_suppressors_and_honors_warning_exemptions()
     {
         var target = await CreateAnalyzedProjectAsync(
-            "CS8618",
+            """
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsNotAsErrors>CS8032</WarningsNotAsErrors>
+            """,
             """
             public sealed class FixtureSet<T> { }
             public sealed class Context
@@ -257,7 +269,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     public async Task Validation_reports_suppressor_exceptions_configured_as_errors()
     {
         var target = await CreateAnalyzedProjectAsync(
-            "AD0001",
+            "<WarningsAsErrors>AD0001</WarningsAsErrors>",
             """
             public sealed class ThrowingSet<T> { }
             public sealed class Context
@@ -277,19 +289,38 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
-    private async Task<string> CreateAnalyzedProjectAsync(string warningsAsErrors, string source)
+    [Fact]
+    public async Task Validation_reports_analyzer_load_failures_configured_as_errors()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "public sealed class Context { }",
+            """
+            is_global = true
+            dotnet_diagnostic.CS8032.severity = error
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: error CS8032: An instance of analyzer CompilerSnapshot.Fixtures.UnconstructibleAnalyzer cannot be created from {AnalyzersPath}: Exception has been thrown by the target of an invocation.{Environment.NewLine}"
+            ),
+            result
+        );
+    }
+
+    private async Task<string> CreateAnalyzedProjectAsync(
+        string properties,
+        string source,
+        string globalConfig = ""
+    )
     {
         var root = CreateTemporaryDirectory("drillpress-analyzers-").FullName;
         var target = FileSystem.Path.Combine(root, "Analyzed.csproj");
-        var analyzers = RepositoryPath(
-            "fixtures",
-            "CompilerSnapshot",
-            "Analyzers",
-            "bin",
-            "Release",
-            "netstandard2.0",
-            "Analyzers.dll"
-        );
         await FileSystem.File.WriteAllTextAsync(
             target,
             $"""
@@ -297,10 +328,13 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
               <PropertyGroup>
                 <TargetFramework>net10.0</TargetFramework>
                 <Nullable>enable</Nullable>
-                <WarningsAsErrors>{warningsAsErrors}</WarningsAsErrors>
+                {properties}
                 <IsTestProject>false</IsTestProject>
               </PropertyGroup>
-              <ItemGroup><Analyzer Include="{analyzers}" /></ItemGroup>
+              <ItemGroup>
+                <Analyzer Include="{AnalyzersPath}" />
+                <GlobalAnalyzerConfigFiles Include="fixture.globalconfig" />
+              </ItemGroup>
             </Project>
             """,
             TestContext.Current.CancellationToken
@@ -308,6 +342,11 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         await FileSystem.File.WriteAllTextAsync(
             FileSystem.Path.Combine(root, "Context.cs"),
             source,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(root, "fixture.globalconfig"),
+            globalConfig,
             TestContext.Current.CancellationToken
         );
         await RestoreAsync(target);

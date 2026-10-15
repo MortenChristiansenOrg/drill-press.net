@@ -20,19 +20,29 @@ internal static class ProjectAnalyzers
     )
     {
         var failures = new List<string>();
-        void Record(object? sender, AnalyzerLoadFailureEventArgs args) =>
-            failures.Add(args.Message);
-        var references = project.AnalyzerReferences.OfType<AnalyzerFileReference>().ToArray();
-        foreach (var reference in references)
-            reference.AnalyzerLoadFailed += Record;
+        var handlers = project
+            .AnalyzerReferences.OfType<AnalyzerFileReference>()
+            .Select(reference =>
+            {
+                // Matches the compiler's CS8032 wording when a named analyzer cannot be created.
+                EventHandler<AnalyzerLoadFailureEventArgs> record = (_, args) =>
+                    failures.Add(
+                        args.TypeName is null
+                            ? args.Message
+                            : $"An instance of analyzer {args.TypeName} cannot be created from {reference.FullPath}: {args.Message}"
+                    );
+                reference.AnalyzerLoadFailed += record;
+                return (Reference: reference, Record: record);
+            })
+            .ToArray();
         try
         {
             return (project.AnalyzerReferences.SelectMany(select).ToArray(), failures.ToArray());
         }
         finally
         {
-            foreach (var reference in references)
-                reference.AnalyzerLoadFailed -= Record;
+            foreach (var (reference, record) in handlers)
+                reference.AnalyzerLoadFailed -= record;
         }
     }
 
