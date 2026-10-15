@@ -131,14 +131,16 @@ public sealed class RuleApplicationTests
         );
     }
 
-    [Fact]
-    public async Task Returns_failure_and_usage_for_invalid_arguments()
+    [Theory]
+    [InlineData("check")]
+    [InlineData("check", "snapshot.json", "--refresh-coverage", "--skip-coverage")]
+    public async Task Returns_failure_and_usage_for_invalid_arguments(params string[] arguments)
     {
         var error = new StringWriter();
 
         var exitCode = await new RuleApplication(_fileSystem).RunAsync(
             RuleTestData.TargetEmptyRuleCatalog(),
-            ["check"],
+            arguments,
             TextWriter.Null,
             error,
             TestContext.Current.CancellationToken

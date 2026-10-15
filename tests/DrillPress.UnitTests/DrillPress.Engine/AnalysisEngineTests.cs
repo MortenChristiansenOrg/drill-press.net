@@ -302,6 +302,26 @@ public sealed class AnalysisEngineTests
     }
 
     [Fact]
+    public async Task Refreshing_and_skipping_coverage_together_is_rejected()
+    {
+        var engine = new AnalysisEngine(_fileSystem);
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() =>
+            engine.EvaluateAsync(
+                new RuleCatalog(),
+                CompilationSnapshot.Create(),
+                new AnalysisOptions { RefreshCoverage = true, SkipCoverage = true },
+                TestContext.Current.CancellationToken
+            )
+        );
+
+        Assert.Equal(
+            "RefreshCoverage and SkipCoverage cannot be combined. (Parameter 'options')",
+            error.Message
+        );
+    }
+
+    [Fact]
     public void Changed_external_reference_is_rejected_before_metadata_loading()
     {
         var path = _fileSystem.Path.GetFullPath("Changed.dll");

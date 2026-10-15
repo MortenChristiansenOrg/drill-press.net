@@ -50,6 +50,7 @@ public sealed class RuleApplication
                             or "--explain-coverage"
                         )
                 )
+            || (args.Contains("--refresh-coverage") && args.Contains("--skip-coverage"))
         )
         {
             await standardError.WriteLineAsync(

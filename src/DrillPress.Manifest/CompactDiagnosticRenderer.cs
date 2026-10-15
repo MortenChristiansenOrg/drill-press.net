@@ -81,7 +81,7 @@ public sealed class CompactDiagnosticRenderer
         if (result.SkippedRules.Length > 0)
             output
                 .Append("skipped coverage rules: ")
-                .AppendJoin(", ", result.SkippedRules)
+                .AppendJoin(", ", result.SkippedRules.Select(EscapeRuleId))
                 .Append('\n');
         return output.ToString();
     }
@@ -146,6 +146,12 @@ public sealed class CompactDiagnosticRenderer
                 : _fileSystem.Path.Combine(relativeDirectory, fileName);
         return displayPath.Replace(_fileSystem.Path.DirectorySeparatorChar, '/');
     }
+
+    // Quote IDs that would otherwise blur the comma-separated skipped-rule list.
+    private static string EscapeRuleId(string id) =>
+        id.Contains(',') || id.Contains('"') || id != id.Trim()
+            ? JsonEncodedText.Encode(id).ToString().Insert(0, "\"") + "\""
+            : id;
 
     private static string Escape(string path) =>
         path.Any(char.IsControl)

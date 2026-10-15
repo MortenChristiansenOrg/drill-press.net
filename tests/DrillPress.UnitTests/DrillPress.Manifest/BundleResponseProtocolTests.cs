@@ -121,6 +121,23 @@ public sealed class BundleResponseProtocolTests
     }
 
     [Fact]
+    public void Skipped_rules_survive_complexity_selection()
+    {
+        var fixture = new ContractFixture();
+        var response = fixture.Response with { SkippedRules = ["COV001"] };
+        var json = Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response));
+
+        var result = BundleResponseProtocol.Read(
+            json,
+            fixture.Snapshot,
+            new HashSet<RuleFixComplexity?> { RuleFixComplexity.Trivial }
+        );
+
+        Assert.Empty(result.Findings);
+        Assert.Equal(["COV001"], result.SkippedRules);
+    }
+
+    [Fact]
     public void Selection_withholds_atomic_batches_shared_with_excluded_rules()
     {
         var fixture = new FixComplexityFixture();
