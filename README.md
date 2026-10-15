@@ -207,6 +207,7 @@ Run compiler conformance:
 ```sh
 dotnet build fixtures/CompilerSnapshot/Interop/Interop.csproj -c Release
 dotnet build fixtures/CompilerSnapshot/Generator/Generator.csproj -c Release
+dotnet build fixtures/CompilerSnapshot/Analyzers/Analyzers.csproj -c Release
 dotnet restore fixtures/CompilerSnapshot/Selected.slnx
 dotnet run --project tools/DrillPress.Conformance -c Release -- \
   fixtures/CompilerSnapshot/Selected.slnx artifacts/conformance/fixture.json
