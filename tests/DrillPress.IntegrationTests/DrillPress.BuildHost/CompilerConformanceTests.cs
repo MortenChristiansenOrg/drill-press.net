@@ -266,6 +266,33 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     }
 
     [Fact]
+    public async Task Validation_accepts_a_project_whose_only_errors_are_suppressed()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            """
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsNotAsErrors>CS8032</WarningsNotAsErrors>
+            """,
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+            }
+            """
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.True(
+            FileSystem.File.Exists(
+                FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json")
+            )
+        );
+    }
+
+    [Fact]
     public async Task Validation_reports_suppressor_exceptions_configured_as_errors()
     {
         var target = await CreateAnalyzedProjectAsync(
