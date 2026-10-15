@@ -9,6 +9,7 @@ internal sealed record CliOptions(
     bool Profile,
     bool EnableOptimizations,
     bool RefreshCoverage,
+    bool SkipCoverage,
     bool ShowFixComplexity,
     IReadOnlySet<RuleFixComplexity?>? FixComplexities,
     bool ExplainCoverage
@@ -30,6 +31,7 @@ internal sealed record CliOptions(
         var profile = false;
         var optimize = true;
         var refreshCoverage = false;
+        var skipCoverage = false;
         var showFixComplexity = false;
         var explainCoverage = false;
         IReadOnlySet<RuleFixComplexity?>? fixComplexities = null;
@@ -72,6 +74,9 @@ internal sealed record CliOptions(
                 case "--refresh-coverage":
                     refreshCoverage = true;
                     break;
+                case "--skip-coverage":
+                    skipCoverage = true;
+                    break;
                 case "--no-optimization":
                     optimize = false;
                     break;
@@ -99,6 +104,12 @@ internal sealed record CliOptions(
             return false;
         }
 
+        if (refreshCoverage && skipCoverage)
+        {
+            error = "--refresh-coverage and --skip-coverage cannot be combined.";
+            return false;
+        }
+
         options = new CliOptions(
             args[0] == "fix" ? CliCommand.Fix : CliCommand.Check,
             buildHost,
@@ -108,6 +119,7 @@ internal sealed record CliOptions(
             profile,
             optimize,
             refreshCoverage,
+            skipCoverage,
             showFixComplexity,
             fixComplexities,
             explainCoverage

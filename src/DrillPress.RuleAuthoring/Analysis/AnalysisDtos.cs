@@ -9,6 +9,9 @@ public sealed record AnalysisOptions
     /// <summary>Recollects tests even when source, build, test inputs and environment match cached evidence; use for mutable external test dependencies.</summary>
     public bool RefreshCoverage { get; init; }
 
+    /// <summary>Skips every rule with a coverage requirement or coverage collection scope, so no tests run; responses list the skipped rule identifiers.</summary>
+    public bool SkipCoverage { get; init; }
+
     /// <summary>Includes matching coverage ranges in transported diagnostics and opt-in CLI explanations.</summary>
     public bool ExplainCoverage { get; init; }
 

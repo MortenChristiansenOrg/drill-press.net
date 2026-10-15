@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck.
@@ -21,6 +21,7 @@ public sealed class CliApplication
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --explain-coverage  Show typed reasons, context identity and matching source ranges.
         --refresh-coverage  Rerun tests even when cached coverage inputs match.
+        --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
         --show-fix-complexity  Include assigned agent fix effort once per rule.
         --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
         Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
@@ -231,6 +232,8 @@ public sealed class CliApplication
             ruleArguments.Add("--explain-coverage");
         if (options.RefreshCoverage)
             ruleArguments.Add("--refresh-coverage");
+        if (options.SkipCoverage)
+            ruleArguments.Add("--skip-coverage");
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {

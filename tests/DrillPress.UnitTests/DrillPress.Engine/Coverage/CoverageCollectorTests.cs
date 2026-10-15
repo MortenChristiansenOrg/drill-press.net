@@ -629,6 +629,53 @@ public sealed class CoverageCollectorTests
     }
 
     [Fact]
+    public async Task Skipped_coverage_rules_start_no_tests_and_are_listed_after_other_findings()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.Fail = true;
+        var snapshotPath = "/snapshot.json";
+        await new CompilationSnapshotFile(fixture.FileSystem).WriteAsync(
+            snapshotPath,
+            fixture.Snapshot,
+            TestContext.Current.CancellationToken
+        );
+        var rules = CoverageFixture.ExecutionRules();
+        rules
+            .Rule("COV002", "Inspect collected calls.")
+            .For(Code.Calls.ToMethodsNamed("HitValue"))
+            .CollectCoverageIn(Code.Projects)
+            .Forbid();
+        rules.Rule("STYLE", "Avoid Hit.").For(Code.Calls.ToMethodsNamed("Hit")).Forbid();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var application = new RuleApplication(fixture.FileSystem, fixture.Process);
+
+        var exit = await application.RunAsync(
+            rules,
+            ["check", snapshotPath, "--skip-coverage"],
+            output,
+            error,
+            TestContext.Current.CancellationToken
+        );
+        var plan = BundleResponseProtocol.Read(output.ToString(), fixture.Snapshot);
+        var rendered = new CompactDiagnosticRenderer(fixture.FileSystem).Render(plan);
+
+        Assert.Equal(RuleExitCode.Findings, exit);
+        Assert.Equal("", error.ToString());
+        Assert.Empty(fixture.Process.Calls);
+        Assert.Equal(
+            """
+            STYLE Avoid Hit.
+            coverage/Target.cs
+              7:9
+            skipped coverage rules: COV001, COV002
+
+            """.ReplaceLineEndings("\n"),
+            rendered
+        );
+    }
+
+    [Fact]
     public async Task Collection_failure_is_reported_and_is_not_cached()
     {
         var fixture = new CoverageFixture();

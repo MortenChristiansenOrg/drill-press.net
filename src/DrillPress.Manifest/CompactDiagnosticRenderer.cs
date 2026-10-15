@@ -16,7 +16,7 @@ public sealed class CompactDiagnosticRenderer
 
     internal CompactDiagnosticRenderer(IFileSystem fileSystem) => _fileSystem = fileSystem;
 
-    /// <summary>Groups rules, relative files, and physical locations; '+' marks retained common-safe fixes.</summary>
+    /// <summary>Groups rules, relative files, and physical locations; '+' marks retained common-safe fixes. A final line lists skipped coverage rules.</summary>
     /// <param name="result">The validated and optionally selected diagnostics.</param>
     /// <param name="showFixComplexity">Includes assigned complexity once in each rule header; unclassified rules have no annotation.</param>
     /// <param name="explainCoverage">Adds actionable typed explanations, evaluated context identities, and transported source ranges.</param>
@@ -78,6 +78,11 @@ public sealed class CompactDiagnosticRenderer
             }
         }
 
+        if (result.SkippedRules.Length > 0)
+            output
+                .Append("skipped coverage rules: ")
+                .AppendJoin(", ", result.SkippedRules)
+                .Append('\n');
         return output.ToString();
     }
 

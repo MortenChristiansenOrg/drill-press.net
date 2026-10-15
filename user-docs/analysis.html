@@ -113,7 +113,7 @@ rules.Rule(&quot;TEAM014&quot;, &quot;Exercise domain code.&quot;)
     .Require(Coverage.Line.AtLeast(90));</code></pre></div>
 <p>The analysis engine discovers referencing test projects, arranges collection before evaluation, and reuses successful reports while source, build, test inputs, and environment match. No collector package or report configuration belongs in your rules. The first check needs NuGet access to install the tool automatically.</p>
 <p>Evidence has three states: covered, uncovered, and unknown. A covered line containing <code>cached ?? store.Load()</code> does not prove that <code>Load</code> ran. Missing, excluded, stale, or ambiguous evidence fails the requirement; findings identify the occurrence and state. Line findings include measured percentages and counts. Zero coverable lines fail. Direct in-memory rule evaluation without prepared evidence returns unknown.</p>
-<p>Use <code>--refresh-coverage</code> when tests depend on changing external state. See the <a href="../docs/COVERAGE.md">coverage integration guide</a> for discovery boundaries, symbol matching, conservative expression mapping, and cache inputs.</p>
+<p>Use <code>--refresh-coverage</code> when tests depend on changing external state. Use <code>--skip-coverage</code> to skip coverage rules and their test runs while iterating; the output ends with a line listing the skipped rules. See the <a href="../docs/COVERAGE.md">coverage integration guide</a> for discovery boundaries, symbol matching, conservative expression mapping, and cache inputs.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="syntax.html"><small>← PREVIOUS</small>Inspect source code</a>
 <a href="relationships.html"><small>NEXT →</small>Projects and relationships</a>

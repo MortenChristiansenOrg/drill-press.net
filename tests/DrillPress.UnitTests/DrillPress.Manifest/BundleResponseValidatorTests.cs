@@ -672,6 +672,10 @@ public sealed class BundleResponseValidatorTests
                         },
                     ],
                 },
+            response => response with { SkippedRules = ["DP1004"] },
+            response => response with { SkippedRules = ["B", "A"] },
+            response => response with { SkippedRules = ["A", "A"] },
+            response => response with { SkippedRules = [" "] },
         };
 
     [Theory]

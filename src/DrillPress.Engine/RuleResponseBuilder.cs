@@ -10,6 +10,7 @@ internal sealed class RuleResponseBuilder
         string requestId,
         AnalysisSolution solution,
         IReadOnlyList<RuleDiagnostic> diagnostics,
+        string[] skippedRules,
         CancellationToken cancellationToken
     )
     {
@@ -99,7 +100,10 @@ internal sealed class RuleResponseBuilder
                 ))
                 .ToArray(),
             combined.Batches
-        );
+        )
+        {
+            SkippedRules = skippedRules.Length == 0 ? null : skippedRules,
+        };
     }
 
     private static string? RegisterProposal(

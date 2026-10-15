@@ -46,13 +46,14 @@ public sealed class RuleApplication
                             "--profile"
                             or "--no-optimization"
                             or "--refresh-coverage"
+                            or "--skip-coverage"
                             or "--explain-coverage"
                         )
                 )
         )
         {
             await standardError.WriteLineAsync(
-                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage]"
+                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
             );
             return RuleExitCode.Failure;
         }
@@ -79,6 +80,7 @@ public sealed class RuleApplication
                 EnableOptimizations = !args.Skip(2).Contains("--no-optimization"),
                 Profile = profile,
                 RefreshCoverage = args.Skip(2).Contains("--refresh-coverage"),
+                SkipCoverage = args.Skip(2).Contains("--skip-coverage"),
                 ExplainCoverage = args.Skip(2).Contains("--explain-coverage"),
             };
             var response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(

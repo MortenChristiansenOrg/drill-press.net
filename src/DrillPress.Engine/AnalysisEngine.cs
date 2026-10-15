@@ -37,6 +37,7 @@ public sealed class AnalysisEngine
             requestId,
             solution,
             rules.Evaluate(solution),
+            [],
             cancellationToken
         );
     }
@@ -184,7 +185,7 @@ public sealed class AnalysisEngine
             );
         }
 
-        if (rules.RequiresCoverage)
+        if (rules.RequiresCoverage && !options.SkipCoverage)
         {
             IReadOnlySet<AnalysisProject> selected;
             using (options.Profile.Measure("coverage.planning"))
@@ -198,6 +199,12 @@ public sealed class AnalysisEngine
         }
         var diagnostics = rules.Evaluate(solution);
         using var validation = options.Profile.Measure("fix.validation");
-        return new RuleResponseBuilder().Build(requestId, solution, diagnostics, cancellationToken);
+        return new RuleResponseBuilder().Build(
+            requestId,
+            solution,
+            diagnostics,
+            rules.SkippedRuleIds(options),
+            cancellationToken
+        );
     }
 }

@@ -50,6 +50,9 @@ internal static class RuleFixSelection
                 .OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
                 .ThenBy(edit => edit.Start)
                 .ToArray()
-        );
+        )
+        {
+            SkippedRules = result.SkippedRules,
+        };
     }
 }

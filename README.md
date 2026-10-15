@@ -105,7 +105,8 @@ The `+10:29` location offers a safe correction on line 10, column 29.
 To check your own C# project,
 replace the final argument with the path to its `.csproj` file.
 
-A clean check prints nothing and exits with code `0`. Review-only findings also
+A clean check prints nothing and exits with code `0`. With `--skip-coverage`, rules
+that need test coverage are not evaluated and a final line lists them. Review-only findings also
 exit with code `0`, with visible output. Violations produce code `1`, including
 the example above. Code `2` means the check could not complete,
 such as when a project cannot be loaded. `check` reports violations without
@@ -115,7 +116,7 @@ The CLI captures and validates a versioned internal bundle response before writi
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle package versions. Snapshot format 5 records analysis
-scope and build overrides; response protocol 8 carries per-occurrence evidence and optional rule fix complexity.
+scope and build overrides; response protocol 9 carries per-occurrence evidence, optional rule fix complexity, and skipped coverage rules.
 The contracts bind responses to a unique request and preserve compilation and
 document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
