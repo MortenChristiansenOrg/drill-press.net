@@ -16,7 +16,7 @@ public sealed class CompactDiagnosticRenderer
 
     internal CompactDiagnosticRenderer(IFileSystem fileSystem) => _fileSystem = fileSystem;
 
-    /// <summary>Groups rules, relative files, and physical locations; '+' marks retained common-safe fixes.</summary>
+    /// <summary>Groups rules, relative files, and physical locations; '+' marks retained common-safe fixes. A final line lists skipped coverage rules.</summary>
     /// <param name="result">The validated and optionally selected diagnostics.</param>
     /// <param name="showFixComplexity">Includes assigned complexity once in each rule header; unclassified rules have no annotation.</param>
     /// <param name="explainCoverage">Adds actionable typed explanations, evaluated context identities, and transported source ranges.</param>
@@ -78,6 +78,11 @@ public sealed class CompactDiagnosticRenderer
             }
         }
 
+        if (result.SkippedRules.Length > 0)
+            output
+                .Append("skipped coverage rules: ")
+                .AppendJoin(", ", result.SkippedRules.Select(EscapeRuleId))
+                .Append('\n');
         return output.ToString();
     }
 
@@ -141,6 +146,12 @@ public sealed class CompactDiagnosticRenderer
                 : _fileSystem.Path.Combine(relativeDirectory, fileName);
         return displayPath.Replace(_fileSystem.Path.DirectorySeparatorChar, '/');
     }
+
+    // Quote IDs that would otherwise blur the comma-separated skipped-rule list.
+    private static string EscapeRuleId(string id) =>
+        id.Contains(',') || id.Contains('"') || id != id.Trim()
+            ? JsonEncodedText.Encode(id).ToString().Insert(0, "\"") + "\""
+            : id;
 
     private static string Escape(string path) =>
         path.Any(char.IsControl)

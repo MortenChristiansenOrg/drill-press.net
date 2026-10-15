@@ -15,6 +15,12 @@ public sealed record BundleResponse(
     /// <summary>The exact runtime package version that evaluated the rules.</summary>
     [System.Text.Json.Serialization.JsonRequired]
     public string ProductVersion { get; init; } = ComponentVersion.Current;
+
+    /// <summary>Ordinal rule identifiers that were not evaluated because coverage rules were skipped; omitted when none were.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string[]? SkippedRules { get; init; }
 }
 
 /// <summary>Findings from one independently evaluated compilation.</summary>
@@ -158,4 +164,8 @@ public sealed record ValidatedResult(
     AggregatedFinding[] Findings,
     FixBatch[] Batches,
     SourceEdit[] Edits
-);
+)
+{
+    /// <summary>Ordinal identifiers of rules that were not evaluated because coverage rules were skipped.</summary>
+    public string[] SkippedRules { get; init; } = [];
+}

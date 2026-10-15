@@ -143,6 +143,7 @@ public sealed class CliApplicationTests
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --explain-coverage  Show typed reasons, context identity and matching source ranges.
             --refresh-coverage  Rerun tests even when cached coverage inputs match.
+            --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
             --show-fix-complexity  Include assigned agent fix effort once per rule.
             --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
             Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
@@ -260,7 +261,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 8)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 9)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());
@@ -427,7 +428,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -498,6 +499,102 @@ public sealed class CliApplicationTests
         Assert.Equal(["export", "target.csproj", snapshotPath], calls[0].Arguments);
         Assert.Equal(["check", snapshotPath], calls[1].Arguments);
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
+    }
+
+    [Fact]
+    public async Task Skip_coverage_is_forwarded_and_skipped_rules_follow_the_findings()
+    {
+        var fixture = new ContractFixture();
+        var calls = new List<(string Executable, string[] Arguments)>();
+        var results = new Dictionary<string, int> { ["host"] = 0, ["rules"] = 1 };
+        var runner = new StubChildProcessRunner(
+            async (executable, arguments, cancellation) =>
+            {
+                calls.Add((executable, arguments.ToArray()));
+                await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+                    calls[0].Arguments[2],
+                    fixture.Snapshot,
+                    cancellation
+                );
+                return results[executable];
+            }
+        )
+        {
+            StandardOutput = Encoding.UTF8.GetString(
+                BundleResponseProtocol.Serialize(
+                    fixture.Response with
+                    {
+                        SkippedRules = ["COV001", "COV002"],
+                    }
+                )
+            ),
+        };
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        );
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exit = await application.RunAsync(
+            [
+                "check",
+                "--build-host",
+                "host",
+                "--rules",
+                "rules",
+                "target.csproj",
+                "--skip-coverage",
+            ],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Findings, exit);
+        Assert.Equal("", error.ToString());
+        Assert.Equal(["check", calls[0].Arguments[2], "--skip-coverage"], calls[1].Arguments);
+        Assert.Equal(
+            """
+            DP1004 Replace alpha.
+            Shared.cs
+              +1:3
+            skipped coverage rules: COV001, COV002
+
+            """.ReplaceLineEndings("\n"),
+            output.ToString()
+        );
+    }
+
+    [Fact]
+    public async Task Skipping_and_refreshing_coverage_together_fails_before_starting_tools()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var runner = new StubChildProcessRunner(
+            (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+        );
+        var cli = new CliApplication(_fileSystem, runner);
+
+        var result = await cli.RunAsync(
+            ["check", "--rules", "rules", "target.csproj", "--skip-coverage", "--refresh-coverage"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Failure, result);
+        Assert.Equal("", output.ToString());
+        Assert.Equal(
+            """
+            drillpress: --refresh-coverage and --skip-coverage cannot be combined.
+            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+
+            """.ReplaceLineEndings(Environment.NewLine),
+            error.ToString()
+        );
+        Assert.Empty(_fileSystem.AllFiles);
     }
 
     [Fact]
@@ -785,7 +882,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

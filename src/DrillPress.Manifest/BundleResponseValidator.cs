@@ -37,6 +37,7 @@ public sealed class BundleResponseValidator
         );
         var batches = response.Batches.ToDictionary(batch => batch.Id);
         ValidateFindings(response, contexts, batches);
+        ValidateSkippedRules(response);
         var targetFiles = snapshot
             .Projects.Where(project => project.IsAnalysisTarget)
             .SelectMany(project => project.Documents)
@@ -87,6 +88,22 @@ public sealed class BundleResponseValidator
                 .OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
                 .ThenBy(edit => edit.Start)
                 .ToArray()
+        )
+        {
+            SkippedRules = response.SkippedRules ?? [],
+        };
+    }
+
+    private static void ValidateSkippedRules(BundleResponse response)
+    {
+        var skipped = response.SkippedRules ?? [];
+        Require(
+            skipped.All(IsSingleLine)
+                && skipped.SequenceEqual(skipped.Distinct().Order(StringComparer.Ordinal))
+                && !response
+                    .Contexts.SelectMany(context => context.Findings)
+                    .Any(finding => skipped.Contains(finding.RuleId)),
+            "Skipped rules must be distinct, ordered single-line identifiers without findings."
         );
     }
 

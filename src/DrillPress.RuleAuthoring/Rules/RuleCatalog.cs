@@ -15,6 +15,15 @@ public sealed class RuleCatalog
 
     internal bool RequiresCoverage => _rules.Any(rule => rule.RequiresCoverage);
 
+    internal string[] SkippedRuleIds(AnalysisOptions options) =>
+        options.SkipCoverage
+            ? _rules
+                .Where(rule => rule.RequiresCoverage)
+                .Select(rule => rule.Id)
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+            : [];
+
     internal IReadOnlySet<AnalysisProject> CoverageContexts(AnalysisSolution solution)
     {
         var planning = new AnalysisSolution(
@@ -54,7 +63,7 @@ public sealed class RuleCatalog
         return new(registration);
     }
 
-    /// <summary>Evaluates every registered rule over one shared source graph and returns diagnostics in deterministic order.</summary>
+    /// <summary>Evaluates every registered rule over one shared source graph and returns diagnostics in deterministic order. <see cref="AnalysisOptions.SkipCoverage"/> omits coverage rules.</summary>
     /// <exception cref="InvalidOperationException">A rule has no <c>Forbid</c> or <c>Require</c> clause.</exception>
     public IReadOnlyList<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
@@ -64,7 +73,11 @@ public sealed class RuleCatalog
                 $"Rule '{empty.Descriptor.Id}' has no clause; end each For(...) with Forbid(...) or Require(...)."
             );
         var diagnostics = new List<RuleDiagnostic>();
-        foreach (var rule in _rules)
+        foreach (
+            var rule in _rules.Where(rule =>
+                !(solution.Options.SkipCoverage && rule.RequiresCoverage)
+            )
+        )
         {
             using var measurement = solution.Options.Profile.Measure("rule." + rule.Id);
             diagnostics.AddRange(rule.Evaluate(solution));

@@ -148,6 +148,16 @@ public sealed class CompactDiagnosticRendererTests
     }
 
     [Fact]
+    public void Skipped_coverage_rules_are_listed_with_delimiter_ids_quoted()
+    {
+        var result = new ValidatedResult([], [], []) { SkippedRules = ["A, B", "COV001"] };
+
+        var output = new CompactDiagnosticRenderer(new MockFileSystem()).Render(result);
+
+        Assert.Equal("skipped coverage rules: \"A, B\", COV001\n", output);
+    }
+
+    [Fact]
     public void Complexity_is_optional_and_appears_once_per_classified_rule_group()
     {
         var fileSystem = new MockFileSystem();

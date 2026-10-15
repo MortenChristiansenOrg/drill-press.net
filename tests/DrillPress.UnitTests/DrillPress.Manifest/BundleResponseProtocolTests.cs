@@ -21,7 +21,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":8,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":9,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -50,7 +50,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":8,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":9,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -70,7 +70,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":8,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":9,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -98,7 +98,7 @@ public sealed class BundleResponseProtocolTests
         var result = BundleResponseProtocol.Read(json, fixture.Snapshot);
 
         Assert.Equal(
-            $$"""{"protocolVersion":8,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"DP1004","message":"Replace alpha.","documentId":"document","start":2,"length":5,"batchId":"fix","fixComplexity":"{{wireValue}}"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"Shared.cs","fingerprint":"{{fixture.Document.Fingerprint}}","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":true}]}],"productVersion":"{{ComponentVersion.Current}}"}""",
+            $$"""{"protocolVersion":9,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"DP1004","message":"Replace alpha.","documentId":"document","start":2,"length":5,"batchId":"fix","fixComplexity":"{{wireValue}}"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"Shared.cs","fingerprint":"{{fixture.Document.Fingerprint}}","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":true}]}],"productVersion":"{{ComponentVersion.Current}}"}""",
             json
         );
         Assert.Equal(
@@ -118,6 +118,23 @@ public sealed class BundleResponseProtocolTests
             },
             Assert.Single(result.Findings)
         );
+    }
+
+    [Fact]
+    public void Skipped_rules_survive_complexity_selection()
+    {
+        var fixture = new ContractFixture();
+        var response = fixture.Response with { SkippedRules = ["COV001"] };
+        var json = Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(response));
+
+        var result = BundleResponseProtocol.Read(
+            json,
+            fixture.Snapshot,
+            new HashSet<RuleFixComplexity?> { RuleFixComplexity.Trivial }
+        );
+
+        Assert.Empty(result.Findings);
+        Assert.Equal(["COV001"], result.SkippedRules);
     }
 
     [Fact]

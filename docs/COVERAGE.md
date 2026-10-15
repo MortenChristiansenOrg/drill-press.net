@@ -148,6 +148,12 @@ Tests depending on changing services, clocks or other external state must reques
 fresh evidence with `--refresh-coverage`, or `AnalysisOptions.RefreshCoverage` for
 library use. The cache cannot fingerprint those external dependencies.
 
+Pass `--skip-coverage`, or set `AnalysisOptions.SkipCoverage` for library use, to
+skip every rule with a coverage requirement or `CollectCoverageIn` scope. No tests
+run for coverage, the remaining rules are evaluated as usual, and the output ends
+with `skipped coverage rules: COV001, COV002` so a clean result is not mistaken for
+passing them. It cannot be combined with `--refresh-coverage`.
+
 ## Inspecting evidence
 
 `Coverage.Executed.Inspect(occurrence)` returns read-only `CoverageEvidence` with
@@ -167,7 +173,7 @@ Pass `--explain-coverage` to include context identity, typed explanations and
 matching ranges and verified call-block proofs, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
 Ordinary bundle output omits ranges and call proofs; typed state/reasons/counts remain available
 through diagnostics, validated findings and cross-context aggregation. Response
-protocol 8 requires matching CLI/SDK packages and rebuilt bundles. Collection,
+protocol 9 requires matching CLI/SDK packages and rebuilt bundles. Collection,
 build, tool and test failures still stop the check rather than becoming unknown
 findings.
 
@@ -237,7 +243,7 @@ Negated conditions retain ordinary Boolean semantics and default violation gatin
 `CoverageEvidence.ReviewReasons` carries the explicit policy independently of the
 measured state; `MinimumPercentage` carries a line requirement's threshold. Bundle
 validation checks eligible reasons, measured counts, thresholds, and review gating
-before accepting a successful exit. Response protocol 8 requires matching packages
+before accepting a successful exit. Response protocol 9 requires matching packages
 and rebuilt bundles.
 
 ## Enumeration advancement

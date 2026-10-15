@@ -37,6 +37,7 @@ public sealed class AnalysisEngine
             requestId,
             solution,
             rules.Evaluate(solution),
+            [],
             cancellationToken
         );
     }
@@ -121,6 +122,7 @@ public sealed class AnalysisEngine
     ) => EvaluateAsync(rules, snapshot, new AnalysisOptions(), cancellationToken);
 
     /// <summary>Evaluates a snapshot with explicit execution strategy and phase measurements.</summary>
+    /// <exception cref="ArgumentException">Both <see cref="AnalysisOptions.RefreshCoverage"/> and <see cref="AnalysisOptions.SkipCoverage"/> are set.</exception>
     public async Task<BundleResponse> EvaluateAsync(
         RuleCatalog rules,
         CompilationSnapshot snapshot,
@@ -128,6 +130,7 @@ public sealed class AnalysisEngine
         CancellationToken cancellationToken = default
     )
     {
+        ValidateOptions(options);
         CompilationContext[] compilations;
         using (options.Profile.Measure("reconstruction"))
         {
@@ -158,6 +161,7 @@ public sealed class AnalysisEngine
     ) => EvaluateAsync(rules, requestId, compilations, new AnalysisOptions(), cancellationToken);
 
     /// <summary>Evaluates prepared contexts with the same options used for snapshot-based execution.</summary>
+    /// <exception cref="ArgumentException">Both <see cref="AnalysisOptions.RefreshCoverage"/> and <see cref="AnalysisOptions.SkipCoverage"/> are set.</exception>
     public async Task<BundleResponse> EvaluateAsync(
         RuleCatalog rules,
         string requestId,
@@ -166,6 +170,7 @@ public sealed class AnalysisEngine
         CancellationToken cancellationToken = default
     )
     {
+        ValidateOptions(options);
         cancellationToken.ThrowIfCancellationRequested();
         AnalysisSolution solution;
         using (options.Profile.Measure("preparation"))
@@ -184,7 +189,7 @@ public sealed class AnalysisEngine
             );
         }
 
-        if (rules.RequiresCoverage)
+        if (rules.RequiresCoverage && !options.SkipCoverage)
         {
             IReadOnlySet<AnalysisProject> selected;
             using (options.Profile.Measure("coverage.planning"))
@@ -198,6 +203,21 @@ public sealed class AnalysisEngine
         }
         var diagnostics = rules.Evaluate(solution);
         using var validation = options.Profile.Measure("fix.validation");
-        return new RuleResponseBuilder().Build(requestId, solution, diagnostics, cancellationToken);
+        return new RuleResponseBuilder().Build(
+            requestId,
+            solution,
+            diagnostics,
+            rules.SkippedRuleIds(options),
+            cancellationToken
+        );
+    }
+
+    private static void ValidateOptions(AnalysisOptions options)
+    {
+        if (options.RefreshCoverage && options.SkipCoverage)
+            throw new ArgumentException(
+                "RefreshCoverage and SkipCoverage cannot be combined.",
+                nameof(options)
+            );
     }
 }

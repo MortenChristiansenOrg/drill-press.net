@@ -108,5 +108,6 @@ dotnet tool run drillpress check --rules MyRules/bin/Debug/net10.0/MyRules.dll A
 ```
 
 `--include-referenced-projects` also lints dependencies of a project target,
-`--explain-coverage` shows coverage reasons, `--show-fix-complexity` prints each rule's
-fix-effort estimate. A rule exception or an unfinished rule fails the run with exit code 2.
+`--explain-coverage` shows coverage reasons, `--skip-coverage` skips coverage rules and
+their slow test runs (the output lists the skipped rules), `--show-fix-complexity` prints
+each rule's fix-effort estimate. A rule exception or an unfinished rule fails the run with exit code 2.
