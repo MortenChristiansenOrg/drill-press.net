@@ -170,13 +170,15 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
     // Unreadable images keep their analyzers so Roslyn reports its own load failure.
     private Version? ReadMetadata(string path, Func<MetadataReader, Version?> read)
     {
-        using var stream = _fileSystem.File.OpenRead(path);
-        using var image = new PEReader(stream);
         try
         {
+            using var stream = _fileSystem.File.OpenRead(path);
+            using var image = new PEReader(stream);
             return image.HasMetadata ? read(image.GetMetadataReader()) : null;
         }
-        catch (BadImageFormatException)
+        catch (Exception exception)
+            when (exception is BadImageFormatException or IOException or UnauthorizedAccessException
+            )
         {
             return null;
         }

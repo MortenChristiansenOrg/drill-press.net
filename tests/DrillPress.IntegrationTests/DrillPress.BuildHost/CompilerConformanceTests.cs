@@ -464,6 +464,38 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    [Fact]
+    public async Task Unreadable_compiler_metadata_preserves_analyzer_load_failure_handling()
+    {
+        var compiler = await CreateStubCompilerAsync("100.0.0.0");
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            $"<CscToolPath>{compiler}</CscToolPath>",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+        using var locked = FileSystem.File.Open(
+            FileSystem.Path.Combine(compiler, "Microsoft.CodeAnalysis.dll"),
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None
+        );
+        var hostVersion = typeof(Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference)
+            .Assembly.GetName()
+            .Version;
+
+        var result = await ExportAnalyzedAsync(target);
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Analyzer loading failed in 'Analyzed': Analyzer assembly '{generator}' references compiler version '99.0.0.0', which is newer than Drill Press's Roslyn '{hostVersion}'. Update Drill Press.{Environment.NewLine}"
+            ),
+            result
+        );
+    }
+
     private async Task<string> CreateAnalyzedProjectAsync(
         string properties,
         string source,
