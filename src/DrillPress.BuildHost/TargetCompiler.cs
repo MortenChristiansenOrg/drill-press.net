@@ -26,14 +26,17 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
         var tasks = Normalize(property("RoslynTasksAssembly"));
         var targets = Normalize(property("RoslynTargetsPath"));
         // Csc runs bincore beside its task assembly (SDK 8 and 9 only define RoslynTargetsPath)
-        // unless CscToolPath, or a CscToolExe containing a directory, overrides it.
+        // unless CscToolPath, or a CscToolExe containing a directory, overrides it. A bare
+        // CscToolExe without CscToolPath is searched on PATH, so its compiler is unknown.
+        var exeDirectory = _fileSystem.Path.GetDirectoryName(toolExe) ?? "";
+        if (toolExe.Length > 0 && exeDirectory.Length == 0 && toolPath.Length == 0)
+            return null;
         var directory =
             toolPath.Length > 0 ? toolPath
             : tasks.Length > 0
                 ? _fileSystem.Path.Combine(_fileSystem.Path.GetDirectoryName(tasks)!, "bincore")
             : targets.Length > 0 ? _fileSystem.Path.Combine(targets, "bincore")
             : "";
-        var exeDirectory = _fileSystem.Path.GetDirectoryName(toolExe) ?? "";
         directory = _fileSystem.Path.Combine(directory, exeDirectory);
         return directory.Length == 0
             ? null
@@ -114,18 +117,36 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
                         ("Microsoft.CodeAnalysis.Diagnostics", "DiagnosticAnalyzerAttribute")
                         or
                         ("Microsoft.CodeAnalysis", "GeneratorAttribute")
-                && Languages(reader, attribute).Contains(LanguageNames.CSharp)
+                && Languages(reader, attribute)
+                    .Contains(LanguageNames.CSharp, StringComparer.OrdinalIgnoreCase)
             );
 
+    // Analyzer assemblies may also define the attribute types themselves.
     private static (string, string)? AttributeType(MetadataReader reader, CustomAttribute attribute)
     {
-        if (attribute.Constructor.Kind != HandleKind.MemberReference)
-            return null;
-        var parent = reader.GetMemberReference((MemberReferenceHandle)attribute.Constructor).Parent;
-        if (parent.Kind != HandleKind.TypeReference)
-            return null;
-        var type = reader.GetTypeReference((TypeReferenceHandle)parent);
-        return (reader.GetString(type.Namespace), reader.GetString(type.Name));
+        var parent = attribute.Constructor.Kind switch
+        {
+            HandleKind.MemberReference => reader
+                .GetMemberReference((MemberReferenceHandle)attribute.Constructor)
+                .Parent,
+            HandleKind.MethodDefinition => reader
+                .GetMethodDefinition((MethodDefinitionHandle)attribute.Constructor)
+                .GetDeclaringType(),
+            _ => default(EntityHandle),
+        };
+        if (parent.Kind == HandleKind.TypeReference)
+        {
+            var reference = reader.GetTypeReference((TypeReferenceHandle)parent);
+            return (reader.GetString(reference.Namespace), reader.GetString(reference.Name));
+        }
+
+        if (parent.Kind == HandleKind.TypeDefinition)
+        {
+            var definition = reader.GetTypeDefinition((TypeDefinitionHandle)parent);
+            return (reader.GetString(definition.Namespace), reader.GetString(definition.Name));
+        }
+
+        return null;
     }
 
     // Reads (string firstLanguage, params string[] additionalLanguages); a generator without arguments targets C#.
@@ -138,6 +159,9 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
             return [LanguageNames.CSharp];
         var languages = new List<string?> { blob.ReadSerializedString() };
         var count = blob.ReadInt32();
+        // The compiler ignores attributes whose params array is null.
+        if (count < 0)
+            return [];
         for (var index = 0; index < count; index++)
             languages.Add(blob.ReadSerializedString());
         return languages.OfType<string>().ToArray();

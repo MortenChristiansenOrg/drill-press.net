@@ -389,6 +389,29 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    [Theory]
+    [InlineData("[Microsoft.CodeAnalysis.Generator(\"c#\")] public sealed class G { }")]
+    [InlineData(
+        """
+            namespace Microsoft.CodeAnalysis { public sealed class GeneratorAttribute : System.Attribute { } }
+            [Microsoft.CodeAnalysis.Generator] public sealed class G { }
+            [Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer("Visual Basic")] public sealed class B { }
+            """
+    )]
+    public async Task Csharp_analyzers_are_judged_regardless_of_attribute_form(string source)
+    {
+        var analyzer = await CreateAnalyzerAssemblyAsync("99.0.0.0", source);
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "public sealed class Context { }",
+            analyzer: analyzer
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+    }
+
     [Fact]
     public async Task Assemblies_without_csharp_analyzers_are_not_judged_by_compiler_version()
     {
@@ -397,6 +420,8 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
             """
             [Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer("Visual Basic")]
             public sealed class BasicAnalyzer { }
+            [Microsoft.CodeAnalysis.Generator("C#", null)]
+            public sealed class IgnoredGenerator { }
             public sealed class Helper { }
             """
         );
@@ -518,7 +543,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     {
         var directory = CreateTemporaryDirectory("drillpress-compiler-").FullName;
         // Design-time builds only check that the compiler executable exists.
-        foreach (var executable in new[] { "csc", "csc.dll" })
+        foreach (var executable in new[] { "csc", "csc.exe", "csc.dll" })
             await FileSystem.File.WriteAllTextAsync(
                 FileSystem.Path.Combine(directory, executable),
                 "",
