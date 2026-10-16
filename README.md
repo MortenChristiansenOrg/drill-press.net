@@ -112,6 +112,20 @@ the example above. Code `2` means the check could not complete,
 such as when a project cannot be loaded. `check` reports violations without
 applying fixes.
 
+`status` takes the same options and prints only counts: one line per project with
+its total violations, followed by a line per fix complexity. Projects are relative
+paths, so a line can be passed back as a `check` or `fix` target. A location that
+several projects report, such as a linked file, counts in each. File and glob
+targets have no project, so their counts are listed per source file. Review findings
+are not counted, and exit codes match `check`.
+
+```text
+src/App/App.csproj 42
+  trivial 30
+  local 9
+  unspecified 3
+```
+
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,

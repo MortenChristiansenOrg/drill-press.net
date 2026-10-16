@@ -214,6 +214,8 @@ dotnet tool run drillpress fix --rules MyRules/bin/Debug/net10.0/MyRules.dll pat
 
 Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
+`status` prints only violation counts per project and fix complexity; use it to pick
+the next project or `--fix-complexity` level to work on.
 
 ## Pitfalls
 

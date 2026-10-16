@@ -78,12 +78,47 @@ public sealed class CompactDiagnosticRenderer
             }
         }
 
+        AppendSkippedRules(output, result);
+        return output.ToString();
+    }
+
+    /// <summary>Counts violations per relative project path, then per assigned fix complexity; review findings are not counted.</summary>
+    /// <param name="result">The validated and optionally selected diagnostics.</param>
+    /// <remarks>A location reported by several projects, such as a linked file, counts once in each.</remarks>
+    public string RenderStatus(ValidatedResult result)
+    {
+        var output = new StringBuilder();
+        foreach (
+            var project in result
+                .ProjectViolations.GroupBy(count => DisplayPath(count.ProjectPath))
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+        )
+        {
+            output
+                .Append(Escape(project.Key))
+                .Append(' ')
+                .Append(project.Sum(count => count.Count).ToString(CultureInfo.InvariantCulture))
+                .Append('\n');
+            foreach (var count in project)
+                output
+                    .Append("  ")
+                    .Append(count.FixComplexity?.ToString().ToLowerInvariant() ?? "unspecified")
+                    .Append(' ')
+                    .Append(count.Count.ToString(CultureInfo.InvariantCulture))
+                    .Append('\n');
+        }
+
+        AppendSkippedRules(output, result);
+        return output.ToString();
+    }
+
+    private static void AppendSkippedRules(StringBuilder output, ValidatedResult result)
+    {
         if (result.SkippedRules.Length > 0)
             output
                 .Append("skipped coverage rules: ")
                 .AppendJoin(", ", result.SkippedRules.Select(EscapeRuleId))
                 .Append('\n');
-        return output.ToString();
     }
 
     private void ExplainCoverage(StringBuilder output, AggregatedFinding finding)

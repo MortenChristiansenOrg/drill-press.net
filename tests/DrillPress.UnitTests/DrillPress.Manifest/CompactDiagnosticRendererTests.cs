@@ -138,6 +138,37 @@ public sealed class CompactDiagnosticRendererTests
     }
 
     [Fact]
+    public void Status_lists_relative_projects_with_totals_and_complexity_counts()
+    {
+        var files = new MockFileSystem();
+        var result = new ValidatedResult([], [], [])
+        {
+            ProjectViolations =
+            [
+                new(files.Path.GetFullPath("App/App.csproj"), RuleFixComplexity.Trivial, 2),
+                new(files.Path.GetFullPath("App/App.csproj"), null, 1),
+                new(files.Path.GetFullPath("Lib/Lib.csproj"), RuleFixComplexity.Complex, 4),
+            ],
+            SkippedRules = ["COV001"],
+        };
+
+        var output = new CompactDiagnosticRenderer(files).RenderStatus(result);
+
+        Assert.Equal(
+            """
+            App/App.csproj 3
+              trivial 2
+              unspecified 1
+            Lib/Lib.csproj 4
+              complex 4
+            skipped coverage rules: COV001
+
+            """.ReplaceLineEndings("\n"),
+            output
+        );
+    }
+
+    [Fact]
     public void Clean_public_golden_is_empty()
     {
         var result = new ValidatedResult([], [], []);

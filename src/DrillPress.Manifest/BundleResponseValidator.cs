@@ -3,6 +3,9 @@ namespace DrillPress.Manifest;
 /// <summary>Validates responses without Roslyn and produces the shared safe edit plan.</summary>
 public sealed class BundleResponseValidator
 {
+    // The BuildHost's synthetic context for .cs file and glob targets.
+    private const string LooseContextId = "loose";
+
     /// <summary>Requires complete evaluation, checks exact source association, and filters whole conflicting batches.</summary>
     public ValidatedResult Validate(CompilationSnapshot snapshot, BundleResponse response)
     {
@@ -91,8 +94,57 @@ public sealed class BundleResponseValidator
         )
         {
             SkippedRules = response.SkippedRules ?? [],
+            ProjectViolations = CountProjectViolations(response, documents, contexts),
         };
     }
+
+    // A location counts once per project that reports it as a violation; review-only reports do not count.
+    // Loose-source targets have no project file, so their violations count per source file.
+    private static ProjectViolationCount[] CountProjectViolations(
+        BundleResponse response,
+        Dictionary<string, DocumentSnapshot> documents,
+        Dictionary<string, ProjectSnapshot> contexts
+    ) =>
+        response
+            .Contexts.SelectMany(context =>
+                context.Findings.Select(finding =>
+                    (
+                        Finding: finding,
+                        ProjectPath: context.ContextId == LooseContextId
+                            ? documents[finding.DocumentId].Path
+                            : contexts[context.ContextId].ProjectPath
+                    )
+                )
+            )
+            .GroupBy(item => LocationKey(item.Finding, documents))
+            .SelectMany(group =>
+                group
+                    .Where(item => item.Finding.Disposition == FindingDisposition.Violation)
+                    .Select(item => item.ProjectPath)
+                    .Distinct()
+                    .Select(project => (Project: project, group.First().Finding.FixComplexity))
+            )
+            .GroupBy(item => item)
+            .Select(group => new ProjectViolationCount(
+                group.Key.Project,
+                group.Key.FixComplexity,
+                group.Count()
+            ))
+            .OrderBy(count => count.ProjectPath, StringComparer.Ordinal)
+            .ThenBy(count => count.FixComplexity ?? (RuleFixComplexity)int.MaxValue)
+            .ToArray();
+
+    private static (string, string, int, int, string) LocationKey(
+        Finding finding,
+        Dictionary<string, DocumentSnapshot> documents
+    ) =>
+        (
+            finding.RuleId,
+            documents[finding.DocumentId].FileIdentity,
+            finding.Start,
+            finding.Length,
+            finding.Message
+        );
 
     private static void ValidateSkippedRules(BundleResponse response)
     {
@@ -341,15 +393,7 @@ public sealed class BundleResponseValidator
     {
         return response
             .Contexts.SelectMany(context => context.Findings)
-            .GroupBy(finding =>
-                (
-                    finding.RuleId,
-                    documents[finding.DocumentId].FileIdentity,
-                    finding.Start,
-                    finding.Length,
-                    finding.Message
-                )
-            )
+            .GroupBy(finding => LocationKey(finding, documents))
             .Select(group =>
             {
                 var first = group.First();

@@ -53,6 +53,9 @@ internal static class RuleFixSelection
         )
         {
             SkippedRules = result.SkippedRules,
+            ProjectViolations = result
+                .ProjectViolations.Where(count => complexities.Contains(count.FixComplexity))
+                .ToArray(),
         };
     }
 }

@@ -362,6 +362,109 @@ public sealed class BundleResponseValidatorTests
     }
 
     [Fact]
+    public void Violations_count_once_per_project_reporting_them_as_violations()
+    {
+        var fixture = new ContractFixture();
+        var other = fixture.Snapshot.Projects[1] with { ProjectPath = "Other.csproj" };
+        var snapshot = fixture.Snapshot with { Projects = [fixture.Snapshot.Projects[0], other] };
+        var alpha = fixture.Response.Contexts[0].Findings[0] with
+        {
+            FixComplexity = RuleFixComplexity.Trivial,
+        };
+        var response = fixture.Response with
+        {
+            Contexts =
+            [
+                new("first", true, [alpha, new("R3", "Exercise beta.", "document", 9, 4, null)]),
+                new(
+                    "second",
+                    true,
+                    [
+                        alpha with
+                        {
+                            DocumentId = "linked",
+                        },
+                        new("R2", "Fix beta.", "linked", 9, 4, null)
+                        {
+                            FixComplexity = RuleFixComplexity.Complex,
+                        },
+                        new("R3", "Exercise beta.", "linked", 9, 4, null)
+                        {
+                            Disposition = FindingDisposition.Review,
+                            Evidence = "coverage: unknown (unsupported-mapping)",
+                            Coverage =
+                            [
+                                new(
+                                    ExecutionCoverage.Unknown,
+                                    [CoverageReason.UnsupportedExpressionMapping],
+                                    other.Name,
+                                    other.TargetFramework,
+                                    other.ContextId
+                                )
+                                {
+                                    ReviewReasons = [CoverageReason.UnsupportedExpressionMapping],
+                                },
+                            ],
+                        },
+                    ]
+                ),
+            ],
+        };
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal(
+            [
+                new ProjectViolationCount("Other.csproj", RuleFixComplexity.Trivial, 1),
+                new ProjectViolationCount("Other.csproj", RuleFixComplexity.Complex, 1),
+                new ProjectViolationCount("Shared.csproj", RuleFixComplexity.Trivial, 1),
+                new ProjectViolationCount("Shared.csproj", null, 1),
+            ],
+            result.ProjectViolations
+        );
+    }
+
+    [Fact]
+    public void Loose_source_violations_count_per_source_file()
+    {
+        var first = TestSnapshots.CreateProject("A.cs", "class A { }") with { ContextId = "loose" };
+        var project = first with
+        {
+            Documents =
+            [
+                first.Documents[0] with
+                {
+                    DocumentId = "a",
+                },
+                new DocumentSnapshot("B.cs", "class B { }", false) { DocumentId = "b" },
+            ],
+        };
+        var snapshot = CompilationSnapshot.Create(project);
+        var response = new BundleResponse(
+            BundleResponseProtocol.CurrentVersion,
+            snapshot.RequestId,
+            [
+                new(
+                    "loose",
+                    true,
+                    [new("R", "Fix.", "a", 0, 5, null), new("R", "Fix.", "b", 0, 5, null)]
+                ),
+            ],
+            []
+        );
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal(
+            [
+                new ProjectViolationCount("A.cs", null, 1),
+                new ProjectViolationCount("B.cs", null, 1),
+            ],
+            result.ProjectViolations
+        );
+    }
+
+    [Fact]
     public void Findings_from_dependency_only_contexts_are_rejected()
     {
         var snapshot = _fixture.Snapshot with
