@@ -10,10 +10,11 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
-        drillpress check|fix --rules <path> <target> [options]
-        check reports findings; fix applies common-safe edits and reports the recheck.
+        drillpress check|fix|status --rules <path> <target> [options]
+        check reports findings; fix applies common-safe edits and reports the recheck;
+        status counts violations per project, then per fix complexity.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
         --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
@@ -24,7 +25,7 @@ public sealed class CliApplication
         --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
         --show-fix-complexity  Include assigned agent fix effort once per rule.
         --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
-        Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
+        Complexity selection applies to check, fix, status, and findings exit codes; omitted selects all rules.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
         --version  Show the package and protocol versions.
         drillpress install-skill [<skills-directory>]  Write this version's rule-authoring agent skill
@@ -76,7 +77,7 @@ public sealed class CliApplication
             );
             return CliExitCode.Clean;
         }
-        if (args is ["--help"] or ["check", "--help"] or ["fix", "--help"])
+        if (args is ["--help"] or [("check" or "fix" or "status"), "--help"])
         {
             await standardOutput.WriteAsync(Help.ReplaceLineEndings("\n") + "\n");
             return CliExitCode.Clean;
@@ -162,11 +163,15 @@ public sealed class CliApplication
 
                 using (profile.Measure("rendering"))
                 {
-                    var text = new CompactDiagnosticRenderer(_fileSystem).Render(
-                        evaluation.Result,
-                        options.ShowFixComplexity,
-                        options.ExplainCoverage
-                    );
+                    var renderer = new CompactDiagnosticRenderer(_fileSystem);
+                    var text =
+                        options.Command == CliCommand.Status
+                            ? renderer.RenderStatus(evaluation.Result)
+                            : renderer.Render(
+                                evaluation.Result,
+                                options.ShowFixComplexity,
+                                options.ExplainCoverage
+                            );
                     if (profile.Enabled)
                     {
                         profile.Count("public.bytes", System.Text.Encoding.UTF8.GetByteCount(text));

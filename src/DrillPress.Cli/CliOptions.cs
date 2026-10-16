@@ -19,7 +19,7 @@ internal sealed record CliOptions(
     {
         options = null!;
         error = null;
-        if (args.Length < 4 || args[0] is not ("check" or "fix"))
+        if (args.Length < 4 || args[0] is not ("check" or "fix" or "status"))
         {
             return false;
         }
@@ -111,7 +111,12 @@ internal sealed record CliOptions(
         }
 
         options = new CliOptions(
-            args[0] == "fix" ? CliCommand.Fix : CliCommand.Check,
+            args[0] switch
+            {
+                "fix" => CliCommand.Fix,
+                "status" => CliCommand.Status,
+                _ => CliCommand.Check,
+            },
             buildHost,
             rules,
             target,

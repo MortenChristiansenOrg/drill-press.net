@@ -6,6 +6,7 @@ internal enum CliCommand
 {
     Check,
     Fix,
+    Status,
 }
 
 internal sealed record RuleEvaluation(

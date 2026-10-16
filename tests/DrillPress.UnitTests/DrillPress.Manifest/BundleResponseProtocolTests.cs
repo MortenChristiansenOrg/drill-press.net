@@ -138,6 +138,31 @@ public sealed class BundleResponseProtocolTests
     }
 
     [Fact]
+    public void Project_violation_counts_follow_complexity_selection()
+    {
+        var fixture = new FixComplexityFixture();
+        var json = Encoding.UTF8.GetString(BundleResponseProtocol.Serialize(fixture.Response));
+
+        var result = BundleResponseProtocol.Read(
+            json,
+            fixture.Files.Snapshot,
+            new HashSet<RuleFixComplexity?> { RuleFixComplexity.Complex, null }
+        );
+
+        Assert.Equal(
+            [
+                new ProjectViolationCount(
+                    fixture.Files.Snapshot.Projects[0].ProjectPath,
+                    RuleFixComplexity.Complex,
+                    1
+                ),
+                new ProjectViolationCount(fixture.Files.Snapshot.Projects[0].ProjectPath, null, 1),
+            ],
+            result.ProjectViolations
+        );
+    }
+
+    [Fact]
     public void Selection_withholds_atomic_batches_shared_with_excluded_rules()
     {
         var fixture = new FixComplexityFixture();

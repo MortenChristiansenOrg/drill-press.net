@@ -257,7 +257,10 @@ include `unspecified` in any selection. Specify the option once with a
 comma-separated list; names are case-insensitive and surrounding spaces are
 ignored. Unknown or empty values fail with exit code 2.
 
-Without a filter all rules are included. With a filter `check` and `fix` report
+`drillpress status` takes the same options and counts violations per project and
+fix complexity, which shows how much work each selection would route.
+
+Without a filter all rules are included. With a filter `check`, `fix` and `status` report
 only selected findings, and only selected violations cause exit code 1. A result
 without selected violations exits 0, including visible review-only findings,
 even if excluded rules have violations. `fix` applies only

@@ -91,8 +91,53 @@ public sealed class BundleResponseValidator
         )
         {
             SkippedRules = response.SkippedRules ?? [],
+            ProjectViolations = CountProjectViolations(response, documents, contexts),
         };
     }
+
+    // A location counts once per project that reports it, matching aggregation's violation gating.
+    private static ProjectViolationCount[] CountProjectViolations(
+        BundleResponse response,
+        Dictionary<string, DocumentSnapshot> documents,
+        Dictionary<string, ProjectSnapshot> contexts
+    ) =>
+        response
+            .Contexts.SelectMany(context =>
+                context.Findings.Select(finding =>
+                    (Finding: finding, contexts[context.ContextId].ProjectPath)
+                )
+            )
+            .GroupBy(item => LocationKey(item.Finding, documents))
+            .Where(group =>
+                group.Any(item => item.Finding.Disposition == FindingDisposition.Violation)
+            )
+            .SelectMany(group =>
+                group
+                    .Select(item => item.ProjectPath)
+                    .Distinct()
+                    .Select(project => (Project: project, group.First().Finding.FixComplexity))
+            )
+            .GroupBy(item => item)
+            .Select(group => new ProjectViolationCount(
+                group.Key.Project,
+                group.Key.FixComplexity,
+                group.Count()
+            ))
+            .OrderBy(count => count.ProjectPath, StringComparer.Ordinal)
+            .ThenBy(count => count.FixComplexity ?? (RuleFixComplexity)int.MaxValue)
+            .ToArray();
+
+    private static (string, string, int, int, string) LocationKey(
+        Finding finding,
+        Dictionary<string, DocumentSnapshot> documents
+    ) =>
+        (
+            finding.RuleId,
+            documents[finding.DocumentId].FileIdentity,
+            finding.Start,
+            finding.Length,
+            finding.Message
+        );
 
     private static void ValidateSkippedRules(BundleResponse response)
     {
@@ -341,15 +386,7 @@ public sealed class BundleResponseValidator
     {
         return response
             .Contexts.SelectMany(context => context.Findings)
-            .GroupBy(finding =>
-                (
-                    finding.RuleId,
-                    documents[finding.DocumentId].FileIdentity,
-                    finding.Start,
-                    finding.Length,
-                    finding.Message
-                )
-            )
+            .GroupBy(finding => LocationKey(finding, documents))
             .Select(group =>
             {
                 var first = group.First();

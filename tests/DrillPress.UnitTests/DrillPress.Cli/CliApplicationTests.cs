@@ -107,6 +107,7 @@ public sealed class CliApplicationTests
     [InlineData("--help")]
     [InlineData("check", "--help")]
     [InlineData("fix", "--help")]
+    [InlineData("status", "--help")]
     public async Task Help_describes_the_primary_workflow_without_starting_tools(
         params string[] arguments
     )
@@ -134,8 +135,9 @@ public sealed class CliApplicationTests
         Assert.Equal("", error.ToString());
         Assert.Equal(
             """
-            drillpress check|fix --rules <path> <target> [options]
-            check reports findings; fix applies common-safe edits and reports the recheck.
+            drillpress check|fix|status --rules <path> <target> [options]
+            check reports findings; fix applies common-safe edits and reports the recheck;
+            status counts violations per project, then per fix complexity.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
             --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
@@ -146,7 +148,7 @@ public sealed class CliApplicationTests
             --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
             --show-fix-complexity  Include assigned agent fix effort once per rule.
             --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
-            Complexity selection applies to check, fix, and findings exit codes; omitted selects all rules.
+            Complexity selection applies to check, fix, status, and findings exit codes; omitted selects all rules.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
             drillpress install-skill [<skills-directory>]  Write this version's rule-authoring agent skill
@@ -428,7 +430,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -568,6 +570,47 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task Status_counts_violations_per_project_without_listing_findings()
+    {
+        var fixture = new ContractFixture();
+        var results = new Dictionary<string, int> { ["host"] = 0, ["rules"] = 1 };
+        var runner = new StubChildProcessRunner(
+            async (executable, arguments, cancellation) =>
+            {
+                await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+                    arguments.Last(),
+                    fixture.Snapshot,
+                    cancellation
+                );
+                return results[executable];
+            }
+        )
+        {
+            StandardOutput = Encoding.UTF8.GetString(
+                BundleResponseProtocol.Serialize(fixture.Response)
+            ),
+        };
+        var application = new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        );
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exit = await application.RunAsync(
+            ["status", "--build-host", "host", "--rules", "rules", "target.csproj"],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Findings, exit);
+        Assert.Equal("", error.ToString());
+        Assert.Equal("Shared.csproj 1\n  unspecified 1\n", output.ToString());
+    }
+
+    [Fact]
     public async Task Skipping_and_refreshing_coverage_together_fails_before_starting_tools()
     {
         var output = new StringWriter();
@@ -589,7 +632,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --refresh-coverage and --skip-coverage cannot be combined.
-            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -882,7 +925,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

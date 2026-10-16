@@ -362,6 +362,68 @@ public sealed class BundleResponseValidatorTests
     }
 
     [Fact]
+    public void Violations_count_once_per_reporting_project_and_exclude_review_findings()
+    {
+        var fixture = new ContractFixture();
+        var other = fixture.Snapshot.Projects[1] with { ProjectPath = "Other.csproj" };
+        var snapshot = fixture.Snapshot with { Projects = [fixture.Snapshot.Projects[0], other] };
+        var alpha = fixture.Response.Contexts[0].Findings[0] with
+        {
+            FixComplexity = RuleFixComplexity.Trivial,
+        };
+        var response = fixture.Response with
+        {
+            Contexts =
+            [
+                new("first", true, [alpha]),
+                new(
+                    "second",
+                    true,
+                    [
+                        alpha with
+                        {
+                            DocumentId = "linked",
+                        },
+                        new("R2", "Fix beta.", "linked", 9, 4, null)
+                        {
+                            FixComplexity = RuleFixComplexity.Complex,
+                        },
+                        new("R3", "Exercise beta.", "linked", 9, 4, null)
+                        {
+                            Disposition = FindingDisposition.Review,
+                            Evidence = "coverage: unknown (unsupported-mapping)",
+                            Coverage =
+                            [
+                                new(
+                                    ExecutionCoverage.Unknown,
+                                    [CoverageReason.UnsupportedExpressionMapping],
+                                    other.Name,
+                                    other.TargetFramework,
+                                    other.ContextId
+                                )
+                                {
+                                    ReviewReasons = [CoverageReason.UnsupportedExpressionMapping],
+                                },
+                            ],
+                        },
+                    ]
+                ),
+            ],
+        };
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal(
+            [
+                new ProjectViolationCount("Other.csproj", RuleFixComplexity.Trivial, 1),
+                new ProjectViolationCount("Other.csproj", RuleFixComplexity.Complex, 1),
+                new ProjectViolationCount("Shared.csproj", RuleFixComplexity.Trivial, 1),
+            ],
+            result.ProjectViolations
+        );
+    }
+
+    [Fact]
     public void Findings_from_dependency_only_contexts_are_rejected()
     {
         var snapshot = _fixture.Snapshot with
