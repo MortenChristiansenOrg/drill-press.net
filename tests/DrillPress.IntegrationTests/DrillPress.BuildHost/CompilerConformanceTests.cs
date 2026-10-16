@@ -389,6 +389,56 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    [Fact]
+    public async Task Assemblies_without_csharp_analyzers_are_not_judged_by_compiler_version()
+    {
+        var analyzer = await CreateAnalyzerAssemblyAsync(
+            "99.0.0.0",
+            """
+            [Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer("Visual Basic")]
+            public sealed class BasicAnalyzer { }
+            public sealed class Helper { }
+            """
+        );
+        var target = await CreateAnalyzedProjectAsync(
+            "<WarningsAsErrors>CS9057</WarningsAsErrors>",
+            "public sealed class Context { }",
+            analyzer: analyzer
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+    }
+
+    // The overridden compiler accepts the generator that the SDK compiler would skip, so the
+    // BuildHost's own Roslyn becomes the limit.
+    [Theory]
+    [InlineData("CscToolPath", "")]
+    [InlineData("CscToolExe", "csc.dll")]
+    public async Task Compiler_overrides_can_require_a_drill_press_update(
+        string property,
+        string file
+    )
+    {
+        var compiler = await CreateStubCompilerAsync("100.0.0.0");
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            $"<{property}>{FileSystem.Path.Combine(compiler, file)}</{property}>",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.StartsWith(
+            $"DrillPress.BuildHost: Analyzer loading failed in 'Analyzed': Analyzer assembly '{generator}' references compiler version '99.0.0.0', which is newer than Drill Press's Roslyn '",
+            result.StandardError
+        );
+    }
+
     private async Task<string> CreateAnalyzedProjectAsync(
         string properties,
         string source,
@@ -430,54 +480,100 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         return target;
     }
 
-    // Emits a generator that references a compiler newer than any SDK ships, independent of the installed SDK.
-    private async Task<string> CreateFutureGeneratorAsync()
+    // A generator referencing a compiler newer than any SDK ships, independent of the installed SDK.
+    private Task<string> CreateFutureGeneratorAsync() =>
+        CreateAnalyzerAssemblyAsync(
+            "99.0.0.0",
+            "[Microsoft.CodeAnalysis.Generator] public sealed class FutureGenerator { }"
+        );
+
+    private async Task<string> CreateAnalyzerAssemblyAsync(string compilerVersion, string source)
     {
-        var root = CreateTemporaryDirectory("drillpress-future-generator-").FullName;
-        var options = new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(
-            Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary
+        var path = FileSystem.Path.Combine(
+            CreateTemporaryDirectory("drillpress-analyzer-assembly-").FullName,
+            "FixtureAnalyzer.dll"
         );
-        var runtime = Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(
-            await FileSystem.File.ReadAllBytesAsync(
-                typeof(object).Assembly.Location,
-                TestContext.Current.CancellationToken
-            )
-        );
-        var compiler = Emit(
-            Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
-                "Microsoft.CodeAnalysis",
-                [
-                    Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
-                        """
-                        [assembly: System.Reflection.AssemblyVersion("99.0.0.0")]
-                        namespace Microsoft.CodeAnalysis;
-                        public sealed class GeneratorAttribute : System.Attribute { }
-                        """
-                    ),
-                ],
-                [runtime],
-                options
-            )
-        );
-        var path = FileSystem.Path.Combine(root, "FutureGenerator.dll");
+        var runtime = await RuntimeReferenceAsync();
         await FileSystem.File.WriteAllBytesAsync(
             path,
             Emit(
                 Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
-                    "FutureGenerator",
+                    "FixtureAnalyzer",
+                    [Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source)],
                     [
-                        Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
-                            "[Microsoft.CodeAnalysis.Generator] public sealed class FutureGenerator { }"
+                        runtime,
+                        Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(
+                            EmitCompiler(compilerVersion, runtime)
                         ),
                     ],
-                    [runtime, Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(compiler)],
-                    options
+                    new(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
                 )
             ),
             TestContext.Current.CancellationToken
         );
         return path;
     }
+
+    private async Task<string> CreateStubCompilerAsync(string version)
+    {
+        var directory = CreateTemporaryDirectory("drillpress-compiler-").FullName;
+        // Design-time builds only check that the compiler executable exists.
+        foreach (var executable in new[] { "csc", "csc.dll" })
+            await FileSystem.File.WriteAllTextAsync(
+                FileSystem.Path.Combine(directory, executable),
+                "",
+                TestContext.Current.CancellationToken
+            );
+        await FileSystem.File.WriteAllBytesAsync(
+            FileSystem.Path.Combine(directory, "Microsoft.CodeAnalysis.dll"),
+            EmitCompiler(version, await RuntimeReferenceAsync()),
+            TestContext.Current.CancellationToken
+        );
+        return directory;
+    }
+
+    private async Task<Microsoft.CodeAnalysis.MetadataReference> RuntimeReferenceAsync() =>
+        Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(
+            await FileSystem.File.ReadAllBytesAsync(
+                typeof(object).Assembly.Location,
+                TestContext.Current.CancellationToken
+            )
+        );
+
+    // Declares only the identity and attributes the compiler inspects before loading analyzers.
+    private static byte[] EmitCompiler(
+        string version,
+        Microsoft.CodeAnalysis.MetadataReference runtime
+    ) =>
+        Emit(
+            Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+                "Microsoft.CodeAnalysis",
+                [
+                    Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+                        $$"""
+                        [assembly: System.Reflection.AssemblyVersion("{{version}}")]
+                        namespace Microsoft.CodeAnalysis
+                        {
+                            public sealed class GeneratorAttribute : System.Attribute
+                            {
+                                public GeneratorAttribute() { }
+                                public GeneratorAttribute(string first, params string[] rest) { }
+                            }
+                        }
+                        namespace Microsoft.CodeAnalysis.Diagnostics
+                        {
+                            public sealed class DiagnosticAnalyzerAttribute : System.Attribute
+                            {
+                                public DiagnosticAnalyzerAttribute(string first, params string[] rest) { }
+                            }
+                        }
+                        """
+                    ),
+                ],
+                [runtime],
+                new(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
+            )
+        );
 
     private static byte[] Emit(Microsoft.CodeAnalysis.CSharp.CSharpCompilation compilation)
     {

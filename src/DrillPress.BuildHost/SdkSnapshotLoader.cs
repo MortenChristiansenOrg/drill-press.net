@@ -356,8 +356,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             .ToArray();
         var compiler = new TargetCompiler(_fileSystem).CompilerAssemblyPath(
             _fileSystem.Path.GetDirectoryName(project.FilePath!)!,
-            evaluated.GetPropertyValue("CscToolPath"),
-            evaluated.GetPropertyValue("RoslynTasksAssembly")
+            evaluated.GetPropertyValue
         );
         return new EvaluatedMetadata(
             framework,

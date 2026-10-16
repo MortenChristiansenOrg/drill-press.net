@@ -17,24 +17,28 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
     private readonly IFileSystem _fileSystem = fileSystem;
 
     /// <summary>Resolves the compiler assembly that the Csc task runs for an evaluated project.</summary>
-    public string? CompilerAssemblyPath(
-        string projectDirectory,
-        string cscToolPath,
-        string roslynTasksAssembly
-    )
+    /// <param name="projectDirectory">Resolves relative tool paths.</param>
+    /// <param name="property">Reads an evaluated MSBuild property; empty when undefined.</param>
+    public string? CompilerAssemblyPath(string projectDirectory, Func<string, string> property)
     {
+        var toolPath = Normalize(property("CscToolPath"));
+        var toolExe = Normalize(property("CscToolExe"));
+        var tasks = Normalize(property("RoslynTasksAssembly"));
+        var targets = Normalize(property("RoslynTargetsPath"));
+        // Csc runs bincore beside its task assembly (SDK 8 and 9 only define RoslynTargetsPath)
+        // unless CscToolPath, or a CscToolExe containing a directory, overrides it.
         var directory =
-            cscToolPath.Length > 0 ? cscToolPath
-            : roslynTasksAssembly.Length > 0
-                ? _fileSystem.Path.Combine(
-                    _fileSystem.Path.GetDirectoryName(Normalize(roslynTasksAssembly))!,
-                    "bincore"
-                )
-            : null;
-        return directory is null
+            toolPath.Length > 0 ? toolPath
+            : tasks.Length > 0
+                ? _fileSystem.Path.Combine(_fileSystem.Path.GetDirectoryName(tasks)!, "bincore")
+            : targets.Length > 0 ? _fileSystem.Path.Combine(targets, "bincore")
+            : "";
+        var exeDirectory = _fileSystem.Path.GetDirectoryName(toolExe) ?? "";
+        directory = _fileSystem.Path.Combine(directory, exeDirectory);
+        return directory.Length == 0
             ? null
             : _fileSystem.Path.GetFullPath(
-                _fileSystem.Path.Combine(Normalize(directory), CompilerAssemblyName + ".dll"),
+                _fileSystem.Path.Combine(directory, CompilerAssemblyName + ".dll"),
                 projectDirectory
             );
     }
@@ -80,16 +84,64 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
         return new ProjectAnalyzers(projectName, compatible.ToArray(), rejections.ToArray());
     }
 
+    // Like the compiler, only assemblies declaring C# analyzers or generators are checked.
     private Version? ReferencedCompiler(string path) =>
         ReadMetadata(
             path,
             reader =>
-                reader
-                    .AssemblyReferences.Select(reader.GetAssemblyReference)
-                    .Where(reference => reader.GetString(reference.Name) == CompilerAssemblyName)
-                    .Select(reference => reference.Version)
-                    .FirstOrDefault()
+                HasCSharpAnalyzers(reader)
+                    ? reader
+                        .AssemblyReferences.Select(reader.GetAssemblyReference)
+                        .Where(reference =>
+                            reader.GetString(reference.Name) == CompilerAssemblyName
+                        )
+                        .Select(reference => reference.Version)
+                        .FirstOrDefault()
+                    : null
         );
+
+    private static bool HasCSharpAnalyzers(MetadataReader reader) =>
+        reader
+            .TypeDefinitions.SelectMany(type =>
+                reader
+                    .GetTypeDefinition(type)
+                    .GetCustomAttributes()
+                    .Select(reader.GetCustomAttribute)
+            )
+            .Any(attribute =>
+                AttributeType(reader, attribute)
+                    is
+                        ("Microsoft.CodeAnalysis.Diagnostics", "DiagnosticAnalyzerAttribute")
+                        or
+                        ("Microsoft.CodeAnalysis", "GeneratorAttribute")
+                && Languages(reader, attribute).Contains(LanguageNames.CSharp)
+            );
+
+    private static (string, string)? AttributeType(MetadataReader reader, CustomAttribute attribute)
+    {
+        if (attribute.Constructor.Kind != HandleKind.MemberReference)
+            return null;
+        var parent = reader.GetMemberReference((MemberReferenceHandle)attribute.Constructor).Parent;
+        if (parent.Kind != HandleKind.TypeReference)
+            return null;
+        var type = reader.GetTypeReference((TypeReferenceHandle)parent);
+        return (reader.GetString(type.Namespace), reader.GetString(type.Name));
+    }
+
+    // Reads (string firstLanguage, params string[] additionalLanguages); a generator without arguments targets C#.
+    private static string[] Languages(MetadataReader reader, CustomAttribute attribute)
+    {
+        var blob = reader.GetBlobReader(attribute.Value);
+        if (blob.ReadUInt16() != 1)
+            return [];
+        if (blob.RemainingBytes <= 2)
+            return [LanguageNames.CSharp];
+        var languages = new List<string?> { blob.ReadSerializedString() };
+        var count = blob.ReadInt32();
+        for (var index = 0; index < count; index++)
+            languages.Add(blob.ReadSerializedString());
+        return languages.OfType<string>().ToArray();
+    }
 
     // Unreadable images keep their analyzers so Roslyn reports its own load failure.
     private Version? ReadMetadata(string path, Func<MetadataReader, Version?> read)

@@ -37,9 +37,11 @@ internal sealed class ProjectAnalyzers(
                 // Matches the compiler's CS8032 wording when a named analyzer cannot be created.
                 EventHandler<AnalyzerLoadFailureEventArgs> record = (_, args) =>
                     failures.Add(
-                        args.TypeName is null
-                            ? args.Message
-                            : $"An instance of analyzer {args.TypeName} cannot be created from {reference.FullPath}: {args.Message}"
+                        args.ErrorCode
+                        == AnalyzerLoadFailureEventArgs.FailureErrorCode.ReferencesNewerCompiler
+                            ? $"Analyzer assembly '{reference.FullPath}' references compiler version '{args.ReferencedCompilerVersion}', which is newer than Drill Press's Roslyn '{typeof(AnalyzerFileReference).Assembly.GetName().Version}'. Update Drill Press."
+                        : args.TypeName is null ? args.Message
+                        : $"An instance of analyzer {args.TypeName} cannot be created from {reference.FullPath}: {args.Message}"
                     );
                 reference.AnalyzerLoadFailed += record;
                 return (Reference: reference, Record: record);
