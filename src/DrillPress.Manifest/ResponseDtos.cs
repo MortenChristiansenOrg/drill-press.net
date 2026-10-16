@@ -174,7 +174,7 @@ public sealed record ValidatedResult(
 }
 
 /// <summary>Distinct violation locations one project reports for one fix complexity.</summary>
-/// <param name="ProjectPath">The project file of the reporting contexts; linked locations count in each project.</param>
+/// <param name="ProjectPath">The project file of the reporting contexts, or the source file for loose-source targets; linked locations count in each project.</param>
 /// <param name="FixComplexity">The rules' assigned effort, or null for unclassified rules.</param>
 /// <param name="Count">The number of distinct physical violation locations.</param>
 public sealed record ProjectViolationCount(

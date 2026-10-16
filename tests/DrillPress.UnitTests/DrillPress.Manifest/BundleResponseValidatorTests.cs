@@ -424,6 +424,46 @@ public sealed class BundleResponseValidatorTests
     }
 
     [Fact]
+    public void Loose_source_violations_count_per_source_file()
+    {
+        var first = TestSnapshots.CreateProject("A.cs", "class A { }") with { ContextId = "loose" };
+        var project = first with
+        {
+            Documents =
+            [
+                first.Documents[0] with
+                {
+                    DocumentId = "a",
+                },
+                new DocumentSnapshot("B.cs", "class B { }", false) { DocumentId = "b" },
+            ],
+        };
+        var snapshot = CompilationSnapshot.Create(project);
+        var response = new BundleResponse(
+            BundleResponseProtocol.CurrentVersion,
+            snapshot.RequestId,
+            [
+                new(
+                    "loose",
+                    true,
+                    [new("R", "Fix.", "a", 0, 5, null), new("R", "Fix.", "b", 0, 5, null)]
+                ),
+            ],
+            []
+        );
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal(
+            [
+                new ProjectViolationCount("A.cs", null, 1),
+                new ProjectViolationCount("B.cs", null, 1),
+            ],
+            result.ProjectViolations
+        );
+    }
+
+    [Fact]
     public void Findings_from_dependency_only_contexts_are_rejected()
     {
         var snapshot = _fixture.Snapshot with

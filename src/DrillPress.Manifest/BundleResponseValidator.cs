@@ -3,6 +3,9 @@ namespace DrillPress.Manifest;
 /// <summary>Validates responses without Roslyn and produces the shared safe edit plan.</summary>
 public sealed class BundleResponseValidator
 {
+    // The BuildHost's synthetic context for .cs file and glob targets.
+    private const string LooseContextId = "loose";
+
     /// <summary>Requires complete evaluation, checks exact source association, and filters whole conflicting batches.</summary>
     public ValidatedResult Validate(CompilationSnapshot snapshot, BundleResponse response)
     {
@@ -96,6 +99,7 @@ public sealed class BundleResponseValidator
     }
 
     // A location counts once per project that reports it, matching aggregation's violation gating.
+    // Loose-source targets have no project file, so their violations count per source file.
     private static ProjectViolationCount[] CountProjectViolations(
         BundleResponse response,
         Dictionary<string, DocumentSnapshot> documents,
@@ -104,7 +108,12 @@ public sealed class BundleResponseValidator
         response
             .Contexts.SelectMany(context =>
                 context.Findings.Select(finding =>
-                    (Finding: finding, contexts[context.ContextId].ProjectPath)
+                    (
+                        Finding: finding,
+                        ProjectPath: context.ContextId == LooseContextId
+                            ? documents[finding.DocumentId].Path
+                            : contexts[context.ContextId].ProjectPath
+                    )
                 )
             )
             .GroupBy(item => LocationKey(item.Finding, documents))
