@@ -362,7 +362,7 @@ public sealed class BundleResponseValidatorTests
     }
 
     [Fact]
-    public void Violations_count_once_per_reporting_project_and_exclude_review_findings()
+    public void Violations_count_once_per_project_reporting_them_as_violations()
     {
         var fixture = new ContractFixture();
         var other = fixture.Snapshot.Projects[1] with { ProjectPath = "Other.csproj" };
@@ -375,7 +375,7 @@ public sealed class BundleResponseValidatorTests
         {
             Contexts =
             [
-                new("first", true, [alpha]),
+                new("first", true, [alpha, new("R3", "Exercise beta.", "document", 9, 4, null)]),
                 new(
                     "second",
                     true,
@@ -418,6 +418,7 @@ public sealed class BundleResponseValidatorTests
                 new ProjectViolationCount("Other.csproj", RuleFixComplexity.Trivial, 1),
                 new ProjectViolationCount("Other.csproj", RuleFixComplexity.Complex, 1),
                 new ProjectViolationCount("Shared.csproj", RuleFixComplexity.Trivial, 1),
+                new ProjectViolationCount("Shared.csproj", null, 1),
             ],
             result.ProjectViolations
         );

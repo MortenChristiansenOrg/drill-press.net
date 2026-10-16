@@ -98,7 +98,7 @@ public sealed class BundleResponseValidator
         };
     }
 
-    // A location counts once per project that reports it, matching aggregation's violation gating.
+    // A location counts once per project that reports it as a violation; review-only reports do not count.
     // Loose-source targets have no project file, so their violations count per source file.
     private static ProjectViolationCount[] CountProjectViolations(
         BundleResponse response,
@@ -117,11 +117,9 @@ public sealed class BundleResponseValidator
                 )
             )
             .GroupBy(item => LocationKey(item.Finding, documents))
-            .Where(group =>
-                group.Any(item => item.Finding.Disposition == FindingDisposition.Violation)
-            )
             .SelectMany(group =>
                 group
+                    .Where(item => item.Finding.Disposition == FindingDisposition.Violation)
                     .Select(item => item.ProjectPath)
                     .Distinct()
                     .Select(project => (Project: project, group.First().Finding.FixComplexity))
