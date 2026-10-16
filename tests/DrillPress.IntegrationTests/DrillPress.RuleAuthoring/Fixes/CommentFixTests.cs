@@ -145,4 +145,132 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         Assert.Equal([false], result.Findings.Select(finding => finding.HasFix));
         Assert.Equal(source, result.FixedText("A.cs"));
     }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    [InlineData("\r")]
+    [InlineData("\u0085")]
+    [InlineData("\u2028")]
+    [InlineData("\u2029")]
+    public async Task Line_preserving_removal_keeps_caller_line_information(string newline)
+    {
+        var workspace = fixture.Workspace();
+        var source = """
+            using System.Runtime.CompilerServices;
+            class A
+            {
+                static void Log([CallerLineNumber] int line = 0) {}
+                void M()
+                {
+                    // Arrange
+                    Log();
+                }
+            }
+            """.ReplaceLineEndings(newline);
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = CommentRules(preserveLines: true);
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            COMMENT Remove comment.
+            A.cs
+              +7:9
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+        Assert.Equal(
+            """
+            using System.Runtime.CompilerServices;
+            class A
+            {
+                static void Log([CallerLineNumber] int line = 0) {}
+                void M()
+                {
+
+                    Log();
+                }
+            }
+            """.ReplaceLineEndings(newline),
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Theory]
+    [InlineData("class A { int/* label */Value = 1; }", "class A { int Value = 1; }")]
+    [InlineData("class A {}\r\n// label", "class A {}\r\n")]
+    [InlineData("/* first\r\nsecond */\r\nclass A {}", "\r\n\r\nclass A {}")]
+    [InlineData("/* first\u2028second */\u2028class A {}", "\u2028\u2028class A {}")]
+    [InlineData("/// first\n/// second\nclass A {}", "\n\nclass A {}")]
+    [InlineData("class A { int/* first\nsecond */Value = 1; }", "class A { int\nValue = 1; }")]
+    public async Task Line_preserving_removal_keeps_multiline_and_token_boundaries(
+        string source,
+        string expected
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(
+            CommentRules(preserveLines: true),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal([true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(expected, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task Line_preserving_removal_withholds_changed_caller_argument_text_in_linked_context()
+    {
+        var workspace = fixture.Workspace();
+        var source = new TestSource(
+            "A.cs",
+            """
+            using System.Runtime.CompilerServices;
+            class A
+            {
+                static void Log(int value
+            #if OBSERVABLE
+                    , [CallerArgumentExpression("value")] string expression = ""
+            #endif
+                ) {}
+                void M() => Log(1 /* label */ + 2);
+            }
+            """
+        );
+        workspace.AddProject("Primary", [source]);
+        workspace.AddProject("Linked", [source], symbols: ["OBSERVABLE"]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("COMMENT", "Remove comment.")
+            .For(Code.Files.InProject("Primary").Comments())
+            .Forbid(fix: comment => Fix.For(comment).Remove(preserveLines: true).Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            COMMENT Remove comment.
+            A.cs
+              9:23
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+        Assert.Equal(source.Text, result.FixedText("A.cs"));
+    }
+
+    private static RuleCatalog CommentRules(bool preserveLines)
+    {
+        var rules = new RuleCatalog();
+        rules
+            .Rule("COMMENT", "Remove comment.")
+            .For(Code.Files.Comments())
+            .Forbid(fix: comment => Fix.For(comment).Remove(preserveLines).Propose());
+        return rules;
+    }
 }

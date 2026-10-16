@@ -12,7 +12,7 @@ the finding without a fix. Every chain starts at `Fix.For(candidate)` (or
 | `CodeInvocation` / `CodeArgument` | `RemoveArgument("name")` / `Remove()` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
 | `CodeBranch` | `AddBraces()` | `Propose()` |
-| `CodeComment` | `Remove()` | `Propose()` |
+| `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
 | `ExpressionGroup` via `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameterName)` | `Propose()` (constants), `SafeWhen` (templates) |
 
@@ -92,6 +92,11 @@ static bool ComparesStrings(ArgumentRemovalChange change) =>
 
 ## Modifiers, braces, comments and var
 
+Comment removal deletes standalone lines by default. Use `Remove(preserveLines: true)`
+to keep every line break, including those inside multiline comments, when caller
+line numbers matter. Parsing and compiler-supplied arguments must still be unchanged
+in every affected loaded context; caller argument text can still prevent a fix.
+
 ```csharp
 using DrillPress;
 
@@ -133,6 +138,22 @@ rules.Rule("TEAM035", "Extract repeated string constants.")
 
 `ConstantGroups()` and `TemplateGroups(options)` group only the expressions you
 selected, per owning type. Template extraction needs `SafeWhen` over `ExtractionChange`.
+Its `Occurrences` expose `Before`, `After` and `Kept` as semantic expressions in
+their actual original/rewritten contexts; `occurrence.Rewrite` keeps raw compiler evidence.
+
+See [TemplateExtractionRules.cs](../examples/TemplateExtractionRules.cs) and its
+[tests](../examples/TemplateExtractionRulesTests.cs) for a complete Boolean proof.
+It accepts only ordinary interpolation of one string parameter, without alignment,
+format clauses or moved calls. Reading that parameter once at the original site
+and interpolating its string value needs no culture-dependent formatting.
+Alignment/format cases still report the finding but offer no fix.
+
+The builder proves template/capture correspondence, unchanged bindings and caller
+information in every affected loaded context, and compilation of the full batch.
+The example's consumer contract observes string contents, not allocation identity/count,
+resource exhaustion or stack inspection. Those assumptions cannot be inferred from syntax.
+Broader policies must also justify evaluation timing, culture/formatting and configured-call
+effects; allowlisting a call establishes none of these.
 
 ## Custom edits
 

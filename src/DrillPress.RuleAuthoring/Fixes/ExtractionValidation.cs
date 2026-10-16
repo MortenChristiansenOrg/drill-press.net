@@ -49,12 +49,13 @@ internal static class ExtractionValidation
             return false;
         if (!SameMember(plan, context, beforeOwner, member, occurrences[0]))
             return false;
-        var evidence = new List<RewriteEvidence>();
+        var evidence = new List<ExpressionChange>();
         foreach (var occurrence in occurrences)
         {
             var mapped = context.Map(occurrence.Expression.Source, occurrence.Expression.Syntax);
             if (
                 mapped is not { After: ExpressionSyntax after }
+                || context.RewrittenSource(occurrence.Expression.Source) is not { } rewritten
                 || !SymbolEqualityComparer.Default.Equals(
                     mapped.Model.GetSymbolInfo(after).Symbol,
                     member
@@ -78,9 +79,10 @@ internal static class ExtractionValidation
                     && RewriteChecks.SameEvaluationCounts(change) != ProofResult.Proven
             )
                 return false;
-            evidence.Add(change);
+            evidence.Add(new(change, rewritten));
         }
-        return RewriteChecks.SameCompilerSuppliedArguments(evidence[0]) == ProofResult.Proven
+        return RewriteChecks.SameCompilerSuppliedArguments(evidence[0].Rewrite)
+                == ProofResult.Proven
             && SameOtherBindings(context)
             && provesBehavior(
                 new(context, beforeOwner, afterOwner, member, plan.Reused, evidence.AsReadOnly())

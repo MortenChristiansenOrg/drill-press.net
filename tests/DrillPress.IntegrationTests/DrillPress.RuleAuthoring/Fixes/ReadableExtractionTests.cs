@@ -89,7 +89,7 @@ public sealed class ReadableExtractionTests(SdkFixture fixture) : IClassFixture<
                     .OnlyWhenGroupCoversAll(urls)
                     .ToMethod("CreateUrl", ParameterName.FromCapture)
                     .SafeWhen(change =>
-                        change.Occurrences.All(occurrence => occurrence.Inputs.Count == 1)
+                        change.Occurrences.All(occurrence => occurrence.Kept.Count == 1)
                     )
             );
 

@@ -237,3 +237,6 @@ the next project or `--fix-complexity` level to work on.
   arguments, naming, documentation, a proven replacement fix, braces, modifiers and catches.
 - [examples/ExampleRulesTests.cs](examples/ExampleRulesTests.cs): their tests, including
   scope, `nameof` exclusion and complete fixed text.
+- [examples/TemplateExtractionRules.cs](examples/TemplateExtractionRules.cs) and its
+  [tests](examples/TemplateExtractionRulesTests.cs): a complete, narrow string-template
+  proof using semantic extraction evidence, plus unsupported cases without fixes.

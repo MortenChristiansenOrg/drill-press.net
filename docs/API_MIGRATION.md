@@ -104,6 +104,19 @@ or `SafeWhen(...)`. Proofs are Boolean; a false proof withholds the fix.
 Replacements are now parenthesized only where the destination requires it, so a
 rewrite of `!string.Equals(a, b)` produces `a != b` rather than `(a != b)`.
 
+### Preview.17 extraction evidence
+
+`ExtractionChange.Occurrences` now contains `ExpressionChange` instead of
+`RewriteEvidence`. Use `occurrence.Before` / `After` for semantic expressions,
+`occurrence.Kept` for retained captures, and `occurrence.Rewrite` for the previous
+raw evidence (`Inputs`, syntax and semantic models). Rebuild rule bundles after
+upgrading from preview.15.
+
+`Fix.For(comment).Remove(preserveLines: true).Propose()` keeps original line breaks
+while removing comment text. The default still deletes standalone comment lines.
+Both modes require unchanged parsing and compiler-supplied arguments in every
+affected loaded context.
+
 ## Behavior changes
 
 - Reporting an omitted default argument (from `ArgumentsFor(name)`) reports at its

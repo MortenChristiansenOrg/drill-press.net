@@ -7,8 +7,13 @@ namespace DrillPress;
 public sealed class CommentRemoval
 {
     private readonly CodeComment _comment;
+    private readonly bool _preserveLines;
 
-    internal CommentRemoval(CodeComment comment) => _comment = comment;
+    internal CommentRemoval(CodeComment comment, bool preserveLines)
+    {
+        _comment = comment;
+        _preserveLines = preserveLines;
+    }
 
     /// <summary>Proposes the deletion; edits that would change parsing or caller information are withheld.</summary>
     public FixProposal? Propose()
@@ -23,11 +28,22 @@ public sealed class CommentRemoval
         var alone =
             string.IsNullOrWhiteSpace(text.ToString(TextSpan.FromBounds(first.Start, span.Start)))
             && string.IsNullOrWhiteSpace(text.ToString(TextSpan.FromBounds(span.End, last.End)));
-        var replacement = "";
+        var replacement = _preserveLines
+            ? string.Concat(
+                text.ToString(span)
+                    .Where(character =>
+                        character is '\r' or '\n' or '\u0085' or '\u2028' or '\u2029'
+                    )
+            )
+            : "";
         if (alone)
-            span = TextSpan.FromBounds(first.Start, last.EndIncludingLineBreak);
+            span = TextSpan.FromBounds(
+                first.Start,
+                _preserveLines ? last.End : last.EndIncludingLineBreak
+            );
         else if (
-            span.Start > 0
+            replacement.Length == 0
+            && span.Start > 0
             && span.End < text.Length
             && !char.IsWhiteSpace(text[span.Start - 1])
             && !char.IsWhiteSpace(text[span.End])
