@@ -1,27 +1,37 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Project = Microsoft.CodeAnalysis.Project;
 
 namespace DrillPress.BuildHost;
 
-internal static class ProjectAnalyzers
+/// <summary>Analyzer references the target's own compiler can load, with warnings for those it rejects.</summary>
+internal sealed class ProjectAnalyzers(
+    string projectName,
+    AnalyzerReference[] references,
+    Diagnostic[] rejections
+)
 {
-    public static T[] Load<T>(Project project, Func<AnalyzerReference, IEnumerable<T>> select)
+    private readonly string _projectName = projectName;
+    private readonly AnalyzerReference[] _references = references;
+
+    public Diagnostic[] Rejections { get; } = rejections;
+
+    public T[] Load<T>(Func<AnalyzerReference, IEnumerable<T>> select)
     {
-        var (loaded, failures) = TryLoad(project, select);
+        var (loaded, failures) = TryLoad(select);
         if (failures.Length > 0)
-            throw LoadFailure(project, failures);
+            throw new InvalidOperationException(
+                $"Analyzer loading failed in '{_projectName}': {string.Join("; ", failures)}"
+            );
         return loaded;
     }
 
-    public static (T[] Loaded, string[] Failures) TryLoad<T>(
-        Project project,
+    public (T[] Loaded, string[] Failures) TryLoad<T>(
         Func<AnalyzerReference, IEnumerable<T>> select
     )
     {
         var failures = new List<string>();
-        var handlers = project
-            .AnalyzerReferences.OfType<AnalyzerFileReference>()
+        var handlers = _references
+            .OfType<AnalyzerFileReference>()
             .Select(reference =>
             {
                 // Matches the compiler's CS8032 wording when a named analyzer cannot be created.
@@ -37,7 +47,7 @@ internal static class ProjectAnalyzers
             .ToArray();
         try
         {
-            return (project.AnalyzerReferences.SelectMany(select).ToArray(), failures.ToArray());
+            return (_references.SelectMany(select).ToArray(), failures.ToArray());
         }
         finally
         {
@@ -46,8 +56,15 @@ internal static class ProjectAnalyzers
         }
     }
 
-    public static InvalidOperationException LoadFailure(
-        Project project,
-        IEnumerable<string> failures
-    ) => new($"Analyzer loading failed in '{project.Name}': {string.Join("; ", failures)}");
+    // Compiler warnings about analyzers are configurable like any other warning.
+    public static Diagnostic CompilerWarning(string id, string message) =>
+        Diagnostic.Create(
+            id,
+            "Compiler",
+            message,
+            DiagnosticSeverity.Warning,
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true,
+            warningLevel: 1
+        );
 }

@@ -340,10 +340,60 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    [Fact]
+    public async Task Analyzers_referencing_a_newer_compiler_are_skipped_like_the_real_build()
+    {
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            [
+                "Context.cs",
+                ".NETCoreApp,Version=v10.0.AssemblyAttributes.cs",
+                "Analyzed.AssemblyInfo.cs",
+            ],
+            Assert
+                .Single(snapshot.Projects)
+                .Documents.Select(document => FileSystem.Path.GetFileName(document.Path))
+        );
+    }
+
+    [Fact]
+    public async Task Validation_reports_newer_compiler_analyzers_configured_as_errors()
+    {
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            "<WarningsAsErrors>CS9057</WarningsAsErrors>",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.StartsWith(
+            $"DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: error CS9057: Analyzer assembly '{generator}' cannot be used because it references version '99.0.0.0' of the compiler, which is newer than the currently running version '",
+            result.StandardError
+        );
+    }
+
     private async Task<string> CreateAnalyzedProjectAsync(
         string properties,
         string source,
-        string globalConfig = ""
+        string globalConfig = "",
+        string? analyzer = null
     )
     {
         var root = CreateTemporaryDirectory("drillpress-analyzers-").FullName;
@@ -359,7 +409,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
                 <IsTestProject>false</IsTestProject>
               </PropertyGroup>
               <ItemGroup>
-                <Analyzer Include="{AnalyzersPath}" />
+                <Analyzer Include="{analyzer ?? AnalyzersPath}" />
                 <GlobalAnalyzerConfigFiles Include="fixture.globalconfig" />
               </ItemGroup>
             </Project>
@@ -380,7 +430,67 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         return target;
     }
 
+    // Emits a generator that references a compiler newer than any SDK ships, independent of the installed SDK.
+    private async Task<string> CreateFutureGeneratorAsync()
+    {
+        var root = CreateTemporaryDirectory("drillpress-future-generator-").FullName;
+        var options = new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(
+            Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary
+        );
+        var runtime = Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(
+            await FileSystem.File.ReadAllBytesAsync(
+                typeof(object).Assembly.Location,
+                TestContext.Current.CancellationToken
+            )
+        );
+        var compiler = Emit(
+            Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+                "Microsoft.CodeAnalysis",
+                [
+                    Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+                        """
+                        [assembly: System.Reflection.AssemblyVersion("99.0.0.0")]
+                        namespace Microsoft.CodeAnalysis;
+                        public sealed class GeneratorAttribute : System.Attribute { }
+                        """
+                    ),
+                ],
+                [runtime],
+                options
+            )
+        );
+        var path = FileSystem.Path.Combine(root, "FutureGenerator.dll");
+        await FileSystem.File.WriteAllBytesAsync(
+            path,
+            Emit(
+                Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+                    "FutureGenerator",
+                    [
+                        Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+                            "[Microsoft.CodeAnalysis.Generator] public sealed class FutureGenerator { }"
+                        ),
+                    ],
+                    [runtime, Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(compiler)],
+                    options
+                )
+            ),
+            TestContext.Current.CancellationToken
+        );
+        return path;
+    }
+
+    private static byte[] Emit(Microsoft.CodeAnalysis.CSharp.CSharpCompilation compilation)
+    {
+        using var image = new MemoryStream();
+        var result = compilation.Emit(image);
+        Assert.True(result.Success, string.Join("; ", result.Diagnostics));
+        return image.ToArray();
+    }
+
     private Task<ProcessResult> ValidateAsync(string target) =>
+        ExportAnalyzedAsync(target, "--validate-compilation");
+
+    private Task<ProcessResult> ExportAnalyzedAsync(string target, params string[] options) =>
         RunProcessAsync(
             "dotnet",
             [
@@ -388,7 +498,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
                 "export",
                 target,
                 FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
-                "--validate-compilation",
+                .. options,
             ],
             RepositoryRoot,
             TestContext.Current.CancellationToken
