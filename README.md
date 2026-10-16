@@ -198,7 +198,10 @@ independent of nearby project settings.
 Fast export permits ordinary compiler errors. `--validate-compilation` explicitly
 enumerates compiler errors and rejects an invalid target. Like a real build, it
 applies the project's analyzer `DiagnosticSuppressor`s first, so errors that
-packages suppress (such as EF Core's CS8618 on `DbSet` properties) do not fail it. Generator exceptions,
+packages suppress (such as EF Core's CS8618 on `DbSet` properties) do not fail it.
+Like the target's own compiler, both modes skip analyzers and generators that reference a
+newer compiler than the target SDK runs; validation reports that as CS9057 with the
+project's configured severity. Generator exceptions,
 missing inputs, incomplete project graphs, and load failures fail both modes.
 Semantic selections do not guess unresolved symbols; syntax queries retain erroneous code.
 Source project references remain compilation
