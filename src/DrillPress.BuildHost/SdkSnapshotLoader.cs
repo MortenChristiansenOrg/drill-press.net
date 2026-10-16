@@ -196,12 +196,18 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             );
         }
 
-        var generated = RunGenerators(liveProject, compilation, cancellationToken);
+        var analyzers = new TargetCompiler(_fileSystem).Select(
+            project.Name,
+            liveProject.AnalyzerReferences,
+            metadata.CompilerAssemblyPath
+        );
+        var generated = RunGenerators(liveProject, analyzers, compilation, cancellationToken);
         compilation = generated.Compilation;
         ThrowLoadFailures(failures);
         await CompilationValidation.ValidateAsync(
             compilation,
             liveProject,
+            analyzers,
             options.ValidateCompilation,
             cancellationToken
         );
@@ -348,19 +354,29 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             .Distinct()
             .Order(StringComparer.Ordinal)
             .ToArray();
-        return new EvaluatedMetadata(framework, isTest, properties, assets, packages, roots);
+        var compiler = new TargetCompiler(_fileSystem).CompilerAssemblyPath(
+            _fileSystem.Path.GetDirectoryName(project.FilePath!)!,
+            evaluated.GetPropertyValue
+        );
+        return new EvaluatedMetadata(
+            framework,
+            isTest,
+            properties,
+            assets,
+            packages,
+            roots,
+            compiler
+        );
     }
 
     private static GeneratedCompilation RunGenerators(
         Project project,
+        ProjectAnalyzers analyzers,
         CSharpCompilation compilation,
         CancellationToken cancellationToken
     )
     {
-        var generators = ProjectAnalyzers.Load(
-            project,
-            reference => reference.GetGenerators(LanguageNames.CSharp)
-        );
+        var generators = analyzers.Load(reference => reference.GetGenerators(LanguageNames.CSharp));
         if (generators.Length == 0)
         {
             return new GeneratedCompilation(compilation, []);
@@ -436,7 +452,8 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         Dictionary<string, string> Properties,
         string AssetsPath,
         PackageReferenceSnapshot[] Packages,
-        string[] SourceRoots
+        string[] SourceRoots,
+        string? CompilerAssemblyPath
     );
 
     private sealed record GeneratedCompilation(

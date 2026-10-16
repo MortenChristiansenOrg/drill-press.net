@@ -3,5 +3,7 @@
   <PropertyGroup>
     <TargetFramework />
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Fixture analyzers must load in the SDK's own compiler, like published analyzer packages. -->
+    <FixtureCompilerVersion>4.14.0</FixtureCompilerVersion>
   </PropertyGroup>
 </Project>

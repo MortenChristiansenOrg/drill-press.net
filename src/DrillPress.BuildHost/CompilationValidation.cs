@@ -22,6 +22,7 @@ internal static class CompilationValidation
     public static async Task ValidateAsync(
         CSharpCompilation compilation,
         Project project,
+        ProjectAnalyzers analyzers,
         bool validate,
         CancellationToken cancellationToken
     )
@@ -29,9 +30,8 @@ internal static class CompilationValidation
         if (!validate)
             return;
 
-        var (suppressors, failures) = ProjectAnalyzers.TryLoad(
-            project,
-            reference => reference.GetAnalyzers(LanguageNames.CSharp).OfType<DiagnosticSuppressor>()
+        var (suppressors, failures) = analyzers.TryLoad(reference =>
+            reference.GetAnalyzers(LanguageNames.CSharp).OfType<DiagnosticSuppressor>()
         );
         // Suppressor exceptions can surface after diagnostics are collected, so capture them explicitly.
         var exceptions = new ConcurrentQueue<Diagnostic>();
@@ -52,7 +52,7 @@ internal static class CompilationValidation
                     .GetAllDiagnosticsAsync(cancellationToken);
         // Diagnostics reported outside the compilation still follow the project's severity configuration.
         var external = CompilationWithAnalyzers.GetEffectiveDiagnostics(
-            failures.Select(LoadFailure).Concat(exceptions.Distinct()),
+            analyzers.Rejections.Concat(failures.Select(LoadFailure)).Concat(exceptions.Distinct()),
             compilation
         );
         ThrowErrors(compilation, diagnostics.Concat(external));
@@ -60,15 +60,7 @@ internal static class CompilationValidation
 
     // Real builds report analyzers that cannot be created as this configurable warning.
     private static Diagnostic LoadFailure(string message) =>
-        Diagnostic.Create(
-            "CS8032",
-            "Compiler",
-            message,
-            DiagnosticSeverity.Warning,
-            DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
-            warningLevel: 1
-        );
+        ProjectAnalyzers.CompilerWarning("CS8032", message);
 
     private static void ThrowErrors(
         CSharpCompilation compilation,

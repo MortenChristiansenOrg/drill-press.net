@@ -340,10 +340,167 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    [Fact]
+    public async Task Analyzers_referencing_a_newer_compiler_are_skipped_like_the_real_build()
+    {
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            [
+                "Context.cs",
+                ".NETCoreApp,Version=v10.0.AssemblyAttributes.cs",
+                "Analyzed.AssemblyInfo.cs",
+            ],
+            Assert
+                .Single(snapshot.Projects)
+                .Documents.Select(document => FileSystem.Path.GetFileName(document.Path))
+        );
+    }
+
+    [Fact]
+    public async Task Validation_reports_newer_compiler_analyzers_configured_as_errors()
+    {
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            "<WarningsAsErrors>CS9057</WarningsAsErrors>",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.StartsWith(
+            $"DrillPress.BuildHost: Compilation 'Analyzed' has 1 errors: error CS9057: Analyzer assembly '{generator}' cannot be used because it references version '99.0.0.0' of the compiler, which is newer than the currently running version '",
+            result.StandardError
+        );
+    }
+
+    [Theory]
+    [InlineData("[Microsoft.CodeAnalysis.Generator(\"c#\")] public sealed class G { }")]
+    [InlineData(
+        """
+            namespace Microsoft.CodeAnalysis { public sealed class GeneratorAttribute : System.Attribute { } }
+            [Microsoft.CodeAnalysis.Generator] public sealed class G { }
+            [Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer("Visual Basic")] public sealed class B { }
+            """
+    )]
+    public async Task Csharp_analyzers_are_judged_regardless_of_attribute_form(string source)
+    {
+        var analyzer = await CreateAnalyzerAssemblyAsync("99.0.0.0", source);
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "public sealed class Context { }",
+            analyzer: analyzer
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+    }
+
+    [Fact]
+    public async Task Assemblies_without_csharp_analyzers_are_not_judged_by_compiler_version()
+    {
+        var analyzer = await CreateAnalyzerAssemblyAsync(
+            "99.0.0.0",
+            """
+            [Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer("Visual Basic")]
+            public sealed class BasicAnalyzer { }
+            [Microsoft.CodeAnalysis.Generator("C#", null)]
+            public sealed class IgnoredGenerator { }
+            public sealed class Helper { }
+            """
+        );
+        var target = await CreateAnalyzedProjectAsync(
+            "<WarningsAsErrors>CS9057</WarningsAsErrors>",
+            "public sealed class Context { }",
+            analyzer: analyzer
+        );
+
+        var result = await ValidateAsync(target);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+    }
+
+    // The overridden compiler accepts the generator that the SDK compiler would skip, so the
+    // BuildHost's own Roslyn becomes the limit.
+    [Theory]
+    [InlineData("CscToolPath", "")]
+    [InlineData("CscToolExe", "csc.dll")]
+    public async Task Compiler_overrides_can_require_a_drill_press_update(
+        string property,
+        string file
+    )
+    {
+        var compiler = await CreateStubCompilerAsync("100.0.0.0");
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            $"<{property}>{FileSystem.Path.Combine(compiler, file)}</{property}>",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.StartsWith(
+            $"DrillPress.BuildHost: Analyzer loading failed in 'Analyzed': Analyzer assembly '{generator}' references compiler version '99.0.0.0', which is newer than Drill Press's Roslyn '",
+            result.StandardError
+        );
+    }
+
+    [Fact]
+    public async Task Unreadable_compiler_metadata_preserves_analyzer_load_failure_handling()
+    {
+        var compiler = await CreateStubCompilerAsync("100.0.0.0");
+        var generator = await CreateFutureGeneratorAsync();
+        var target = await CreateAnalyzedProjectAsync(
+            $"<CscToolPath>{compiler}</CscToolPath>",
+            "public sealed class Context { }",
+            analyzer: generator
+        );
+        using var locked = FileSystem.File.Open(
+            FileSystem.Path.Combine(compiler, "Microsoft.CodeAnalysis.dll"),
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None
+        );
+        var hostVersion = typeof(Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference)
+            .Assembly.GetName()
+            .Version;
+
+        var result = await ExportAnalyzedAsync(target);
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Analyzer loading failed in 'Analyzed': Analyzer assembly '{generator}' references compiler version '99.0.0.0', which is newer than Drill Press's Roslyn '{hostVersion}'. Update Drill Press.{Environment.NewLine}"
+            ),
+            result
+        );
+    }
+
     private async Task<string> CreateAnalyzedProjectAsync(
         string properties,
         string source,
-        string globalConfig = ""
+        string globalConfig = "",
+        string? analyzer = null
     )
     {
         var root = CreateTemporaryDirectory("drillpress-analyzers-").FullName;
@@ -359,7 +516,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
                 <IsTestProject>false</IsTestProject>
               </PropertyGroup>
               <ItemGroup>
-                <Analyzer Include="{AnalyzersPath}" />
+                <Analyzer Include="{analyzer ?? AnalyzersPath}" />
                 <GlobalAnalyzerConfigFiles Include="fixture.globalconfig" />
               </ItemGroup>
             </Project>
@@ -380,7 +537,113 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         return target;
     }
 
+    // A generator referencing a compiler newer than any SDK ships, independent of the installed SDK.
+    private Task<string> CreateFutureGeneratorAsync() =>
+        CreateAnalyzerAssemblyAsync(
+            "99.0.0.0",
+            "[Microsoft.CodeAnalysis.Generator] public sealed class FutureGenerator { }"
+        );
+
+    private async Task<string> CreateAnalyzerAssemblyAsync(string compilerVersion, string source)
+    {
+        var path = FileSystem.Path.Combine(
+            CreateTemporaryDirectory("drillpress-analyzer-assembly-").FullName,
+            "FixtureAnalyzer.dll"
+        );
+        var runtime = await RuntimeReferenceAsync();
+        await FileSystem.File.WriteAllBytesAsync(
+            path,
+            Emit(
+                Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+                    "FixtureAnalyzer",
+                    [Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source)],
+                    [
+                        runtime,
+                        Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(
+                            EmitCompiler(compilerVersion, runtime)
+                        ),
+                    ],
+                    new(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
+                )
+            ),
+            TestContext.Current.CancellationToken
+        );
+        return path;
+    }
+
+    private async Task<string> CreateStubCompilerAsync(string version)
+    {
+        var directory = CreateTemporaryDirectory("drillpress-compiler-").FullName;
+        // Design-time builds only check that the compiler executable exists.
+        foreach (var executable in new[] { "csc", "csc.exe", "csc.dll" })
+            await FileSystem.File.WriteAllTextAsync(
+                FileSystem.Path.Combine(directory, executable),
+                "",
+                TestContext.Current.CancellationToken
+            );
+        await FileSystem.File.WriteAllBytesAsync(
+            FileSystem.Path.Combine(directory, "Microsoft.CodeAnalysis.dll"),
+            EmitCompiler(version, await RuntimeReferenceAsync()),
+            TestContext.Current.CancellationToken
+        );
+        return directory;
+    }
+
+    private async Task<Microsoft.CodeAnalysis.MetadataReference> RuntimeReferenceAsync() =>
+        Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(
+            await FileSystem.File.ReadAllBytesAsync(
+                typeof(object).Assembly.Location,
+                TestContext.Current.CancellationToken
+            )
+        );
+
+    // Declares only the identity and attributes the compiler inspects before loading analyzers.
+    private static byte[] EmitCompiler(
+        string version,
+        Microsoft.CodeAnalysis.MetadataReference runtime
+    ) =>
+        Emit(
+            Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+                "Microsoft.CodeAnalysis",
+                [
+                    Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+                        $$"""
+                        [assembly: System.Reflection.AssemblyVersion("{{version}}")]
+                        namespace Microsoft.CodeAnalysis
+                        {
+                            public sealed class GeneratorAttribute : System.Attribute
+                            {
+                                public GeneratorAttribute() { }
+                                public GeneratorAttribute(string first, params string[] rest) { }
+                            }
+                        }
+                        namespace Microsoft.CodeAnalysis.Diagnostics
+                        {
+                            public sealed class DiagnosticAnalyzerAttribute : System.Attribute
+                            {
+                                public DiagnosticAnalyzerAttribute(string first, params string[] rest) { }
+                            }
+                        }
+                        """
+                    ),
+                ],
+                [runtime],
+                new(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
+            )
+        );
+
+    private static byte[] Emit(Microsoft.CodeAnalysis.CSharp.CSharpCompilation compilation)
+    {
+        using var image = new MemoryStream();
+        var result = compilation.Emit(image);
+        Assert.True(result.Success, string.Join("; ", result.Diagnostics));
+        return image.ToArray();
+    }
+
     private Task<ProcessResult> ValidateAsync(string target) =>
+        ExportAnalyzedAsync(target, "--validate-compilation");
+
+    private Task<ProcessResult> ExportAnalyzedAsync(string target, params string[] options) =>
         RunProcessAsync(
             "dotnet",
             [
@@ -388,7 +651,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
                 "export",
                 target,
                 FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
-                "--validate-compilation",
+                .. options,
             ],
             RepositoryRoot,
             TestContext.Current.CancellationToken
