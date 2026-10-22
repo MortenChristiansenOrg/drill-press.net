@@ -108,7 +108,7 @@ parameters, symbols):
 - `type.Member("Name")` (all overloads, fields, properties), `.WithParameters(types)`
   (one overload; none = parameterless), `type.Constructor(types)`.
 - `member.References` (`MemberReference`: `Symbol`, `Expression`, `Facts`, `AsArgument()`);
-  `references.OutsideNameOf()`.
+  `references.OutsideNameOf()`; `Code.MemberReferences.To(memberA, memberB)` for several.
 - `ApiSet(members)`: `Contains(method)`, `Union(other)`; usable with `calls.To(set)`.
 - `CodeTypeReference`: `Type`, `RefersTo<T>()`, `RefersTo(type)`.
 - Raw symbols: `symbol.Attributes()` → `CodeAttribute` (`ConstructorValue<T>(name)`,

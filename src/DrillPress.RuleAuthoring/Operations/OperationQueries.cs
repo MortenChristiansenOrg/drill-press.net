@@ -13,10 +13,11 @@ internal static class OperationQueries
 
     internal static CodeQuery<CodeInvocation> Invocations { get; } = InvocationsIn(Sources.Files);
 
+    // Type-name constraints from Of(type) skip creations whose written type cannot name it.
     internal static CodeQuery<CodeObjectCreation> ObjectCreations { get; } =
-        Sources
-            .Nodes<BaseObjectCreationExpressionSyntax>()
-            .Select(node => new CodeObjectCreation(node.Source, node.Syntax));
+        new(
+            (solution, filter) => solution.SelectObjectCreations(Sources.Files.In(solution), filter)
+        );
 
     internal static CodeQuery<CodeOperation<T>> Of<T>()
         where T : IOperation => TypedRoot<T>.Query;
@@ -31,19 +32,24 @@ internal static class OperationQueries
 
     // Target-name constraints skip documents whose syntax cannot produce a matching call.
     internal static CodeQuery<CodeInvocation> InvocationsIn(CodeQuery<CodeFile> files) =>
-        new((solution, names) => solution.SelectInvocations(files.In(solution), names));
+        new((solution, filter) => solution.SelectInvocations(files.In(solution), filter));
 
     private static CodeQuery<CodeOperation<IOperation>> OperationsIn(CodeQuery<CodeFile> files) =>
-        CodeQuery<CodeOperation<IOperation>>.Create(solution =>
-            solution.SelectOperations(files.In(solution))
-        );
+        new((solution, filter) => solution.SelectOperations(files.In(solution), filter));
 
+    // A root of its own, so place filters skip documents before they are bound.
     private static class TypedRoot<T>
         where T : IOperation
     {
-        internal static readonly CodeQuery<CodeOperation<T>> Query = All.Where(
-                new RuleCondition<CodeOperation<IOperation>>(candidate => candidate.Operation is T)
-            )
-            .Select(candidate => new CodeOperation<T>(candidate.Source, (T)candidate.Operation));
+        internal static readonly CodeQuery<CodeOperation<T>> Query = new(
+            (solution, filter) =>
+                solution
+                    .SelectOperations(Sources.Files.In(solution), filter)
+                    .Where(candidate => candidate.Operation is T)
+                    .Select(candidate => new CodeOperation<T>(
+                        candidate.Source,
+                        (T)candidate.Operation
+                    ))
+        );
     }
 }

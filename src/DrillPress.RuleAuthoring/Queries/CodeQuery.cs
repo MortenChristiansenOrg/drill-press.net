@@ -3,7 +3,7 @@ namespace DrillPress;
 /// <summary>Selects analysis candidates and composes reusable filtering conditions.</summary>
 public sealed class CodeQuery<T>
 {
-    private readonly Func<AnalysisSolution, NameFilter?, IEnumerable<T>> _select;
+    private readonly Func<AnalysisSolution, DiscoveryFilter, IEnumerable<T>> _select;
     private readonly RuleCondition<T>? _condition;
     private bool _requiresCoverage;
     internal bool RequiresCoverage => _requiresCoverage || _condition?.RequiresCoverage == true;
@@ -116,7 +116,7 @@ public sealed class CodeQuery<T>
         : this((solution, _) => select(solution), condition) { }
 
     internal CodeQuery(
-        Func<AnalysisSolution, NameFilter?, IEnumerable<T>> select,
+        Func<AnalysisSolution, DiscoveryFilter, IEnumerable<T>> select,
         RuleCondition<T>? condition = null
     )
     {
@@ -138,7 +138,12 @@ public sealed class CodeQuery<T>
 
     private IEnumerable<T> SelectCandidates(AnalysisSolution solution)
     {
-        var candidates = _select(solution, _condition?.MemberNames);
+        var candidates = _select(
+            solution,
+            _condition is null
+                ? DiscoveryFilter.None
+                : new(_condition.MemberNames, _condition.SourceFilter)
+        );
         return _condition is null ? candidates
             : solution.IsPlanningCoverage
                 ? candidates.Where(candidate =>

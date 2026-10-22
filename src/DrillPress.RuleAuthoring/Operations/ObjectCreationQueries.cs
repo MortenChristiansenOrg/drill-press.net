@@ -7,7 +7,13 @@ public static class ObjectCreationQueries
     public static CodeQuery<CodeObjectCreation> Of(
         this CodeQuery<CodeObjectCreation> creations,
         CodeType type
-    ) => creations.Where(creation => creation.Creates(type));
+    ) =>
+        creations.Where(
+            new RuleCondition<CodeObjectCreation>(
+                creation => creation.Creates(type),
+                NameFilter.Exactly(TypeReferenceIndex.NamesOf(type))
+            )
+        );
 
     /// <summary>Selects creations of exactly this type, including constructed generic arguments.</summary>
     public static CodeQuery<CodeObjectCreation> Of<T>(

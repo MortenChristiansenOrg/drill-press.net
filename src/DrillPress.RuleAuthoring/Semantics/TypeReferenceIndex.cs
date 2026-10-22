@@ -20,15 +20,21 @@ internal sealed class TypeReferenceIndex
         _candidates = sources.SelectMany(Discover).ToArray();
     }
 
-    internal IEnumerable<CodeTypeReference> Select(NameFilter? names)
+    internal long Bindings => _bindings.Count;
+
+    internal IEnumerable<CodeTypeReference> Select(
+        NameFilter? names,
+        Func<AnalysisSource, bool> sources
+    )
     {
         foreach (var candidate in _candidates)
         {
             _cancellationToken.ThrowIfCancellationRequested();
             if (
                 names is not null
-                && !candidate.Keys.Any(names.Accepts)
-                && !_aliases.Contains(candidate.Keys[0])
+                    && !candidate.Keys.Any(names.Accepts)
+                    && !_aliases.Contains(candidate.Keys[0])
+                || !sources(candidate.Source)
             )
                 continue;
             if (!_bindings.TryGetValue(candidate, out var reference))

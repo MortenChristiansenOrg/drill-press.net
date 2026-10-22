@@ -74,6 +74,9 @@ Narrow with composable filters:
   `ArgumentsFor("name")` (argument candidates). Include `To`, `ToMethodsNamed` or
   `ToMethodsMatching` when the target is known: only documents that can contain
   such a call are bound, while `Code.Calls.Where(...)` alone binds the whole solution.
+  Place filters (`InTestProjects()`, `InProject`, `InFolder`, `InFilesNamed`) also skip
+  other documents before binding; prefer them and `member.References`,
+  `MemberReferences.To(members)` or `ObjectCreations.Of(type)` over a custom `Where`.
 - Types and statements: `DerivedFrom`, `ImplementingInterface`, `ImplementationViews()`,
   `Branches().WithoutBraces()`, `WithExplicitType()`.
 - General: `Where`, `ExceptWhen`, `Select`, `SelectMany`, `Concat`, `Join`,

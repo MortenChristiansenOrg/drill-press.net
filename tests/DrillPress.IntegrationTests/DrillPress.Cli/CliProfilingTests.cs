@@ -77,6 +77,8 @@ public sealed class CliProfilingTests : IntegrationTest
                 "rules.rule.DP1004",
                 "rules.rule.DP1005",
                 "rules.member.symbol.bindings",
+                "rules.type.symbol.bindings",
+                "rules.operation.bound.documents",
                 "rules.interface.definition.comparisons",
                 "rules.allowances",
                 "rules.fix.validation",

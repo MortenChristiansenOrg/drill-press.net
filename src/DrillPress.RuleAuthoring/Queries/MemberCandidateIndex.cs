@@ -20,12 +20,18 @@ internal sealed class MemberCandidateIndex
 
     internal long Bindings => _bindings.Count;
 
-    internal IEnumerable<MemberReference> Select(NameFilter? names)
+    internal IEnumerable<MemberReference> Select(
+        NameFilter? names,
+        Func<AnalysisSource, bool>? sources = null
+    )
     {
         foreach (var candidate in _candidates)
         {
             _cancellationToken.ThrowIfCancellationRequested();
-            if (names is not null && !CanMatch(candidate, names))
+            if (
+                names is not null && !CanMatch(candidate, names)
+                || sources is not null && !sources(candidate.Source)
+            )
             {
                 continue;
             }

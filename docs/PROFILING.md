@@ -58,6 +58,17 @@ member has errors. Names carry through `Where` and `ExceptWhen` in any order, bu
 a call query filtered only by a custom `Where`, or reshaped by `Select`,
 `SelectMany`, `Union` or `Concat` before naming its target, binds every document.
 
+Place filters (`InProject`, `InTestProjects`, `InNonTestProjects`, `InProjectsWithType`,
+`InFolder` and `InFilesNamed`) carry through `Where` and `ExceptWhen` like names: call,
+operation, member-reference, type-reference and object-creation roots skip other
+documents before binding them, and member and type references outside the analysis
+target are never bound. `ObjectCreations.Of(type)` skips explicit creations whose
+written type name is neither the type's name nor a using alias; target-typed and
+keyword creations are always bound. `MemberReferences.To(members)` binds only the
+members' names. `InNamespace` needs a bound location and does not narrow discovery.
+Counters `member.symbol.bindings`, `type.symbol.bindings` and
+`operation.bound.documents` show how much each root bound.
+
 Path, project, folder, namespace and name globs compile once per distinct pattern.
 
 Measure query scaling with rule count over a synthetic solution:

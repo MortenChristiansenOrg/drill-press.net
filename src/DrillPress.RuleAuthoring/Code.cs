@@ -138,17 +138,11 @@ public static class Code
             .Select(node => new CodeParameter(node.Source, node.Syntax));
 
         internal static readonly CodeQuery<MemberReference> MemberReferences = new(
-            (solution, names) =>
-                solution
-                    .SelectMemberReferences(names)
-                    .Where(reference => reference.Source.Project.Snapshot.IsAnalysisTarget)
+            (solution, filter) => solution.SelectMemberReferences(filter)
         );
 
         internal static readonly CodeQuery<CodeTypeReference> TypeReferences = new(
-            (solution, names) =>
-                solution
-                    .SelectTypeReferences(names)
-                    .Where(reference => reference.Source.Project.Snapshot.IsAnalysisTarget)
+            (solution, filter) => solution.SelectTypeReferences(filter)
         );
     }
 
