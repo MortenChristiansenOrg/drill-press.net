@@ -14,7 +14,7 @@ reason, or the check that rejected the fix during validation, under the finding.
 | `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWith(syntax)` | `SafeWhen` |
 | `CodeInvocation` / `CodeArgument` | `RemoveArgument("name")` / `Remove()` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
-| `CodeBranch` | `AddBraces()` | `Propose()` |
+| `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
 | `ExpressionGroup` via `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameterName)` | `Propose()` (constants), `SafeWhen` (templates) |

@@ -31,7 +31,7 @@ public static class StyleQueries
     public static CodeQuery<CodeBranch> Branches(this CodeQuery<CodeIfStatement> statements) =>
         statements.SelectMany(statement => statement.Branches);
 
-    /// <summary>Selects branches that are not blocks. An else-if continuation is not a missing brace.</summary>
+    /// <summary>Selects embedded statements that are not blocks. An else-if continuation and stacked using or fixed statements are not missing braces.</summary>
     public static CodeQuery<CodeBranch> WithoutBraces(this CodeQuery<CodeBranch> branches) =>
-        branches.Where(branch => !branch.HasBraces && !branch.IsElseIf);
+        branches.Where(branch => !branch.HasBraces && !branch.IsElseIf && !branch.IsStacked);
 }

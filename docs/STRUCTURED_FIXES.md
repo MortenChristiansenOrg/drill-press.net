@@ -44,12 +44,15 @@ exterior call trivia is retained. Changed synthesized arguments require a separa
 values remain protected. Unsupported retained calls whose correspondence cannot
 be established conservatively withhold the edit.
 
-## Braces for if and else branches
+## Braces for embedded statements
 
 `Fix.For(branch).AddBraces().Propose()` applies a built-in restricted structural
-proof to a `CodeBranch`, such as `statement.Then`, `statement.Else` or
-`Code.IfStatements.Branches().WithoutBraces()`. The branch must not
-already be a block. The two boundary edits retain one exact original statement,
+proof to a `CodeBranch`: an if or else branch (`statement.Then`, `statement.Else`,
+`Code.IfStatements.Branches()`) or any other embedded statement from
+`Code.EmbeddedStatements`, the bodies of `for`, `foreach`, `while`, `do`, `using`,
+`lock` and `fixed` statements. `WithoutBraces()` skips blocks, else-if
+continuations and stacked `using (a) using (b)` or `fixed` statements. The
+statement must not already be a block. The two boundary edits retain one exact original statement,
 including a complete `else if` chain. They preserve original branch ownership,
 bound expression symbols/conversions, and caller-supplied argument constants.
 Labels, goto, yield, local functions, directives and ambiguous header-to-statement

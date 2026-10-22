@@ -283,7 +283,7 @@ proof or `SafeWhen(change => ...)` when you state why the edit preserves behavio
 | `Fix.For(call)` | the expression edits, `RemoveArgument(parameter)` | `SafeWhen` |
 | `Fix.For(argument)` | `Remove()` | `SafeWhen` |
 | `Fix.For(declaration)` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility tokens that keep the declared accessibility, otherwise `SafeWhen` |
-| `Fix.For(branch)` | `AddBraces()` | `Propose()` |
+| `Fix.For(branch)` (if/else branch or any `Code.EmbeddedStatements` body) | `AddBraces()` | `Propose()` |
 | `Fix.For(comment)` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `Fix.For(variable)` | `UseVar()` | `Propose()` |
 | `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameter)` | `Propose()` for constants, otherwise `SafeWhen` |

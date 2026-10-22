@@ -59,7 +59,7 @@ Start from the `Code` root that names what the convention is about:
 | `TestMethods`, `TestClasses` (xUnit, NUnit, MSTest) | `CodeMethod`, `CodeTypeDefinition` |
 | `Calls`, `ObjectCreations` | `CodeInvocation`, `CodeObjectCreation` |
 | `MemberReferences`, `TypeReferences`, `ReferencesTo(symbol)` | `MemberReference`, `CodeTypeReference`, `CodeSymbol` |
-| `IfStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
+| `IfStatements`, `EmbeddedStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
 | `Nodes<TSyntax>()`, `Operations<TOperation>()` | any Roslyn syntax or operation |
 
 Narrow with composable filters:
@@ -73,7 +73,8 @@ Narrow with composable filters:
   `OnReceiverOfType<T>()`, `WhereReceiver`, `WhereArgument("name", a => ...)`,
   `ArgumentsFor("name")` (argument candidates).
 - Types and statements: `DerivedFrom`, `ImplementingInterface`, `ImplementationViews()`,
-  `Branches().WithoutBraces()`, `WithExplicitType()`.
+  `Branches().WithoutBraces()`, `Code.EmbeddedStatements.WithoutBraces()` (if/else and
+  loop, using, lock and fixed bodies), `WithExplicitType()`.
 - General: `Where`, `ExceptWhen`, `Select`, `SelectMany`, `Concat`, `Join`,
   `WithoutMatching` (owners missing a counterpart).
 

@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
-/// <summary>Adds braces around exactly one if or else embedded statement while preserving its syntax, branch ownership and bound references.</summary>
+/// <summary>Adds braces around exactly one embedded statement (an if or else branch, or a for, foreach, while, do, using, lock or fixed body) while preserving its syntax, ownership and bound references.</summary>
 public sealed class BlockWrapping
 {
     private readonly AnalysisSource _source;
@@ -19,7 +19,7 @@ public sealed class BlockWrapping
     }
 
     /// <summary>Proposes the two brace insertions, using the file's indentation and line endings. The library owns this restricted equivalence proof; labels, directives and ambiguous header comments yield no proposal.</summary>
-    /// <remarks>Gates: editable ordinary source, a supported if/else branch, safe boundary trivia, and unchanged branch ownership, bound expressions and compiler-supplied arguments in every affected compilation.</remarks>
+    /// <remarks>Gates: editable ordinary source, a supported embedded statement, safe boundary trivia, and unchanged branch ownership, bound expressions and compiler-supplied arguments in every affected compilation.</remarks>
     public FixProposal? Propose()
     {
         if (_statement is not StatementSyntax statement)
@@ -27,7 +27,7 @@ public sealed class BlockWrapping
         if (Ineligible(_source, statement) is { } ineligible)
             return FixProposal.Withheld(ineligible);
         if (Owner(statement) is not { } owner)
-            return FixProposal.Withheld("the statement is not an if or else branch");
+            return FixProposal.Withheld("the statement has no owning statement");
         var text = _source.Tree.GetText();
         var line = text.Lines.GetLineFromPosition(statement.SpanStart);
         var prefix = text.ToString(TextSpan.FromBounds(line.Start, statement.SpanStart));
@@ -110,22 +110,20 @@ public sealed class BlockWrapping
         return RewriteChecks.CompilerSuppliedArguments(evidence, null).Reason;
     }
 
+    // The new block must be the embedded statement of the same owner: the owner's keyword maps to the same kind.
     private static bool SameOwner(
         RewriteContext context,
         AnalysisSource source,
         StatementSyntax before,
         BlockSyntax block
     ) =>
-        before.Parent switch
-        {
-            IfStatementSyntax owner => context.MapToken(source, owner.IfKeyword)?.Parent
-                is IfStatementSyntax mapped
-                && mapped.Statement == block,
-            ElseClauseSyntax clause => clause.Parent is IfStatementSyntax oldOwner
-                && context.MapToken(source, oldOwner.IfKeyword)?.Parent is IfStatementSyntax mapped
-                && mapped.Else?.Statement == block,
-            _ => false,
-        };
+        before.Parent is { } owner
+        && context
+            .MapToken(source, owner.GetFirstToken())
+            ?.Parent?.AncestorsAndSelf()
+            .FirstOrDefault(node => node.RawKind == owner.RawKind)
+            is { } mapped
+        && EmbeddedStatements.Of(mapped) == block;
 
     private static string? Ineligible(AnalysisSource source, StatementSyntax statement)
     {
@@ -137,6 +135,8 @@ public sealed class BlockWrapping
             return "the statement is in generated or non-editable source";
         if (statement is BlockSyntax)
             return "the statement already has braces";
+        if (!EmbeddedStatements.IsEmbedded(statement))
+            return "the statement is not embedded in an if, else, loop, using, lock or fixed statement";
         if (statement.ContainsDiagnostics || statement.ContainsDirectives)
             return "the statement contains directives or syntax errors";
         if (
@@ -151,20 +151,7 @@ public sealed class BlockWrapping
                 )
         )
             return "the statement contains a label, goto, yield or local function";
-        var headerEnd = statement.Parent switch
-        {
-            IfStatementSyntax owner when owner.Statement == statement => owner
-                .CloseParenToken
-                .Span
-                .End,
-            ElseClauseSyntax clause when clause.Statement == statement => clause
-                .ElseKeyword
-                .Span
-                .End,
-            _ => -1,
-        };
-        if (headerEnd < 0)
-            return "the statement is not an if or else branch";
+        var headerEnd = statement.GetFirstToken().GetPreviousToken().Span.End;
         return source
             .Tree.GetText()
             .ToString(TextSpan.FromBounds(headerEnd, statement.SpanStart))
@@ -173,10 +160,14 @@ public sealed class BlockWrapping
             : "a comment between the header and the statement has no unambiguous place";
     }
 
-    private static IfStatementSyntax? Owner(StatementSyntax statement)
+    // The statement whose line sets the indentation: an else clause belongs to the first if of its chain.
+    private static StatementSyntax? Owner(StatementSyntax statement)
     {
-        var owner =
-            statement.Parent as IfStatementSyntax ?? statement.Parent?.Parent as IfStatementSyntax;
+        var owner = statement.Parent switch
+        {
+            ElseClauseSyntax clause => clause.Parent as StatementSyntax,
+            var parent => parent as StatementSyntax,
+        };
         while (owner?.Parent is ElseClauseSyntax { Parent: IfStatementSyntax parent })
             owner = parent;
         return owner;

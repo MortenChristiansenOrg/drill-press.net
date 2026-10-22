@@ -66,6 +66,9 @@ public static class Code
     /// <summary>Written if statements, with their then and else branches.</summary>
     public static CodeQuery<CodeIfStatement> IfStatements => Statements.IfStatements;
 
+    /// <summary>Every embedded statement: if and else branches and the bodies of for, foreach, while, do, using, lock and fixed statements. Use <c>WithoutBraces()</c> to find the unbraced ones.</summary>
+    public static CodeQuery<CodeBranch> EmbeddedStatements => Statements.EmbeddedStatements;
+
     /// <summary>Written foreach and await foreach loops, including deconstruction, with separate collection and advancement semantics.</summary>
     public static CodeQuery<CodeEnumeration> Enumerations => Statements.Enumerations;
 
@@ -191,6 +194,11 @@ public static class Code
         internal static readonly CodeQuery<CodeIfStatement> IfStatements = Sources
             .Nodes<IfStatementSyntax>()
             .Select(node => new CodeIfStatement(node.Source, node.Syntax));
+
+        internal static readonly CodeQuery<CodeBranch> EmbeddedStatements = Sources
+            .Nodes<StatementSyntax>()
+            .Where(node => DrillPress.EmbeddedStatements.IsEmbedded(node.Syntax))
+            .Select(node => new CodeBranch(node.Source, node.Syntax));
 
         internal static readonly CodeQuery<CodeEnumeration> Enumerations = Sources
             .Nodes<CommonForEachStatementSyntax>()

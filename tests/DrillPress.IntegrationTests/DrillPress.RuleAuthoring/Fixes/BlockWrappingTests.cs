@@ -85,6 +85,63 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
     }
 
+    [Theory]
+    [InlineData("for (var i = 0; i < 2; i++)", "")]
+    [InlineData("foreach (var item in items)", "")]
+    [InlineData("foreach (var (key, value) in pairs)", "")]
+    [InlineData("while (items.Length > 3)", "")]
+    [InlineData("do", " while (items.Length > 3);")]
+    [InlineData("using (var stream = new System.IO.MemoryStream())", "")]
+    [InlineData("lock (items)", "")]
+    public async Task Every_embedded_statement_kind_is_wrapped(string header, string footer)
+    {
+        var workspace = fixture.Workspace();
+        var prefix =
+            $"class A\n{{\n    void M(string[] items, (int, int)[] pairs)\n    {{\n        {header}\n";
+        workspace.AddProject(
+            "Library",
+            [new("A.cs", prefix + $"            Run();{footer}\n    }}\n    void Run() {{}}\n}}")]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("BLOCK", "Wrap the embedded statement.")
+            .For(Code.EmbeddedStatements.WithoutBraces())
+            .Forbid(fix: statement => Fix.For(statement).AddBraces().Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(
+            prefix
+                + $"        {{\n            Run();\n        }}{footer}\n    }}\n    void Run() {{}}\n}}",
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
+    public async Task Stacked_using_statements_are_not_missing_braces()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { void M() { using (new System.IO.MemoryStream()) using (new System.IO.MemoryStream()) { } } }"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("BLOCK", "Wrap the embedded statement.")
+            .For(Code.EmbeddedStatements.WithoutBraces())
+            .Forbid(fix: statement => Fix.For(statement).AddBraces().Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Findings);
+    }
+
     [Fact]
     public async Task Expression_replacements_elsewhere_in_the_batch_do_not_withhold_braces()
     {

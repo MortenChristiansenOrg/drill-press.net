@@ -28,7 +28,7 @@ public static class Fix
     /// <summary>Starts a modifier edit on a written declaration: a type part, method, field, property or parameter.</summary>
     public static DeclarationFix For(ICodeDeclaration declaration) => new(declaration);
 
-    /// <summary>Starts an edit of an if or else branch.</summary>
+    /// <summary>Starts an edit of an embedded statement: an if or else branch, or the body of a for, foreach, while, do, using, lock or fixed statement.</summary>
     public static BranchFix For(CodeBranch branch) => new(branch);
 
     /// <summary>Starts the removal of a comment.</summary>
