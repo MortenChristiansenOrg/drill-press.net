@@ -86,10 +86,14 @@ public sealed class RuleCatalog
             )
         )
         {
-            using var measurement = solution.Options.Profile.Measure("rule." + rule.Id);
+            using var measurement = solution.Options.Profile.Measure(
+                "rule." + rule.Id,
+                "rule." + rule.Id + ".own"
+            );
             diagnostics.AddRange(rule.Evaluate(solution));
         }
 
+        solution.Options.Profile.WriteShared();
         solution.WriteProfileCounters();
         return diagnostics
             .OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)

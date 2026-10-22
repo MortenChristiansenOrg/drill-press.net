@@ -5,7 +5,8 @@ public sealed class AnalysisFact<T>(Func<AnalysisSolution, T> compute)
     where T : notnull
 {
     /// <summary>Computes once for the supplied solution. Values should be immutable; failures are cached for that solution.</summary>
-    public T In(AnalysisSolution solution) => solution.Cached(this, () => compute(solution));
+    public T In(AnalysisSolution solution) =>
+        solution.Cached(this, () => solution.Shared("facts", () => compute(solution)));
 
     /// <summary>Exposes a fact's candidates as a reusable query.</summary>
     public CodeQuery<TCandidate> SelectMany<TCandidate>(Func<T, IEnumerable<TCandidate>> select) =>

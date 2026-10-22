@@ -85,6 +85,10 @@ public sealed class AnalysisProject
 
     internal void BelongTo(AnalysisSolution solution) => _solution = solution;
 
+    // Cached work every rule reuses, measured against the analysis that includes the project.
+    internal SharedProfileScope MeasureShared(string kind) =>
+        _solution?.Options.Profile.MeasureShared(kind) ?? SharedProfileScope.None;
+
     internal ProjectCoverage Coverage { get; set; } = new();
 
     internal RewriteValidationCache RewriteValidation { get; }

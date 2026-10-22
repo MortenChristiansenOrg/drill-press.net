@@ -17,7 +17,7 @@ public sealed class CodeRelationships
     {
         _solution = solution;
         _views = new(solution);
-        _calls = new(BuildCalls);
+        _calls = new(() => solution.Shared("relationships", BuildCalls));
     }
 
     private Dictionary<DeclarationKey, List<CodeInvocation>> BuildCalls()
@@ -46,7 +46,10 @@ public sealed class CodeRelationships
 
     /// <summary>Shares relationship analysis; the call-site index is built only when a call query first needs it.</summary>
     public static CodeRelationships In(AnalysisSolution solution) =>
-        solution.Cached(_cacheKey, () => new CodeRelationships(solution));
+        solution.Cached(
+            _cacheKey,
+            () => solution.Shared("relationships", () => new CodeRelationships(solution))
+        );
 
     /// <summary>Direct source calls in a method, excluding nested function bodies.</summary>
     public IReadOnlyList<CodeInvocation> CallsFrom(IMethodSymbol method) =>

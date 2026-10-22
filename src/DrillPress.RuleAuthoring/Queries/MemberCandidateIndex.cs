@@ -81,6 +81,7 @@ internal sealed class MemberCandidateIndex
 
     private MemberReference? Bind(MemberSyntaxCandidate candidate)
     {
+        using var scope = candidate.Source.Project.MeasureShared("member-references");
         candidate.Source.Project.CancellationToken.ThrowIfCancellationRequested();
         var symbol = candidate
             .Source.Model.GetSymbolInfo(

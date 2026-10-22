@@ -1,3 +1,4 @@
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FlowAnalysis;
@@ -14,25 +15,48 @@ public sealed class MethodFlow
 
     /// <summary>Creates lazy method-local analysis. Nested functions have their own control flow.</summary>
     public MethodFlow(CodeMethod method)
+        : this(method, shared: false) { }
+
+    // A flow shared through For measures its analyses as shared work, since later rules reuse them.
+    private MethodFlow(CodeMethod method, bool shared)
     {
         _method = method;
         _graph = new(() =>
-            method.Source.Model.GetOperation(method.Syntax, method.Source.Project.CancellationToken)
-                is IMethodBodyOperation body
-                ? ControlFlowGraph.Create(body, method.Source.Project.CancellationToken)
-                : null
+            Analyze(
+                shared,
+                () =>
+                    method.Source.Model.GetOperation(
+                        method.Syntax,
+                        method.Source.Project.CancellationToken
+                    )
+                        is IMethodBodyOperation body
+                        ? ControlFlowGraph.Create(body, method.Source.Project.CancellationToken)
+                        : null
+            )
         );
         _data = new(() =>
-            method.Syntax.Body is { } block ? method.Source.Model.AnalyzeDataFlow(block)
-            : method.Syntax.ExpressionBody is { Expression: { } expression }
-                ? method.Source.Model.AnalyzeDataFlow(expression)
-            : null
+            Analyze(
+                shared,
+                () =>
+                    method.Syntax.Body is { } block ? method.Source.Model.AnalyzeDataFlow(block)
+                    : method.Syntax.ExpressionBody is { Expression: { } expression }
+                        ? method.Source.Model.AnalyzeDataFlow(expression)
+                    : null
+            )
         );
+    }
+
+    private T Analyze<T>(bool shared, Func<T> analyze)
+    {
+        using var scope = shared
+            ? _method.Source.Project.MeasureShared("flow")
+            : SharedProfileScope.None;
+        return analyze();
     }
 
     /// <summary>Returns the same method analysis for repeated rules within one solution.</summary>
     public static MethodFlow For(AnalysisSolution solution, CodeMethod method) =>
-        solution.Cached(method, () => new MethodFlow(method));
+        solution.Cached(method, () => new MethodFlow(method, shared: true));
 
     /// <summary>The compiler CFG, or null for a declaration without a supported executable body.</summary>
     public ControlFlowGraph? Graph => _graph.Value;

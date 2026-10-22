@@ -131,6 +131,7 @@ internal sealed class TypeReferenceIndex
 
     private CodeTypeReference? Bind(TypeSyntaxCandidate candidate)
     {
+        using var scope = candidate.Source.Project.MeasureShared("type-references");
         var model = candidate.Source.Model;
         var token = candidate.Source.Project.CancellationToken;
         token.ThrowIfCancellationRequested();

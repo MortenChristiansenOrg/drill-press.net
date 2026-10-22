@@ -15,9 +15,11 @@ public sealed class CodeObjectCreation : ICodeElement
         Source = source;
         Syntax = syntax;
         _operation = new(() =>
-            source.Model.GetOperation(syntax, source.Project.CancellationToken)
-            as IObjectCreationOperation
-        );
+        {
+            using var scope = source.Project.MeasureShared("operations");
+            return source.Model.GetOperation(syntax, source.Project.CancellationToken)
+                as IObjectCreationOperation;
+        });
         _expression = new(() => new(source, syntax));
     }
 

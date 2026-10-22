@@ -51,7 +51,10 @@ public sealed class CodeMethod : ICodeDeclaration
         NestedFunctions nested = NestedFunctions.Include
     )
     {
-        var methods = Solution.Cached(_methodIndex, () => IndexMethods(Solution));
+        var methods = Solution.Cached(
+            _methodIndex,
+            () => Solution.Shared("declarations", () => IndexMethods(Solution))
+        );
         var owner = Symbol?.ContainingType?.OriginalDefinition;
         var found = new List<CodeMethod>();
         var seen = new HashSet<CodeMethod>();

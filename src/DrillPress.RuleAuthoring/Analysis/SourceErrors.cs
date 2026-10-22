@@ -14,9 +14,15 @@ internal sealed class SourceErrors(AnalysisSource source)
 
     internal bool In(TextSpan span)
     {
-        if (Member(span) is { } member && !_members.GetOrAdd(member, Exactly))
+        if (Member(span) is { } member && !_members.GetOrAdd(member, MemberHasErrors))
             return false;
         return Exactly(span);
+    }
+
+    private bool MemberHasErrors(TextSpan member)
+    {
+        using var scope = source.Project.MeasureShared("errors");
+        return Exactly(member);
     }
 
     private bool Exactly(TextSpan span) =>

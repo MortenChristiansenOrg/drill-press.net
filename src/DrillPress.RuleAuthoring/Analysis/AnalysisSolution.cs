@@ -57,6 +57,13 @@ public sealed class AnalysisSolution
         return (T)value.Value;
     }
 
+    // Measures cached work that later rules reuse, so profiles can tell it from each rule's own work.
+    internal T Shared<T>(string kind, Func<T> work)
+    {
+        using var scope = Options.Profile.MeasureShared(kind);
+        return work();
+    }
+
     /// <summary>Creates an analysis over separately evaluated project contexts.</summary>
     public AnalysisSolution(
         IReadOnlyList<AnalysisProject> projects,
@@ -87,47 +94,65 @@ public sealed class AnalysisSolution
             foreach (var project in Projects)
                 project.BelongTo(this);
         Implementations = new(this);
-        _projectGraph = new(() => new ProjectGraph(this));
-        _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
+        _projectGraph = new(() => Shared("relationships", () => new ProjectGraph(this)));
+        _memberCandidates = new(() =>
+            Shared(
+                "member-references",
+                () => new MemberCandidateIndex(OrdinarySources, CancellationToken)
+            )
+        );
         _typeReferences = new(() =>
-            new TypeReferenceIndex(
-                Projects.SelectMany(project => project.Sources),
-                CancellationToken
+            Shared(
+                "type-references",
+                () =>
+                    new TypeReferenceIndex(
+                        Projects.SelectMany(project => project.Sources),
+                        CancellationToken
+                    )
             )
         );
         _references = new(() =>
-            Options.EnableOptimizations
-                ? _memberCandidates.Value.Select(null).ToArray()
-                : OrdinarySources.SelectMany(DiscoverReferences).ToArray()
+            Shared(
+                "member-references",
+                () =>
+                    Options.EnableOptimizations
+                        ? _memberCandidates.Value.Select(null).ToArray()
+                        : OrdinarySources.SelectMany(DiscoverReferences).ToArray()
+            )
         );
         _methods = new(() =>
-            OrdinarySources
-                .SelectMany(source =>
-                    source
-                        .Tree.GetRoot(source.Project.CancellationToken)
-                        .DescendantNodes()
-                        .OfType<MethodDeclarationSyntax>()
-                        .Select(syntax => new CodeMethod(this, source, syntax))
-                )
-                .ToArray()
-        );
-        _types = new(DiscoverTypes);
-        _aliases = new(() =>
-            Projects
-                .SelectMany(project => project.Sources)
-                .SelectMany(source =>
-                    source
-                        .Tree.GetRoot(CancellationToken)
-                        .DescendantNodes(node =>
-                            node is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax
+            Shared(
+                "declarations",
+                () =>
+                    OrdinarySources
+                        .SelectMany(source =>
+                            source
+                                .Tree.GetRoot(source.Project.CancellationToken)
+                                .DescendantNodes()
+                                .OfType<MethodDeclarationSyntax>()
+                                .Select(syntax => new CodeMethod(this, source, syntax))
                         )
-                        .OfType<UsingDirectiveSyntax>()
-                )
-                .Select(directive => directive.Alias?.Name.Identifier.ValueText)
-                .OfType<string>()
-                .ToHashSet()
+                        .ToArray()
+            )
         );
+        _types = new(() => Shared("declarations", DiscoverTypes));
+        _aliases = new(() => Shared("declarations", ReadAliases));
     }
+
+    private IReadOnlySet<string> ReadAliases() =>
+        Projects
+            .SelectMany(project => project.Sources)
+            .SelectMany(source =>
+                source
+                    .Tree.GetRoot(CancellationToken)
+                    .DescendantNodes(node =>
+                        node is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax
+                    )
+                    .OfType<UsingDirectiveSyntax>()
+            )
+            .Select(directive => directive.Alias?.Name.Identifier.ValueText)
+            .OfType<string>()
+            .ToHashSet();
 
     /// <summary>Member references in analysis-target documents, binding only names and documents the filter can accept.</summary>
     internal IEnumerable<MemberReference> SelectMemberReferences(DiscoveryFilter filter) =>
@@ -215,6 +240,7 @@ public sealed class AnalysisSolution
         var pending = sources.Where(source => !source.Operations.IsBound).Distinct().ToArray();
         if (!Options.EnableOptimizations || pending.Length < 2)
             return;
+        using var scope = Options.Profile.MeasureShared("operations");
         Parallel.ForEach(
             pending,
             new ParallelOptions { CancellationToken = CancellationToken },

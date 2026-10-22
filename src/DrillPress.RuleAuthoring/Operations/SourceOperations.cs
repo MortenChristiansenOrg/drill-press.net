@@ -39,7 +39,11 @@ internal sealed class SourceOperations
     internal SourceOperations(AnalysisSource source)
     {
         _source = source;
-        _all = new(Discover);
+        _all = new(() =>
+        {
+            using var scope = source.Project.MeasureShared("operations");
+            return Discover();
+        });
         _invocations = new(() =>
             Array.AsReadOnly(
                 All.OfType<IInvocationOperation>()
