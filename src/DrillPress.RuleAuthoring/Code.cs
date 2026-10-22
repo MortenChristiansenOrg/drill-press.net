@@ -35,6 +35,9 @@ public static class Code
     /// <summary>Written field variables; a declaration such as <c>int a, b;</c> yields one field per variable. Event fields are excluded.</summary>
     public static CodeQuery<CodeField> Fields => Roots.Fields;
 
+    /// <summary>Written enum members, which <see cref="Fields"/> leaves out.</summary>
+    public static CodeQuery<CodeEnumMember> EnumMembers => Roots.EnumMembers;
+
     /// <summary>Written property declarations, excluding indexers.</summary>
     public static CodeQuery<CodeProperty> Properties => Roots.Properties;
 
@@ -127,6 +130,10 @@ public static class Code
             .Nodes<VariableDeclaratorSyntax>()
             .Where(node => node.Syntax.Parent?.Parent is FieldDeclarationSyntax)
             .Select(node => new CodeField(node.Source, node.Syntax));
+
+        internal static readonly CodeQuery<CodeEnumMember> EnumMembers = Sources
+            .Nodes<EnumMemberDeclarationSyntax>()
+            .Select(node => new CodeEnumMember(node.Source, node.Syntax));
 
         internal static readonly CodeQuery<CodeProperty> Properties = Sources
             .Nodes<PropertyDeclarationSyntax>()

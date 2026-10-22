@@ -48,7 +48,7 @@ rules.Rule("TEAM001", "Use the application's current storage contract.")
 a forgotten obligation cannot silently disable a rule.
 
 `Code` is the single discovery root: `Code.Files`, `Code.Projects`, `Code.Types`,
-`Code.TypeDeclarations`, `Code.Methods`, `Code.Fields`, `Code.Properties`,
+`Code.TypeDeclarations`, `Code.Methods`, `Code.Fields`, `Code.EnumMembers`, `Code.Properties`,
 `Code.Parameters`, `Code.Calls`, `Code.ObjectCreations`, `Code.MemberReferences`,
 `Code.TypeReferences`, `Code.NullChecks`, `Code.Catches`, `Code.Comments`,
 `Code.TestMethods`, `Code.TestClasses`, and the statement roots. They share one
@@ -76,8 +76,8 @@ rules.Rule("TEAM001", "Use a descriptive method name.")
 
 ### Shared declaration filters
 
-Types, type parts, methods, fields, properties, parameters and declared symbols
-implement `ICodeDeclaration`. The same filters and predicates apply to each:
+Types, type parts, methods, fields, enum members, properties, parameters and declared
+symbols implement `ICodeDeclaration`. The same filters and predicates apply to each:
 
 | Filter on a query | Predicate on one declaration |
 | --- | --- |

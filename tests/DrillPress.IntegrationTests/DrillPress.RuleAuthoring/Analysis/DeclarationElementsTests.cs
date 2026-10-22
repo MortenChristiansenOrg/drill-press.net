@@ -54,6 +54,51 @@ public sealed class DeclarationElementsTests(SdkFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public void Enum_members_are_declarations_with_their_values()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Enums",
+            [
+                new(
+                    "Enums.cs",
+                    """
+                    namespace Shop;
+                    public enum Status
+                    {
+                        /// <summary>Not started.</summary>
+                        Pending,
+                        [System.Obsolete] Started = 5,
+                        Done,
+                    }
+                    class Holder { const int Constant = 1; }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var members = Code
+            .EnumMembers.InNamespace("Shop")
+            .In(solution)
+            .Select(member =>
+                $"{member.Name}:{member.ContainingType?.Name}:{member.Value}:{member.HasExplicitValue}:{member.HasAttribute(CodeType.Of<ObsoleteAttribute>())}:{member.HasDocumentationComment()}:{member.Location.Line}:{member.Location.Column}"
+            )
+            .ToArray();
+        var fields = Code.Fields.In(solution).Select(field => field.Name);
+
+        Assert.Equal(
+            [
+                "Pending:Status:0:False:False:True:5:5",
+                "Started:Status:5:True:True:False:6:23",
+                "Done:Status:6:False:False:False:7:5",
+            ],
+            members
+        );
+        Assert.Equal(["Constant"], fields);
+    }
+
+    [Fact]
     public void Properties_describe_accessors_and_storage()
     {
         var solution = Analyze();

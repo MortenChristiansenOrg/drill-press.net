@@ -13,6 +13,7 @@ cached per analysis; materialize one with `query.In(solution)` in tests.
 | `TypeDeclarations` | `CodeTypeDeclaration` | every written part; `TopLevel()` |
 | `Methods` | `CodeMethod` | ordinary methods, not constructors, accessors or local functions |
 | `Fields` / `Properties` / `Parameters` | `CodeField` / `CodeProperty` / `CodeParameter` | one field candidate per variable; parameters include lambdas and primary constructors |
+| `EnumMembers` | `CodeEnumMember` | enum members (not in `Fields`): `Value`, `HasExplicitValue`, `ContainingType` |
 | `Declarations` | `CodeSymbol` | every declared symbol, including events, locals, accessors |
 | `TestMethods`, `TestClasses`, `AbstractTestClasses` | `CodeMethod`, `CodeTypeDefinition` | xUnit, NUnit, MSTest markers incl. derived attributes |
 | `Calls` | `CodeInvocation` | every bound call in bodies, initializers, attributes, top-level code |

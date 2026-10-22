@@ -342,6 +342,12 @@ constructors and lambdas, with `Ordinal`, `ContainingSymbol`, `IsLambdaParameter
 `HasDefaultValue` and `DefaultValue`. All three report at their identifier and
 share the declaration filters.
 
+`Code.EnumMembers` selects written enum members, which `Code.Fields` leaves out, as
+`CodeEnumMember` declarations reported at their name. `Value` is the member's constant
+(written or implied by its position), `HasExplicitValue` tells whether it is written,
+and `ContainingType` is the enum; attributes and documentation filters work as for
+other declarations.
+
 `Code.Catches` selects written catch clauses. `ExceptionType` is null for
 `catch { }`; `Catches(type)` matches the declared type exactly and
 `CatchesAnyException` also covers `System.Exception` and `System.Object`.

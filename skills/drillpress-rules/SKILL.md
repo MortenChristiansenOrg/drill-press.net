@@ -55,7 +55,7 @@ Start from the `Code` root that names what the convention is about:
 | --- | --- |
 | `Files`, `Projects` | `CodeFile`, `AnalysisProject` |
 | `Types`, `Interfaces`; `TypeDeclarations` (each partial part) | `CodeTypeDefinition`; `CodeTypeDeclaration` |
-| `Methods`, `Fields`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
+| `Methods`, `Fields`, `EnumMembers`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeEnumMember`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
 | `TestMethods`, `TestClasses` (xUnit, NUnit, MSTest) | `CodeMethod`, `CodeTypeDefinition` |
 | `Calls`, `ObjectCreations` | `CodeInvocation`, `CodeObjectCreation` |
 | `MemberReferences`, `TypeReferences`, `ReferencesTo(symbol)` | `MemberReference`, `CodeTypeReference`, `CodeSymbol` |
