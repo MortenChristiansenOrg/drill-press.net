@@ -22,10 +22,7 @@ internal static class CombinedFixValidation
                     .Edits.Any(left =>
                         candidates[second]
                             .Edits.Any(right =>
-                                left != right
-                                && left.FileIdentity == right.FileIdentity
-                                && left.Start <= right.Start + right.Length
-                                && right.Start <= left.Start + left.Length
+                                left != right && SourceChanges.Conflict(left, right)
                             )
                     )
             )

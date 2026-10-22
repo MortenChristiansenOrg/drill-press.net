@@ -177,7 +177,9 @@ static FixProposal ReplaceSpan(AnalysisSource source, TextSpan span, string text
 
 The proof receives `RewriteContext` (`Original`, `Rewritten` compilation with the whole
 batch applied, `Edits`, `Map(source, originalNode)`); inspect it rather than re-parsing.
-Custom edits do not get the builders' trivia and binding checks.
+Custom edits do not get the builders' trivia and binding checks. Edits must not
+overlap; two replacements may share a boundary, but an insertion (empty span) may not
+touch another edit, so fold it into the adjacent replacement.
 
 ## Testing fixes
 

@@ -15,7 +15,10 @@ trusted local executable code. Review the bundle before running it.
 all retained safe edits once. Reporting contexts must agree on each complete
 batch, and every affected context must validate it, including contexts with no
 finding. Duplicate edits are written once. Conflicts withhold whole batches;
-unrelated safe batches still apply. Generated, foreign, and non-editable targets
+unrelated safe batches still apply. Edits conflict when they overlap or when an
+insertion touches another edit, because nothing orders the two; replacements that
+only share a boundary, such as `[5, 10)` and `[10, 12)`, apply together, within a
+batch and across batches. Fold an insertion into the adjacent replacement instead. Generated, foreign, and non-editable targets
 cannot be written even if a fix factory proposes them from another document.
 
 The consumer-owned sample rule DP1004 replaces proven `string.Empty` references with `""`. DP1005 removes

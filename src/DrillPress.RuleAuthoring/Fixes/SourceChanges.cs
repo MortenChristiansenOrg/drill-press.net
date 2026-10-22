@@ -64,6 +64,7 @@ public static class SourceChanges
             var edits = batch
                 .Where(edit => edit.FileIdentity == source.Document.FileIdentity)
                 .OrderBy(edit => edit.Start)
+                .ThenBy(edit => edit.Length)
                 .ToArray();
             if (!Eligible(source, edits))
             {
@@ -104,13 +105,13 @@ public static class SourceChanges
             return false;
         }
 
-        var end = -1;
+        SourceEdit? previous = null;
         foreach (var edit in edits)
         {
             if (
                 edit.Start < 0
                 || edit.Length < 0
-                || edit.Start <= end
+                || previous is not null && Conflict(previous, edit)
                 || edit.Start > source.Document.Text.Length - edit.Length
                 || edit.Fingerprint != source.Document.Fingerprint
                 || source.Document.Text.Substring(edit.Start, edit.Length) != edit.OriginalText
@@ -134,9 +135,21 @@ public static class SourceChanges
                 return false;
             }
 
-            end = edit.Start + edit.Length;
+            previous = edit;
         }
 
         return true;
     }
+
+    // Edits may share a boundary only when both replace text: an insertion at another edit's boundary has no
+    // defined order relative to it. Merge such an insertion into the adjacent replacement instead.
+    internal static bool Conflict(SourceEdit first, SourceEdit second) =>
+        first.FileIdentity == second.FileIdentity
+        && (
+            first.Length == 0 || second.Length == 0
+                ? first.Start <= second.Start + second.Length
+                    && second.Start <= first.Start + first.Length
+                : first.Start < second.Start + second.Length
+                    && second.Start < first.Start + first.Length
+        );
 }
