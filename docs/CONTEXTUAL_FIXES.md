@@ -19,6 +19,7 @@ rules.Rule("EMPTY", "Use \"\" instead of string.Empty.")
 | `ReplaceWithLiteral(value)` | A typed string, character, Boolean, number, enum value or null literal. Numeric and enum types are preserved. |
 | `ReplaceWith("{0} == {1}", left, right)` | A C# expression template whose holes embed original sub-expressions unchanged. |
 | `ReplaceWithEquality(left, right, absorbNegation: true)` | `left == right`; an enclosing built-in `!` becomes `left != right`. |
+| `ReplaceWithReference(symbol)` | A field, property, enum member, constant, local, parameter or type, spelled as briefly as binds here: `Size`, `Defaults.Size`, `Company.App.Defaults.Size` or a `global::` name. The library checks that it binds to that symbol. |
 | `ReplaceWith(syntax)` | Hand-built Roslyn syntax; kept operands are not tracked. |
 
 The proof receives an `ExpressionChange`. `Before` and `After` are
@@ -27,7 +28,13 @@ with their type, constant and symbol helpers. `Kept` lists each original operand
 with every use in the replacement, including zero or repeated uses. `Rewrite`
 exposes the raw syntax, semantic models and complete edit batch. A false proof
 withholds the fix and keeps the finding. Rewritten sources are read-only and
-always use the rewritten compilation. `RefersTo` unwraps only parentheses and
+always use the rewritten compilation. Compare symbols across the two
+compilations with `change.Same(before, after)` (or `RewriteContext.Same`):
+`SymbolEqualityComparer` never equates a source type, member, local or parameter
+from the original compilation with its rewritten counterpart. `Same` compares the
+qualified identity and, for source symbols, the corresponding rewritten
+declaration; namespaces and metadata symbols compare by identity alone.
+`RefersTo` unwraps only parentheses and
 implicit non-user conversions; this identifies a member without approving loss
 of its conversion or evaluation.
 
@@ -40,6 +47,36 @@ bindings, kept operands' bindings and compiler-supplied arguments (including
 caller argument expressions and caller line numbers). Every proof runs against
 the actual edited compilation in each loaded membership, including linked
 contexts that did not report a finding.
+
+`ReplaceWithReference` tries the bare name, then the minimally qualified name, then
+the fully qualified `global::` name, and keeps the first that binds to the symbol
+at the replaced position. Roslyn's simplifier needs a workspace, which rule bundles
+do not load, so speculative binding takes its place; the rewritten compilation is
+checked again in every affected context.
+
+### Target-typed and discarded values
+
+The replaced root must keep its converted type, the type of the value that reaches
+its context. A target-typed expression (`default`, `[]`, `new()`, `null`, a
+target-typed conditional or switch) takes its type from that context, so it can
+replace, or be replaced by, an expression whose own type is exactly the converted
+type: `Run(default)` becomes `Run(CancellationToken.None)` and
+`Use(new List<string>())` becomes `Use([])`. When the original converts to the
+destination, as `new List<string>()` passed as `IEnumerable<string>` does, `[]`
+would choose a different runtime type, and the fix is withheld unless both sides
+have the same type.
+
+The value of an expression statement is discarded, so its type may change:
+`span.Activity?.SetStatus(code);` can become `span.Failed(error);` even though the
+new call returns `bool`. The proof still owns what the new call does.
+
+A tuple literal's element names can be inferred from its elements, so replacing
+`1` with `One` in `(1, "a")` changes the tuple's type to `(int One, string)`.
+The inferred name is observable only through that type, so an enclosing tuple may
+change inferred names when it converts to the same named type before and after,
+such as a declared return or parameter type. In `var pair = (1, "a")` or a generic
+argument, the name would become part of a type that later code can use, and the
+fix is withheld.
 
 Template holes and the whole replacement are parenthesized only where the
 destination would otherwise parse differently, so `!string.Equals(a, b)` becomes

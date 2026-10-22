@@ -80,6 +80,7 @@ public sealed class BundleResponseValidator
                         ? finding with
                         {
                             BatchId = null,
+                            FixWithheld = "its edits overlap another fix's edits",
                         }
                         : finding
                 )
@@ -193,6 +194,11 @@ public sealed class BundleResponseValidator
                 Require(
                     finding.Evidence is null || IsSingleLine(finding.Evidence),
                     "Finding evidence must be a non-empty single line."
+                );
+                Require(
+                    finding.FixWithheld is null
+                        || IsSingleLine(finding.FixWithheld) && finding.BatchId is null,
+                    "A withheld-fix reason must be a non-empty single line on a finding without a fix."
                 );
                 Require(
                     documents.TryGetValue(finding.DocumentId, out var document)
@@ -409,6 +415,19 @@ public sealed class BundleResponseValidator
                         ? proposed.Id
                         : null;
                 var (line, column) = Coordinates(document.Text, first.Start);
+                var withheld = group
+                    .Select(finding => finding.FixWithheld)
+                    .OfType<string>()
+                    .Distinct()
+                    .ToList();
+                if (batch is null && group.Any(finding => finding.BatchId is not null))
+                    withheld.Add(
+                        group.Any(finding =>
+                            finding.BatchId is not { } other || !safe.ContainsKey(other)
+                        )
+                            ? "the fix was not validated in every compilation containing its files"
+                            : "the compilations reporting this finding proposed different fixes"
+                    );
                 return new AggregatedFinding(
                     first.RuleId,
                     first.Message,
@@ -439,6 +458,8 @@ public sealed class BundleResponseValidator
                         )
                         : null,
                     FixComplexity = first.FixComplexity,
+                    FixWithheld =
+                        batch is null && withheld.Count > 0 ? string.Join("; ", withheld) : null,
                     Coverage = group.Any(finding => finding.Coverage is not null)
                         ? group.SelectMany(finding => finding.Coverage ?? []).ToArray()
                         : null,

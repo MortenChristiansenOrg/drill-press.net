@@ -44,16 +44,58 @@ exterior call trivia is retained. Changed synthesized arguments require a separa
 values remain protected. Unsupported retained calls whose correspondence cannot
 be established conservatively withhold the edit.
 
-## Braces for if and else branches
+## Argument addition
+
+```csharp
+Fix.For(call).AddArgument("comparisonType", "StringComparison.Ordinal")
+    .ExpectOverloadChange(from: startsWith, to: startsWithComparison)
+    .SafeWhen(change => change.AddedValue.RefersTo(ordinal));
+
+Fix.For(call).AddArgument("cancellationToken", "TestContext.Current.CancellationToken")
+    .SafeWhen(change => change.AddedValue.RefersTo(currentToken));
+```
+
+`AddArgument(parameter, expression)` mirrors argument removal. Without an expected
+overload change it supplies an omitted optional parameter of the same overload, such
+as a defaulted `CancellationToken`; the call must still bind to the same method.
+With `ExpectOverloadChange(from, to)` or `ExpectTransition(...)` the call must move to
+exactly that overload, keeping its constructed type arguments. The value is
+positional when it follows the written arguments in parameter order and named
+otherwise. The library checks that the new argument binds to the named parameter,
+retained arguments and the receiver keep their order, parameters, conversions and
+bindings, enclosing expressions bind as before, and no other compiler-supplied
+value changes; expanded `params` calls are withheld. `ArgumentAdditionChange`
+exposes both calls, the bound `AddedValue` and the resolved pair.
+
+What the added value means is always the rule's proof. Some additions change
+behavior on purpose, such as passing `CultureInfo.InvariantCulture` where the
+current culture applied before: the `SafeWhen` proof then states that the new
+behavior is the intended one, not that it is equivalent. There is no separate
+behavior-change marker; a `+` means the rule's proof accepted the edit.
+
+## Braces for embedded statements
 
 `Fix.For(branch).AddBraces().Propose()` applies a built-in restricted structural
-proof to a `CodeBranch`, such as `statement.Then`, `statement.Else` or
-`Code.IfStatements.Branches().WithoutBraces()`. The branch must not
-already be a block. The two boundary edits retain one exact original statement,
+proof to a `CodeBranch`: an if or else branch (`statement.Then`, `statement.Else`,
+`Code.IfStatements.Branches()`) or any other embedded statement from
+`Code.EmbeddedStatements`, the bodies of `for`, `foreach`, `while`, `do`, `using`,
+`lock` and `fixed` statements. `WithoutBraces()` skips blocks, else-if
+continuations and stacked `using (a) using (b)` or `fixed` statements. The
+statement must not already be a block. The two boundary edits retain one exact original statement,
 including a complete `else if` chain. They preserve original branch ownership,
 bound expression symbols/conversions, and caller-supplied argument constants.
 Labels, goto, yield, local functions, directives and ambiguous header-to-statement
 comments are conservatively unsupported.
+
+The binding check is proportional to the edit. Binding depends on the compilation's
+declarations and on the body being bound, so an edit strictly inside a member body,
+which is still that member's body afterwards, cannot change how anything outside the
+body binds. `RewriteChecks.SameSourceBindings` therefore rebinds only the edited
+bodies; edits in initializers, attributes, signatures or top-level statements rebind
+the whole compilation. Within a combined batch, expressions edited by another
+proposal are left to that proposal's own proof, so an unrelated replacement in the
+same method does not withhold the braces. Namespaces compare by their qualified
+name: every `namespace Company.Import` declaration merges into one symbol.
 
 Layout reads local indentation and the file newline convention. The closing brace
 follows any trailing line comment on a fresh line; existing multiline token text
@@ -62,6 +104,35 @@ plans that cannot retain exact original statement correspondence are withheld.
 Adding braces is not a general-purpose control-flow equivalence proof.
 
 ## Declaration modifiers
+
+### Adding a modifier
+
+```csharp
+rules.Rule("SEALED", "Seal classes that nothing derives from.")
+    .For(Code.TypeDeclarations.Where(type => type.Symbol is { TypeKind: TypeKind.Class, IsSealed: false, IsAbstract: false, IsStatic: false }))
+    .Forbid(fix: type => Fix.For(type).AddModifier(Modifier.Sealed).Propose());
+```
+
+`AddModifier(modifier)` inserts one token in the conventional order (accessibility,
+`static`, `extern`, `new`, `virtual`, `abstract`, `sealed`, `override`, `readonly`,
+`unsafe`, `required`, `volatile`, `async`, with `partial` last), after attributes and
+documentation. `Propose()` owns the proof for classes:
+
+- `sealed`: no type in any loaded project derives from the class, and it is not
+  abstract or static.
+- `static`: every member is static, no constructor is declared, the class derives
+  from `object` and implements no interface, nothing derives from it, and every
+  loaded use of its name accesses a member, `nameof` or `using static`; `new A()`,
+  `typeof(A)`, a variable, parameter or type argument withholds the fix.
+
+Both proofs assume the loaded solution contains every assembly that derives from,
+instantiates or reflects over the type, including mocking proxies and dependency
+injection. An obstacle found before editing is reported as the withheld reason.
+Other modifiers need `SafeWhen(change => ...)` over `ModifierChange`, whose
+`Added`/`AddedModifier` describe the new token; `MustPreserve` adds the same
+declaration checks as for removal.
+
+### Removing a modifier
 
 ```csharp
 rules.Rule("INTERNAL", "Omit the redundant internal modifier.")
@@ -98,3 +169,42 @@ accessibility. `DeclarationBehavior.Contract` also checks static/virtual/readonl
 and related compiler flags, but none of these invariants replaces the required
 behavior proof for an arbitrary modifier. The SDK has no preference for implicit
 accessibility.
+
+## Renaming
+
+```csharp
+rules.Rule("LOCAL-NAMES", "Name locals in camelCase.")
+    .For(Code.Declarations.Where(declaration => declaration.Symbol is ILocalSymbol && char.IsUpper(declaration.Name[0])))
+    .Forbid(fix: local => Fix.For(local).Rename(char.ToLowerInvariant(local.Name[0]) + local.Name[1..]).Propose());
+```
+
+`Rename(newName)` replaces the declaring identifier and every reference to the symbol,
+including named arguments, `nameof` and the `name` of documentation `param` and
+`paramref` elements. A keyword name is written with `@`. It renames locals, local
+functions, parameters, fields, properties and ordinary methods; it withholds virtual,
+abstract, overriding, extern, partial and interface-implementing members, `Main`, lambda
+parameters (minimal APIs bind them by name) and record parameters.
+
+`Propose()` owns the proof when only the containing member or type can observe the name:
+locals, local functions and their parameters, parameters of private methods, and private
+members. It searches the member, or the outermost containing type when all its parts are
+in one file, and every loaded source otherwise. Wider renames need
+`SafeWhen(change => ...)` over `RenameChange`, where you state that reflection,
+serialization, model binding and unloaded assemblies do not depend on the old name.
+
+Either way, the fix is withheld when:
+
+- a declaration or reference is in generated or non-editable source;
+- a reference is in another project than the declaration, because each compilation is
+  validated against its project references as they were;
+- the searched source already uses the new name as an identifier, which could capture or
+  be shadowed by the renamed symbol;
+- a string literal in the searched source equals the old name, because it may name the
+  symbol through reflection or an attribute such as `NotNullIfNotNull`.
+
+In every affected compilation, each renamed reference must bind to the renamed symbol,
+and every other identifier spelled like the old name, with its enclosing expressions,
+must keep its symbol, type and conversion. A rename cannot change any other binding,
+because the new name appears nowhere in the searched source. `nameof` results follow
+the new name, as a rename intends, but a compiler-supplied argument such as
+`CallerArgumentExpression` that would change withholds the fix.

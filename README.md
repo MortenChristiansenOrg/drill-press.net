@@ -138,7 +138,7 @@ The CLI captures and validates a versioned internal bundle response before writi
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle package versions. Snapshot format 5 records analysis
-scope and build overrides; response protocol 9 carries per-occurrence evidence, optional rule fix complexity, and skipped coverage rules.
+scope and build overrides; response protocol 10 carries per-occurrence evidence, optional rule fix complexity, skipped coverage rules, and why proposed fixes were withheld.
 The contracts bind responses to a unique request and preserve compilation and
 document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
@@ -146,8 +146,9 @@ child and fails the check before rendering diagnostics.
 
 Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
 relative file path, then source span. Each rule's remediation appears once. A
-location is `line` or `line:column` (one-based physical UTF-16 coordinates); `+`
-before the line marks an agreed safe correction. Paths containing controls,
+location is `line` or `line:column` (one-based physical UTF-16 coordinates),
+indented two spaces; `+` directly before the line number, as in `  +5:32`, marks an
+agreed safe correction. Paths containing controls,
 quotes, or surrounding whitespace use JSON escaping. Runs with no findings emit nothing.
 
 Rules can optionally estimate agent fix effort as `Trivial`, `Local`, `Complex`,

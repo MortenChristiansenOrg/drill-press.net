@@ -65,9 +65,17 @@ public sealed class RewriteContext(
     /// <summary>The complete proposed batch, including edits in other contexts.</summary>
     public IReadOnlyList<SourceEdit> Edits { get; } = edits;
 
+    private readonly Lazy<Dictionary<string, OrderedEdits>> _edits = new(() => OrderEdits(edits));
+
     /// <summary>Builds proof evidence for a mapped custom edit without registered retained-input correspondences.</summary>
     public RewriteEvidence? Evidence(AnalysisSource source, SyntaxNode before) =>
-        Map(source, before) is { } mapped ? new(this, mapped, []) : null;
+        Evidence(source, before, null);
+
+    internal RewriteEvidence? Evidence(
+        AnalysisSource source,
+        SyntaxNode before,
+        IReadOnlyList<SourceEdit>? ownEdits
+    ) => Map(source, before) is { } mapped ? new(this, mapped, [], ownEdits) : null;
 
     /// <summary>Maps an unchanged token through the complete batch, preserving exact kind/text correspondence. Tokens replaced by an edit do not map.</summary>
     public SyntaxToken? MapToken(AnalysisSource source, SyntaxToken before)
@@ -75,11 +83,7 @@ public sealed class RewriteContext(
         if (
             source.Project != Original
             || before.SyntaxTree != source.Tree
-            || Edits.Any(edit =>
-                edit.FileIdentity == source.Document.FileIdentity
-                && edit.Length > 0
-                && new TextSpan(edit.Start, edit.Length).OverlapsWith(before.Span)
-            )
+            || Replaces(source, before.Span)
         )
             return null;
         var span = MapSpan(source, before.Span);
@@ -122,29 +126,86 @@ public sealed class RewriteContext(
         return _trees.Value.GetValueOrDefault(source.Tree);
     }
 
-    private TextSpan? MapSpan(AnalysisSource source, TextSpan span)
+    /// <summary>Tells whether an original symbol and a rewritten symbol denote the same entity, such as a source type, member, local or parameter.</summary>
+    /// <remarks>Use this instead of <see cref="SymbolEqualityComparer"/>, which never equates source symbols from two compilations. Namespaces and metadata symbols compare by their qualified identity; source symbols must also be declared at the corresponding rewritten declaration.</remarks>
+    /// <param name="before">A symbol from <see cref="Original"/>, or null.</param>
+    /// <param name="after">A symbol from <see cref="Rewritten"/>, or null.</param>
+    public bool Same(ISymbol? before, ISymbol? after) => RewriteSymbols.Same(before, after, this);
+
+    /// <summary>Maps an original span through the complete batch. Edits inside the span change its length; an edit crossing either boundary has no mapping.</summary>
+    internal TextSpan? MapSpan(AnalysisSource source, TextSpan span)
     {
-        var shift = 0;
+        if (!_edits.Value.TryGetValue(source.Document.FileIdentity, out var file))
+            return span;
+        // Edits are ordered and do not overlap, so their ends are ordered too: everything before the
+        // first edit ending after the span start shifts the span, and the following edits are inside or after it.
+        var low = FirstEndingAfter(file, span.Start);
+        var shift = file.Shifts[low];
         var lengthChange = 0;
-        foreach (
-            var edit in Edits
-                .Where(edit => edit.FileIdentity == source.Document.FileIdentity)
-                .OrderBy(edit => edit.Start)
-        )
+        for (var index = low; index < file.Edits.Length; index++)
         {
-            var end = edit.Start + edit.Length;
-            var delta = edit.Replacement.Length - edit.Length;
-            if (end <= span.Start)
-                shift += delta;
-            else if (edit.Start >= span.End)
-                continue;
-            else if (edit.Start >= span.Start && end <= span.End)
-                lengthChange += delta;
-            else
+            var edit = file.Edits[index];
+            if (edit.Start >= span.End)
+                break;
+            if (edit.Start < span.Start || edit.Start + edit.Length > span.End)
                 return null;
+            lengthChange += edit.Replacement.Length - edit.Length;
         }
         return span.Length + lengthChange >= 0
             ? new TextSpan(span.Start + shift, span.Length + lengthChange)
             : null;
     }
+
+    private bool Replaces(AnalysisSource source, TextSpan span)
+    {
+        if (!_edits.Value.TryGetValue(source.Document.FileIdentity, out var file))
+            return false;
+        for (var index = FirstEndingAfter(file, span.Start); index < file.Edits.Length; index++)
+        {
+            var edit = file.Edits[index];
+            if (edit.Start >= span.End)
+                return false;
+            if (edit.Length > 0)
+                return true;
+        }
+        return false;
+    }
+
+    private static int FirstEndingAfter(OrderedEdits file, int position)
+    {
+        var low = 0;
+        var high = file.Edits.Length;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (file.Edits[middle].Start + file.Edits[middle].Length <= position)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+        return low;
+    }
+
+    private static Dictionary<string, OrderedEdits> OrderEdits(IReadOnlyList<SourceEdit> edits) =>
+        edits
+            .GroupBy(edit => edit.FileIdentity)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var ordered = group
+                        .OrderBy(edit => edit.Start)
+                        .ThenBy(edit => edit.Length)
+                        .ToArray();
+                    var shifts = new int[ordered.Length + 1];
+                    for (var index = 0; index < ordered.Length; index++)
+                        shifts[index + 1] =
+                            shifts[index]
+                            + ordered[index].Replacement.Length
+                            - ordered[index].Length;
+                    return new OrderedEdits(ordered, shifts);
+                }
+            );
+
+    private sealed record OrderedEdits(SourceEdit[] Edits, int[] Shifts);
 }

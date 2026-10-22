@@ -2,9 +2,10 @@ namespace DrillPress;
 
 internal static class BehaviorChecks
 {
-    internal static IEnumerable<Func<RewriteEvidence, ProofResult>> Expressions(
-        ExpressionBehavior behavior
-    )
+    internal static IEnumerable<(
+        string Name,
+        Func<RewriteEvidence, ProofResult> Prove
+    )> Expressions(ExpressionBehavior behavior)
     {
         const ExpressionBehavior supported =
             ExpressionBehavior.EvaluationCounts
@@ -13,16 +14,17 @@ internal static class BehaviorChecks
         if (behavior == 0 || (behavior & ~supported) != 0)
             throw new ArgumentOutOfRangeException(nameof(behavior));
         if (behavior.HasFlag(ExpressionBehavior.EvaluationCounts))
-            yield return RewriteChecks.SameEvaluationCounts;
+            yield return ("evaluation count", RewriteChecks.SameEvaluationCounts);
         if (behavior.HasFlag(ExpressionBehavior.EvaluationOrder))
-            yield return RewriteChecks.SameEvaluationSequence;
+            yield return ("evaluation order", RewriteChecks.SameEvaluationSequence);
         if (behavior.HasFlag(ExpressionBehavior.NullReceiverBehavior))
-            yield return RewriteChecks.SameReceiverNullBehavior;
+            yield return ("null receiver", RewriteChecks.SameReceiverNullBehavior);
     }
 
-    internal static IEnumerable<Func<ModifierChange, ProofResult>> Declarations(
-        DeclarationBehavior behavior
-    )
+    internal static IEnumerable<(
+        string Name,
+        Func<ModifierChange, ProofResult> Prove
+    )> Declarations(DeclarationBehavior behavior)
     {
         const DeclarationBehavior supported =
             DeclarationBehavior.Accessibility
@@ -32,12 +34,15 @@ internal static class BehaviorChecks
         if (behavior == 0 || (behavior & ~supported) != 0)
             throw new ArgumentOutOfRangeException(nameof(behavior));
         if (behavior.HasFlag(DeclarationBehavior.Accessibility))
-            yield return DeclarationChecks.SameDeclaredAccessibility;
+            yield return ("declared accessibility", DeclarationChecks.SameDeclaredAccessibility);
         if (behavior.HasFlag(DeclarationBehavior.ContainingAccessibility))
-            yield return DeclarationChecks.SameContainingAccessibility;
+            yield return (
+                "containing accessibility",
+                DeclarationChecks.SameContainingAccessibility
+            );
         if (behavior.HasFlag(DeclarationBehavior.Identity))
-            yield return DeclarationChecks.SameIdentity;
+            yield return ("declaration identity", DeclarationChecks.SameIdentity);
         if (behavior.HasFlag(DeclarationBehavior.Contract))
-            yield return DeclarationChecks.SameContract;
+            yield return ("declaration contract", DeclarationChecks.SameContract);
     }
 }

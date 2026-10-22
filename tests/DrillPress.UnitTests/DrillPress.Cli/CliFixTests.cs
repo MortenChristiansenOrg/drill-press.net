@@ -363,4 +363,37 @@ public sealed class CliFixTests
         Assert.Equal(["host", "rules"], runner.Calls.Select(call => call.Executable));
         Assert.Empty(fixture.Files.TemporaryFiles());
     }
+
+    [Fact]
+    public async Task Explained_fixes_name_why_a_shared_batch_was_withheld()
+    {
+        var fixture = new FixComplexityFixture();
+        var runner = new FixProcessRunner(fixture.Files) { Response = fixture.SharedBatchResponse };
+        var output = new StringWriter();
+        var cli = new CliApplication(
+            fixture.Files.FileSystem,
+            runner,
+            fixture.Files.Applier,
+            new StubSnapshotDirectoryPermissions(fixture.Files.FileSystem)
+        );
+
+        var result = await cli.RunAsync(
+            [.. _arguments, "--fix-complexity", "trivial", "--explain-fixes"],
+            new StringWriter(),
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Findings, result);
+        Assert.Equal(
+            """
+            R0 Replace alpha.
+            A.cs
+              1:3
+                fix withheld: its fix shares edits with a fix for a rule outside --fix-complexity
+
+            """.ReplaceLineEndings("\n"),
+            output.ToString()
+        );
+    }
 }

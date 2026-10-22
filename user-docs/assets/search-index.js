@@ -272,7 +272,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Start from what you selected · Offer safe fixes",
     "url": "fixes.html#builders",
-    "text": "A fix factory receives the violating candidate and returns a FixProposal or null. Returning null keeps the finding but offers no fix. Forbid and Require both accept the optional fix argument. Start the proposal with Fix.For(candidate); the candidate’s type decides which edits are available. Three fixes, three builders using DrillPress; var rules = new RuleCatalog(); var empty = CodeType.Of<string>().Member(nameof(string.Empty)); rules.Rule(\"TEAM022\", \"Use \\\"\\\" instead of string.Empty.\") .For(empty.References.OutsideNameOf()) .Forbid(fix: reference => Fix.For(reference) .ReplaceWithLiteral(\"\") .SafeWhen(change => change.Before.RefersTo(empty) && change.After.Is(\"\"))); rules.Rule(\"TEAM023\", \"Add braces to if and else branches.\") .For(Code.IfStatements.Branches().WithoutBraces()) .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose()); rules.Rule(\"TEAM024\", \"Use var when the type is apparent.\") .For(Code.LocalVariables.WithExplicitType().WithInitializer().WhereVarPreservesType()) .Forbid(fix: declaration => Fix.For(declaration).UseVar().Propose()); Candidate Edits Finish with Expression, member reference, object creation or call ReplaceWithLiteral(value), ReplaceWith(\"{0} == {1}\", a, b), ReplaceWithEquality(a, b), ReplaceWith(syntax) SafeWhen(change => ...) Call or CodeArgument RemoveArgument(\"name\") / Remove() with ExpectOverloadChange, RequireRemovedValue and RequireRemovedEvaluation SafeWhen(...) Any declaration RemoveModifier(Modifier.Private) Propose() for accessibili"
+    "text": "A fix factory receives the violating candidate and returns a FixProposal or null. Returning null keeps the finding but offers no fix. Forbid and Require both accept the optional fix argument. Start the proposal with Fix.For(candidate); the candidate’s type decides which edits are available. Three fixes, three builders using DrillPress; var rules = new RuleCatalog(); var empty = CodeType.Of<string>().Member(nameof(string.Empty)); rules.Rule(\"TEAM022\", \"Use \\\"\\\" instead of string.Empty.\") .For(empty.References.OutsideNameOf()) .Forbid(fix: reference => Fix.For(reference) .ReplaceWithLiteral(\"\") .SafeWhen(change => change.Before.RefersTo(empty) && change.After.Is(\"\"))); rules.Rule(\"TEAM023\", \"Add braces to if and else branches.\") .For(Code.IfStatements.Branches().WithoutBraces()) .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose()); rules.Rule(\"TEAM024\", \"Use var when the type is apparent.\") .For(Code.LocalVariables.WithExplicitType().WithInitializer().WhereVarPreservesType()) .Forbid(fix: declaration => Fix.For(declaration).UseVar().Propose()); Candidate Edits Finish with Expression, member reference, object creation or call ReplaceWithLiteral(value), ReplaceWith(\"{0} == {1}\", a, b), ReplaceWithEquality(a, b), ReplaceWithReference(symbol), ReplaceWith(syntax) SafeWhen(change => ...) Call or CodeArgument RemoveArgument(\"name\") / Remove() with ExpectOverloadChange, RequireRemovedValue and RequireRemovedEvaluation SafeWhen(...) Any declaration RemoveModifier(Modifier.Private) Propose() for accessibili"
   },
   {
     "title": "Keep correction policy in your bundle · Offer safe fixes",
@@ -627,17 +627,17 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Expression fixes · API field guide",
     "url": "reference.html#api-expression-fixes",
-    "text": "ReplaceWithLiteral(value); ReplaceWith(template, keep...); ReplaceWithEquality(left, right, absorbNegation?); ReplaceWith(syntax); MustPreserve(behavior); SafeWhen(change => ...) ExpressionChange exposes Before, After, Kept and Rewrite."
+    "text": "ReplaceWithLiteral(value); ReplaceWith(template, keep...); ReplaceWithEquality(left, right, absorbNegation?); ReplaceWithReference(symbol); ReplaceWith(syntax); MustPreserve(behavior); SafeWhen(change => ...) ExpressionChange exposes Before, After, Kept and Rewrite."
   },
   {
     "title": "Structural fixes · API field guide",
     "url": "reference.html#api-structural-fixes",
-    "text": "RemoveArgument(name) / Remove(); RemoveModifier(modifier); AddBraces(); Remove(); UseVar(); ToConstant(name); ToMethod(name, parameterName) Finish with Propose() where the library owns the proof, or SafeWhen(...)."
+    "text": "RemoveArgument(name) / Remove(); AddArgument(name, expression); RemoveModifier(modifier); AddModifier(modifier); Rename(newName); AddBraces(); Remove(); UseVar(); ToConstant(name); ToMethod(name, parameterName) Finish with Propose() where the library owns the proof, or SafeWhen(...)."
   },
   {
     "title": "SourceChanges / FixProposal / RewriteContext · API field guide",
     "url": "reference.html#api-sourcechanges-fixproposal-rewritecontext",
-    "text": "Replace(source, span, text); Propose(edits, proof) / Edits; IsSafeIn(project) / Original; Rewritten; Edits; Map(source, node) Custom edits with your own complete proof, validated against the whole batch."
+    "text": "Replace(source, span, text); Propose(edits, proof) / Edits; WithheldReason; IsSafeIn(project) / Original; Rewritten; Edits; Map(source, node); Same(before, after) Custom edits with your own complete proof, validated against the whole batch."
   },
   {
     "title": "Testing and hosting · API field guide",

@@ -21,6 +21,7 @@ cached per analysis; materialize one with `query.In(solution)` in tests.
 | `TypeReferences` | `CodeTypeReference` | every written use of a type; aliases resolved; `var` excluded |
 | `ReferencesTo(symbol)` | `CodeSymbol` | references across compilations by identity |
 | `IfStatements` | `CodeIfStatement` | `Then`, `Else`, `Branches`; `WithElse()`, `Branches().WithoutBraces()` |
+| `EmbeddedStatements` | `CodeBranch` | if/else branches and for, foreach, while, do, using, lock and fixed bodies; `HasBraces`, `IsElseIf`, `IsStacked`; `WithoutBraces()` |
 | `Catches` | `CodeCatch` | report at the clause header |
 | `LocalVariables`, `ForEachLoops`, `OutVariables` | `CodeVariableDeclaration` | `int a = 1, b = 2;` is one candidate |
 | `Enumerations` | `CodeEnumeration` | `foreach` loops incl. deconstruction and `await foreach` |

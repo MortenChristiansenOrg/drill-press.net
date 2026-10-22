@@ -1,17 +1,23 @@
 # Fixes
 
 A fix factory receives the violating candidate and returns `FixProposal?`. Null keeps
-the finding without a fix. Every chain starts at `Fix.For(candidate)` (or
+the finding without a fix; `FixProposal.Withheld("reason")` does too and records why.
+Builders return such a withheld proposal when the source shape rules them out, and
+`drillpress check --explain-fixes` (or `result.ExplainedOutput` in tests) prints the
+reason, or the check that rejected the fix during validation, under the finding. Every chain starts at `Fix.For(candidate)` (or
 `Fix.Extract(group)`) and ends in `Propose()` or `SafeWhen(proof)`.
 
 ## Builders
 
 | `Fix.For(...)` of | Edit | Finish |
 | --- | --- | --- |
-| `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWith(syntax)` | `SafeWhen` |
+| `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWithReference(symbol)` (shortest spelling that binds), `ReplaceWith(syntax)` | `SafeWhen` |
 | `CodeInvocation` / `CodeArgument` | `RemoveArgument("name")` / `Remove()` | `SafeWhen` |
+| `CodeInvocation` | `AddArgument("name", "expression")`, optionally `.ExpectOverloadChange(from, to)` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
-| `CodeBranch` | `AddBraces()` | `Propose()` |
+| any `ICodeDeclaration` | `AddModifier(Modifier.X)` | `Propose()` for `sealed`/`static` classes (checks the whole loaded solution), else `SafeWhen` |
+| any `ICodeDeclaration` (`Code.Declarations` includes locals) | `Rename("newName")`: declaration, references, named arguments, `nameof`, `param`/`paramref` | `Propose()` for locals, private-method parameters and private members, else `SafeWhen(change => ...)`; withheld across project references, when the new name is already used or a string equals the old name |
+| `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
 | `ExpressionGroup` via `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameterName)` | `Propose()` (constants), `SafeWhen` (templates) |
@@ -48,9 +54,16 @@ rules.Rule("TEAM030", "Use == for ordinal string equality.")
 - The proof receives `ExpressionChange`: `Before` and `After` are `CodeExpression`s
   bound to the original and rewritten compilations; `Kept` lists each kept operand with
   its uses after the edit; `Rewrite` exposes raw syntax and semantic models.
+- Compare symbols from `Before` and `After` with `change.Same(before, after)`.
+  `SymbolEqualityComparer` is always false for your own source types and members
+  across the two compilations, which silently fails a proof.
 - `MustPreserve(ExpressionBehavior.EvaluationCounts)` requires each kept operand to run
   exactly once; `EvaluationOrder` keeps straight-line order; `NullReceiverBehavior`
   requires a receiver whose null check would move to be intrinsically non-null.
+- The replacement keeps the converted type of the replaced expression. Target-typed
+  replacements such as `default` → `CancellationToken.None` or `new List<string>()`
+  → `[]` work when the original already has the destination's type; a discarded
+  statement value (`x?.Log();` → `Track(x);`) may change type.
 - Prove the policy fact only you know (that the methods are equivalent). Compiler
   success alone is not proof.
 
@@ -89,6 +102,13 @@ static bool ComparesStrings(ArgumentRemovalChange change) =>
   initialization). Both are mandatory. `RequireSynthesizedArguments` approves changed
   caller-info arguments.
 - Omitted values, receivers and `params` arguments are not removable.
+
+`AddArgument("token", "TestContext.Current.CancellationToken")` supplies an omitted
+optional parameter of the same overload; add `.ExpectOverloadChange(from, to)` when the
+call moves to another overload (`StartsWith(x)` → `StartsWith(x, StringComparison.Ordinal)`).
+The proof over `ArgumentAdditionChange` states why the value is right
+(`change.AddedValue.RefersTo(ordinal)`); an intended behavior change, such as invariant
+culture, is stated there too.
 
 ## Modifiers, braces, comments and var
 
@@ -170,10 +190,13 @@ static FixProposal ReplaceSpan(AnalysisSource source, TextSpan span, string text
 
 The proof receives `RewriteContext` (`Original`, `Rewritten` compilation with the whole
 batch applied, `Edits`, `Map(source, originalNode)`); inspect it rather than re-parsing.
-Custom edits do not get the builders' trivia and binding checks.
+Custom edits do not get the builders' trivia and binding checks. Edits must not
+overlap; two replacements may share a boundary, but an insertion (empty span) may not
+touch another edit, so fold it into the adjacent replacement.
 
 ## Testing fixes
 
-Assert `result.Output` (validated fixes show `+` before the line) and the complete
+Assert `result.Output` (a validated fix shows as `  +5:32`, `+` directly before the
+line number) and the complete
 `result.FixedText(path)`. Add a case where the proof fails and assert the finding has
 no `+` and `FixedText` returns the original text.

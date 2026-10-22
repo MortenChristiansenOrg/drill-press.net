@@ -13,5 +13,7 @@ public sealed class VarConversion
         && !_declaration.Source.Document.IsGenerated
         && _declaration.CanUseVar
             ? VarRewrite.Propose(_declaration)
-            : null;
+            : FixProposal.Withheld(
+                "var would change the declared type, or the declaration is not eligible"
+            );
 }

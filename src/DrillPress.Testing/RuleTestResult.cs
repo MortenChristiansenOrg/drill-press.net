@@ -48,6 +48,10 @@ public sealed class RuleTestResult
     /// <summary>The findings exactly as the CLI prints them: each rule once, then files and line:column locations, with '+' marking a validated fix. Empty when clean.</summary>
     public string Output => new CompactDiagnosticRenderer(_fileSystem).Render(_result);
 
+    /// <summary>The findings as <c>drillpress check --explain-fixes</c> prints them: <see cref="Output"/> plus, under each finding whose proposed fix was withheld, a <c>fix withheld:</c> line naming the check that rejected it.</summary>
+    public string ExplainedOutput =>
+        new CompactDiagnosticRenderer(_fileSystem).Render(_result, explainFixes: true);
+
     /// <summary>Applies only the validated plan to captured text. No OS files are written.</summary>
     public string FixedText(string path)
     {

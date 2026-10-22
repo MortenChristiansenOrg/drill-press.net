@@ -350,11 +350,13 @@ proof or `SafeWhen(change => ...)` when you state why the edit preserves behavio
 
 | Starting point | Edits | Ending |
 | --- | --- | --- |
-| `Fix.For(expression / reference / creation)` | `ReplaceWith("{0} == {1}", left, right)`, `ReplaceWithLiteral(value)`, `ReplaceWithEquality(left, right)` | `SafeWhen` |
-| `Fix.For(call)` | the expression edits, `RemoveArgument(parameter)` | `SafeWhen` |
+| `Fix.For(expression / reference / creation)` | `ReplaceWith("{0} == {1}", left, right)`, `ReplaceWithLiteral(value)`, `ReplaceWithEquality(left, right)`, `ReplaceWithReference(symbol)` | `SafeWhen` |
+| `Fix.For(call)` | the expression edits, `RemoveArgument(parameter)`, `AddArgument(parameter, expression)` | `SafeWhen` |
 | `Fix.For(argument)` | `Remove()` | `SafeWhen` |
 | `Fix.For(declaration)` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility tokens that keep the declared accessibility, otherwise `SafeWhen` |
-| `Fix.For(branch)` | `AddBraces()` | `Propose()` |
+| `Fix.For(declaration)` | `AddModifier(Modifier.X)` | `Propose()` for `sealed` and `static` classes, otherwise `SafeWhen` |
+| `Fix.For(declaration)` | `Rename(newName)` | `Propose()` for locals, parameters of private methods and local functions, and private members, otherwise `SafeWhen` |
+| `Fix.For(branch)` (if/else branch or any `Code.EmbeddedStatements` body) | `AddBraces()` | `Propose()` |
 | `Fix.For(comment)` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `Fix.For(variable)` | `UseVar()` | `Propose()` |
 | `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameter)` | `Propose()` for constants, otherwise `SafeWhen` |

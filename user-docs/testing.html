@@ -67,7 +67,7 @@ public class EmptyStringRuleTests
         Assert.Equal(&quot;class C { string Value =&gt; \&quot;\&quot;; }&quot;, result.FixedText(&quot;Example.cs&quot;));
     }
 }</code></pre></div>
-<p><code>result.Output</code> is exactly what the CLI prints: each rule once, then each file and its <code>line:column</code> locations, with <code>+</code> marking a fix that survived validation. Asserting the whole output checks the rule, location and fix availability in one readable value; normalize <code>\r\n</code> if your sources use Windows line endings. <code>result.Findings</code> offers the same data as <code>TestFinding</code> values with the exact highlighted text. <code>FixedText</code> applies only validated fixes and returns the original source when none survive.</p>
+<p><code>result.Output</code> is exactly what the CLI prints: each rule once, then each file and its <code>line:column</code> locations indented two spaces, with <code>+</code> directly before the line number (<code>  +5:32</code>) marking a fix that survived validation. Asserting the whole output checks the rule, location and fix availability in one readable value; normalize <code>\r\n</code> if your sources use Windows line endings. <code>result.Findings</code> offers the same data as <code>TestFinding</code> values with the exact highlighted text. <code>FixedText</code> applies only validated fixes and returns the original source when none survive.</p>
 <h2 id="contexts">Model the contexts your policy depends on</h2>
 <p><code>AddProject</code> returns an <code>AnalysisProject</code>. Dependencies must already belong to the workspace. Its options are:</p>
 <div class="table-wrap"><table><thead><tr><th>Argument</th><th>Purpose</th></tr></thead><tbody>

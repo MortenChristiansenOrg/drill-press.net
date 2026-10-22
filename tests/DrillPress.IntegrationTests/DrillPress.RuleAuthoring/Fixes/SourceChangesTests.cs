@@ -38,6 +38,67 @@ public sealed class SourceChangesTests(SdkFixture fixture) : IClassFixture<SdkFi
         Assert.Same(compilations[0], compilations[1]);
     }
 
+    [Theory]
+    [InlineData(0, 1, 1, 1, true)]
+    [InlineData(0, 1, 1, 0, false)]
+    [InlineData(1, 0, 1, 1, false)]
+    [InlineData(1, 0, 1, 0, false)]
+    public void Edits_may_share_a_boundary_only_when_both_replace_text(
+        int firstStart,
+        int firstLength,
+        int secondStart,
+        int secondLength,
+        bool safe
+    )
+    {
+        var workspace = fixture.Workspace();
+        var project = workspace.AddProject("Library", [new("A.cs", "class A { int M() => 12; }")]);
+        var source = project.Sources.Single();
+        var digits = "class A { int M() => ".Length;
+        var proposal = SourceChanges.Propose(
+            [
+                SourceChanges.Replace(source, new(digits + firstStart, firstLength), "3"),
+                SourceChanges.Replace(source, new(digits + secondStart, secondLength), "4"),
+            ],
+            _ => true
+        );
+
+        var result = proposal.IsSafeIn(project);
+
+        Assert.Equal(safe, result);
+    }
+
+    [Fact]
+    public async Task Adjacent_replacements_from_different_fixes_apply_together()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", "class A { int M() => 12; }")]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("DIGIT", "Increment each digit.")
+            .For(Code.Nodes<LiteralExpressionSyntax>())
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, new(node.Syntax.SpanStart, 1), "2")],
+                    _ => true
+                )
+            );
+        rules
+            .Rule("LAST", "Increment the last digit.")
+            .For(Code.Nodes<LiteralExpressionSyntax>())
+            .Forbid(fix: node =>
+                SourceChanges.Propose(
+                    [SourceChanges.Replace(node.Source, new(node.Syntax.SpanStart + 1, 1), "3")],
+                    _ => true
+                )
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true, true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal("class A { int M() => 23; }", result.FixedText("A.cs"));
+    }
+
     [Fact]
     public async Task Inactive_region_edits_are_rejected_even_when_the_consumer_accepts_them()
     {

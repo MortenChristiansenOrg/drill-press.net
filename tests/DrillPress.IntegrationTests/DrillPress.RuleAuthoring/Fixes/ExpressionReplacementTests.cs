@@ -77,6 +77,235 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
         );
     }
 
+    [Theory]
+    [InlineData(
+        "using System.Threading; class A { void M() => Run(default); void Run(CancellationToken token) {} }",
+        "default",
+        "CancellationToken.None",
+        true
+    )]
+    [InlineData(
+        "using System.Threading; class A { void M() => Run(CancellationToken.None); void Run(CancellationToken token) {} }",
+        "CancellationToken.None",
+        "default",
+        true
+    )]
+    [InlineData(
+        "using System.Collections.Generic; class A { void M() => Use(new List<string>()); void Use(List<string> values) {} }",
+        "new List<string>()",
+        "[]",
+        true
+    )]
+    [InlineData(
+        "using System.Collections.Generic; class A { void M() => Use(new List<string>()); void Use(List<string> values) {} }",
+        "new List<string>()",
+        "new()",
+        true
+    )]
+    [InlineData(
+        "using System.Collections.Generic; class A { void M() => Use(new List<string>()); void Use(IEnumerable<string> values) {} }",
+        "new List<string>()",
+        "[]",
+        false
+    )]
+    [InlineData(
+        "using System.Collections.Generic; class A { void M() => Use(new List<string>()); void Use(object values) {} }",
+        "new List<string>()",
+        "new()",
+        false
+    )]
+    public async Task Target_typed_replacements_keep_the_converted_type(
+        string source,
+        string original,
+        string replacement,
+        bool hasFix
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("VALUE", "Use the preferred spelling.")
+            .For(Code.Nodes<ExpressionSyntax>().Where(node => node.Syntax.ToString() == original))
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression()).ReplaceWith(replacement).SafeWhen(_ => true)
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([hasFix], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(
+            hasFix ? source.Replace(original, replacement) : source,
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
+    public async Task Explained_output_names_compiler_errors_overloads_and_failed_proofs()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { int Value() => 1; void M() { Pick(Value()); Take(Value()); Keep(Value()); } void Pick(byte value) {} void Pick(long value) {} void Take(int value) {} void Keep(int value) {} }"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("VALUE", "Use the literal.")
+            .For(
+                Code.Nodes<InvocationExpressionSyntax>()
+                    .Where(node => node.Syntax.ToString() == "Value()")
+            )
+            .Forbid(fix: node =>
+                node.Syntax.Parent?.Parent?.Parent
+                    is InvocationExpressionSyntax
+                    {
+                        Expression: IdentifierNameSyntax { Identifier.ValueText: var name }
+                    }
+                    ? Fix.For(node.AsExpression())
+                        .ReplaceWith(name == "Take" ? "\"one\"" : "1")
+                        .SafeWhen(_ => name != "Keep")
+                    : null
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            VALUE Use the literal.
+            A.cs
+              1:45
+                fix withheld: `Value()` at 1:45 changes its converted type or conversion
+              1:60
+                fix withheld: the edited compilation has an error: CS1503 at A.cs:1:60 Argument 1: cannot convert from 'string' to 'int'
+              1:75
+                fix withheld: the rule's SafeWhen proof returned false
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+    }
+
+    [Theory]
+    [InlineData("namespace Company.App; class B { int M() => 3; }", "Defaults.Size")]
+    [InlineData("namespace Other; class B { int M() => 3; }", "Company.App.Defaults.Size")]
+    [InlineData("using Company.App; namespace Other; class B { int M() => 3; }", "Defaults.Size")]
+    [InlineData(
+        "using Company.App; namespace Other; class B { int Defaults => 1; int M() => 3; }",
+        "Company.App.Defaults.Size"
+    )]
+    [InlineData(
+        "namespace Company.App; static partial class Defaults { static int M() => 3; }",
+        "Size"
+    )]
+    public async Task References_use_the_shortest_spelling_that_binds(
+        string source,
+        string reference
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "namespace Company.App; static partial class Defaults { public const int Size = 3; }"
+                ),
+                new("B.cs", source),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("SIZE", "Use the named size.")
+            .For(
+                Code.Nodes<LiteralExpressionSyntax>()
+                    .Where(node =>
+                        node.Source.Document.Path == "B.cs" && node.Syntax.ToString() == "3"
+                    )
+            )
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression())
+                    .ReplaceWithReference(
+                        node.Source.Project.Compilation.GetTypeByMetadataName(
+                                "Company.App.Defaults"
+                            )!
+                            .GetMembers("Size")
+                            .Single()
+                    )
+                    .SafeWhen(change => change.After.Is(3))
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(source.Replace("=> 3;", "=> " + reference + ";"), result.FixedText("B.cs"));
+    }
+
+    [Fact]
+    public async Task A_discarded_statement_value_can_change_type()
+    {
+        var workspace = fixture.Workspace();
+        var source = """
+            class Activity { public void SetStatus(int code) {} }
+            class Span { public Activity? Activity; public bool Failed(string error) => true; }
+            class A { void M(Span span, string error) { span.Activity?.SetStatus(1); } }
+            """;
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("SPAN", "Record failures on the span.")
+            .For(Code.Nodes<ConditionalAccessExpressionSyntax>())
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression())
+                    .ReplaceWith("span.Failed(error)")
+                    .SafeWhen(change => change.After.TypeIs<bool>())
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(
+            source.Replace("span.Activity?.SetStatus(1)", "span.Failed(error)"),
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Theory]
+    [InlineData("(int, string) M() => (1, \"a\");", true)]
+    [InlineData("void M() => Use((1, \"a\")); void Use((int, string) value) {}", true)]
+    [InlineData("void M() { var pair = (1, \"a\"); }", false)]
+    [InlineData("void M() => Use((1, \"a\")); void Use<T>(T value) {}", false)]
+    public async Task Inferred_tuple_names_may_change_only_when_the_tuple_converts_to_a_named_type(
+        string member,
+        bool hasFix
+    )
+    {
+        var workspace = fixture.Workspace();
+        var source = "class A { const int One = 1; " + member + " }";
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("ONE", "Use the constant.")
+            .For(
+                Code.Nodes<LiteralExpressionSyntax>()
+                    .Where(node =>
+                        node.Syntax.ToString() == "1" && node.Syntax.Parent is ArgumentSyntax
+                    )
+            )
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression()).ReplaceWith("One").SafeWhen(_ => true)
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([hasFix], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(hasFix ? source.Replace("(1, ", "(One, ") : source, result.FixedText("A.cs"));
+    }
+
     [Fact]
     public async Task Individually_valid_edits_that_together_change_overload_are_withheld()
     {

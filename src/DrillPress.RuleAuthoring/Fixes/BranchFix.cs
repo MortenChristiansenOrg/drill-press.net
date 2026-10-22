@@ -1,6 +1,6 @@
 namespace DrillPress;
 
-/// <summary>A selected if or else branch ready for a structural edit.</summary>
+/// <summary>A selected embedded statement, such as an if or else branch or a loop body, ready for a structural edit.</summary>
 public sealed class BranchFix
 {
     private readonly CodeBranch _branch;

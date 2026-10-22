@@ -30,23 +30,40 @@ public static class SourceChanges
             throw new ArgumentException("A correction requires at least one edit.", nameof(edits));
         }
 
-        return new(
+        return ProposeExplained(
             batch,
-            project => Validate(project, batch, preservesBehavior),
-            (project, combined) =>
-                batch.All(combined.Contains) && Validate(project, combined, preservesBehavior)
+            context =>
+                preservesBehavior(context) ? null : "the proof rejected the edited compilation"
         );
     }
 
-    private static bool Validate(
+    /// <summary>Builds a proposal whose proof returns why the batch is unsafe in a context, or null when it is safe.</summary>
+    internal static FixProposal ProposeExplained(
+        IReadOnlyList<SourceEdit> edits,
+        Func<RewriteContext, string?> proof
+    )
+    {
+        var batch = edits.ToArray();
+        return new(
+            batch,
+            (project, combined) =>
+                !batch.All(combined.Contains)
+                    ? "the combined batch omits some of the proposal's edits"
+                    : Validate(project, combined, proof)
+        );
+    }
+
+    private static string? Validate(
         AnalysisProject project,
         IReadOnlyList<SourceEdit> batch,
-        Func<RewriteContext, bool> proof
-    ) =>
-        project.RewriteValidation.Get(batch, edits => Prepare(project, edits)) is { } context
-        && proof(context);
+        Func<RewriteContext, string?> proof
+    )
+    {
+        var prepared = project.RewriteValidation.Get(batch, edits => Prepare(project, edits));
+        return prepared.Context is { } context ? proof(context) : prepared.Reason;
+    }
 
-    private static RewriteContext? Prepare(AnalysisProject project, SourceEdit[] batch)
+    private static PreparedRewrite Prepare(AnalysisProject project, SourceEdit[] batch)
     {
         var rewritten = project.Compilation;
         var affected = project
@@ -54,21 +71,20 @@ public static class SourceChanges
                 batch.Any(edit => edit.FileIdentity == source.Document.FileIdentity)
             )
             .ToArray();
-        if (affected.Length == 0 || project.RewriteValidation.OriginalHasErrors)
-        {
-            return null;
-        }
+        if (affected.Length == 0)
+            return new(null, "no edited file belongs to this compilation");
+        if (project.RewriteValidation.OriginalHasErrors)
+            return new(null, "the original compilation has errors");
 
         foreach (var source in affected)
         {
             var edits = batch
                 .Where(edit => edit.FileIdentity == source.Document.FileIdentity)
                 .OrderBy(edit => edit.Start)
+                .ThenBy(edit => edit.Length)
                 .ToArray();
-            if (!Eligible(source, edits))
-            {
-                return null;
-            }
+            if (Ineligible(source, edits) is { } reason)
+                return new(null, reason);
 
             var text = source
                 .Tree.GetText(project.CancellationToken)
@@ -90,53 +106,67 @@ public static class SourceChanges
             }
         }
 
-        return rewritten
+        var error = rewritten
             .GetDiagnostics(project.CancellationToken)
-            .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            ? null
-            : new(project, rewritten, Array.AsReadOnly(batch));
+            .FirstOrDefault(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        return error is null
+            ? new(new(project, rewritten, Array.AsReadOnly(batch)), null)
+            : new(null, "the edited compilation has an error: " + Describe(error));
     }
 
-    private static bool Eligible(AnalysisSource source, SourceEdit[] edits)
+    private static string Describe(Diagnostic error)
+    {
+        var position = error.Location.GetLineSpan();
+        var location = position.IsValid
+            ? $" at {Path.GetFileName(position.Path)}:{position.StartLinePosition.Line + 1}:{position.StartLinePosition.Character + 1}"
+            : "";
+        return $"{error.Id}{location} {FixReasons.Text(error.GetMessage(System.Globalization.CultureInfo.InvariantCulture))}";
+    }
+
+    private static string? Ineligible(AnalysisSource source, SourceEdit[] edits)
     {
         if (!source.Document.IsEditable || source.Document.IsGenerated)
-        {
-            return false;
-        }
+            return $"{Path.GetFileName(source.Document.Path)} is generated or not editable";
 
-        var end = -1;
+        var disabled = source
+            .Tree.GetRoot()
+            .DescendantTrivia(descendIntoTrivia: true)
+            .Where(trivia =>
+                trivia.RawKind == (int)Microsoft.CodeAnalysis.CSharp.SyntaxKind.DisabledTextTrivia
+            )
+            .Select(trivia => trivia.FullSpan)
+            .ToArray();
+        SourceEdit? previous = null;
         foreach (var edit in edits)
         {
             if (
                 edit.Start < 0
                 || edit.Length < 0
-                || edit.Start <= end
                 || edit.Start > source.Document.Text.Length - edit.Length
                 || edit.Fingerprint != source.Document.Fingerprint
                 || source.Document.Text.Substring(edit.Start, edit.Length) != edit.OriginalText
             )
-            {
-                return false;
-            }
-
+                return $"an edit at offset {edit.Start} does not match the captured source";
+            if (previous is not null && Conflict(previous, edit))
+                return $"edits at {FixReasons.Position(source, previous.Start)} and {FixReasons.Position(source, edit.Start)} overlap, or an insertion touches another edit";
             var span = new TextSpan(edit.Start, edit.Length);
-            if (
-                source
-                    .Tree.GetRoot()
-                    .DescendantTrivia(descendIntoTrivia: true)
-                    .Any(trivia =>
-                        trivia.RawKind
-                            == (int)Microsoft.CodeAnalysis.CSharp.SyntaxKind.DisabledTextTrivia
-                        && trivia.FullSpan.IntersectsWith(span)
-                    )
-            )
-            {
-                return false;
-            }
-
-            end = edit.Start + edit.Length;
+            if (disabled.Any(trivia => trivia.IntersectsWith(span)))
+                return $"an edit at {FixReasons.Position(source, edit.Start)} touches inactive preprocessor text";
+            previous = edit;
         }
 
-        return true;
+        return null;
     }
+
+    // Edits may share a boundary only when both replace text: an insertion at another edit's boundary has no
+    // defined order relative to it. Merge such an insertion into the adjacent replacement instead.
+    internal static bool Conflict(SourceEdit first, SourceEdit second) =>
+        first.FileIdentity == second.FileIdentity
+        && (
+            first.Length == 0 || second.Length == 0
+                ? first.Start <= second.Start + second.Length
+                    && second.Start <= first.Start + first.Length
+                : first.Start < second.Start + second.Length
+                    && second.Start < first.Start + first.Length
+        );
 }

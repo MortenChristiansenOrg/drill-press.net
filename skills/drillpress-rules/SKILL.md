@@ -59,7 +59,7 @@ Start from the `Code` root that names what the convention is about:
 | `TestMethods`, `TestClasses` (xUnit, NUnit, MSTest) | `CodeMethod`, `CodeTypeDefinition` |
 | `Calls`, `ObjectCreations` | `CodeInvocation`, `CodeObjectCreation` |
 | `MemberReferences`, `TypeReferences`, `ReferencesTo(symbol)` | `MemberReference`, `CodeTypeReference`, `CodeSymbol` |
-| `IfStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
+| `IfStatements`, `EmbeddedStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
 | `Nodes<TSyntax>()`, `Operations<TOperation>()` | any Roslyn syntax or operation |
 
 Narrow with composable filters:
@@ -75,7 +75,8 @@ Narrow with composable filters:
   `ToMethodsMatching` when the target is known: only documents that can contain
   such a call are bound, while `Code.Calls.Where(...)` alone binds the whole solution.
 - Types and statements: `DerivedFrom`, `ImplementingInterface`, `ImplementationViews()`,
-  `Branches().WithoutBraces()`, `WithExplicitType()`.
+  `Branches().WithoutBraces()`, `Code.EmbeddedStatements.WithoutBraces()` (if/else and
+  loop, using, lock and fixed bodies), `WithExplicitType()`.
 - General: `Where`, `ExceptWhen`, `Select`, `SelectMany`, `Concat`, `Join`,
   `WithoutMatching` (owners missing a counterpart).
 
@@ -172,11 +173,12 @@ public sealed class LoggingRuleTests
 }
 ```
 
-`Output` is exactly what the CLI prints: rule line, file, then `line:column`
-(column omitted when 1), with `+` marking a validated fix. `FixedText(path)` applies
-validated fixes in memory. Pass `implicitUsings: true` to `AddProject` when the target
-projects enable `ImplicitUsings`, so snippets need no `using System.Linq;`.
-`isTest: true`, `dependencies`, `allowErrors`, allowances and coverage fakes are in
+`Output` is exactly what the CLI prints: rule line, file, then `  line:column`
+(two spaces; column omitted when 1). A validated fix is marked `  +5:32`, with `+`
+directly before the line number. `FixedText(path)` applies validated fixes in memory.
+Pass `implicitUsings: true` to `AddProject` when the target projects enable
+`ImplicitUsings`, so snippets need no `using System.Linq;`. `isTest: true`,
+`dependencies`, `allowErrors`, allowances and coverage fakes are in
 [reference/testing.md](reference/testing.md).
 
 ## Setup

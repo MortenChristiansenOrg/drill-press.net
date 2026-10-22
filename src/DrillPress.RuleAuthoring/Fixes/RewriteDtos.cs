@@ -37,3 +37,8 @@ public sealed record InputRewrite(ExpressionSyntax Before, IReadOnlyList<Express
 /// <param name="Before">The original capture.</param>
 /// <param name="After">All mapped uses; zero or multiple uses do not imply count preservation.</param>
 public sealed record RetainedExpression(CodeExpression Before, IReadOnlyList<CodeExpression> After);
+
+/// <summary>The rewritten compilation for an edit batch, or why it could not be prepared.</summary>
+/// <param name="Context">The rewritten compilation, or null.</param>
+/// <param name="Reason">Why no compilation was prepared, such as an ineligible edit or a compiler error.</param>
+internal readonly record struct PreparedRewrite(RewriteContext? Context, string? Reason);
