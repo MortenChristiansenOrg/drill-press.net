@@ -44,6 +44,35 @@ exterior call trivia is retained. Changed synthesized arguments require a separa
 values remain protected. Unsupported retained calls whose correspondence cannot
 be established conservatively withhold the edit.
 
+## Argument addition
+
+```csharp
+Fix.For(call).AddArgument("comparisonType", "StringComparison.Ordinal")
+    .ExpectOverloadChange(from: startsWith, to: startsWithComparison)
+    .SafeWhen(change => change.AddedValue.RefersTo(ordinal));
+
+Fix.For(call).AddArgument("cancellationToken", "TestContext.Current.CancellationToken")
+    .SafeWhen(change => change.AddedValue.RefersTo(currentToken));
+```
+
+`AddArgument(parameter, expression)` mirrors argument removal. Without an expected
+overload change it supplies an omitted optional parameter of the same overload, such
+as a defaulted `CancellationToken`; the call must still bind to the same method.
+With `ExpectOverloadChange(from, to)` or `ExpectTransition(...)` the call must move to
+exactly that overload, keeping its constructed type arguments. The value is
+positional when it follows the written arguments in parameter order and named
+otherwise. The library checks that the new argument binds to the named parameter,
+retained arguments and the receiver keep their order, parameters, conversions and
+bindings, enclosing expressions bind as before, and no other compiler-supplied
+value changes; expanded `params` calls are withheld. `ArgumentAdditionChange`
+exposes both calls, the bound `AddedValue` and the resolved pair.
+
+What the added value means is always the rule's proof. Some additions change
+behavior on purpose, such as passing `CultureInfo.InvariantCulture` where the
+current culture applied before: the `SafeWhen` proof then states that the new
+behavior is the intended one, not that it is equivalent. There is no separate
+behavior-change marker; a `+` means the rule's proof accepted the edit.
+
 ## Braces for embedded statements
 
 `Fix.For(branch).AddBraces().Propose()` applies a built-in restricted structural

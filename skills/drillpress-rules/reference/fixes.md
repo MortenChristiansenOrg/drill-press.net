@@ -13,6 +13,7 @@ reason, or the check that rejected the fix during validation, under the finding.
 | --- | --- | --- |
 | `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWith(syntax)` | `SafeWhen` |
 | `CodeInvocation` / `CodeArgument` | `RemoveArgument("name")` / `Remove()` | `SafeWhen` |
+| `CodeInvocation` | `AddArgument("name", "expression")`, optionally `.ExpectOverloadChange(from, to)` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
 | any `ICodeDeclaration` | `AddModifier(Modifier.X)` | `Propose()` for `sealed`/`static` classes (checks the whole loaded solution), else `SafeWhen` |
 | `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
@@ -100,6 +101,13 @@ static bool ComparesStrings(ArgumentRemovalChange change) =>
   initialization). Both are mandatory. `RequireSynthesizedArguments` approves changed
   caller-info arguments.
 - Omitted values, receivers and `params` arguments are not removable.
+
+`AddArgument("token", "TestContext.Current.CancellationToken")` supplies an omitted
+optional parameter of the same overload; add `.ExpectOverloadChange(from, to)` when the
+call moves to another overload (`StartsWith(x)` → `StartsWith(x, StringComparison.Ordinal)`).
+The proof over `ArgumentAdditionChange` states why the value is right
+(`change.AddedValue.RefersTo(ordinal)`); an intended behavior change, such as invariant
+culture, is stated there too.
 
 ## Modifiers, braces, comments and var
 
