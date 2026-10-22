@@ -246,7 +246,13 @@ use separate symbols/reference sets to exercise alternate evaluations.
 `AddProject` accepts per-project `nullable` (`NullableContextOptions`) and
 `languageVersion` (`LanguageVersion`) options. Defaults remain nullable annotations
 and warnings enabled and C# 14. The fixture compilation and snapshot use the same
-values; `#nullable` source directives override the project setting. For example:
+values; `#nullable` source directives override the project setting. Pass
+`implicitUsings: true` to match SDK projects with `ImplicitUsings` enabled: the
+project gets the Microsoft.NET.Sdk default global usings (`System`,
+`System.Collections.Generic`, `System.IO`, `System.Linq`, `System.Net.Http`,
+`System.Threading` and `System.Threading.Tasks`) as a generated
+`{name}.GlobalUsings.g.cs` document, which never reports findings. Without it
+there are no implicit usings. For example:
 
 ```csharp
 var annotated = workspace.AddProject("Annotated", annotatedSources);

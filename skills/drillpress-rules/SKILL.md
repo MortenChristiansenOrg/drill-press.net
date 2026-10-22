@@ -172,8 +172,10 @@ public sealed class LoggingRuleTests
 
 `Output` is exactly what the CLI prints: rule line, file, then `line:column`
 (column omitted when 1), with `+` marking a validated fix. `FixedText(path)` applies
-validated fixes in memory. `isTest: true`, `dependencies`, `allowErrors` and coverage
-fakes are in [reference/testing.md](reference/testing.md).
+validated fixes in memory. Pass `implicitUsings: true` to `AddProject` when the target
+projects enable `ImplicitUsings`, so snippets need no `using System.Linq;`.
+`isTest: true`, `dependencies`, `allowErrors` and coverage fakes are in
+[reference/testing.md](reference/testing.md).
 
 ## Setup
 

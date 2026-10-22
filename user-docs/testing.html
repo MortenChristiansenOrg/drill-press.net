@@ -78,6 +78,8 @@ public class EmptyStringRuleTests
 <tr><td><code>symbols</code></td><td>Conditional compilation symbols for <code>#if</code>.</td></tr>
 <tr><td><code>allowErrors</code></td><td>Keep deliberately invalid source for failure-path tests.</td></tr>
 <tr><td><code>references</code>, <code>packages</code></td><td>Override compiler references or supply direct package facts. Package facts do not download packages or supply assemblies.</td></tr>
+<tr><td><code>nullable</code>, <code>languageVersion</code></td><td>Compiler options, defaulting to nullable annotations and warnings enabled and C# 14.</td></tr>
+<tr><td><code>implicitUsings</code></td><td>When <code>true</code>, adds the .NET SDK’s default global usings (<code>System</code>, <code>System.Collections.Generic</code>, <code>System.IO</code>, <code>System.Linq</code>, <code>System.Net.Http</code>, <code>System.Threading</code>, <code>System.Threading.Tasks</code>) as a generated file, like a project with <code>ImplicitUsings</code> enabled. Off by default.</td></tr>
 </tbody></table></div>
 <div class="codeblock"><div class="codehead"><span>Model a referenced production project</span></div><pre tabindex="0" data-check="program" id="example-32"><code>using DrillPress.Testing;
 

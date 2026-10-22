@@ -30,6 +30,7 @@ workspace.AddProject("Shop.Tests", [
 | `references` | explicit `MetadataReference`s instead of the default |
 | `packages` | direct package facts for `ReferencesPackage` (nothing is downloaded) |
 | `nullable`, `languageVersion` | compiler options; defaults are enabled and C# 14 |
+| `implicitUsings` | `true` adds the .NET SDK default global usings (`System`, `System.Linq`, `System.Threading.Tasks`, ...), like a project with `ImplicitUsings` enabled; off by default |
 
 `new TestSource(path, text, Generated: true)` marks generated code. The default
 references are the test process's own assemblies, so snippets can use the BCL and
