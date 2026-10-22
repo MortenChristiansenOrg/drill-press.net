@@ -175,6 +175,28 @@ conditional-access envelopes, and non-call/invalid expressions return null.
 queries retain expression-tree occurrences. Built-in projections retain lazy
 query caching, occurrence identity and coverage collection dependencies.
 
+## Fluent call chains
+
+`call.Chain()` returns the `CodeCallChain` a call belongs to: the calls that each
+receive the previous call's result, in evaluation order. A call links to its instance
+receiver or an extension method's `this` argument (in both spellings) through implicit
+conversions, and to the receiver tested by an enclosing conditional access, so
+`a?.B()?.C()` is one chain starting from `a`. Any other expression ends the chain,
+including `await`, explicit casts and arguments. `Root` is the first call's
+`Receiver`, null for an ordinary static call; `Local` is the local it reads, if any.
+`Before(call)` and `After(call)` split the chain; calls compare equal by source
+membership and bound operation, so a call from `Code.Calls` is found in its chain.
+
+`ThroughLocal()` continues a chain whose root is a local across statements: it returns
+this chain, the chains whose results are assigned to the local (initializer and simple
+assignments) and the chains that start from the local, ordered by source position.
+This covers rebinding (`q = q.Where(...)`) and builders that change in place
+(`query.AndAlso().WhereGreaterThan(...)`). The search covers the whole executable
+body, including nested functions, and is flow-insensitive: statement order, branches
+and loops are ignored. It does not follow a second local, a field or a helper's
+result, and only `Local`'s type tells a rule whether the local holds a query or, for
+example, a session that starts unrelated queries.
+
 ## Contextual project scopes
 
 `Code.Calls.InNonTestProjects().InProjectsWithType(contract)` shares evaluated

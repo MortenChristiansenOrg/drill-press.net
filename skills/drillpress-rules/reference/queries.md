@@ -120,8 +120,13 @@ parameters, symbols):
 - `CodeInvocation`: `Target` (chosen overload), `Receiver`, `Arguments`,
   `Argument("name")` (bound, including omitted defaults; null for unknown names),
   `ArgumentsFor("name")`, `Calls(member)`, `IsDeclaredOn(type)`, `TargetNameMatches(glob)`,
-  `IsConditional` (`?.`), `Expression`, `IsResolved`. Reports at the method name;
-  `ReportAt(call => call.Operation.Syntax)` reports the complete call.
+  `IsConditional` (`?.`), `Expression`, `IsResolved`, `Chain()`. Reports at the method
+  name; `ReportAt(call => call.Operation.Syntax)` reports the complete call.
+- `CodeCallChain` (`call.Chain()`): `Calls` in evaluation order (`Where`, `OrderBy`, `ToList`
+  in `items.Where(a).OrderBy(b).ToList()`), `First`, `Last`, `Root` (the value it starts
+  from), `Local`, `Before(call)`, `After(call)`. `ThroughLocal()` adds the chains assigned to
+  the root local and the chains that start from it in the same body (`q = q.Where(...)`,
+  builders changed in place), in source order, ignoring statement order and branches.
 - Call filters: `To(member | apiSet)`, `ToMethodsNamed(names)`, `ToMethodsMatching(glob)`,
   `ToMethodsDeclaredOn(type)`, `ToMethodsDeclaredOnOrDerivedFrom(type)`,
   `OnReceiverOfType<T>()`, `WhereReceiver(expr => ...)`, `WhereArgument(name, arg => ...)`,

@@ -49,6 +49,20 @@ rules.Rule(&quot;TEAM008&quot;, &quot;Pass a bounded timeout to Transport.Send.&
 <tr><td><code>call.Receiver</code>, <code>WhereReceiver(...)</code>, <code>OnReceiverOfType&lt;T&gt;()</code></td><td>The object before the dot, including an extension method’s first argument.</td></tr>
 <tr><td><code>calls.ArgumentsFor(&quot;name&quot;)</code>, <code>.SourceValues()</code></td><td>Turn calls into argument or written-value candidates that report at the argument.</td></tr>
 </tbody></table></div>
+<h2 id="chains">Follow a fluent chain</h2>
+<div class="codeblock"><div class="codehead"><span>Require an ordering before a query is paged</span></div><pre tabindex="0" data-check="program" id="example-chains"><code>using DrillPress;
+
+var rules = new RuleCatalog();
+var skip = CodeType.Framework(&quot;System.Linq.Queryable&quot;).Member(&quot;Skip&quot;);
+
+rules.Rule(&quot;DATA003&quot;, &quot;Order a query before paging it with Skip.&quot;)
+    .For(Code.Calls.To(skip).Where(call =&gt; !call.Chain()
+        .ThroughLocal()
+        .SelectMany(chain =&gt; chain.Calls)
+        .Any(other =&gt; other.TargetNameMatches(&quot;OrderBy*&quot;))))
+    .Forbid();</code></pre></div>
+<p><code>call.Chain()</code> returns the calls that each receive the previous call’s result, in evaluation order: <code>Where</code>, <code>OrderBy</code> and <code>ToList</code> in <code>items.Where(a).OrderBy(b).ToList()</code>. <code>Before(call)</code> and <code>After(call)</code> split it at a call, and <code>Root</code> is the value it starts from. Extension methods link in both spellings, and conditional access (<code>a?.B()?.C()</code>) links too; an <code>await</code> or any other expression between two calls ends the chain.</p>
+<p>A query is often built across statements: <code>var q = session.Query&lt;Order&gt;(); q = q.Where(...); return await q.ToListAsync();</code>. When a chain starts from a local (<code>chain.Local</code>), <code>ThroughLocal()</code> adds the chains assigned to that local and the chains that start from it anywhere in the same body, including builders that change in place, in source order. It reads the body without regard to statement order or branches, and does not continue through a second local.</p>
 <h2 id="operations">Look beyond ordinary calls</h2>
 <p>An <em>operation</em> describes what bound code does. A <code>new</code> expression is an object-creation operation; a method call is an invocation operation. Operations can include things the compiler adds implicitly, such as conversions. Object creation has its own root:</p>
 <div class="codeblock"><div class="codehead"><span>Flag a legacy serializer being constructed</span></div><pre tabindex="0" data-check="program" id="example-17"><code>using DrillPress;
@@ -121,7 +135,7 @@ rules.Rule(&quot;TEAM014&quot;, &quot;Exercise domain code.&quot;)
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#invocations">Inspect calls and arguments</a><a href="#operations">Look beyond ordinary calls</a><a href="#paths">Follow a call path</a><a href="#flow">Use method-local flow facts</a><a href="#nullable">Read nullable state at a call site</a><a href="#coverage">Require test execution</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#invocations">Inspect calls and arguments</a><a href="#chains">Follow a fluent chain</a><a href="#operations">Look beyond ordinary calls</a><a href="#paths">Follow a call path</a><a href="#flow">Use method-local flow facts</a><a href="#nullable">Read nullable state at a call site</a><a href="#coverage">Require test execution</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">
