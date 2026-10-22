@@ -27,6 +27,7 @@ public sealed class RuleTestWorkspace
     private readonly IReadOnlyList<MetadataReference> _references;
     private readonly IFileSystem _fileSystem;
     private readonly List<AnalysisProject> _projects = [];
+    private readonly Dictionary<MetadataReference, string?> _assemblyNames = [];
     private TestCoverageFacts? _coverage;
 
     /// <summary>Configures synthetic, source-bound evidence for this test fixture only. Selectors bind immediately and reject missing or ambiguous occurrences; no tools or tests run.</summary>
@@ -55,7 +56,7 @@ public sealed class RuleTestWorkspace
     }
 
     /// <summary>Adds an independently evaluated source project. Dependencies must already belong to this workspace. Framework labels do not select reference packs.</summary>
-    /// <remarks>Defaults to nullable annotations and warnings enabled, C# 14 and no implicit usings. Source directives override the project nullable setting. <c>implicitUsings: true</c> adds the Microsoft.NET.Sdk default global usings as a generated <c>{name}.GlobalUsings.g.cs</c> document, like an SDK project with <c>ImplicitUsings</c> enabled.</remarks>
+    /// <remarks>Defaults to a class library with nullable annotations and warnings enabled, C# 14 and no implicit usings. Source directives override the project nullable setting. <c>implicitUsings: true</c> adds the Microsoft.NET.Sdk default global usings as a generated <c>{name}.GlobalUsings.g.cs</c> document, like an SDK project with <c>ImplicitUsings</c> enabled. Pass <c>outputKind: OutputKind.ConsoleApplication</c> for top-level statements. A reference whose assembly has the name of this project or one of its dependencies is left out, so workspace projects can be named like assemblies the test process loads.</remarks>
     public AnalysisProject AddProject(
         string name,
         IReadOnlyList<TestSource> sources,
@@ -68,7 +69,8 @@ public sealed class RuleTestWorkspace
         IReadOnlyList<PackageReferenceSnapshot>? packages = null,
         NullableContextOptions nullable = NullableContextOptions.Enable,
         LanguageVersion languageVersion = LanguageVersion.CSharp14,
-        bool implicitUsings = false
+        bool implicitUsings = false,
+        OutputKind outputKind = OutputKind.DynamicallyLinkedLibrary
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -101,13 +103,12 @@ public sealed class RuleTestWorkspace
             documents.Select(document =>
                 CSharpSyntaxTree.ParseText(document.Text, parse, document.Path)
             ),
-            (references ?? _references).Concat(
-                dependencies.Select(project => project.Compilation.ToMetadataReference())
-            ),
-            new CSharpCompilationOptions(
-                OutputKind.DynamicallyLinkedLibrary,
-                nullableContextOptions: nullable
-            )
+            Unshadowed(
+                    references ?? _references,
+                    [name, .. dependencies.Select(project => project.Name)]
+                )
+                .Concat(dependencies.Select(project => project.Compilation.ToMetadataReference())),
+            new CSharpCompilationOptions(outputKind, nullableContextOptions: nullable)
         );
         if (!allowErrors)
         {
@@ -128,7 +129,7 @@ public sealed class RuleTestWorkspace
             name,
             name + ".csproj",
             (int)languageVersion,
-            (int)OutputKind.DynamicallyLinkedLibrary,
+            (int)outputKind,
             (int)nullable,
             symbols.ToArray(),
             documents,
@@ -183,6 +184,33 @@ public sealed class RuleTestWorkspace
                 _fileSystem
             )
         );
+    }
+
+    // Workspace projects shadow same-named assemblies, as a project reference would; otherwise the compiler reports CS1704.
+    private IEnumerable<MetadataReference> Unshadowed(
+        IReadOnlyList<MetadataReference> references,
+        IReadOnlyList<string> projects
+    ) =>
+        references.Where(reference =>
+            AssemblyName(reference) is not { } assembly || !projects.Contains(assembly)
+        );
+
+    private string? AssemblyName(MetadataReference reference)
+    {
+        lock (_assemblyNames)
+        {
+            if (!_assemblyNames.TryGetValue(reference, out var name))
+            {
+                name =
+                    reference is PortableExecutableReference executable
+                    && executable.GetMetadata() is AssemblyMetadata assembly
+                    && assembly.GetModules()[0].GetMetadataReader() is { IsAssembly: true } reader
+                        ? reader.GetString(reader.GetAssemblyDefinition().Name)
+                        : null;
+                _assemblyNames.Add(reference, name);
+            }
+            return name;
+        }
     }
 
     private static MetadataReference[] ReadReferences(IFileSystem fileSystem) =>

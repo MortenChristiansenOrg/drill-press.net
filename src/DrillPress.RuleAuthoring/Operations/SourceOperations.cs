@@ -81,10 +81,11 @@ internal sealed class SourceOperations
         foreach (
             var syntax in _source
                 .Tree.GetRoot(token)
-                .DescendantNodes()
+                .DescendantNodesAndSelf()
                 .Where(node =>
                     node
-                        is BaseMethodDeclarationSyntax
+                        is CompilationUnitSyntax { Members: [GlobalStatementSyntax, ..] }
+                            or BaseMethodDeclarationSyntax
                             or AccessorDeclarationSyntax
                             or EqualsValueClauseSyntax
                             or GlobalStatementSyntax
