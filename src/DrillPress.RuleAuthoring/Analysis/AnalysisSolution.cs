@@ -19,7 +19,7 @@ public sealed class AnalysisSolution
         {
             if (_oppositeCoveragePlanning is null)
             {
-                _oppositeCoveragePlanning = new(Projects, Options, CancellationToken)
+                _oppositeCoveragePlanning = new(Projects, Options, CancellationToken, false)
                 {
                     IsPlanningCoverage = true,
                     RequiresCertainCoverageMatches = !RequiresCertainCoverageMatches,
@@ -70,10 +70,22 @@ public sealed class AnalysisSolution
         AnalysisOptions options,
         CancellationToken cancellationToken = default
     )
+        : this(projects, options, cancellationToken, true) { }
+
+    // Coverage planning analyses read the same projects without becoming their analysis.
+    internal AnalysisSolution(
+        IReadOnlyList<AnalysisProject> projects,
+        AnalysisOptions options,
+        CancellationToken cancellationToken,
+        bool ownsProjects
+    )
     {
         Options = options;
         CancellationToken = cancellationToken;
         Projects = projects.ToArray();
+        if (ownsProjects)
+            foreach (var project in Projects)
+                project.BelongTo(this);
         Implementations = new(this);
         _projectGraph = new(() => new ProjectGraph(this));
         _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));

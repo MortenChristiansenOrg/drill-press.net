@@ -157,7 +157,9 @@ parameters, symbols):
 ## Projects and relationships
 
 - `AnalysisProject`: `Name`, `TargetFramework`, `IsTestProject`, `Packages`,
-  `ReferencesPackage(id)`, `Properties`, `HasType(type)`, `Compilation`, `Sources`.
+  `ReferencesPackage(id)`, `Properties`, `HasType(type)`, `Compilation`, `Sources`, `Solution`.
+- `candidate.Source.Solution` (or `project.Solution`) is the current analysis: read facts
+  and queries in predicates and fixes with `fact.In(candidate.Source.Solution)`.
 - `solution.ProjectGraph`: `Includes(consumer, owner)`, `DependenciesOf`, `CompatibleViewsOf`.
 - `solution.Relationships`: `CallsFrom`, `CallersOf`, `Reaches`, `DerivedTypes`, `FilesOf`.
 - `ImplementationView` (`Interface`, `Projects`, `Implementations`): `IgnoringTestProjects()`,

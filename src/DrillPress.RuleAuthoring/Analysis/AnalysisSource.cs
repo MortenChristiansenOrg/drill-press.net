@@ -35,6 +35,9 @@ public sealed class AnalysisSource
     /// <summary>The independent compilation context containing this document membership.</summary>
     public AnalysisProject Project { get; }
 
+    /// <summary>The analysis that most recently included this document's project; see <see cref="AnalysisProject.Solution"/>.</summary>
+    public AnalysisSolution Solution => Project.Solution;
+
     /// <summary>Original text, byte identity, generated classification, and edit eligibility.</summary>
     public DocumentSnapshot Document { get; }
 

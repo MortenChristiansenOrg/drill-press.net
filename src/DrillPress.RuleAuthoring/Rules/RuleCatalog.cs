@@ -34,7 +34,8 @@ public sealed class RuleCatalog
         var planning = new AnalysisSolution(
             solution.Projects,
             solution.Options,
-            solution.CancellationToken
+            solution.CancellationToken,
+            false
         )
         {
             IsPlanningCoverage = true,

@@ -74,6 +74,17 @@ public sealed class AnalysisProject
         );
     }
 
+    private AnalysisSolution? _solution;
+
+    /// <summary>The analysis that most recently included this project, for reading shared facts and queries from a candidate, as in <c>fact.In(call.Source.Solution)</c>.</summary>
+    /// <remarks>An engine run creates one analysis. In tests, each <c>RuleTestWorkspace.Analyze()</c> starts a new one, which its projects then belong to. While coverage evidence is planned, it is still the analysis being planned for, so predicates should not read coverage-dependent queries through it.</remarks>
+    /// <exception cref="InvalidOperationException">No analysis includes the project yet.</exception>
+    public AnalysisSolution Solution =>
+        _solution
+        ?? throw new InvalidOperationException("The project is not part of an analysis yet.");
+
+    internal void BelongTo(AnalysisSolution solution) => _solution = solution;
+
     internal ProjectCoverage Coverage { get; set; } = new();
 
     internal RewriteValidationCache RewriteValidation { get; }

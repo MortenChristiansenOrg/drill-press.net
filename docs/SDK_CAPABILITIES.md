@@ -130,7 +130,11 @@ when sharing it across rules.
 `AnalysisFact<T>` caches a consumer value for the solution. `ProjectFact<T>`
 computes separately and lazily for each evaluated project. Facts can read
 queries and other facts; fact cycles fail through lazy initialization. Failed
-computations remain failed for that analysis. Values should be immutable. A
+computations remain failed for that analysis. Values should be immutable.
+`AnalysisProject.Solution` and `AnalysisSource.Solution` return the analysis that
+most recently included the project, so predicates, `ReportAt` selectors and fix
+factories can read facts from any candidate (`fact.In(call.Source.Solution)`).
+Coverage planning analyses do not take over the project. A
 new `AnalysisSolution` creates a fresh cache lifetime; no cache is persisted
 globally or across source changes. The production evaluator runs rules
 sequentially; arbitrary parallel access to all Roslyn wrappers and relationship
