@@ -69,3 +69,12 @@ Null checks expose `Form`, `HasNonNullableDeclaration` and `IsKnownNotNullBefore
 separately. The first is syntax classification, the second is annotation evidence, and
 the third is compiler incoming flow evidence. They are never ORed into a runtime
 non-null guarantee or used as automatic authority to delete guards.
+
+`method.Callees(sameType, transitive, nested)` lists the ordinary source methods a
+method calls through statically bound calls, in the order the calls appear and then
+breadth first, each once. `sameType` keeps methods of the method's own type, including
+other partial parts; `transitive` follows the callees' calls too; calls in lambdas and
+local functions count unless `nested` is `Exclude`. Constructors, accessors, method
+groups, delegates, virtual dispatch and metadata targets are not followed, and the
+method itself appears only when it is called. Callees resolve to the `CodeMethod` in
+the declaring project's context.

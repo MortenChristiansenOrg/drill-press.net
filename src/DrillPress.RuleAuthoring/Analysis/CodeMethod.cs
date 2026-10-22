@@ -37,6 +37,65 @@ public sealed class CodeMethod : ICodeDeclaration
     public bool Reaches(CodeMember target) =>
         Symbol is { } symbol && Solution.Relationships.Reaches(symbol, target);
 
+    /// <summary>
+    /// The source methods this method calls, in the order its calls are found, following statically bound targets. With
+    /// <paramref name="sameType"/>, only methods of this method's type, including its other partial parts; with
+    /// <paramref name="transitive"/>, also the methods those call, as in "the methods <c>ExecuteAsync</c> runs in its own type".
+    /// </summary>
+    /// <remarks>Calls in lambdas and local functions count unless <paramref name="nested"/> excludes them. Only ordinary
+    /// methods are followed, not constructors, accessors, method groups, delegates, virtual dispatch or metadata. The method
+    /// itself is included only when it is called, such as through recursion.</remarks>
+    public IReadOnlyList<CodeMethod> Callees(
+        bool sameType = false,
+        bool transitive = false,
+        NestedFunctions nested = NestedFunctions.Include
+    )
+    {
+        var methods = Solution.Cached(_methodIndex, () => IndexMethods(Solution));
+        var owner = Symbol?.ContainingType?.OriginalDefinition;
+        var found = new List<CodeMethod>();
+        var seen = new HashSet<CodeMethod>();
+        var pending = new Queue<CodeMethod>([this]);
+        while (pending.TryDequeue(out var current))
+        {
+            foreach (var call in current.Body(nested)?.Calls() ?? [])
+            {
+                Solution.CancellationToken.ThrowIfCancellationRequested();
+                var target = (call.Target.ReducedFrom ?? call.Target).OriginalDefinition;
+                target = target.PartialImplementationPart ?? target;
+                if (
+                    sameType
+                    && !SymbolEqualityComparer.Default.Equals(
+                        target.ContainingType?.OriginalDefinition,
+                        owner
+                    )
+                )
+                    continue;
+                foreach (var reference in target.DeclaringSyntaxReferences)
+                {
+                    if (
+                        methods.TryGetValue(
+                            (reference.SyntaxTree, reference.Span.Start),
+                            out var callee
+                        ) && seen.Add(callee)
+                    )
+                    {
+                        found.Add(callee);
+                        if (transitive)
+                            pending.Enqueue(callee);
+                    }
+                }
+            }
+        }
+        return found.AsReadOnly();
+    }
+
+    private static readonly object _methodIndex = new();
+
+    private static Dictionary<(SyntaxTree Tree, int Start), CodeMethod> IndexMethods(
+        AnalysisSolution solution
+    ) => solution.Methods.ToDictionary(method => (method.Source.Tree, method.Syntax.SpanStart));
+
     /// <summary>The complete method declaration.</summary>
     public MethodDeclarationSyntax Syntax { get; }
 

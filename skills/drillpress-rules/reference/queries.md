@@ -77,7 +77,9 @@ parameters, symbols):
 - `CodeTypeDeclaration`: `IsTopLevel`, `Syntax`, `Symbol`; attributes are those written on this part.
 - `CodeMethod`: `IsAsync`, `IsStatic`, `ReturnsVoid`, `ReturnTypeIs(type)`, `Parameters`,
   `HasBody`, `HasEmptyBody`, `HasNoStatements`, `Body(nested?)`, `ContainingType`,
-  `Flow`, `Reaches(member)` (static call paths through loaded source), `Syntax`.
+  `Flow`, `Reaches(member)` (static call paths through loaded source), `Syntax`,
+  `Callees(sameType: false, transitive: false, nested: Include)` (source methods it calls,
+  in call order; `sameType`/`transitive` give e.g. everything `ExecuteAsync` runs in its type).
   Queries: `DeclaredInTypesDerivedFrom(types)`, `Overriding(member)`,
   `DirectlyOverriding(member)`, `WhereBody(MethodBodyShape)`, `ContainingTypes()`.
 - `CodeField`: `Type`, `TypeIs<T>()`, `IsConst`, `IsReadOnly`, `IsStatic`, `Initializer`, `Declaration`.
