@@ -174,7 +174,7 @@ public sealed class LoggingRuleTests
 (column omitted when 1), with `+` marking a validated fix. `FixedText(path)` applies
 validated fixes in memory. Pass `implicitUsings: true` to `AddProject` when the target
 projects enable `ImplicitUsings`, so snippets need no `using System.Linq;`.
-`isTest: true`, `dependencies`, `allowErrors` and coverage fakes are in
+`isTest: true`, `dependencies`, `allowErrors`, allowances and coverage fakes are in
 [reference/testing.md](reference/testing.md).
 
 ## Setup
@@ -218,6 +218,12 @@ Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
 `status` prints only violation counts per project and fix complexity; use it to pick
 the next project or `--fix-complexity` level to work on.
+
+Where a finding is a justified exception, the code says so with
+`// drillpress-allow RULE-ID: reason`, after the code on its line or on its own line
+above the statement or declaration. Allowed findings are not reported, counted or
+fixed; unused or malformed allowances are reported as `drillpress-allow-unused` and
+`drillpress-allow-invalid`. Don't add custom comment detection to a rule for this.
 
 ## Pitfalls
 

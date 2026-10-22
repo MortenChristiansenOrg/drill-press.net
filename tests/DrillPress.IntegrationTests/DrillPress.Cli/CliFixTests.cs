@@ -50,6 +50,45 @@ public sealed class CliFixTests : IntegrationTest
     }
 
     [Fact]
+    public async Task Real_processes_keep_allowed_findings_and_remove_unused_allowances()
+    {
+        var directory = CreateTemporaryDirectory("drillpress-allowance-fix-");
+        var path = FileSystem.Path.Combine(directory.FullName, "A.cs");
+        await FileSystem.File.WriteAllTextAsync(
+            path,
+            """
+            public class A
+            {
+                public string Value => string.Empty; // drillpress-allow DP1004: the contract test compares it
+                public string Other => string.Empty;
+                // drillpress-allow DP1005: nothing below passes a comparer
+                public int Count => 1;
+            }
+
+            """,
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await FixAsync(path);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.Equal("", result.StandardError);
+        Assert.Equal(
+            """
+            public class A
+            {
+                public string Value => string.Empty; // drillpress-allow DP1004: the contract test compares it
+                public string Other => "";
+                public int Count => 1;
+            }
+
+            """,
+            FileSystem.File.ReadAllText(path)
+        );
+    }
+
+    [Fact]
     public async Task Sample_solution_builds_after_all_offered_fixes_are_applied()
     {
         var directory = CreateTemporaryDirectory("drillpress-fixed-sample-");

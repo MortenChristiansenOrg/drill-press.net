@@ -230,7 +230,9 @@ Assert.Equal(expectedSource, result.FixedText("Example.cs"));
 ```
 
 `Output` renders findings exactly as the CLI prints them, with `+` marking a
-validated fix; assert the complete value. `Findings` contains `TestFinding`
+validated fix; assert the complete value. `CheckAsync` applies
+[allowances](RULE_AUTHORING.md#allowing-individual-findings), so a test can show
+that a `// drillpress-allow` comment accepts a finding. `Findings` contains `TestFinding`
 records with rule ID, path, exact line/column/text, `HasFix`, readable
 `Evidence`, and typed `Coverage` facts. [Synthetic coverage fixtures](COVERAGE.md#synthetic-rule-policy-fixtures)
 support deterministic coverage-policy tests without a collector.

@@ -54,6 +54,59 @@ linked file.
 Test the allowed neighbor of every violation (other overloads, `nameof`, test projects,
 configured exceptions) and, for fixes, a case where the proof fails.
 
+## Allowances
+
+Code accepts a single finding with `// drillpress-allow RULE-ID[, RULE-ID]: reason`.
+After code it allows findings that start on its line; on its own line it allows the
+whole statement or member/type declaration starting on the next code line (only
+comment lines may come between), or just that line when no statement or declaration
+starts there. `CheckAsync` applies allowances like the CLI, so a test can show that
+a rule's legitimate exceptions are expressible:
+
+```csharp
+using DrillPress;
+using DrillPress.Testing;
+using MyRules;
+using Xunit;
+
+public sealed class LoggingAllowanceTests
+{
+    [Fact]
+    public async Task An_explained_allowance_accepts_one_console_call()
+    {
+        var workspace = new RuleTestWorkspace();
+        workspace.AddProject("App", [new TestSource("App.cs", """
+            class Banner
+            {
+                void Show()
+                {
+                    // drillpress-allow TEAM001: the host writes its banner before logging starts
+                    Console.WriteLine("Shop");
+                    Console.WriteLine("ready");
+                }
+            }
+            """)], implicitUsings: true);
+
+        var result = await workspace.CheckAsync(ExampleRules.Create(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            TEAM001 Use the application logger instead of Console.WriteLine.
+            App.cs
+              7:9
+
+            """.ReplaceLineEndings("\n"),
+            result.Output);
+    }
+}
+```
+
+Allowances that allow nothing are reported as `drillpress-allow-unused` (the evidence
+lists the unused rule IDs; the fix removes them or the comment), and allowances without
+a rule ID or reason, naming an unknown rule or followed by a blank line as
+`drillpress-allow-invalid`. Rule IDs starting with `drillpress-` are reserved.
+
 ## Coverage requirements
 
 Coverage rules read evidence the CLI collects by running tests. In unit tests, supply

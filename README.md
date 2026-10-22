@@ -126,6 +126,14 @@ src/App/App.csproj 42
   unspecified 3
 ```
 
+To accept a single finding where a convention does not fit, add a comment naming
+the rule and the reason: `// drillpress-allow BR7-skip: the export pages a fixed snapshot`.
+After code it allows findings on its line; on its own line it allows the statement or
+declaration below it. Allowed findings are not printed, counted or fixed. Allowances
+that allow nothing, or that lack a reason or name an unknown rule, are reported as
+`drillpress-allow-unused` (with a fix that removes them) and `drillpress-allow-invalid`.
+See [allowing individual findings](docs/RULE_AUTHORING.md#allowing-individual-findings).
+
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,

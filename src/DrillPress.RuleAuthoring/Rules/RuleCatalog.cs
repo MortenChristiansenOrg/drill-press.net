@@ -11,7 +11,12 @@ namespace DrillPress;
 /// </example>
 public sealed class RuleCatalog
 {
+    // Built-in engine rules, such as allowance checks, use this prefix so they cannot clash with bundle rules.
+    internal const string BuiltInPrefix = "drillpress-";
+
     private readonly List<RuleRegistration> _rules = [];
+
+    internal bool Defines(string id) => _rules.Any(rule => rule.Id == id);
 
     internal bool RequiresCoverage => _rules.Any(rule => rule.RequiresCoverage);
 
@@ -51,6 +56,7 @@ public sealed class RuleCatalog
     ) => Rule(new RuleDescriptor(id, message) { FixComplexity = fixComplexity });
 
     /// <summary>Reserves a configured descriptor's identity. No other definition can reuse its ID.</summary>
+    /// <exception cref="ArgumentException">The ID or message is blank or multiline, or the ID starts with the built-in <c>drillpress-</c> prefix.</exception>
     public RuleDefinition Rule(RuleDescriptor descriptor)
     {
         ValidateDescriptor(descriptor);
@@ -114,5 +120,10 @@ public sealed class RuleCatalog
                 "Rule identifiers and remediation messages must be single-line."
             );
         }
+        if (id.StartsWith(BuiltInPrefix, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(
+                $"Rule identifiers starting with '{BuiltInPrefix}' are reserved for built-in rules.",
+                nameof(descriptor)
+            );
     }
 }

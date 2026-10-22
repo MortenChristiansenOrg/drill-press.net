@@ -14,7 +14,7 @@ locations, common-safe batches/edits, member bindings, interface-definition
 comparisons, prepared/changed files, snapshot bytes, and public UTF-8 bytes.
 
 Phases include BuildHost loading and snapshot serialization, snapshot loading,
-reconstruction, model preparation, every rule, fix validation and preparation,
+reconstruction, model preparation, every rule, allowances, fix validation and preparation,
 commit, aggregation, rendering, response serialization, and process totals.
 Candidate collections are lazy: their first rule pays their preparation cost.
 Per-rule measurements include that rule's candidate selection and proposed-fix

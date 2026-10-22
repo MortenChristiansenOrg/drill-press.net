@@ -23,6 +23,11 @@ The consumer-owned sample rule DP1004 replaces proven `string.Empty` references 
 call shapes described in [rule authoring](RULE_AUTHORING.md). Other findings
 remain for manual correction. The CLI never invents edits.
 
+Findings allowed by a `// drillpress-allow` comment have no fix, so `fix` leaves
+them unchanged. Unused allowances are findings with their own fix, which removes
+the unused rule IDs or the whole comment; see
+[allowing individual findings](RULE_AUTHORING.md#allowing-individual-findings).
+
 Before changing any original, the CLI validates every edit and original byte
 sequence, computes all new contents, and writes every output to a temporary
 file in its source directory. Original encoding, byte-order mark policy, and

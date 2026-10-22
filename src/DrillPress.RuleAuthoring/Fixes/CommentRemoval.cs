@@ -55,7 +55,8 @@ public sealed class CommentRemoval
         );
     }
 
-    private static bool PreservesCode(RewriteContext context)
+    // Every code token outside the edits maps to the rewritten tree and compiler-supplied arguments are unchanged.
+    internal static bool PreservesCode(RewriteContext context)
     {
         foreach (
             var source in context.Original.Sources.Where(source =>

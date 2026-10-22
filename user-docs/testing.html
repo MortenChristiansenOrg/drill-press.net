@@ -95,6 +95,43 @@ workspace.AddProject(&quot;Product.Tests&quot;, [
 <p><code>Code.TestMethods</code> and <code>Code.TestClasses</code> recognize xUnit, NUnit and MSTest markers by compiler identity, so rules about tests need no attribute lists of their own. Layout and assertion conventions stay in your bundle: the <a href="../samples/DrillPress.SampleRules/Testing/TestBody.cs">sample body analysis</a> shows a cached consumer fact built from public APIs.</p>
 <p>To test such rules, add the real test-framework assemblies to the workspace with <code>references</code>, and mark the project with <code>isTest: true</code>. The project flag alone does not make a method a test.</p>
 <p>When a fixture's exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore.</p>
+<h2 id="allowances">Show that exceptions can be allowed</h2>
+<p>Teams that run rules as hard errors still need a way to accept a justified exception. Instead of teaching each rule to look for comments, the code names the rule and the reason in an ordinary comment: <code>// drillpress-allow RULE-ID: reason</code>, with several IDs separated by commas. After code, it allows findings that start on that line. On its own line, it allows the whole statement or member or type declaration that starts on the next code line, such as a multi-line statement or a complete test method; only comment lines may come between.</p>
+<div class="codeblock"><div class="codehead"><span>An allowance accepts one finding</span></div><pre tabindex="0" data-check="library" id="example-33"><code>using DrillPress;
+using DrillPress.Testing;
+using Xunit;
+
+public class ClockRuleTests
+{
+    [Fact]
+    public async Task An_explained_allowance_accepts_one_clock_read()
+    {
+        var workspace = new RuleTestWorkspace();
+        workspace.AddProject(&quot;Shop&quot;, [new TestSource(&quot;Orders.cs&quot;, &quot;&quot;&quot;
+            class Orders
+            {
+                DateTime Placed() =&gt; DateTime.Now; // drillpress-allow TEAM030: shown to the clerk in local time
+                DateTime Shipped() =&gt; DateTime.Now;
+            }
+            &quot;&quot;&quot;)], implicitUsings: true);
+        var rules = new RuleCatalog();
+        rules.Rule(&quot;TEAM030&quot;, &quot;Read the time from TimeProvider.&quot;)
+            .For(CodeType.Of&lt;DateTime&gt;().Member(nameof(DateTime.Now)).References)
+            .Forbid();
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            &quot;&quot;&quot;
+            TEAM030 Read the time from TimeProvider.
+            Orders.cs
+              4:27
+
+            &quot;&quot;&quot;,
+            result.Output);
+    }
+}</code></pre></div>
+<p>Allowed findings are not printed, counted or fixed. Allowances are checked too: one that allows nothing is reported as <code>drillpress-allow-unused</code>, with a fix that removes it, and one without a rule ID or reason, naming an unknown rule, or separated from its code by a blank line is reported as <code>drillpress-allow-invalid</code>. Rule IDs starting with <code>drillpress-</code> are reserved for these built-in rules. The <a href="../docs/RULE_AUTHORING.md">rule authoring reference</a> defines the exact scope.</p>
 <h2 id="baselines">Test an accepted baseline</h2>
 <div class="codeblock"><div class="codehead"><span>Compare two in-memory versions</span></div><pre tabindex="0" data-check="program" id="example-34"><code>using DrillPress;
 using DrillPress.Testing;
@@ -124,7 +161,7 @@ var changes = baseline.ChangedFiles.In(after.Analyze());
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and source text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Rules about tests</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and source text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Rules about tests</a><a href="#allowances">Show that exceptions can be allowed</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

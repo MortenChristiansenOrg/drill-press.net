@@ -54,6 +54,21 @@ public sealed class RuleCatalogTests
         Assert.Throws<ArgumentException>(() => rules.Rule(id, message));
     }
 
+    [Theory]
+    [InlineData("drillpress-allow-unused")]
+    [InlineData("DrillPress-Custom")]
+    public void Rule_reserves_the_built_in_rule_prefix(string id)
+    {
+        var rules = new RuleCatalog();
+
+        var exception = Assert.Throws<ArgumentException>(() => rules.Rule(id, "Message."));
+
+        Assert.Equal(
+            "Rule identifiers starting with 'drillpress-' are reserved for built-in rules. (Parameter 'descriptor')",
+            exception.Message
+        );
+    }
+
     [Fact]
     public void A_rule_without_a_terminated_clause_fails_evaluation_with_guidance()
     {
