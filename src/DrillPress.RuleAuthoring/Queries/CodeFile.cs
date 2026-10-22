@@ -23,9 +23,5 @@ public sealed class CodeFile(AnalysisSource source) : ICodeElement
     /// <summary>Enumerates syntax in this document, including its root and structured trivia.</summary>
     public IEnumerable<CodeNode<TSyntax>> Nodes<TSyntax>()
         where TSyntax : SyntaxNode =>
-        Source
-            .Tree.GetRoot(Source.Project.CancellationToken)
-            .DescendantNodesAndSelf(descendIntoTrivia: true)
-            .OfType<TSyntax>()
-            .Select(syntax => new CodeNode<TSyntax>(Source, syntax));
+        Source.Nodes<TSyntax>().Select(syntax => new CodeNode<TSyntax>(Source, syntax));
 }

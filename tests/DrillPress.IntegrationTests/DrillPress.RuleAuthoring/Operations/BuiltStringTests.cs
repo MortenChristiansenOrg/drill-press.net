@@ -7,6 +7,51 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Operations;
 public sealed class BuiltStringTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
+    public void Template_parts_merge_literals_and_retain_written_hole_formatting()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Strings",
+            [
+                new(
+                    "Strings.cs",
+                    """
+                    class C {
+                        const string Prefix = "b";
+                        void Send(string text) {}
+                        void M(int value) {
+                            Send("a" + Prefix + $"{value, 4:D2}");
+                            Send("a" + value);
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var templates = Code
+            .Calls.ToMethodsNamed("Send")
+            .In(solution)
+            .Select(call =>
+                call.Argument("text")!
+                    .Value!.AsBuiltString(expandConstants: true, stringOperandsOnly: true)
+            )
+            .ToArray();
+
+        Assert.Equal(
+            ["ab", "value, 4:D2"],
+            templates[0]!
+                .CoalesceLiterals()
+                .Parts.Select(part =>
+                    part.Text ?? part.Value!.Syntax.ToString() + part.FormattingSyntax
+                )
+                .ToArray()
+        );
+        Assert.Null(templates[1]);
+    }
+
+    [Fact]
     public void Constant_holes_preserve_provenance_and_url_policy_uses_ordered_suffixes()
     {
         var workspace = fixture.Workspace();

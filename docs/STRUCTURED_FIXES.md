@@ -197,14 +197,54 @@ Either way, the fix is withheld when:
 - a declaration or reference is in generated or non-editable source;
 - a reference is in another project than the declaration, because each compilation is
   validated against its project references as they were;
-- the searched source already uses the new name as an identifier, which could capture or
-  be shadowed by the renamed symbol;
+- rebinding shows that an existing name would be captured or shadowed;
 - a string literal in the searched source equals the old name, because it may name the
   symbol through reflection or an attribute such as `NotNullIfNotNull`.
 
 In every affected compilation, each renamed reference must bind to the renamed symbol,
-and every other identifier spelled like the old name, with its enclosing expressions,
-must keep its symbol, type and conversion. A rename cannot change any other binding,
-because the new name appears nowhere in the searched source. `nameof` results follow
+and every other identifier spelled like either the old or new name, with its enclosing
+expressions, must keep its symbol, type and conversion. An unrelated destination name
+in another scope does not prevent a rename. `nameof` results follow
 the new name, as a rename intends, but a compiler-supplied argument such as
 `CallerArgumentExpression` that would change withholds the fix.
+
+## Reusable structural and framework edits
+
+- `Fix.For(expression).UseCollectionExpression().Propose()` converts supported standard
+  collections/arrays with a written target type, preserving the concrete type and each
+  element's evaluation count and order. Nonempty dictionary initializers, capacity
+  constructors and interface targets changing concrete type are withheld.
+- `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
+  block namespace and removes one four-space indentation level. Nested namespaces,
+  directives, multiline text and ambiguous layouts are withheld. A consumer must exclude
+  source exported or concatenated into a different compilation.
+- `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
+  adding that type and uses the argument-addition validator. Existing parameter names,
+  types, ref kinds and generic arity must match; the supplied proof explains the new value.
+- `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports UTC clock reads,
+  paired Stopwatch timestamp measurements, Task delays/timed waits and supported timer/
+  cancellation-source constructors. The consumer chooses the application's clock; the
+  library requires a TimeProvider local, parameter or instance member. Local DateTime
+  kinds, ambiguous timestamp uses and unsupported argument shapes are withheld.
+- `Fix.For(property).UseInitOnly().SafeWhen(symbol => ...)` converts an unrestricted
+  automatic setter to init, proves symbol correspondence and compilation, and asks the
+  consumer to approve its construction/serialization contract. Implemented or restricted
+  setters are withheld.
+- `Fix.For(creation).AddInitializer(member, expression).SafeWhen(value => ...)` adds a
+  previously unassigned simple member, proves unchanged constructed type and binding to
+  that member, and asks the consumer to prove the new value. Existing assignments remain.
+
+Adding `static` to a sealed class replaces the written `sealed` token; `ModifierChange`
+reports both the removed and added tokens. Rename permits a destination name in an
+unrelated scope, but rebinds references spelled like either name to reject capture or
+shadowing. Independent argument additions validate their own changed defaults in an
+atomic batch; caller-info changes around other edits remain unsafe. Evaluation-count
+checks with no registered inputs succeed only when both bounded evaluation traces have
+no child evaluations, so empty collections need no special-case bypass.
+
+`Fix.For(statementNode).UseAssertAll().Propose()` converts a synchronous `foreach (var ...)`
+containing one xUnit assertion to `Assert.All`. The collection must implement
+`IEnumerable<T>` of the exact loop element type; the inner assertion must keep its binding.
+Await/ref expressions and pattern-only enumerators are withheld. Choosing this builder
+explicitly accepts xUnit's aggregated failure reporting instead of stopping at the first
+failing item. It does not decide which test loops should use collection assertions.

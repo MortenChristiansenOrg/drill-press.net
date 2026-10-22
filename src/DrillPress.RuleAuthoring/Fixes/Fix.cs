@@ -6,6 +6,14 @@ namespace DrillPress;
 /// <remarks>Selecting an element never authorizes an edit. Builders withhold corrections in generated or non-editable source, around interior comments or directives, inside nameof or expression trees, and whenever any affected compilation fails to compile or rebinds differently. A withheld fix keeps the finding.</remarks>
 public static class Fix
 {
+    /// <summary>Starts a structured edit of a written statement.</summary>
+    public static StatementFix For<TSyntax>(CodeNode<TSyntax> statement)
+        where TSyntax : StatementSyntax => new(statement.Source, statement.Syntax);
+
+    /// <summary>Starts a structured edit of a block namespace.</summary>
+    public static NamespaceFix For(CodeNode<NamespaceDeclarationSyntax> declaration) =>
+        new(declaration);
+
     /// <summary>Starts a replacement of an expression.</summary>
     public static ExpressionFix For(CodeExpression expression) =>
         new(expression.Source, expression.Syntax);

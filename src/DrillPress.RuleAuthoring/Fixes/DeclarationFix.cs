@@ -18,6 +18,9 @@ public sealed class DeclarationFix
         _symbol = declaration.Symbol;
     }
 
+    /// <summary>Changes an automatic set accessor to init when the caller's construction/serialization policy permits it.</summary>
+    public InitOnlyConversion UseInitOnly() => new(_source, _declaration);
+
     /// <summary>Renames a local, parameter, field, property, method or local function and every reference to it, including named arguments, <c>nameof</c> and documentation <c>param</c>/<c>paramref</c> names. <c>Propose()</c> owns the proof for locals, parameters of private methods and local functions, and private members; wider renames need <c>SafeWhen(...)</c>.</summary>
     /// <param name="newName">A valid C# identifier; keywords are escaped with <c>@</c>.</param>
     public SymbolRename Rename(string newName) => new(_source, _symbol, newName);

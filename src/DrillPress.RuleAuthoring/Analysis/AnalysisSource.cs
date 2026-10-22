@@ -9,6 +9,18 @@ namespace DrillPress;
 public sealed class AnalysisSource
 {
     private readonly Lazy<SemanticModel> _model;
+    private readonly Lazy<SyntaxNode[]> _syntaxNodes;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Type, object> _typedNodes =
+        new();
+
+    internal IReadOnlyList<TSyntax> Nodes<TSyntax>()
+        where TSyntax : SyntaxNode =>
+        (IReadOnlyList<TSyntax>)
+            _typedNodes.GetOrAdd(
+                typeof(TSyntax),
+                _ => Array.AsReadOnly(_syntaxNodes.Value.OfType<TSyntax>().ToArray())
+            );
+
     private readonly Lazy<LocalAssignments> _localAssignments;
     private readonly Lazy<IReadOnlyList<CodeObjectCreation>> _objectCreations;
 
@@ -18,6 +30,11 @@ public sealed class AnalysisSource
         Document = document;
         Tree = tree;
         _model = new(() => project.Compilation.GetSemanticModel(tree));
+        _syntaxNodes = new(() =>
+            tree.GetRoot(project.CancellationToken)
+                .DescendantNodesAndSelf(descendIntoTrivia: true)
+                .ToArray()
+        );
         _localAssignments = new(() => new LocalAssignments(this));
         Operations = new(this);
         _objectCreations = new(() =>

@@ -7,6 +7,17 @@ namespace DrillPress;
 /// <summary>A selected expression ready for replacement. Replacements always need a behavior proof with <see cref="ExpressionReplacement.SafeWhen"/>.</summary>
 public class ExpressionFix
 {
+    /// <summary>Converts supported standard collection initialization, preserving its concrete type and element evaluations.</summary>
+    public CollectionExpressionConversion UseCollectionExpression() =>
+        new(new CodeExpression(Source, Target));
+
+    /// <summary>Uses a caller-selected TimeProvider expression for supported framework clock reads, measurements and waits.</summary>
+    public TimeProviderReplacement UseTimeProvider(string clock) => new(Source, Target, clock);
+
+    /// <summary>Adds a simple field or property assignment to an object initializer, refusing to overwrite an existing assignment.</summary>
+    public InitializerAssignment AddInitializer(string member, string value) =>
+        new(Source, Target, member, value);
+
     internal ExpressionFix(AnalysisSource source, ExpressionSyntax target)
     {
         Source = source;

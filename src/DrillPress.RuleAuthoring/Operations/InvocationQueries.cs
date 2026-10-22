@@ -1,4 +1,3 @@
-using DrillPress;
 using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
@@ -6,6 +5,12 @@ namespace DrillPress;
 /// <summary>Fluent selections over resolved calls, receivers and parameter-associated values.</summary>
 public static class InvocationQueries
 {
+    /// <summary>The enclosing ordinary method; optionally retains a local-function or anonymous-function owner instead of walking to its containing method.</summary>
+    public static IMethodSymbol? ContainingMethod(
+        this CodeInvocation call,
+        bool skipNested = true
+    ) => SyntaxScopes.EnclosingMethod(call.Source, call.Operation.Syntax, skipNested);
+
     /// <summary>Selects each resolved call once when any configured declaration parameter has an original source value satisfying the predicate, including extension receivers.</summary>
     public static CodeQuery<CodeInvocation> WhereAnyArgument(
         this CodeQuery<CodeInvocation> calls,

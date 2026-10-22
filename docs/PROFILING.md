@@ -121,3 +121,7 @@ Measure query scaling with rule count over a synthetic solution:
 ```sh
 dotnet run --project tools/DrillPress.Benchmarks -c Release -- --queries --output artifacts/query-benchmarks
 ```
+
+Syntax roots and file-scoped `Nodes<T>()` also narrow by project/file/folder before
+enumeration. Document-local syntax inventories cache roots and structured trivia; they
+are independent of a query's filters and retain original traversal order.

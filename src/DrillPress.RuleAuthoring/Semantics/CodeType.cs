@@ -174,7 +174,8 @@ public readonly record struct CodeType(string MetadataName)
         return false;
     }
 
-    internal static CodeType FromSymbol(INamedTypeSymbol symbol) =>
+    /// <summary>Captures a bound named type's metadata name, assembly name and exact constructed arguments, including containing generic types. An original definition produces an open descriptor.</summary>
+    public static CodeType FromSymbol(INamedTypeSymbol symbol) =>
         new(MetadataNameOf(symbol))
         {
             AssemblyName = symbol.ContainingAssembly.Identity.Name,

@@ -16,7 +16,7 @@ reason, or the check that rejected the fix during validation, under the finding.
 | `CodeInvocation` | `AddArgument("name", "expression")`, optionally `.ExpectOverloadChange(from, to)` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
 | any `ICodeDeclaration` | `AddModifier(Modifier.X)` | `Propose()` for `sealed`/`static` classes (checks the whole loaded solution), else `SafeWhen` |
-| any `ICodeDeclaration` (`Code.Declarations` includes locals) | `Rename("newName")`: declaration, references, named arguments, `nameof`, `param`/`paramref` | `Propose()` for locals, private-method parameters and private members, else `SafeWhen(change => ...)`; withheld across project references, when the new name is already used or a string equals the old name |
+| any `ICodeDeclaration` (`Code.Declarations` includes locals) | `Rename("newName")`: declaration, references, named arguments, `nameof`, `param`/`paramref` | `Propose()` for locals, private-method parameters and private members, else `SafeWhen(change => ...)`; withheld across project references, when rebinding detects capture/shadowing or a string equals the old name |
 | `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
@@ -200,3 +200,44 @@ Assert `result.Output` (a validated fix shows as `  +5:32`, `+` directly before 
 line number) and the complete
 `result.FixedText(path)`. Add a case where the proof fails and assert the finding has
 no `+` and `FixedText` returns the original text.
+
+## Reusable structural and framework edits
+
+- `Fix.For(expression).UseCollectionExpression().Propose()` converts supported standard
+  collections/arrays with a written target type, preserving the concrete type and each
+  element's evaluation count and order. Nonempty dictionary initializers, capacity
+  constructors and interface targets changing concrete type are withheld.
+- `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
+  block namespace and removes one four-space indentation level. Nested namespaces,
+  directives, multiline text and ambiguous layouts are withheld. A consumer must exclude
+  source exported or concatenated into a different compilation.
+- `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
+  adding that type and uses the argument-addition validator. Existing parameter names,
+  types, ref kinds and generic arity must match; the supplied proof explains the new value.
+- `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports UTC clock reads,
+  paired Stopwatch timestamp measurements, Task delays/timed waits and supported timer/
+  cancellation-source constructors. The consumer chooses the application's clock; the
+  library requires a TimeProvider local, parameter or instance member. Local DateTime
+  kinds, ambiguous timestamp uses and unsupported argument shapes are withheld.
+- `Fix.For(property).UseInitOnly().SafeWhen(symbol => ...)` converts an unrestricted
+  automatic setter to init, proves symbol correspondence and compilation, and asks the
+  consumer to approve its construction/serialization contract. Implemented or restricted
+  setters are withheld.
+- `Fix.For(creation).AddInitializer(member, expression).SafeWhen(value => ...)` adds a
+  previously unassigned simple member, proves unchanged constructed type and binding to
+  that member, and asks the consumer to prove the new value. Existing assignments remain.
+
+Adding `static` to a sealed class replaces the written `sealed` token; `ModifierChange`
+reports both the removed and added tokens. Rename permits a destination name in an
+unrelated scope, but rebinds references spelled like either name to reject capture or
+shadowing. Independent argument additions validate their own changed defaults in an
+atomic batch; caller-info changes around other edits remain unsafe. Evaluation-count
+checks with no registered inputs succeed only when both bounded evaluation traces have
+no child evaluations, so empty collections need no special-case bypass.
+
+`Fix.For(statementNode).UseAssertAll().Propose()` converts a synchronous `foreach (var ...)`
+containing one xUnit assertion to `Assert.All`. The collection must implement
+`IEnumerable<T>` of the exact loop element type; the inner assertion must keep its binding.
+Await/ref expressions and pattern-only enumerators are withheld. Choosing this builder
+explicitly accepts xUnit's aggregated failure reporting instead of stopping at the first
+failing item. It does not decide which test loops should use collection assertions.
