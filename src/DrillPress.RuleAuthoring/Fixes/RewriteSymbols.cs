@@ -17,6 +17,12 @@ internal static class RewriteSymbols
         )
         .WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
+    private static readonly SymbolDisplayFormat _withoutTupleNames =
+        _format.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.ExpandValueTuple);
+
+    internal static string? WithoutTupleNames(ITypeSymbol type) =>
+        type.ContainingAssembly?.Identity + ":" + type.ToDisplayString(_withoutTupleNames);
+
     internal static string? Identity(ISymbol? symbol) =>
         symbol is null
             ? null

@@ -72,8 +72,14 @@ public static class RewriteChecks
         );
 
     /// <summary>Preserves expression and converted types plus enclosing member/operator binding, excluding the intentionally replaced root's symbol.</summary>
-    /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
-    public static ProofResult SameEnclosingBindings(RewriteEvidence change)
+    /// <remarks>
+    /// Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.
+    /// The replaced root keeps its converted type. A target-typed root, such as <c>default</c>, <c>[]</c>, <c>new()</c> or <c>null</c>, may replace or be replaced by an expression whose own type is exactly that converted type. A root whose value an expression statement discards may change its type. An enclosing tuple literal may change only inferred element names, and only when it converts to the same named tuple type.
+    /// </remarks>
+    public static ProofResult SameEnclosingBindings(RewriteEvidence change) =>
+        EnclosingBindings(change).Result;
+
+    internal static CheckOutcome EnclosingBindings(RewriteEvidence change)
     {
         foreach (var before in change.Before.AncestorsAndSelf().OfType<ExpressionSyntax>())
         {
@@ -81,21 +87,123 @@ public static class RewriteChecks
                 change.Context.Map(change.Source, before)
                 is not { After: ExpressionSyntax after } mapped
             )
-                return ProofResult.Unknown;
-            if (!SameTypes(change.BeforeModel, before, mapped.Model, after))
-                return ProofResult.Disproven;
+                return CheckOutcome.Unknown(
+                    FixReasons.Describe(change.Source, before)
+                        + " has no corresponding expression after the edit"
+                );
+            var root = before == change.Before;
             if (
-                before != change.Before
+                root
+                    ? !SameRootTypes(change.BeforeModel, before, mapped.Model, after)
+                    : !SameTypes(change.BeforeModel, before, mapped.Model, after)
+                        && !SameTupleIgnoringInferredNames(
+                            change.BeforeModel,
+                            before,
+                            mapped.Model,
+                            after
+                        )
+            )
+                return CheckOutcome.Disproven(
+                    FixReasons.Describe(change.Source, before)
+                        + (
+                            root
+                                ? " changes its converted type or conversion"
+                                : " changes type or conversion"
+                        )
+                );
+            if (
+                !root
                 && !RewriteSymbols.Same(
                     change.BeforeModel.GetSymbolInfo(before).Symbol,
                     mapped.Model.GetSymbolInfo(after).Symbol,
                     change.Context
                 )
             )
-                return ProofResult.Disproven;
+                return CheckOutcome.Disproven(
+                    FixReasons.Describe(change.Source, before) + " binds to a different symbol"
+                );
         }
-        return ProofResult.Proven;
+        return CheckOutcome.Proven;
     }
+
+    // The value reaching the context keeps its type; target typing and discarded values cannot change that.
+    private static bool SameRootTypes(
+        SemanticModel beforeModel,
+        ExpressionSyntax before,
+        SemanticModel afterModel,
+        ExpressionSyntax after
+    )
+    {
+        if (
+            Unparenthesized(before).Parent is ExpressionStatementSyntax
+            && Unparenthesized(after).Parent is ExpressionStatementSyntax
+        )
+            return beforeModel.GetTypeInfo(before).Type?.TypeKind != TypeKind.Error
+                && afterModel.GetTypeInfo(after).Type?.TypeKind != TypeKind.Error;
+        if (SameTypes(beforeModel, before, afterModel, after))
+            return true;
+        var first = beforeModel.GetTypeInfo(before);
+        var second = afterModel.GetTypeInfo(after);
+        return first.ConvertedType is { TypeKind: not TypeKind.Error } converted
+            && second.ConvertedType?.TypeKind is not (null or TypeKind.Error)
+            && RewriteSymbols.Identity(converted) == RewriteSymbols.Identity(second.ConvertedType)
+            && TargetTypedOrExact(first, beforeModel.GetConversion(before))
+            && TargetTypedOrExact(second, afterModel.GetConversion(after));
+    }
+
+    private static SyntaxNode Unparenthesized(ExpressionSyntax expression)
+    {
+        SyntaxNode node = expression;
+        while (node.Parent is ParenthesizedExpressionSyntax parent)
+            node = parent;
+        return node;
+    }
+
+    // A target-typed expression takes its type from the destination; any other expression must already have it.
+    private static bool TargetTypedOrExact(TypeInfo info, Conversion conversion) =>
+        conversion.MethodSymbol is null
+        && (
+            conversion.IsDefaultLiteral
+            || conversion.IsCollectionExpression
+            || conversion.IsObjectCreation
+            || conversion.IsConditionalExpression
+            || conversion.IsSwitchExpression
+            || info.Type is null && conversion.IsImplicit
+            || conversion.IsIdentity
+                && RewriteSymbols.Identity(info.Type) == RewriteSymbols.Identity(info.ConvertedType)
+        );
+
+    // Inferred tuple element names, such as One in (One, "a"), are only observable through the tuple's own
+    // type; converting to the same named tuple type discards them.
+    private static bool SameTupleIgnoringInferredNames(
+        SemanticModel beforeModel,
+        ExpressionSyntax before,
+        SemanticModel afterModel,
+        ExpressionSyntax after
+    )
+    {
+        if (before is not TupleExpressionSyntax || after is not TupleExpressionSyntax)
+            return false;
+        var first = beforeModel.GetTypeInfo(before);
+        var second = afterModel.GetTypeInfo(after);
+        return first.Type is { TypeKind: not TypeKind.Error }
+            && second.Type is { TypeKind: not TypeKind.Error }
+            && RewriteSymbols.Identity(first.ConvertedType)
+                == RewriteSymbols.Identity(second.ConvertedType)
+            && RewriteSymbols.WithoutTupleNames(first.Type)
+                == RewriteSymbols.WithoutTupleNames(second.Type)
+            && SameTupleConversion(
+                beforeModel.GetConversion(before),
+                afterModel.GetConversion(after)
+            );
+    }
+
+    private static bool SameTupleConversion(Conversion before, Conversion after) =>
+        before.MethodSymbol is null
+        && after.MethodSymbol is null
+        && before.IsIdentity == after.IsIdentity
+        && before.IsTupleLiteralConversion == after.IsTupleLiteralConversion
+        && before.IsImplicit == after.IsImplicit;
 
     /// <summary>Checks that registered retained inputs keep their syntax, symbol and conversions, independently of evaluation count.</summary>
     /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>

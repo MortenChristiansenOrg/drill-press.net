@@ -47,6 +47,30 @@ caller argument expressions and caller line numbers). Every proof runs against
 the actual edited compilation in each loaded membership, including linked
 contexts that did not report a finding.
 
+### Target-typed and discarded values
+
+The replaced root must keep its converted type, the type of the value that reaches
+its context. A target-typed expression (`default`, `[]`, `new()`, `null`, a
+target-typed conditional or switch) takes its type from that context, so it can
+replace, or be replaced by, an expression whose own type is exactly the converted
+type: `Run(default)` becomes `Run(CancellationToken.None)` and
+`Use(new List<string>())` becomes `Use([])`. When the original converts to the
+destination, as `new List<string>()` passed as `IEnumerable<string>` does, `[]`
+would choose a different runtime type, and the fix is withheld unless both sides
+have the same type.
+
+The value of an expression statement is discarded, so its type may change:
+`span.Activity?.SetStatus(code);` can become `span.Failed(error);` even though the
+new call returns `bool`. The proof still owns what the new call does.
+
+A tuple literal's element names can be inferred from its elements, so replacing
+`1` with `One` in `(1, "a")` changes the tuple's type to `(int One, string)`.
+The inferred name is observable only through that type, so an enclosing tuple may
+change inferred names when it converts to the same named type before and after,
+such as a declared return or parameter type. In `var pair = (1, "a")` or a generic
+argument, the name would become part of a type that later code can use, and the
+fix is withheld.
+
 Template holes and the whole replacement are parenthesized only where the
 destination would otherwise parse differently, so `!string.Equals(a, b)` becomes
 `a != b` while `F() * 2` with `F()` replaced by `a + b` becomes `(a + b) * 2`.

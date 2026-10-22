@@ -54,6 +54,10 @@ rules.Rule("TEAM030", "Use == for ordinal string equality.")
 - `MustPreserve(ExpressionBehavior.EvaluationCounts)` requires each kept operand to run
   exactly once; `EvaluationOrder` keeps straight-line order; `NullReceiverBehavior`
   requires a receiver whose null check would move to be intrinsically non-null.
+- The replacement keeps the converted type of the replaced expression. Target-typed
+  replacements such as `default` → `CancellationToken.None` or `new List<string>()`
+  → `[]` work when the original already has the destination's type; a discarded
+  statement value (`x?.Log();` → `Track(x);`) may change type.
 - Prove the policy fact only you know (that the methods are equivalent). Compiler
   success alone is not proof.
 
