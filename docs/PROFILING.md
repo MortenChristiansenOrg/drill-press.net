@@ -54,8 +54,9 @@ for interpolated string handlers. Each document binds once for all rules and
 queries, and documents bind in parallel while candidates keep their order.
 Name and target checks run before `IsResolved`, whose compiler-error check
 compiles each enclosing member once and queries the exact span only when that
-member has errors. A rule cheaper to filter by a custom `Where` alone still binds
-every document; start call queries with a name-based selector when possible.
+member has errors. Names carry through `Where` and `ExceptWhen` in any order, but
+a call query filtered only by a custom `Where`, or reshaped by `Select`,
+`SelectMany`, `Union` or `Concat` before naming its target, binds every document.
 
 Path, project, folder, namespace and name globs compile once per distinct pattern.
 
