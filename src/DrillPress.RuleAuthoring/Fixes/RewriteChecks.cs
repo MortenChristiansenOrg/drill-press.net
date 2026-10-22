@@ -1,3 +1,4 @@
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,33 +11,65 @@ namespace DrillPress;
 public static class RewriteChecks
 {
     /// <summary>Preserves every original source expression's bound symbol, type and conversion in this compilation. Use for structural edits that intentionally change no expressions.</summary>
-    public static ProofResult SameSourceBindings(RewriteEvidence change)
+    /// <remarks>When every edit lies inside a member body that remains that member's body, only those bodies are rebound: declarations are unchanged, so every other expression binds as before. Other edits rebind the whole compilation. Expressions edited by other proposals validated in the same batch are left to those proposals' proofs.</remarks>
+    public static ProofResult SameSourceBindings(RewriteEvidence change) =>
+        SourceBindings(change).Result;
+
+    internal static CheckOutcome SourceBindings(RewriteEvidence change)
     {
-        foreach (var source in change.Context.Original.Sources)
-        foreach (
-            var expression in source
-                .Tree.GetRoot(source.Project.CancellationToken)
-                .DescendantNodes()
-                .OfType<ExpressionSyntax>()
-        )
-        {
-            if (
-                change.Context.Map(source, expression)
-                is not { After: ExpressionSyntax after } mapped
+        var context = change.Context;
+        var own = change.OwnEdits ?? context.Edits;
+        var foreign = context
+            .Edits.Where(edit => change.OwnEdits is not null && !own.Contains(edit))
+            .ToLookup(edit => edit.FileIdentity);
+        var expressions = EditRegions.Read(context, own) is { } regions
+            ? regions.SelectMany(region =>
+                region
+                    .Region.DescendantNodes()
+                    .OfType<ExpressionSyntax>()
+                    .Select(expression => (region.Source, Expression: expression))
             )
-                return ProofResult.Unknown;
+            : context.Original.Sources.SelectMany(source =>
+                source
+                    .Tree.GetRoot(source.Project.CancellationToken)
+                    .DescendantNodes()
+                    .OfType<ExpressionSyntax>()
+                    .Select(expression => (Source: source, Expression: expression))
+            );
+        foreach (var (source, expression) in expressions)
+        {
+            context.Original.CancellationToken.ThrowIfCancellationRequested();
+            if (EditsOverlap(foreign[source.Document.FileIdentity], expression.Span))
+                continue;
+            if (context.Map(source, expression) is not { After: ExpressionSyntax after } mapped)
+                return CheckOutcome.Unknown(
+                    FixReasons.Describe(source, expression)
+                        + " has no corresponding expression after the edit"
+                );
+            if (!SameTypes(source.Model, expression, mapped.Model, after))
+                return CheckOutcome.Disproven(
+                    FixReasons.Describe(source, expression) + " changes type or conversion"
+                );
             if (
-                !SameTypes(source.Model, expression, mapped.Model, after)
-                || !RewriteSymbols.Same(
+                !RewriteSymbols.Same(
                     source.Model.GetSymbolInfo(expression).Symbol,
                     mapped.Model.GetSymbolInfo(after).Symbol,
-                    change.Context
+                    context
                 )
             )
-                return ProofResult.Disproven;
+                return CheckOutcome.Disproven(
+                    FixReasons.Describe(source, expression) + " binds to a different symbol"
+                );
         }
-        return ProofResult.Proven;
+        return CheckOutcome.Proven;
     }
+
+    private static bool EditsOverlap(IEnumerable<SourceEdit> edits, TextSpan span) =>
+        edits.Any(edit =>
+            edit.Length == 0
+                ? span.Start < edit.Start && edit.Start < span.End
+                : edit.Start < span.End && span.Start < edit.Start + edit.Length
+        );
 
     /// <summary>Preserves expression and converted types plus enclosing member/operator binding, excluding the intentionally replaced root's symbol.</summary>
     /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
@@ -179,25 +212,30 @@ public static class RewriteChecks
     /// <summary>Compares compiler-supplied argument constants on retained calls, including caller-line and caller-argument-expression values outside the edited expression.</summary>
     /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change) =>
-        CompilerSuppliedArguments(change, null);
+        CompilerSuppliedArguments(change, null).Result;
 
-    internal static ProofResult CompilerSuppliedArguments(
+    // Caller line numbers change only after an edit and caller argument expressions only around one, so calls
+    // ending before a proposal's first edit in a file keep their values; other proposals check their own edits.
+    internal static CheckOutcome CompilerSuppliedArguments(
         RewriteEvidence change,
         SyntaxNode? approvedTransition
     )
     {
-        foreach (
-            var source in change.Context.Original.Sources.Where(source =>
-                change.Context.Edits.Any(edit => edit.FileIdentity == source.Document.FileIdentity)
-            )
-        )
+        var own = change.OwnEdits ?? change.Context.Edits;
+        foreach (var source in change.Context.Original.Sources)
         {
+            var first = own.Where(edit => edit.FileIdentity == source.Document.FileIdentity)
+                .Select(edit => (int?)edit.Start)
+                .Min();
+            if (first is null)
+                continue;
             foreach (
                 var syntax in source
                     .Tree.GetRoot(source.Project.CancellationToken)
-                    .DescendantNodes()
+                    .DescendantNodes(node => node.Span.End > first)
                     .Where(node =>
-                        node
+                        node.Span.End > first
+                        && node
                             is InvocationExpressionSyntax
                                 or BaseObjectCreationExpressionSyntax
                                 or ElementAccessExpressionSyntax
@@ -215,7 +253,10 @@ public static class RewriteChecks
                 )
                     continue;
                 if (change.Context.Map(source, syntax) is not { } mapped)
-                    return ProofResult.Unknown;
+                    return CheckOutcome.Unknown(
+                        FixReasons.Describe(source, syntax)
+                            + " receives compiler-supplied arguments but has no corresponding call after the edit"
+                    );
                 var newArguments = Arguments(mapped.Model.GetOperation(mapped.After));
                 if (newArguments is null)
                 {
@@ -228,7 +269,10 @@ public static class RewriteChecks
                         )
                     )
                         continue;
-                    return ProofResult.Unknown;
+                    return CheckOutcome.Unknown(
+                        FixReasons.Describe(source, syntax)
+                            + " receives compiler-supplied arguments but is no longer a call after the edit"
+                    );
                 }
                 var before = oldArguments
                     .Where(argument => argument.ArgumentKind == ArgumentKind.DefaultValue)
@@ -237,10 +281,13 @@ public static class RewriteChecks
                     .Where(argument => argument.ArgumentKind == ArgumentKind.DefaultValue)
                     .Select(DefaultIdentity);
                 if (!before.SequenceEqual(after))
-                    return ProofResult.Disproven;
+                    return CheckOutcome.Disproven(
+                        FixReasons.Describe(source, syntax)
+                            + " receives different compiler-supplied arguments, such as a caller line number"
+                    );
             }
         }
-        return ProofResult.Proven;
+        return CheckOutcome.Proven;
     }
 
     internal static IOperation? Operation(SemanticModel model, SyntaxNode node)

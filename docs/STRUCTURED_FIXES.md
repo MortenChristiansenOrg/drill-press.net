@@ -55,6 +55,16 @@ bound expression symbols/conversions, and caller-supplied argument constants.
 Labels, goto, yield, local functions, directives and ambiguous header-to-statement
 comments are conservatively unsupported.
 
+The binding check is proportional to the edit. Binding depends on the compilation's
+declarations and on the body being bound, so an edit strictly inside a member body,
+which is still that member's body afterwards, cannot change how anything outside the
+body binds. `RewriteChecks.SameSourceBindings` therefore rebinds only the edited
+bodies; edits in initializers, attributes, signatures or top-level statements rebind
+the whole compilation. Within a combined batch, expressions edited by another
+proposal are left to that proposal's own proof, so an unrelated replacement in the
+same method does not withhold the braces. Namespaces compare by their qualified
+name: every `namespace Company.Import` declaration merges into one symbol.
+
 Layout reads local indentation and the file newline convention. The closing brace
 follows any trailing line comment on a fresh line; existing multiline token text
 and unrelated members are untouched. Independent branch edits can coexist. Nested

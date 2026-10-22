@@ -54,6 +54,69 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
     }
 
     [Theory]
+    [InlineData("namespace Company.Import;\n")]
+    [InlineData("namespace Company.Import.Feeds;\n")]
+    [InlineData("namespace Company.Import {\n")]
+    public async Task Branches_in_qualified_namespaces_are_wrapped(string header)
+    {
+        var footer = header.EndsWith("{\n") ? "\n}" : "";
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    header
+                        + "class A { void M(bool test) { if (test) Run(); } void Run() {} }"
+                        + footer
+                ),
+                new("B.cs", "namespace Company.Other;\nclass B { }"),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(
+            header
+                + "class A { void M(bool test) { if (test) {\n    Run();\n} } void Run() {} }"
+                + footer,
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
+    public async Task Expression_replacements_elsewhere_in_the_batch_do_not_withhold_braces()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { void M(bool test) { if (test) Run(); Use(string.Empty); } void Run() {} void Use(string value) {} }"
+                ),
+            ]
+        );
+        var rules = Rules();
+        var empty = CodeType.Of<string>().Member(nameof(string.Empty));
+        rules
+            .Rule("EMPTY", "Use an empty literal.")
+            .For(empty.References)
+            .Forbid(fix: reference =>
+                Fix.For(reference).ReplaceWithLiteral("").SafeWhen(change => change.After.Is(""))
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true, true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(
+            "class A { void M(bool test) { if (test) {\n    Run();\n} Use(\"\"); } void Run() {} void Use(string value) {} }",
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Theory]
     [InlineData("class A { void M(bool test) { if (test) /* header */ Run(); } void Run() {} }")]
     [InlineData(
         "class A { void M(bool test) { if (test) Run(); } void Run([System.Runtime.CompilerServices.CallerLineNumber] int line = 0) {} }"

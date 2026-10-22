@@ -144,7 +144,7 @@ public sealed class ArgumentRemoval
         return parameters is not null
             && ArgumentTransitionChecks.RetainedArguments(evidence, parameters)
             && RewriteChecks.SameEnclosingBindings(rewrite) == ProofResult.Proven
-            && RewriteChecks.CompilerSuppliedArguments(rewrite, syntax) == ProofResult.Proven
+            && RewriteChecks.CompilerSuppliedArguments(rewrite, syntax).Holds
             && (
                 ArgumentTransitionChecks.SameDefaults(evidence, parameters)
                 || _defaults?.Invoke(evidence) == true

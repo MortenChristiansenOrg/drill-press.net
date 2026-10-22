@@ -1,3 +1,4 @@
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -73,12 +74,13 @@ public sealed class BlockWrapping
                         source.Document.FileIdentity == _source.Document.FileIdentity
                     )
                     .ToArray();
-                return sources.Length > 0 && sources.All(source => Validate(context, source));
+                return sources.Length > 0
+                    && sources.All(source => Validate(context, source, edits));
             }
         );
     }
 
-    private bool Validate(RewriteContext context, AnalysisSource source)
+    private bool Validate(RewriteContext context, AnalysisSource source, SourceEdit[] edits)
     {
         var before =
             source
@@ -88,7 +90,8 @@ public sealed class BlockWrapping
             before is null
             || before.Span != _statement.Span
             || !Eligible(source, before)
-            || context.Evidence(source, before) is not { After: StatementSyntax after } evidence
+            || context.Evidence(source, before, edits)
+                is not { After: StatementSyntax after } evidence
             || after.Parent is not BlockSyntax { Statements.Count: 1 } block
             || block.Statements[0] != after
             || !SyntaxFactory.AreEquivalent(before, after)
@@ -96,7 +99,7 @@ public sealed class BlockWrapping
         )
             return false;
         return RewriteChecks.SameSourceBindings(evidence) == ProofResult.Proven
-            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven;
+            && RewriteChecks.CompilerSuppliedArguments(evidence, null).Holds;
     }
 
     private static bool SameOwner(

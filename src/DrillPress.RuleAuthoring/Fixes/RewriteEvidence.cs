@@ -1,3 +1,4 @@
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
@@ -8,13 +9,18 @@ public sealed class RewriteEvidence
     internal RewriteEvidence(
         RewriteContext context,
         NodeRewrite target,
-        IReadOnlyList<InputRewrite> inputs
+        IReadOnlyList<InputRewrite> inputs,
+        IReadOnlyList<SourceEdit>? ownEdits = null
     )
     {
         Context = context;
         Target = target;
         Inputs = inputs;
+        OwnEdits = ownEdits;
     }
+
+    /// <summary>The edits of the proposal being proved, when known; other edits in <see cref="RewriteContext.Edits"/> belong to proposals validated together with it, each proving its own changes.</summary>
+    internal IReadOnlyList<SourceEdit>? OwnEdits { get; }
 
     /// <summary>The complete rewritten compilation and original-text edits.</summary>
     public RewriteContext Context { get; }
