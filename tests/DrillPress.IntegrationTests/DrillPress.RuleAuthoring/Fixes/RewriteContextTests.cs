@@ -1,5 +1,6 @@
 using DrillPress;
 using DrillPress.IntegrationTests.TestInfrastructure;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
@@ -68,5 +69,55 @@ public sealed class RewriteContextTests(SdkFixture fixture) : IClassFixture<SdkF
         Assert.True(safe);
         Assert.Equal("2 + 1", root!.After.ToString());
         Assert.Null(child);
+    }
+
+    [Fact]
+    public async Task Source_symbols_correspond_across_the_original_and_rewritten_compilations()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    """
+                    namespace Company.Time;
+                    class Clock { public static int Now => 1; public static int Read() => 1; }
+                    class Other { }
+                    class A { int M() => Clock.Now; }
+                    """
+                ),
+            ]
+        );
+        bool[] comparisons = [];
+        var rules = new RuleCatalog();
+        rules
+            .Rule("CLOCK", "Read the clock.")
+            .For(CodeType.Named("Company.Time.Clock").Member("Now").References)
+            .Forbid(fix: reference =>
+                Fix.For(reference)
+                    .ReplaceWith("Clock.Read()")
+                    .SafeWhen(change =>
+                    {
+                        var before = change.Before.Symbol!.ContainingType;
+                        var after = change.After.Symbol!.ContainingType;
+                        var other = change.Rewrite.Context.Rewritten.GetTypeByMetadataName(
+                            "Company.Time.Other"
+                        );
+                        comparisons =
+                        [
+                            change.Same(before, after),
+                            change.Same(before.ContainingNamespace, after.ContainingNamespace),
+                            change.Same(before, other),
+                            SymbolEqualityComparer.Default.Equals(before, after),
+                        ];
+                        return comparisons[0];
+                    })
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal([true, true, false, false], comparisons);
     }
 }

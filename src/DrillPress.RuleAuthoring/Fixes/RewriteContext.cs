@@ -126,6 +126,12 @@ public sealed class RewriteContext(
         return _trees.Value.GetValueOrDefault(source.Tree);
     }
 
+    /// <summary>Tells whether an original symbol and a rewritten symbol denote the same entity, such as a source type, member, local or parameter.</summary>
+    /// <remarks>Use this instead of <see cref="SymbolEqualityComparer"/>, which never equates source symbols from two compilations. Namespaces and metadata symbols compare by their qualified identity; source symbols must also be declared at the corresponding rewritten declaration.</remarks>
+    /// <param name="before">A symbol from <see cref="Original"/>, or null.</param>
+    /// <param name="after">A symbol from <see cref="Rewritten"/>, or null.</param>
+    public bool Same(ISymbol? before, ISymbol? after) => RewriteSymbols.Same(before, after, this);
+
     /// <summary>Maps an original span through the complete batch. Edits inside the span change its length; an edit crossing either boundary has no mapping.</summary>
     internal TextSpan? MapSpan(AnalysisSource source, TextSpan span)
     {

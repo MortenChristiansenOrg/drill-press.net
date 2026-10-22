@@ -48,6 +48,9 @@ rules.Rule("TEAM030", "Use == for ordinal string equality.")
 - The proof receives `ExpressionChange`: `Before` and `After` are `CodeExpression`s
   bound to the original and rewritten compilations; `Kept` lists each kept operand with
   its uses after the edit; `Rewrite` exposes raw syntax and semantic models.
+- Compare symbols from `Before` and `After` with `change.Same(before, after)`.
+  `SymbolEqualityComparer` is always false for your own source types and members
+  across the two compilations, which silently fails a proof.
 - `MustPreserve(ExpressionBehavior.EvaluationCounts)` requires each kept operand to run
   exactly once; `EvaluationOrder` keeps straight-line order; `NullReceiverBehavior`
   requires a receiver whose null check would move to be intrinsically non-null.

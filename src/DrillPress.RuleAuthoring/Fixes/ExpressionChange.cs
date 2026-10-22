@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
@@ -30,6 +31,11 @@ public sealed class ExpressionChange
 
     /// <summary>Every kept operand with all of its uses in the replacement; zero or several uses are visible here.</summary>
     public IReadOnlyList<RetainedExpression> Kept { get; }
+
+    /// <summary>Tells whether a symbol read before the change and one read after it denote the same entity, such as the same source type or member. <see cref="Microsoft.CodeAnalysis.SymbolEqualityComparer"/> never equates source symbols across the two compilations.</summary>
+    /// <param name="before">A symbol from <see cref="Before"/>'s compilation, or null.</param>
+    /// <param name="after">A symbol from <see cref="After"/>'s compilation, or null.</param>
+    public bool Same(ISymbol? before, ISymbol? after) => Rewrite.Context.Same(before, after);
 
     /// <summary>Low-level syntax, semantic models and the complete edit batch, for proofs needing compiler detail.</summary>
     public RewriteEvidence Rewrite { get; }

@@ -27,7 +27,13 @@ with their type, constant and symbol helpers. `Kept` lists each original operand
 with every use in the replacement, including zero or repeated uses. `Rewrite`
 exposes the raw syntax, semantic models and complete edit batch. A false proof
 withholds the fix and keeps the finding. Rewritten sources are read-only and
-always use the rewritten compilation. `RefersTo` unwraps only parentheses and
+always use the rewritten compilation. Compare symbols across the two
+compilations with `change.Same(before, after)` (or `RewriteContext.Same`):
+`SymbolEqualityComparer` never equates a source type, member, local or parameter
+from the original compilation with its rewritten counterpart. `Same` compares the
+qualified identity and, for source symbols, the corresponding rewritten
+declaration; namespaces and metadata symbols compare by identity alone.
+`RefersTo` unwraps only parentheses and
 implicit non-user conversions; this identifies a member without approving loss
 of its conversion or evaluation.
 
