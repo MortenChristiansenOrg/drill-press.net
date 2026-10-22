@@ -368,7 +368,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators,
-            project.AnalyzerOptions.AdditionalFiles,
+            AdditionalFilesInBuildOrder(project),
             (CSharpParseOptions)project.ParseOptions!,
             project.AnalyzerOptions.AnalyzerConfigOptionsProvider
         );
@@ -394,6 +394,27 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             (CSharpCompilation)generatedCompilation,
             results.GeneratedTrees.ToHashSet()
         );
+    }
+
+    // The workspace lists additional files by random document ID; the compiler receives them in
+    // MSBuild item order, which decides the order of generator outputs such as Razor's.
+    private static ImmutableArray<AdditionalText> AdditionalFilesInBuildOrder(Project project)
+    {
+        var order = new Dictionary<string, int>();
+        foreach (var document in project.AdditionalDocuments)
+        {
+            if (document.FilePath is { } path)
+            {
+                order.TryAdd(path, order.Count);
+            }
+        }
+
+        return
+        [
+            .. project.AnalyzerOptions.AdditionalFiles.OrderBy(file =>
+                order.GetValueOrDefault(file.Path, int.MaxValue)
+            ),
+        ];
     }
 
     private static async Task<string[]> GetDiagnosticIdsAsync(
