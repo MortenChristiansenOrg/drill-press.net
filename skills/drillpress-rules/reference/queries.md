@@ -95,8 +95,10 @@ parameters, symbols):
   `CanUseVar`, `Variables`; queries `WithExplicitType()`, `WithInitializer()`, `WhereVarPreservesType()`.
 - `CodeNode<T>`: `Syntax`, `ContainingSymbol`, `Operation`, `TypeInfo`, `Constant`
   (`HasValue` first), `AsExpression()`; query `Duplicates(minimumTokens)` (repeated token shapes).
-- `CodeBody` (`method.Body()`, `methods.Body()`): `Calls()`, `Calls(member)`, `Nodes<T>()`,
-  `ControlFlowNodes(kinds)`, `NestedBodies()`, `IsEmpty`; `bodies.Conditions().Checks(pattern)`
+- `CodeBody` (`method.Body()`, `methods.Body()`, `CodeBody.Of(source, node)` for any syntax
+  node): `Calls()`, `Calls(member)`, `Nodes<T>()`, `ControlFlowNodes(kinds)`, `NestedBodies()`,
+  `IsEmpty`, `Sections()` (`CodeSection`: statements between blank lines, as in Arrange/Act/
+  Assert, with `Statements`, `Index`, `Calls()`, `Nodes<T>()`); `bodies.Conditions().Checks(pattern)`
   with `ConditionPattern.Null`, `EmptyString`, `NullOrEmptyString`, `NullOrWhiteSpaceString`,
   `ForCall(...)`; `bodies.NullChecks()`.
 
@@ -146,6 +148,9 @@ parameters, symbols):
   value of the type (or a derived/implementing type) readable by name at the element,
   nearest first; instance state is left out in static contexts. Use it to find the
   `CancellationToken` or `TimeProvider` to pass on.
+- `element.ExplanatoryComment()` / `HasExplanatoryComment()`, `source.ExplanatoryComment(position)`:
+  the ordinary comment on the line, on the line above, or above the statement or member;
+  documentation and `drillpress-allow` comments do not count. Use for "explain this `!`".
 - `CodeNullCheck`: `CheckedValue`, `Polarity`, `Domain`, `Form`, `IsKnownNotNullBeforeCheck`.
 - `method.Flow` (`MethodFlow`): `Graph`, `Data` (check `Succeeded`), `NullState(expression)`.
 

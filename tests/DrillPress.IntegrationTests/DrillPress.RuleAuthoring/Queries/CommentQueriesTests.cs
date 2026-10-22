@@ -1,4 +1,5 @@
 using DrillPress.IntegrationTests.TestInfrastructure;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Queries;
@@ -141,5 +142,61 @@ public sealed class CommentQueriesTests(SdkFixture fixture) : IClassFixture<SdkF
 
         Assert.Equal(expected, comment.Text);
         Assert.Equal(CodeCommentKind.Documentation, comment.Kind);
+    }
+
+    [Fact]
+    public void Explanatory_comments_are_ordinary_comments_on_the_line_or_above_its_statement()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Comments",
+            [
+                new(
+                    "Comments.cs",
+                    """
+                    class C {
+                        static string Call(params string[] values) => "";
+                        string M(string? a, string? b, string? c, string? d) {
+                            var x = a!; // a is set by Init
+                            // b is checked by the caller
+                            var y = b!;
+
+                            var z = Call(
+                                c!);
+                            /* d always has a value */
+                            var w = Call(x, y, z,
+                                d!);
+                            // drillpress-allow X: an allowance is not an explanation
+                            return a!;
+                        }
+                        /// <summary>Documentation describes the member.</summary>
+                        string N(string? e) => e!;
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var suppressions = Code.Nodes<PostfixUnaryExpressionSyntax>().In(solution);
+
+        var comments = suppressions
+            .Select(node =>
+                node.Source.ExplanatoryComment(node.Syntax.OperatorToken.SpanStart)?.Text.Trim()
+            )
+            .ToArray();
+        var elements = suppressions.Select(node => node.HasExplanatoryComment()).ToArray();
+
+        Assert.Equal(
+            [
+                "a is set by Init",
+                "b is checked by the caller",
+                null,
+                "d always has a value",
+                null,
+                null,
+            ],
+            comments
+        );
+        Assert.Equal([true, true, false, true, false, false], elements);
     }
 }

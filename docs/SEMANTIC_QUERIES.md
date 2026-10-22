@@ -72,6 +72,14 @@ occurrences. `CodeNode.ContainingSymbol` exposes the actual executable owner.
 Control-flow categories are explicit flags, not an evolving test-style policy.
 Syntax selections include unreachable code; presence does not prove execution.
 
+`CodeBody.Of(source, node, nested)` scopes the same body queries to any original syntax
+node of that source, such as one statement or a loop body; a node from another tree is
+rejected. `body.Sections()` splits a block body into `CodeSection`s at whitespace-only
+lines between statements, as in a test's Arrange, Act and Assert. Comment lines do not
+split a section, and blank lines inside a statement, comment or disabled code do not
+count; an expression body has no sections. Sections keep the body's nested-function
+policy for their `Calls()` and `Nodes<T>()`.
+
 ```csharp
 var checks = tests.Body().NullChecks();
 var nonNullReferences = checks.Where(check =>

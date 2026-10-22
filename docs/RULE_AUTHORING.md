@@ -467,6 +467,13 @@ removal keeps a separator when needed. Token correspondence, compilation and
 compiler-supplied argument checks withhold changes that alter parsing or caller
 information, such as subsequent `CallerLineNumber` values.
 
+`element.ExplanatoryComment()` (or `source.ExplanatoryComment(position)` for a token
+inside the element) finds the ordinary comment that explains a line: a `//` or `/* */`
+comment on it, on the comment line directly above it, or directly above the statement
+or member that contains it. Documentation comments and `drillpress-allow` comments do
+not count, and a blank line separates a comment from the code below it.
+`HasExplanatoryComment()` tests for one, for rules such as "say why this `!` is safe".
+
 Use `Remove(preserveLines: true)` to retain every original line break while
 deleting the comment text, including multiline comments. Standalone comment lines
 become empty lines. The same safety checks still apply in every affected loaded

@@ -82,6 +82,29 @@ rules.Rule(&quot;TEAM006&quot;, &quot;Share the repeated format-dispatch express
 <p><code>CodeMethod</code> exposes <code>Name</code>, <code>IsAsync</code>, <code>IsStatic</code>, <code>ReturnsVoid</code>, <code>ReturnTypeIs</code>, <code>Parameters</code>, <code>HasEmptyBody</code>, <code>Body()</code>, <code>ContainingType</code>, <code>Flow</code>, <code>Reaches</code>, <code>Syntax</code> and <code>Symbol</code>. The symbol can be null when binding fails.</p>
 <p><code>CodeTypeDefinition</code> is a named type with <code>Namespace</code>, kind tests such as <code>IsClass</code>, <code>IsRecord</code> and <code>IsStatic</code>, and <code>Implements</code>/<code>DerivesFrom</code>. <code>Code.TypeDeclarations</code> yields each written part instead; <code>TopLevel()</code> keeps those outside other types. <code>CodeField</code>, <code>CodeProperty</code> and <code>CodeParameter</code> expose <code>Type</code>, <code>TypeIs&lt;T&gt;()</code> and their initializer or default value.</p>
 <p><code>Code.Declarations</code> covers every other declared symbol—events, locals, accessors—as <code>CodeSymbol</code>. <code>Code.ReferencesTo(symbol)</code> follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries.</p>
+<h2 id="bodies">Sections, scopes and explanatory comments</h2>
+<div class="codeblock"><div class="codehead"><span>Explain a null-forgiving operator; assert only at the end of a test</span></div><pre tabindex="0" data-check="program" id="example-bodies"><code>using DrillPress;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+var rules = new RuleCatalog();
+
+rules.Rule(&quot;NULL001&quot;, &quot;Say in a comment why this ! is safe.&quot;)
+    .For(Code.Nodes&lt;PostfixUnaryExpressionSyntax&gt;()
+        .Where(node =&gt; node.Syntax.IsKind(SyntaxKind.SuppressNullableWarningExpression)
+            &amp;&amp; node.Source.ExplanatoryComment(node.Syntax.OperatorToken.SpanStart) is null))
+    .ReportAt(node =&gt; node.Syntax.OperatorToken)
+    .Forbid();
+
+rules.Rule(&quot;TEST001&quot;, &quot;Assert in the last section of a test.&quot;)
+    .For(Code.TestMethods
+        .SelectMany(test =&gt; test.Body()?.Sections().SkipLast(1) ?? [])
+        .SelectMany(section =&gt; section.Calls())
+        .Where(call =&gt; call.Target.ContainingType.Name == &quot;Assert&quot;))
+    .Forbid();</code></pre></div>
+<p><code>ExplanatoryComment(position)</code> on a source, or <code>element.ExplanatoryComment()</code> and <code>HasExplanatoryComment()</code>, find the ordinary <code>//</code> or <code>/* */</code> comment on the line, on the comment line directly above it, or directly above the statement or member it belongs to. Documentation comments and <code>drillpress-allow</code> comments do not explain code, and a blank line separates a comment from the code below it.</p>
+<p><code>body.Sections()</code> splits a block body at whitespace-only lines between statements, like the Arrange, Act and Assert sections of a test; comment lines and blank lines inside a statement or comment do not split it. Each <code>CodeSection</code> has its <code>Statements</code>, <code>Index</code>, <code>Calls()</code> and <code>Nodes&lt;T&gt;()</code>. <code>CodeBody.Of(source, node)</code> scopes <code>Calls()</code>, <code>Nodes&lt;T&gt;()</code> and the other body queries to any syntax node, such as a loop body.</p>
 <h2 id="locations">Report the smallest useful location</h2>
 <div class="codeblock"><div class="codehead"><span>Report the internal keyword, not the entire type</span></div><pre tabindex="0" data-check="program" id="example-15"><code>using DrillPress;
 
@@ -102,7 +125,7 @@ rules.Rule(&quot;TEAM007&quot;, &quot;Use implicit assembly visibility for top-l
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#files">Files and path patterns</a><a href="#vocabulary">A small compiler vocabulary</a><a href="#shapes">Statement and declaration shapes</a><a href="#nodes">Choose a syntax kind</a><a href="#declarations">Methods, types, and all other declarations</a><a href="#locations">Report the smallest useful location</a><a href="#generated">Generated and linked source</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#files">Files and path patterns</a><a href="#vocabulary">A small compiler vocabulary</a><a href="#shapes">Statement and declaration shapes</a><a href="#nodes">Choose a syntax kind</a><a href="#declarations">Methods, types, and all other declarations</a><a href="#bodies">Sections, scopes and explanatory comments</a><a href="#locations">Report the smallest useful location</a><a href="#generated">Generated and linked source</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">
