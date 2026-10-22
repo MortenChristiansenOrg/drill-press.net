@@ -141,6 +141,11 @@ parameters, symbols):
   `Symbol`, `RefersTo(member)`, `IsNameOf(symbol)`, `FlowState`, `MayBeNull`,
   `DeclaredNullability`, `Facts` (`IsInsideNameOf`, `IsInsideExpressionTree`, comments),
   `AsInvocation()`, `AsBuiltString()`.
+- `element.ValuesInScope<T>()` / `ValuesInScope(type)`: `ScopedValue` (`Symbol`, `Name`,
+  `Kind`: `Local`/`Parameter`/`Field`/`Property`, `Type` with nullable annotation) for each
+  value of the type (or a derived/implementing type) readable by name at the element,
+  nearest first; instance state is left out in static contexts. Use it to find the
+  `CancellationToken` or `TimeProvider` to pass on.
 - `CodeNullCheck`: `CheckedValue`, `Polarity`, `Domain`, `Form`, `IsKnownNotNullBeforeCheck`.
 - `method.Flow` (`MethodFlow`): `Graph`, `Data` (check `Succeeded`), `NullState(expression)`.
 

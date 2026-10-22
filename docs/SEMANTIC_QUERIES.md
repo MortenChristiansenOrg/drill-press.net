@@ -197,6 +197,18 @@ and loops are ignored. It does not follow a second local, a field or a helper's
 result, and only `Local`'s type tells a rule whether the local holds a query or, for
 example, a session that starts unrelated queries.
 
+## Values in scope
+
+`element.ValuesInScope(type)` and `ValuesInScope<T>()` return the `ScopedValue`s code at
+the element's location can read by name whose declared type is the type, derives from
+it or implements it: locals whose declaration ends before the location (latest first,
+excluding a local inside its own initializer), parameters of the enclosing lambdas,
+local functions and member (innermost first), primary constructor parameters, and the
+fields and properties of the containing types, ordered by name. A static member, static
+lambda or static local function leaves out instance fields, properties and primary
+constructor parameters. `Type` keeps nullable annotations so a policy can reject
+`TimeProvider?`; values only reachable through another value are not listed.
+
 ## Contextual project scopes
 
 `Code.Calls.InNonTestProjects().InProjectsWithType(contract)` shares evaluated
