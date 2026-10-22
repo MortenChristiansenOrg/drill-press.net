@@ -16,6 +16,7 @@ reason, or the check that rejected the fix during validation, under the finding.
 | `CodeInvocation` | `AddArgument("name", "expression")`, optionally `.ExpectOverloadChange(from, to)` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
 | any `ICodeDeclaration` | `AddModifier(Modifier.X)` | `Propose()` for `sealed`/`static` classes (checks the whole loaded solution), else `SafeWhen` |
+| any `ICodeDeclaration` (`Code.Declarations` includes locals) | `Rename("newName")`: declaration, references, named arguments, `nameof`, `param`/`paramref` | `Propose()` for locals, private-method parameters and private members, else `SafeWhen(change => ...)`; withheld across project references, when the new name is already used or a string equals the old name |
 | `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |

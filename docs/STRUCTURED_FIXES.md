@@ -169,3 +169,42 @@ accessibility. `DeclarationBehavior.Contract` also checks static/virtual/readonl
 and related compiler flags, but none of these invariants replaces the required
 behavior proof for an arbitrary modifier. The SDK has no preference for implicit
 accessibility.
+
+## Renaming
+
+```csharp
+rules.Rule("LOCAL-NAMES", "Name locals in camelCase.")
+    .For(Code.Declarations.Where(declaration => declaration.Symbol is ILocalSymbol && char.IsUpper(declaration.Name[0])))
+    .Forbid(fix: local => Fix.For(local).Rename(char.ToLowerInvariant(local.Name[0]) + local.Name[1..]).Propose());
+```
+
+`Rename(newName)` replaces the declaring identifier and every reference to the symbol,
+including named arguments, `nameof` and the `name` of documentation `param` and
+`paramref` elements. A keyword name is written with `@`. It renames locals, local
+functions, parameters, fields, properties and ordinary methods; it withholds virtual,
+abstract, overriding, extern, partial and interface-implementing members, `Main`, lambda
+parameters (minimal APIs bind them by name) and record parameters.
+
+`Propose()` owns the proof when only the containing member or type can observe the name:
+locals, local functions and their parameters, parameters of private methods, and private
+members. It searches the member, or the outermost containing type when all its parts are
+in one file, and every loaded source otherwise. Wider renames need
+`SafeWhen(change => ...)` over `RenameChange`, where you state that reflection,
+serialization, model binding and unloaded assemblies do not depend on the old name.
+
+Either way, the fix is withheld when:
+
+- a declaration or reference is in generated or non-editable source;
+- a reference is in another project than the declaration, because each compilation is
+  validated against its project references as they were;
+- the searched source already uses the new name as an identifier, which could capture or
+  be shadowed by the renamed symbol;
+- a string literal in the searched source equals the old name, because it may name the
+  symbol through reflection or an attribute such as `NotNullIfNotNull`.
+
+In every affected compilation, each renamed reference must bind to the renamed symbol,
+and every other identifier spelled like the old name, with its enclosing expressions,
+must keep its symbol, type and conversion. A rename cannot change any other binding,
+because the new name appears nowhere in the searched source. `nameof` results follow
+the new name, as a rename intends, but a compiler-supplied argument such as
+`CallerArgumentExpression` that would change withholds the fix.
