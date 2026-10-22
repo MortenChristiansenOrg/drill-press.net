@@ -224,14 +224,30 @@ public static class RewriteChecks
         return ProofResult.Proven;
     }
 
-    /// <summary>Requires each registered original occurrence to appear exactly once; missing input registration is unknown.</summary>
+    /// <summary>Requires each registered original occurrence to appear exactly once. With no registered inputs, proves only expressions whose bounded evaluation traces contain no child evaluations; other unregistered inputs remain unknown.</summary>
     public static ProofResult SameEvaluationCounts(RewriteEvidence change) =>
-        change.Inputs.Count == 0 ? ProofResult.Unknown
+        change.Inputs.Count == 0 ? EmptyInputs(change)
         : change
             .Inputs.GroupBy(input => input.Before.Span)
             .All(group => group.Sum(input => input.After.Count) == 1)
             ? ProofResult.Proven
         : ProofResult.Disproven;
+
+    private static ProofResult EmptyInputs(RewriteEvidence change) =>
+        EvaluationTrace.Read(
+            Operation(change.BeforeModel, change.Before),
+            new Dictionary<TextSpan, int>(),
+            change.Context.Original.CancellationToken
+        )
+            is { Count: 0 }
+        && EvaluationTrace.Read(
+            Operation(change.AfterModel, change.After),
+            new Dictionary<TextSpan, int>(),
+            change.Context.Original.CancellationToken
+        )
+            is { Count: 0 }
+            ? ProofResult.Proven
+            : ProofResult.Unknown;
 
     /// <summary>Compares mapped inputs and remaining observable evaluations in straight-line expressions, excluding constant reads and the replaced root through built-in Boolean negation. Conditional/deferred shapes return unknown.</summary>
     public static ProofResult SameEvaluationSequence(RewriteEvidence change)
@@ -382,8 +398,19 @@ public static class RewriteChecks
                             + " receives compiler-supplied arguments but is no longer a call after the edit"
                     );
                 }
+                // A sibling addition may intentionally supply an omitted parameter. Still compare
+                // every remaining default, so caller-line changes are never hidden by batching.
+                var suppliedElsewhere = IsOtherArgumentAddition(change, source, syntax, own)
+                    ? newArguments
+                        .Where(argument => argument.ArgumentKind == ArgumentKind.Explicit)
+                        .Select(argument => argument.Parameter?.Name)
+                        .ToHashSet()
+                    : [];
                 var before = oldArguments
-                    .Where(argument => argument.ArgumentKind == ArgumentKind.DefaultValue)
+                    .Where(argument =>
+                        argument.ArgumentKind == ArgumentKind.DefaultValue
+                        && !suppliedElsewhere.Contains(argument.Parameter?.Name)
+                    )
                     .Select(DefaultIdentity);
                 var after = newArguments
                     .Where(argument => argument.ArgumentKind == ArgumentKind.DefaultValue)
@@ -397,6 +424,22 @@ public static class RewriteChecks
         }
         return CheckOutcome.Proven;
     }
+
+    // Only an exact insertion at another call's closing parenthesis can supply a previously
+    // omitted parameter. Changes to its remaining defaults are still checked above.
+    private static bool IsOtherArgumentAddition(
+        RewriteEvidence change,
+        AnalysisSource source,
+        SyntaxNode syntax,
+        IReadOnlyList<SourceEdit> own
+    ) =>
+        syntax is InvocationExpressionSyntax invocation
+        && change.Context.Edits.Any(edit =>
+            edit.FileIdentity == source.Document.FileIdentity
+            && edit.Start == invocation.ArgumentList.CloseParenToken.SpanStart
+            && edit.Length == 0
+            && !own.Contains(edit)
+        );
 
     internal static IOperation? Operation(SemanticModel model, SyntaxNode node)
     {

@@ -103,11 +103,17 @@ public sealed class ModifierAddition
             );
         if (Anchor(_declaration) is not { RawKind: not 0 } anchor)
             return FixProposal.Withheld("the declaration has no place for a modifier");
-        var edit = SourceChanges.Replace(
-            _source,
-            new TextSpan(anchor.SpanStart, 0),
-            SyntaxFacts.GetText(_kind) + " "
-        );
+        // A static class is implicitly sealed; replace the written sealed token instead of
+        // proposing the invalid combination sealed static. Its trivia remains untouched.
+        var sealedToken = modifiers.FirstOrDefault(token => token.IsKind(SyntaxKind.SealedKeyword));
+        var edit =
+            _kind == SyntaxKind.StaticKeyword && sealedToken.RawKind != 0
+                ? SourceChanges.Replace(_source, sealedToken.Span, "static")
+                : SourceChanges.Replace(
+                    _source,
+                    new TextSpan(anchor.SpanStart, 0),
+                    SyntaxFacts.GetText(_kind) + " "
+                );
         return SourceChanges.ProposeExplained(
             [edit],
             context =>
@@ -160,10 +166,19 @@ public sealed class ModifierAddition
             .FindNode(_declaration!.Span, getInnermostNodeForTie: true);
         if (before.Span != _declaration.Span || before.RawKind != _declaration.RawKind)
             return "the declaration parses differently in this compilation";
-        var after = context
-            .MapToken(source, Anchor(before))
-            ?.Parent?.AncestorsAndSelf()
-            .FirstOrDefault(node => node.RawKind == before.RawKind);
+        var removed =
+            _kind == SyntaxKind.StaticKeyword
+                ? DeclarationSyntax
+                    .Modifiers(before)
+                    .FirstOrDefault(token => token.IsKind(SyntaxKind.SealedKeyword))
+                : default;
+        var after =
+            removed.RawKind != 0
+                ? context.Map(source, before)?.After
+                : context
+                    .MapToken(source, Anchor(before))
+                    ?.Parent?.AncestorsAndSelf()
+                    .FirstOrDefault(node => node.RawKind == before.RawKind);
         if (after is null)
             return "the declaration has no counterpart after the edit";
         var added = DeclarationSyntax
@@ -190,7 +205,7 @@ public sealed class ModifierAddition
             return "the declared symbols do not correspond after the edit";
         var change = new ModifierChange(
             rewrite,
-            default,
+            removed,
             Array.AsReadOnly(
                 oldSymbols
                     .Zip(

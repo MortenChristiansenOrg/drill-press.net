@@ -35,6 +35,29 @@ public sealed class ModifierAdditionTests(SdkFixture fixture) : IClassFixture<Sd
     }
 
     [Fact]
+    public async Task Static_replaces_a_written_sealed_modifier()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [new("A.cs", "sealed class A { public static int Count() => 1; }")]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("STATIC", "Use static.")
+            .For(Code.Types.Named("A"))
+            .Forbid(fix: type => Fix.For(type).AddModifier(Modifier.Static).Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal("STATIC Use static.\nA.cs\n  +1:14\n", result.Output);
+        Assert.Equal(
+            "static class A { public static int Count() => 1; }",
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
     public async Task A_class_derived_from_in_another_project_is_not_sealed()
     {
         var workspace = fixture.Workspace();

@@ -7,6 +7,32 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Fixes;
 
 public sealed class SymbolRenameTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
+    [Fact]
+    public async Task A_parameter_name_in_another_method_does_not_collide()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { void Save(int count) {} void M(int total) => Save(count: total); }"
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(
+            Rules(["count"], "total"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal("RENAME Rename the declaration.\nA.cs\n  +1:25\n", result.Output);
+        Assert.Equal(
+            "class A { void Save(int total) {} void M(int total) => Save(total: total); }",
+            result.FixedText("A.cs")
+        );
+    }
+
     [Theory]
     [InlineData(
         "class A { int M() { var count = 1; return count + count; } }",
@@ -146,7 +172,7 @@ public sealed class SymbolRenameTests(SdkFixture fixture) : IClassFixture<SdkFix
     [InlineData(
         "class A { int total; int M() { var count = 1; return count + total; } }",
         "1:36",
-        "`total` is already used at 1:62"
+        "`total` at 1:62 binds differently after the rename"
     )]
     [InlineData(
         "class A { string M() { var count = 1; return \"count\" + count; } }",

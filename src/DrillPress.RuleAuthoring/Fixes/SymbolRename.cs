@@ -7,7 +7,7 @@ namespace DrillPress;
 
 /// <summary>An immutable rename of one symbol and all of its references.</summary>
 /// <remarks>
-/// Gates: a supported symbol (not virtual, abstract, overriding, implementing an interface, extern, partial or an entry point) whose declarations and references are all in editable ordinary source; no identifier spelled like the new name and no string spelled like the old name in the searched scope; and, in every affected compilation, every renamed token bound to the renamed symbol, every other expression in the scope binding as before, and unchanged compiler-supplied arguments.
+/// Gates: a supported symbol (not virtual, abstract, overriding, implementing an interface, extern, partial or an entry point) whose declarations and references are all in editable ordinary source; no string spelled like the old name in the searched scope; and, in every affected compilation, every renamed token bound to the renamed symbol, every other expression in the scope binding as before, and unchanged compiler-supplied arguments.
 /// The scope is the containing member for locals and local-function parameters, the containing type for private members and parameters of private methods, and every loaded project otherwise.
 /// </remarks>
 public sealed class SymbolRename
@@ -221,14 +221,12 @@ public sealed class SymbolRename
             : null;
     }
 
-    // An identifier spelled like the new name could be captured or shadowed, and a string spelled like the old
-    // name may refer to it by reflection or in an attribute such as NotNullIfNotNull.
+    // A string spelled like the old name may refer to it by reflection or in an attribute such as NotNullIfNotNull.
+    // Existing destination names are checked by rebinding, since names in unrelated scopes do not collide.
     private string? Obstacle(AnalysisSource source, SyntaxNode node)
     {
         foreach (var token in node.DescendantTokens(descendIntoTrivia: true))
         {
-            if (token.IsKind(SyntaxKind.IdentifierToken) && token.ValueText == _name)
-                return $"`{_name}` is already used at {FixReasons.Position(source, token.SpanStart)}";
             if (token.IsKind(SyntaxKind.StringLiteralToken) && token.ValueText == _symbol!.Name)
                 return $"the string \"{_symbol.Name}\" at {FixReasons.Position(source, token.SpanStart)} may refer to the symbol by name";
         }
@@ -425,9 +423,8 @@ public sealed class SymbolRename
     }
 
     // A rename can only change what a name spelled like the old or new name binds to, and through it the
-    // expressions containing that name, such as a call whose method group lost a member. The new name appears
-    // nowhere in the searched source, so checking every old-name identifier and its enclosing expressions
-    // covers every binding the rename can change.
+    // expressions containing that name, such as a call whose method group lost a member. Check both names:
+    // a destination name in an unrelated scope is harmless, but capturing an existing reference is not.
     private static string? Unchanged(
         RewriteContext context,
         AnalysisSource source,
