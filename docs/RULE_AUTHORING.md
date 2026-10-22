@@ -152,7 +152,12 @@ rules.Rule("SDK2007", "Keep reader and writer format inventories in agreement.")
     .Forbid();
 ```
 
-Synthetic syntax and elements from another compilation are rejected.
+A tuple resolves syntax, tokens and `SourceLocation`s in the compilation of its first
+code element (searching nested tuples), so `.ReportAt(pair => pair.Reader.Syntax.Identifier)`
+also works. Other candidate types without a compilation, such as a record that does not
+implement `ICodeElement`, are rejected when the clause is registered: `ReportAt` with
+syntax, a token or a location throws, and so does `Forbid` or `Require` without
+`ReportAt`. Synthetic syntax and elements from another compilation are rejected.
 
 Use semantic identities instead of source spelling:
 

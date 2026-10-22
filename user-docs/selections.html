@@ -126,7 +126,7 @@ rules.Rule(&quot;PARAM001&quot;, &quot;Group long parameter lists into a request
         .Where(item =&gt; item.Count &gt; 5))
     .ReportAt(item =&gt; item.Method)
     .Forbid();</code></pre></div>
-<p><code>ReportAt</code> accepts another candidate, a syntax node, a token or a <code>SourceLocation</code>; returning null keeps the default. Tuples, projects and other computed values have no location of their own, so they need <code>ReportAt</code> before <code>Forbid</code> or <code>Require</code>.</p>
+<p><code>ReportAt</code> accepts another candidate, a syntax node, a token or a <code>SourceLocation</code>; returning null keeps the default. Tuples, projects and other computed values have no location of their own, so they need <code>ReportAt</code> before <code>Forbid</code> or <code>Require</code>. A tuple finds syntax, tokens and locations in the compilation of its first code element. A record that does not implement <code>ICodeElement</code> has no compilation, so registering it without <code>ReportAt(candidate =&gt; element)</code> fails immediately.</p>
 <h2 id="composition">Transform and connect selections</h2>
 <p><code>CodeQuery&lt;T&gt;</code> is the reusable selection type. It resembles LINQ, but it belongs to an analysis rather than an arbitrary list.</p>
 <div class="table-wrap"><table><thead><tr><th>Operation</th><th>Use it when</th></tr></thead><tbody>

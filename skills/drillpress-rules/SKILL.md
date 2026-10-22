@@ -112,7 +112,9 @@ rules.Rule("PARAM001", "Group long parameter lists into a request type.")
 ```
 
 `ReportAt` accepts a candidate part, syntax node, token (`type.ExplicitModifier(...)`)
-or `SourceLocation`. `ReportOncePer(key)` shows one finding per key.
+or `SourceLocation`; a tuple resolves syntax in the compilation of its first code
+element. A custom record must implement `ICodeElement` (`Source`, `Location`) or report
+at an element, otherwise registration throws. `ReportOncePer(key)` shows one finding per key.
 
 ## Fixes
 

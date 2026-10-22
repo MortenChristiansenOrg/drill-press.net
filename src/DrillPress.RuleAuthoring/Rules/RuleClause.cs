@@ -36,25 +36,28 @@ public sealed class RuleClause<T>
             element(candidate) is { } part ? ReportingLocation.Element(candidate, part) : null
         );
 
-    /// <summary>Reports at original syntax from the candidate's own compilation. Null keeps the candidate's own location.</summary>
+    /// <summary>Reports at original syntax from the candidate's own compilation; a tuple uses the compilation of its first code element. Null keeps the candidate's own location.</summary>
+    /// <exception cref="ArgumentException">The candidate type can never have a compilation.</exception>
     public RuleClause<T> ReportAt(Func<T, SyntaxNode?> syntax) =>
-        With(candidate =>
+        WithCompilation(candidate =>
             syntax(candidate) is { } node
                 ? ReportingLocation.Span(candidate, node.SyntaxTree, node.Span)
                 : null
         );
 
-    /// <summary>Reports at an original token, such as an identifier or modifier, from the candidate's own compilation.</summary>
+    /// <summary>Reports at an original token, such as an identifier or modifier, from the candidate's own compilation; a tuple uses the compilation of its first code element.</summary>
+    /// <exception cref="ArgumentException">The candidate type can never have a compilation.</exception>
     public RuleClause<T> ReportAt(Func<T, SyntaxToken> token) =>
-        With(candidate =>
+        WithCompilation(candidate =>
             token(candidate) is var part && part.SyntaxTree is { } tree
                 ? ReportingLocation.Span(candidate, tree, part.Span)
                 : null
         );
 
-    /// <summary>Reports at a physical location in one of the candidate compilation's original documents. Null keeps the candidate's own location.</summary>
+    /// <summary>Reports at a physical location in one of the candidate compilation's original documents; a tuple uses the compilation of its first code element. Null keeps the candidate's own location.</summary>
+    /// <exception cref="ArgumentException">The candidate type can never have a compilation.</exception>
     public RuleClause<T> ReportAt(Func<T, SourceLocation?> location) =>
-        With(candidate =>
+        WithCompilation(candidate =>
             location(candidate) is { } part ? ReportingLocation.Physical(candidate, part) : null
         );
 
@@ -107,11 +110,24 @@ public sealed class RuleClause<T>
     private RuleClause<T> With(Func<T, ReportTarget?> target) =>
         new(_definition, _registration, _query, target, _reportKey, _coverageScope);
 
+    private RuleClause<T> WithCompilation(Func<T, ReportTarget?> target) =>
+        ReportingLocation.CanHaveCompilation(typeof(T))
+            ? With(target)
+            : throw new ArgumentException(
+                $"Candidate type '{typeof(T)}' has no compilation to find syntax, tokens or locations in: implement ICodeElement, select a tuple that contains a code element, or report at an element with ReportAt(candidate => element).",
+                nameof(T)
+            );
+
     private void Register(
         CodeQuery<T> query,
         Func<T, FixProposal?>? fix,
         RuleCondition<T>? requirement
-    ) =>
+    )
+    {
+        if (_target is null && !ReportingLocation.CanHaveLocation(typeof(T)))
+            throw new InvalidOperationException(
+                $"Candidate type '{typeof(T)}' has no source location; implement ICodeElement or choose one with ReportAt(...)."
+            );
         _registration.Add(
             new CandidateRule<T>(
                 query,
@@ -126,4 +142,5 @@ public sealed class RuleClause<T>
             ),
             query.RequiresCoverage || _coverageScope is not null
         );
+    }
 }
