@@ -52,6 +52,14 @@ than wall time.
 When several contexts fail, BuildHost reports the first in snapshot order (project path,
 then name) whose references loaded, regardless of which failed first.
 
+Measure loading of a synthetic layered solution whose contexts run the SDK's regex and
+JSON generators, using the Release BuildHost of the checkout:
+
+```sh
+dotnet build DrillPress.slnx -c Release
+dotnet run --project tools/DrillPress.Benchmarks -c Release -- --build-host --output artifacts/buildhost-benchmarks
+```
+
 ## Query optimization
 
 Member-name constraints propagate through conjunctions and bounded alternatives.
