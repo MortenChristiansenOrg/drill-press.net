@@ -76,6 +76,9 @@ public sealed class AnalysisProject
 
     internal ProjectCoverage Coverage { get; set; } = new();
 
+    /// <summary>The analysis that most recently loaded this context, for solution-wide fix proofs.</summary>
+    internal AnalysisSolution? Solution { get; set; }
+
     internal RewriteValidationCache RewriteValidation { get; }
 
     internal IFileSystem FileSystem { get; }

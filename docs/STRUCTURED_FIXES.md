@@ -76,6 +76,35 @@ Adding braces is not a general-purpose control-flow equivalence proof.
 
 ## Declaration modifiers
 
+### Adding a modifier
+
+```csharp
+rules.Rule("SEALED", "Seal classes that nothing derives from.")
+    .For(Code.TypeDeclarations.Where(type => type.Symbol is { TypeKind: TypeKind.Class, IsSealed: false, IsAbstract: false, IsStatic: false }))
+    .Forbid(fix: type => Fix.For(type).AddModifier(Modifier.Sealed).Propose());
+```
+
+`AddModifier(modifier)` inserts one token in the conventional order (accessibility,
+`static`, `extern`, `new`, `virtual`, `abstract`, `sealed`, `override`, `readonly`,
+`unsafe`, `required`, `volatile`, `async`, with `partial` last), after attributes and
+documentation. `Propose()` owns the proof for classes:
+
+- `sealed`: no type in any loaded project derives from the class, and it is not
+  abstract or static.
+- `static`: every member is static, no constructor is declared, the class derives
+  from `object` and implements no interface, nothing derives from it, and every
+  loaded use of its name accesses a member, `nameof` or `using static`; `new A()`,
+  `typeof(A)`, a variable, parameter or type argument withholds the fix.
+
+Both proofs assume the loaded solution contains every assembly that derives from,
+instantiates or reflects over the type, including mocking proxies and dependency
+injection. An obstacle found before editing is reported as the withheld reason.
+Other modifiers need `SafeWhen(change => ...)` over `ModifierChange`, whose
+`Added`/`AddedModifier` describe the new token; `MustPreserve` adds the same
+declaration checks as for removal.
+
+### Removing a modifier
+
 ```csharp
 rules.Rule("INTERNAL", "Omit the redundant internal modifier.")
     .For(Code.TypeDeclarations.TopLevel().WithExplicitModifier(Modifier.Internal))

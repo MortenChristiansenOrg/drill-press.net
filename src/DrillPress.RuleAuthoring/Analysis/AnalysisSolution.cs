@@ -73,6 +73,8 @@ public sealed class AnalysisSolution
         Options = options;
         CancellationToken = cancellationToken;
         Projects = projects.ToArray();
+        foreach (var project in Projects)
+            project.Solution = this;
         Implementations = new(this);
         _projectGraph = new(() => new ProjectGraph(this));
         _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));

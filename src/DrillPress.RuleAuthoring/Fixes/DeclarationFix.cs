@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
 
-/// <summary>A selected written declaration ready for a modifier edit.</summary>
+/// <summary>A selected written declaration ready for a modifier edit or rename.</summary>
 public sealed class DeclarationFix
 {
     private readonly AnalysisSource _source;
@@ -18,5 +18,9 @@ public sealed class DeclarationFix
 
     /// <summary>Removes one written modifier token, keeping surrounding comments and trivia. Use <c>Propose()</c> for accessibility modifiers whose removal keeps the declared accessibility; other modifiers need <c>SafeWhen(...)</c>.</summary>
     public ModifierRemoval RemoveModifier(Modifier modifier) =>
+        new(_source, _declaration, (SyntaxKind)modifier);
+
+    /// <summary>Adds one modifier token in conventional order, such as <c>sealed</c> or <c>static</c>. Use <c>Propose()</c> for <c>sealed</c> and <c>static</c> classes, whose proof the library owns; other modifiers need <c>SafeWhen(...)</c>.</summary>
+    public ModifierAddition AddModifier(Modifier modifier) =>
         new(_source, _declaration, (SyntaxKind)modifier);
 }
