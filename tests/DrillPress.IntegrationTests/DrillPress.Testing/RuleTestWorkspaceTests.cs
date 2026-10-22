@@ -312,9 +312,28 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
                     diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error
                 )
         );
-        Assert.DoesNotContain(
-            manifest.Compilation.ReferencedAssemblyNames,
+        Assert.Single(
+            app.Compilation.ReferencedAssemblyNames,
             identity => identity.Name == "DrillPress.Manifest"
+        );
+    }
+
+    [Fact]
+    public void A_project_named_like_a_loaded_assembly_can_use_its_types()
+    {
+        var workspace = fixture.Workspace();
+
+        var project = workspace.AddProject(
+            "DrillPress.Manifest",
+            [new("Uses.cs", "class Uses { DrillPress.Manifest.PhysicalFileIdentity? Identity; }")]
+        );
+
+        Assert.Empty(
+            project
+                .Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+                .Where(diagnostic =>
+                    diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error
+                )
         );
     }
 

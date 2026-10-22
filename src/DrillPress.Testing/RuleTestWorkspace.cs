@@ -56,7 +56,7 @@ public sealed class RuleTestWorkspace
     }
 
     /// <summary>Adds an independently evaluated source project. Dependencies must already belong to this workspace. Framework labels do not select reference packs.</summary>
-    /// <remarks>Defaults to a class library with nullable annotations and warnings enabled, C# 14 and no implicit usings. Source directives override the project nullable setting. <c>implicitUsings: true</c> adds the Microsoft.NET.Sdk default global usings as a generated <c>{name}.GlobalUsings.g.cs</c> document, like an SDK project with <c>ImplicitUsings</c> enabled. Pass <c>outputKind: OutputKind.ConsoleApplication</c> for top-level statements. A reference whose assembly has the name of this project or one of its dependencies is left out, so workspace projects can be named like assemblies the test process loads.</remarks>
+    /// <remarks>Defaults to a class library with nullable annotations and warnings enabled, C# 14 and no implicit usings. Source directives override the project nullable setting. <c>implicitUsings: true</c> adds the Microsoft.NET.Sdk default global usings as a generated <c>{name}.GlobalUsings.g.cs</c> document, like an SDK project with <c>ImplicitUsings</c> enabled. Pass <c>outputKind: OutputKind.ConsoleApplication</c> for top-level statements. A reference whose assembly has the name of one of its dependencies is left out, so workspace projects can be named like assemblies the test process loads. The project itself keeps a reference with its own name, so a project named like a loaded assembly can still use that assembly's types.</remarks>
     public AnalysisProject AddProject(
         string name,
         IReadOnlyList<TestSource> sources,
@@ -103,10 +103,7 @@ public sealed class RuleTestWorkspace
             documents.Select(document =>
                 CSharpSyntaxTree.ParseText(document.Text, parse, document.Path)
             ),
-            Unshadowed(
-                    references ?? _references,
-                    [name, .. dependencies.Select(project => project.Name)]
-                )
+            Unshadowed(references ?? _references, [.. dependencies.Select(project => project.Name)])
                 .Concat(dependencies.Select(project => project.Compilation.ToMetadataReference())),
             new CSharpCompilationOptions(outputKind, nullableContextOptions: nullable)
         );
@@ -186,7 +183,8 @@ public sealed class RuleTestWorkspace
         );
     }
 
-    // Workspace projects shadow same-named assemblies, as a project reference would; otherwise the compiler reports CS1704.
+    // A dependency on a workspace project shadows the same-named assembly, as a project reference would; otherwise the compiler
+    // reports CS1704. The project itself keeps the assembly, so a project named like it can still use its real types.
     private IEnumerable<MetadataReference> Unshadowed(
         IReadOnlyList<MetadataReference> references,
         IReadOnlyList<string> projects

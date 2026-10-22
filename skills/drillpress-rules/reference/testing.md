@@ -36,9 +36,9 @@ workspace.AddProject("Shop.Tests", [
 `new TestSource(path, text, Generated: true)` marks generated code. The default
 references are the test process's own assemblies, so snippets can use the BCL and
 packages the test project references, such as test-framework attributes for rules
-about `Code.TestMethods`. A reference to an assembly named like the workspace project
-or one of its dependencies is left out, so a project can be named `Shop.Core` even when
-the test process loads the real `Shop.Core.dll`. Use the same path and text in two projects to model a
+about `Code.TestMethods`. A project named like a loaded assembly, such as `Shop.Core`,
+keeps that assembly, so its snippets can use the real `Shop.Core` types; projects that
+depend on it see the workspace project instead of the assembly. Use the same path and text in two projects to model a
 linked file.
 
 ## Assertions
