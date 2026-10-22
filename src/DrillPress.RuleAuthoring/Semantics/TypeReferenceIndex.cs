@@ -20,14 +20,14 @@ internal sealed class TypeReferenceIndex
         _candidates = sources.SelectMany(Discover).ToArray();
     }
 
-    internal IEnumerable<CodeTypeReference> Select(IReadOnlySet<string>? names)
+    internal IEnumerable<CodeTypeReference> Select(NameFilter? names)
     {
         foreach (var candidate in _candidates)
         {
             _cancellationToken.ThrowIfCancellationRequested();
             if (
                 names is not null
-                && !candidate.Keys.Any(names.Contains)
+                && !candidate.Keys.Any(names.Accepts)
                 && !_aliases.Contains(candidate.Keys[0])
             )
                 continue;

@@ -80,6 +80,8 @@ type information; `node.AsExpression()` turns an expression node into a
 `CodeType.Member(name)` creates a member on that declaring type. Its `References`
 query selects fields, properties or method references, including aliases and
 static imports, while retaining the engine's name-based discovery optimization.
+`Code.Calls.To(member)`, `ToMethodsNamed` and `ToMethodsMatching` likewise bind
+only documents that can contain a matching call.
 For example, `CodeType.Of<string>().Member(nameof(string.Empty)).References`
 is ready to pass to `For(...)`. `CodeType.References` selects every written
 reference to a type, with the same name-based optimization.

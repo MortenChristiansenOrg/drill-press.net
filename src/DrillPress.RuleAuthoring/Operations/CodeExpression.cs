@@ -65,9 +65,7 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
         BoundOperation(source, syntax) is { Kind: not OperationKind.Invalid }
         && source.Model.GetTypeInfo(syntax, source.Project.CancellationToken).Type?.TypeKind
             != TypeKind.Error
-        && !source
-            .Model.GetDiagnostics(syntax.Span, source.Project.CancellationToken)
-            .Any(d => d.Severity == DiagnosticSeverity.Error)
+        && !source.Errors.In(syntax.Span)
     );
 
     internal static CodeExpression ImplicitReceiver(

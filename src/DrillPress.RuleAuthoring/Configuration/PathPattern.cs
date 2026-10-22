@@ -6,13 +6,23 @@ namespace DrillPress;
 /// <summary>A case-sensitive slash-normalized path glob. * stays within a segment, ** crosses segments, and **/ also matches no directory.</summary>
 public sealed class PathPattern
 {
+    // Compiling a non-backtracking regex costs far more than matching, and rules often test
+    // the same glob per candidate, so each distinct glob compiles once per process.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string,
+        Regex
+    > _compiled = new();
     private readonly Regex _pattern;
 
     /// <summary>Compiles a repository-supplied glob without reading the filesystem.</summary>
     public PathPattern(string pattern)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
-        pattern = pattern.Replace('\\', '/');
+        _pattern = _compiled.GetOrAdd(pattern.Replace('\\', '/'), Compile);
+    }
+
+    private static Regex Compile(string pattern)
+    {
         var expression = new StringBuilder();
         for (var index = 0; index < pattern.Length; index++)
         {
@@ -35,7 +45,7 @@ public sealed class PathPattern
                 );
             }
         }
-        _pattern = new(
+        return new(
             "\\A" + expression + "\\z",
             RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
             TimeSpan.FromSeconds(1)

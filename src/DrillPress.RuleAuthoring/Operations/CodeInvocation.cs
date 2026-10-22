@@ -86,9 +86,7 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
     public bool IsResolved =>
         _resolved ??=
             Target.ContainingType.TypeKind != TypeKind.Error
-            && !Source
-                .Model.GetDiagnostics(Operation.Syntax.Span, Source.Project.CancellationToken)
-                .Any(d => d.Severity == DiagnosticSeverity.Error);
+            && !Source.Errors.In(Operation.Syntax.Span);
 
     /// <summary>The actual instance or extension receiver before contextual conversion; absent for ordinary static calls.</summary>
     public CodeExpression? Receiver

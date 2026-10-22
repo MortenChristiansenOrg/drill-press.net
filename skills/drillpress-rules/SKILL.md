@@ -71,7 +71,9 @@ Narrow with composable filters:
   tests `NameEndsWith`, `NameContainsWord`, `HasAttribute`, `HasDocumentationComment()`.
 - Calls: `To(member or apiSet)`, `ToMethodsNamed`, `ToMethodsMatching("*Async")`,
   `OnReceiverOfType<T>()`, `WhereReceiver`, `WhereArgument("name", a => ...)`,
-  `ArgumentsFor("name")` (argument candidates).
+  `ArgumentsFor("name")` (argument candidates). Include `To`, `ToMethodsNamed` or
+  `ToMethodsMatching` when the target is known: only documents that can contain
+  such a call are bound, while `Code.Calls.Where(...)` alone binds the whole solution.
 - Types and statements: `DerivedFrom`, `ImplementingInterface`, `ImplementationViews()`,
   `Branches().WithoutBraces()`, `WithExplicitType()`.
 - General: `Where`, `ExceptWhen`, `Select`, `SelectMany`, `Concat`, `Join`,

@@ -10,13 +10,13 @@ public sealed class RuleCondition<T>
     public RuleCondition(Func<T, bool> predicate)
         : this(predicate, null) { }
 
-    internal RuleCondition(Func<T, bool> predicate, IReadOnlySet<string>? memberNames)
+    internal RuleCondition(Func<T, bool> predicate, NameFilter? memberNames)
     {
         _predicate = predicate;
         MemberNames = memberNames;
     }
 
-    internal IReadOnlySet<string>? MemberNames { get; }
+    internal NameFilter? MemberNames { get; }
     internal bool RequiresCoverage { get; init; }
     internal Func<T, string>? Detail { get; init; }
     internal Func<T, IReadOnlyList<CoverageEvidence>>? CoverageFacts { get; init; }
@@ -40,7 +40,7 @@ public sealed class RuleCondition<T>
             candidate => Evaluate(candidate) && other.Evaluate(candidate),
             MemberNames is null ? other.MemberNames
                 : other.MemberNames is null ? MemberNames
-                : MemberNames.Intersect(other.MemberNames).ToHashSet()
+                : MemberNames.And(other.MemberNames)
         )
         {
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
@@ -63,7 +63,7 @@ public sealed class RuleCondition<T>
             candidate => Evaluate(candidate) || other.Evaluate(candidate),
             MemberNames is null || other.MemberNames is null
                 ? null
-                : MemberNames.Union(other.MemberNames).ToHashSet()
+                : MemberNames.Or(other.MemberNames)
         )
         {
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,

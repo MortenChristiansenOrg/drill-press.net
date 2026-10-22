@@ -42,6 +42,7 @@ rules.Rule(&quot;TEAM008&quot;, &quot;Pass a bounded timeout to Transport.Send.&
         .WhereArgument(&quot;timeoutMilliseconds&quot;, argument =&gt; argument.Is(-1)))
     .Forbid();</code></pre></div>
 <p><code>CodeInvocation.Target</code> is the chosen method overload; <code>To</code> and <code>Calls</code> compare it to your <code>CodeMember</code> whichever way the call is spelled. <code>Argument(&quot;name&quot;)</code> returns the argument bound to that declared parameter, including an omitted optional default; it returns null for an unknown parameter. A named argument appearing first in the source is not necessarily the first declared parameter, and parameter names keep working when callers reorder them.</p>
+<p>When you know the target, narrow a call query with <code>To</code>, <code>ToMethodsNamed</code> or <code>ToMethodsMatching</code>, before or after any <code>Where</code>. Drill Press then binds only the files that can contain such a call; <code>Code.Calls.Where(...)</code> alone has to bind every file in the solution.</p>
 <div class="table-wrap"><table><thead><tr><th>Member</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>argument.Is(value)</code>, <code>IsOmittedOr(value)</code>, <code>ValueAs&lt;T&gt;()</code>, <code>TextValue</code></td><td>Compiler constant values, including defaults supplied by the compiler.</td></tr>
 <tr><td><code>argument.IsExplicit</code>, <code>Value</code>, <code>Location</code></td><td>Written arguments have a source expression and location; findings on omitted defaults report at the call.</td></tr>
