@@ -17,6 +17,8 @@ public sealed class AnalysisSource
         Tree = tree;
         _model = new(() => project.Compilation.GetSemanticModel(tree));
         _localAssignments = new(() => new LocalAssignments(this));
+        Operations = new(this);
+        Errors = new(this);
     }
 
     /// <summary>The independent compilation context containing this document membership.</summary>
@@ -32,6 +34,10 @@ public sealed class AnalysisSource
     public SemanticModel Model => _model.Value;
 
     internal LocalAssignments LocalAssignments => _localAssignments.Value;
+
+    internal SourceOperations Operations { get; }
+
+    internal SourceErrors Errors { get; }
 
     /// <summary>Converts a UTF-16 span to physical coordinates, ignoring #line remapping.</summary>
     public SourceLocation Locate(TextSpan span)

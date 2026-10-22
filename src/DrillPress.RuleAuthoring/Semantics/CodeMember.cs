@@ -55,7 +55,7 @@ public sealed class CodeMember
         new(DeclaringType, Name, _parameters) { _signature = signature };
 
     private RuleCondition<MemberReference> CreateReferenceCondition() =>
-        new(reference => Matches(reference.Symbol), new HashSet<string> { Name });
+        new(reference => Matches(reference.Symbol), NameFilter.Exactly([Name]));
 
     /// <summary>Matches a field, property or method on the configured declaring type. Parameter-constrained identities match methods only.</summary>
     public bool Matches(ISymbol symbol) =>

@@ -101,10 +101,53 @@ public sealed class AnalysisSolution
         _types = new(DiscoverTypes);
     }
 
-    internal IEnumerable<MemberReference> SelectMemberReferences(IReadOnlySet<string>? names) =>
+    internal IEnumerable<MemberReference> SelectMemberReferences(NameFilter? names) =>
         !Options.EnableOptimizations ? MemberReferences : _memberCandidates.Value.Select(names);
 
-    internal IEnumerable<CodeTypeReference> SelectTypeReferences(IReadOnlySet<string>? names) =>
+    /// <summary>Calls in these files, binding only documents whose syntax can produce an accepted target name.</summary>
+    internal IEnumerable<CodeInvocation> SelectInvocations(
+        IReadOnlyList<CodeFile> files,
+        NameFilter? names
+    )
+    {
+        var sources = files
+            .Select(file => file.Source)
+            .Where(source =>
+                names is null
+                || !Options.EnableOptimizations
+                || names.AcceptsAny(source.Operations.InvocationNames)
+            )
+            .ToArray();
+        PrepareOperations(sources);
+        return sources.SelectMany(source => source.Operations.Invocations);
+    }
+
+    /// <summary>Every operation in these files, in file and discovery order.</summary>
+    internal IEnumerable<CodeOperation<IOperation>> SelectOperations(IReadOnlyList<CodeFile> files)
+    {
+        PrepareOperations(files.Select(file => file.Source).ToArray());
+        return files.SelectMany(file =>
+            file.Source.Operations.All.Select(operation => new CodeOperation<IOperation>(
+                file.Source,
+                operation
+            ))
+        );
+    }
+
+    // Documents bind independently, so they bind in parallel; consumers still read them in order.
+    private void PrepareOperations(IReadOnlyList<AnalysisSource> sources)
+    {
+        var pending = sources.Where(source => !source.Operations.IsBound).Distinct().ToArray();
+        if (!Options.EnableOptimizations || pending.Length < 2)
+            return;
+        Parallel.ForEach(
+            pending,
+            new ParallelOptions { CancellationToken = CancellationToken },
+            source => source.Operations.Prepare()
+        );
+    }
+
+    internal IEnumerable<CodeTypeReference> SelectTypeReferences(NameFilter? names) =>
         _typeReferences.Value.Select(Options.EnableOptimizations ? names : null);
 
     /// <summary>Stops evaluation and discovery within this analysis.</summary>

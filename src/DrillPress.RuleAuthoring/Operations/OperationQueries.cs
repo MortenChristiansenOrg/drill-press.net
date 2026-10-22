@@ -9,12 +9,9 @@ internal static class OperationQueries
     internal static CodeQuery<CodeNullCheck> NullChecks { get; } =
         NullCheckQueries.In(Sources.Nodes<ExpressionSyntax>());
 
-    internal static CodeQuery<CodeOperation<IOperation>> All { get; } =
-        Sources.Files.SelectMany(Discover);
+    internal static CodeQuery<CodeOperation<IOperation>> All { get; } = OperationsIn(Sources.Files);
 
-    internal static CodeQuery<CodeInvocation> Invocations { get; } =
-        Of<IInvocationOperation>()
-            .Select(candidate => new CodeInvocation(candidate.Source, candidate.Operation));
+    internal static CodeQuery<CodeInvocation> Invocations { get; } = InvocationsIn(Sources.Files);
 
     internal static CodeQuery<CodeObjectCreation> ObjectCreations { get; } =
         Sources
@@ -26,67 +23,20 @@ internal static class OperationQueries
 
     internal static CodeQuery<CodeOperation<T>> InFiles<T>(CodeQuery<CodeFile> files)
         where T : IOperation =>
-        files
-            .SelectMany(Discover)
-            .Where(candidate => candidate.Operation is T)
+        OperationsIn(files)
+            .Where(
+                new RuleCondition<CodeOperation<IOperation>>(candidate => candidate.Operation is T)
+            )
             .Select(candidate => new CodeOperation<T>(candidate.Source, (T)candidate.Operation));
 
+    // Target-name constraints skip documents whose syntax cannot produce a matching call.
     internal static CodeQuery<CodeInvocation> InvocationsIn(CodeQuery<CodeFile> files) =>
-        InFiles<IInvocationOperation>(files)
-            .Select(candidate => new CodeInvocation(candidate.Source, candidate.Operation));
+        new((solution, names) => solution.SelectInvocations(files.In(solution), names));
 
-    private static IEnumerable<CodeOperation<IOperation>> Discover(CodeFile file)
-    {
-        var seen = new HashSet<IOperation>(ReferenceEqualityComparer.Instance);
-        foreach (
-            var syntax in file
-                .Source.Tree.GetRoot(file.Source.Project.CancellationToken)
-                .DescendantNodes()
-                .Where(node =>
-                    node
-                        is BaseMethodDeclarationSyntax
-                            or AccessorDeclarationSyntax
-                            or EqualsValueClauseSyntax
-                            or GlobalStatementSyntax
-                            or ArrowExpressionClauseSyntax
-                            or AttributeSyntax
-                            or ConstructorInitializerSyntax
-                )
-        )
-        {
-            file.Source.Project.CancellationToken.ThrowIfCancellationRequested();
-            var operation = file.Source.Model.GetOperation(
-                syntax,
-                file.Source.Project.CancellationToken
-            );
-            if (operation is null)
-            {
-                continue;
-            }
-
-            while (operation.Parent is { } parent)
-            {
-                operation = parent;
-            }
-
-            var pending = new Stack<IOperation>();
-            pending.Push(operation);
-            while (pending.TryPop(out var current))
-            {
-                file.Source.Project.CancellationToken.ThrowIfCancellationRequested();
-                if (!seen.Add(current))
-                {
-                    continue;
-                }
-
-                yield return new(file.Source, current);
-                foreach (var child in current.ChildOperations.Reverse())
-                {
-                    pending.Push(child);
-                }
-            }
-        }
-    }
+    private static CodeQuery<CodeOperation<IOperation>> OperationsIn(CodeQuery<CodeFile> files) =>
+        CodeQuery<CodeOperation<IOperation>>.Create(solution =>
+            solution.SelectOperations(files.In(solution))
+        );
 
     private static class TypedRoot<T>
         where T : IOperation

@@ -11,6 +11,8 @@ public sealed class ApiSet(params CodeMember[] members)
     /// <summary>Matches any configured overload or method family.</summary>
     public bool Contains(IMethodSymbol method) => _members.Any(member => member.Matches(method));
 
+    internal IEnumerable<string> Names => _members.Select(member => member.Name);
+
     /// <summary>Combines configured overload families without changing either collection.</summary>
     public ApiSet Union(ApiSet other) => new([.. _members, .. other._members]);
 }

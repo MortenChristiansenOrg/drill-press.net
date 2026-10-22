@@ -95,6 +95,31 @@ public sealed class MemberCandidateIndexTests(SemanticRuleFixture fixture)
         Assert.Equal(1, ReadBindingCount(writer.ToString()));
     }
 
+    [Fact]
+    public void Constructor_constraints_keep_attribute_names_that_bind_to_constructors()
+    {
+        var project = fixture.Project(
+            """
+            using System;
+            [Obsolete] class C { [Obsolete("Old")] void M() { } }
+            """
+        );
+        var constructors = CodeType.Of<ObsoleteAttribute>().Member(".ctor").References;
+        var exhaustive = new AnalysisSolution(
+            [project],
+            new AnalysisOptions { EnableOptimizations = false }
+        );
+        var optimized = new AnalysisSolution([project]);
+
+        var actual = constructors.In(optimized).Select(DescribeReference).ToArray();
+
+        Assert.Equal(constructors.In(exhaustive).Select(DescribeReference), actual);
+        Assert.Equal(
+            ["Obsolete", "Obsolete"],
+            constructors.In(optimized).Select(reference => reference.Syntax.ToString())
+        );
+    }
+
     private static long? ReadBindingCount(string text) =>
         text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line =>

@@ -19,7 +19,7 @@ public readonly record struct CodeType(string MetadataName)
                 Code.TypeReferences.Where(
                     new RuleCondition<CodeTypeReference>(
                         reference => type.Matches(reference.Type),
-                        TypeReferenceIndex.NamesOf(type).ToHashSet()
+                        NameFilter.Exactly(TypeReferenceIndex.NamesOf(type))
                     )
                 )
         );

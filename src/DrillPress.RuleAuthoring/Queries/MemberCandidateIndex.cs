@@ -20,12 +20,12 @@ internal sealed class MemberCandidateIndex
 
     internal long Bindings => _bindings.Count;
 
-    internal IEnumerable<MemberReference> Select(IReadOnlySet<string>? names)
+    internal IEnumerable<MemberReference> Select(NameFilter? names)
     {
         foreach (var candidate in _candidates)
         {
             _cancellationToken.ThrowIfCancellationRequested();
-            if (names is not null && !names.Contains(candidate.Name))
+            if (names is not null && !CanMatch(candidate, names))
             {
                 continue;
             }
@@ -42,6 +42,12 @@ internal sealed class MemberCandidateIndex
             }
         }
     }
+
+    // An attribute name binds to the attribute's constructor, whose compiler name is .ctor.
+    private static bool CanMatch(MemberSyntaxCandidate candidate, NameFilter names) =>
+        names.Accepts(candidate.Name)
+        || candidate.Syntax.Parent is AttributeSyntax
+            && names.Accepts(WellKnownMemberNames.InstanceConstructorName);
 
     private IEnumerable<MemberSyntaxCandidate> Discover(AnalysisSource source)
     {

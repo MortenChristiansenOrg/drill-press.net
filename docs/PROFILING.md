@@ -44,3 +44,23 @@ cached per source context/expression, so filtered queries cannot truncate a late
 unfiltered query. Interface lookups index concrete source definitions once per
 needed context, preserving compatible framework views and symbol identities.
 `--no-optimization` retains the original exhaustive binding and type-scan paths.
+
+Call queries narrowed by `To`, `ToMethodsNamed` or `ToMethodsMatching` bind only
+documents whose syntax can produce a matching target name. That set holds every
+written identifier plus the names of calls the compiler implies: `.ctor` for
+constructor initializers, `Invoke` for delegate calls, `Add` for collection
+initializers, LINQ query clause methods, and `AppendLiteral`/`AppendFormatted`
+for interpolated string handlers. Each document binds once for all rules and
+queries, and documents bind in parallel while candidates keep their order.
+Name and target checks run before `IsResolved`, whose compiler-error check
+compiles each enclosing member once and queries the exact span only when that
+member has errors. A rule cheaper to filter by a custom `Where` alone still binds
+every document; start call queries with a name-based selector when possible.
+
+Path, project, folder, namespace and name globs compile once per distinct pattern.
+
+Measure query scaling with rule count over a synthetic solution:
+
+```sh
+dotnet run --project tools/DrillPress.Benchmarks -c Release -- --queries --output artifacts/query-benchmarks
+```
