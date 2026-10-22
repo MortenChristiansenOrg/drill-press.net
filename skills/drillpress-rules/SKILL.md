@@ -86,9 +86,9 @@ member is listed in [reference/queries.md](reference/queries.md).
 
 ## Report locations
 
-Declarations report at their identifier, calls at the call, arguments at the argument,
-catch clauses at their header, branches at the statement and projects at their first
-file. `ReportAt` points elsewhere and is required for tuples and computed values:
+Declarations report at their identifier, calls at the method name (`ThenBy` in
+`a.OrderBy(x).ThenBy(y)`), arguments at the argument, catch clauses at their header,
+branches at the statement and projects at their first file. `ReportAt` points elsewhere and is required for tuples and computed values:
 
 ```csharp
 using DrillPress;
@@ -164,7 +164,7 @@ public sealed class LoggingRuleTests
             """
             TEAM001 Use the application logger instead of Console.WriteLine.
             App.cs
-              1:30
+              1:45
 
             """.ReplaceLineEndings("\n"),
             result.Output);

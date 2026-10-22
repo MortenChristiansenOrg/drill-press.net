@@ -94,7 +94,7 @@ public sealed class LoggingAllowanceTests
             """
             TEAM001 Use the application logger instead of Console.WriteLine.
             App.cs
-              7:9
+              7:17
 
             """.ReplaceLineEndings("\n"),
             result.Output);

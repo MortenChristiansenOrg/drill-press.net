@@ -119,6 +119,12 @@ affected loaded context.
 
 ## Behavior changes
 
+- Calls report at their written method name, such as `ThenBy` in
+  `items.OrderBy(a).ThenBy(b)`, instead of at the complete call, which for a chained
+  call starts at the beginning of the chain. Calls in one chain no longer share a
+  location, and a trailing allowance on the line of `.ThenBy(...)` covers it.
+  `ReportAt(call => call.Operation.Syntax)` restores the complete call. Coverage
+  evidence still describes the complete call.
 - Reporting an omitted default argument (from `ArgumentsFor(name)`) reports at its
   call instead of failing the run.
 - `CodeBranch.IsElseIf` is true only for an `else if` continuation, not for an `if`

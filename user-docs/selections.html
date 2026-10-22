@@ -110,7 +110,7 @@ rules.Rule(&quot;TEAM003&quot;, &quot;Give asynchronous application methods an A
     .Require(method =&gt; method.NameEndsWith(&quot;Async&quot;));</code></pre></div>
 <p><code>And</code>, <code>Or</code>, <code>Not</code>, and condition-level <code>ExceptWhen</code> compose Boolean tests with short-circuit behavior. Query-level <code>ExceptWhen</code> excludes matches. Both <code>Where</code> and <code>Require</code> also accept ordinary lambdas.</p>
 <h2 id="report-at">Choose where the finding points</h2>
-<p>Each candidate reports at its natural location: a declaration at its identifier, a call at its expression, a catch clause at its header. <code>ReportAt</code> moves the finding to a more precise part, or anchors a computed value to source.</p>
+<p>Each candidate reports at its natural location: a declaration at its identifier, a call at its method name (<code>ThenBy</code> in <code>items.OrderBy(a).ThenBy(b)</code>), a catch clause at its header. <code>ReportAt</code> moves the finding to a more precise part, or anchors a computed value to source.</p>
 <div class="codeblock"><div class="codehead"><span>Report at a part of the candidate</span></div><pre tabindex="0" data-check="program" id="example-report-at"><code>using DrillPress;
 
 var rules = new RuleCatalog();

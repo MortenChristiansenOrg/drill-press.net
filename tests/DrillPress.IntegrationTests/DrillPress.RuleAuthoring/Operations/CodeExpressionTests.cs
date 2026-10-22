@@ -38,7 +38,7 @@ public sealed class CodeExpressionTests(SdkFixture fixture) : IClassFixture<SdkF
 
         Assert.Equal("Get()", call!.Expression!.Syntax.ToString());
         Assert.Same(parentheses.Source, call.Source);
-        Assert.Equal(call.Location, call.Expression.Location);
+        Assert.Equal(call.Source.Locate(call.Operation.Syntax.Span), call.Expression.Location);
         Assert.True(call.Expression.TypeIs(CodeType.Of<string>()));
         Assert.True(call.Expression.ConvertedTypeIs(CodeType.Of<object>()));
         Assert.Null(castCall);

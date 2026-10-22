@@ -120,7 +120,8 @@ parameters, symbols):
 - `CodeInvocation`: `Target` (chosen overload), `Receiver`, `Arguments`,
   `Argument("name")` (bound, including omitted defaults; null for unknown names),
   `ArgumentsFor("name")`, `Calls(member)`, `IsDeclaredOn(type)`, `TargetNameMatches(glob)`,
-  `IsConditional` (`?.`), `Expression`, `IsResolved`.
+  `IsConditional` (`?.`), `Expression`, `IsResolved`. Reports at the method name;
+  `ReportAt(call => call.Operation.Syntax)` reports the complete call.
 - Call filters: `To(member | apiSet)`, `ToMethodsNamed(names)`, `ToMethodsMatching(glob)`,
   `ToMethodsDeclaredOn(type)`, `ToMethodsDeclaredOnOrDerivedFrom(type)`,
   `OnReceiverOfType<T>()`, `WhereReceiver(expr => ...)`, `WhereArgument(name, arg => ...)`,

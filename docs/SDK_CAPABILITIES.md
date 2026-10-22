@@ -224,7 +224,7 @@ Assert.Equal(
     """
     TEAM001 Use the application logger instead of Console.WriteLine.
     Example.cs
-      3:26
+      3:41
 
     """,
     result.Output);

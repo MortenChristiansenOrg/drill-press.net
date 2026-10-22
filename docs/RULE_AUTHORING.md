@@ -135,8 +135,10 @@ validated batch. Display grouping never bypasses those checks.
 ### Reporting locations
 
 Without `ReportAt`, methods, types, fields, properties and parameters report at
-their identifier, references and calls at the complete expression, and catch
-clauses at their header. `ReportAt` accepts an element in the candidate's own
+their identifier, calls at the written method name (`ThenBy` in
+`items.OrderBy(a).ThenBy(b)`, so calls in one chain never share a location),
+references at the complete expression, and catch clauses at their header. Use
+`ReportAt(call => call.Operation.Syntax)` to report a call's complete expression. `ReportAt` accepts an element in the candidate's own
 compilation, an original syntax node or token, or a physical `SourceLocation`.
 Returning null keeps the candidate's own location. Candidates without a location,
 such as tuples from `Select` or `Join`, must report at an element:

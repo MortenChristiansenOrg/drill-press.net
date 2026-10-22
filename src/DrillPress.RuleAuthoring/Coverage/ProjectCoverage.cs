@@ -176,12 +176,13 @@ internal sealed class ProjectCoverage
 
     internal CoverageEvidence Inspect(ICodeElement element)
     {
+        var location = CoverageSpan.Of(element);
         if (
             element.Source is { } fixtureSource
             && _fixtureExecutions.TryGetValue(
                 (
                     fixtureSource.Document.DocumentId,
-                    new(element.Location.Start, element.Location.Length),
+                    new(location.Start, location.Length),
                     CoverageMetric.Execution
                 ),
                 out var fixture
@@ -201,7 +202,7 @@ internal sealed class ProjectCoverage
                         : CoverageReason.EvidenceNotPrepared,
                 ]
             );
-        var span = new TextSpan(element.Location.Start, element.Location.Length);
+        var span = new TextSpan(location.Start, location.Length);
         if (_precise.TryGetValue((source.Document.DocumentId, span), out var precise))
             return precise;
         var matching = ranges.Where(range => range.Span.Contains(span)).ToArray();
