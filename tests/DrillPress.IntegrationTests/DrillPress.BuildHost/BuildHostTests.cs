@@ -149,4 +149,44 @@ public sealed class BuildHostTests : IntegrationTest
         Assert.Equal(10, diagnostic.Location.Line);
         Assert.Equal(29, diagnostic.Location.Column);
     }
+
+    [Fact]
+    public async Task Profile_reports_workspace_and_context_phases_for_sdk_targets()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var snapshotPath = FileSystem.Path.Combine(
+            CreateTemporaryDirectory("drillpress-buildhost-profile-").FullName,
+            "snapshot.json"
+        );
+
+        var result = await RunProcessAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.BuildHost"),
+                "export",
+                SampleProjectPath,
+                snapshotPath,
+                "--profile",
+            ],
+            RepositoryRoot,
+            cancellationToken
+        );
+        var events = ParseProfileEvents(result.StandardError);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.Equal(
+            [
+                "loading.workspace",
+                "loading.contexts",
+                "loading",
+                "snapshot.serialization",
+                "snapshot.bytes",
+                "contexts",
+                "total",
+            ],
+            events.Select(entry => entry.Phase)
+        );
+        Assert.Equal(1, events.Single(entry => entry.Phase == "contexts").Count);
+    }
 }

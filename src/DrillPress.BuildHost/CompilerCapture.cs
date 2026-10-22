@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Abstractions;
 using System.Security.Cryptography;
 using DrillPress.Manifest;
@@ -6,9 +7,11 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace DrillPress.BuildHost;
 
+// One instance captures every context of an export, so shared references are fingerprinted once.
 internal sealed class CompilerCapture(IFileSystem fileSystem)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
+    private readonly ConcurrentDictionary<string, Lazy<string>> _fingerprints = new();
 
     public ProjectSnapshot Capture(
         string name,
@@ -88,10 +91,15 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
             reference.FilePath
             ?? throw new InvalidDataException("Metadata reference has no persistent input path.");
         path = _fileSystem.Path.GetFullPath(path);
-        var bytes = _fileSystem.File.ReadAllBytes(path);
+        var fingerprint = _fingerprints.GetOrAdd(
+            path,
+            key => new Lazy<string>(() =>
+                Convert.ToHexString(SHA256.HashData(_fileSystem.File.ReadAllBytes(key)))
+            )
+        );
         return new MetadataReferenceSnapshot(
             path,
-            Convert.ToHexString(SHA256.HashData(bytes)),
+            fingerprint.Value,
             reference.Properties.Aliases.ToArray(),
             reference.Properties.EmbedInteropTypes,
             (int)reference.Properties.Kind

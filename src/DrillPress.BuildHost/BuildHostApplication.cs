@@ -113,7 +113,12 @@ public sealed class BuildHostApplication
         using (profile.Measure("loading"))
         {
             var resolved = new TargetResolver(_fileSystem).Resolve(target);
-            snapshot = await _snapshotLoader.LoadAsync(resolved, options, cancellationToken);
+            snapshot = await _snapshotLoader.LoadAsync(
+                resolved,
+                options,
+                profile,
+                cancellationToken
+            );
         }
 
         using (profile.Measure("snapshot.serialization"))

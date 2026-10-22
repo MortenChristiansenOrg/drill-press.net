@@ -210,7 +210,8 @@ packages suppress (such as EF Core's CS8618 on `DbSet` properties) do not fail i
 Like the target's own compiler, both modes skip analyzers and generators that reference a
 newer compiler than the target SDK runs; validation reports that as CS9057 with the
 project's configured severity. Generator exceptions,
-missing inputs, incomplete project graphs, and load failures fail both modes.
+missing inputs, incomplete project graphs, and load failures fail both modes; with
+several failed contexts, the first in snapshot order is reported.
 Semantic selections do not guess unresolved symbols; syntax queries retain erroneous code.
 Source project references remain compilation
 references, so an erroneous dependency need not emit an assembly. Generated

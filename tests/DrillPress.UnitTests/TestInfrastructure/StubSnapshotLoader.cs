@@ -12,9 +12,10 @@ internal sealed class StubSnapshotLoader(IFileSystem fileSystem) : MsBuildSnapsh
     public SnapshotLoadOptions? Options { get; private set; }
     public string? ProjectPath { get; private set; }
 
-    public override Task<CompilationSnapshot> LoadAsync(
+    internal override Task<CompilationSnapshot> LoadAsync(
         string projectPath,
         SnapshotLoadOptions options,
+        PipelineProfile profile,
         CancellationToken cancellationToken
     )
     {

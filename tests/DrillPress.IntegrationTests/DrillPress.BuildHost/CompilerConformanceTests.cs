@@ -220,7 +220,9 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
 
     [Theory]
     [MemberData(nameof(GeneratorOptions))]
-    public async Task Generator_exceptions_fail_fast_and_validated_exports(string[] options)
+    public async Task Generator_exceptions_fail_exports_with_the_first_context_in_snapshot_order(
+        string[] options
+    )
     {
         var output = FileSystem.Path.Combine(
             CreateTemporaryDirectory("drillpress-generator-failure-").FullName,
@@ -229,9 +231,14 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
 
         var result = await ExportAsync(output, ["--property", "FailGenerator=true", .. options]);
 
-        Assert.Equal(2, result.ExitCode);
-        Assert.Equal("", result.StandardOutput);
-        Assert.Contains("Requested generator failure.", result.StandardError);
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Source generation failed in 'Consumer(net10.0)': Requested generator failure.{Environment.NewLine}"
+            ),
+            result
+        );
         Assert.False(FileSystem.File.Exists(output));
     }
 

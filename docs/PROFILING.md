@@ -13,7 +13,8 @@ milliseconds, and process peak working set. Counter events have a non-null
 locations, common-safe batches/edits, member bindings, interface-definition
 comparisons, prepared/changed files, snapshot bytes, and public UTF-8 bytes.
 
-Phases include BuildHost loading and snapshot serialization, snapshot loading,
+Phases include BuildHost loading (with its `loading.workspace` and `loading.contexts`
+parts) and snapshot serialization, snapshot loading,
 reconstruction, model preparation, every rule, allowances, fix validation and preparation,
 commit, aggregation, rendering, response serialization, and process totals.
 Candidate collections are lazy: their first rule pays their preparation cost.
@@ -35,6 +36,21 @@ Profiling is best effort: a failed process probe or output sink disables further
 measurements without interrupting diagnostics, source replacement, or cleanup.
 Library callers can inspect `PipelineProfile.Failure`. Measurement harnesses must
 reject incomplete profiles rather than treating missing phases as zero cost.
+
+## BuildHost loading
+
+`loading.workspace` opens the target with MSBuildWorkspace, whose out-of-process build
+host runs one design-time build per context, one after another. `loading.contexts`
+then evaluates, compiles, runs source generators for and captures every context. A
+context starts generating as soon as the contexts it references have generated, so
+independent contexts run in parallel and the longest chain of generator runs along the
+project graph bounds the phase; validation and capture do not delay dependents. All
+contexts share one MSBuild project collection, so SDK imports are parsed once, and each
+external reference is fingerprinted once per export. Parallel phases can use more CPU
+than wall time.
+
+When several contexts fail, BuildHost reports the first in snapshot order (project path,
+then name) whose references loaded, regardless of which failed first.
 
 ## Query optimization
 

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DrillPress.IntegrationTests.TestInfrastructure;
 using DrillPress.Manifest;
 using Xunit;
@@ -40,7 +39,7 @@ public sealed class CliProfilingTests : IntegrationTest
             RepositoryRoot,
             TestContext.Current.CancellationToken
         );
-        var events = ParseEvents(profiled.StandardError);
+        var events = ParseProfileEvents(profiled.StandardError);
 
         Assert.Equal(1, plain.ExitCode);
         Assert.Equal(1, profiled.ExitCode);
@@ -114,15 +113,4 @@ public sealed class CliProfilingTests : IntegrationTest
                 )
         );
     }
-
-    private static ProfileEvent[] ParseEvents(string output) =>
-        output
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(line =>
-                JsonSerializer.Deserialize(
-                    line["drillpress-profile ".Length..],
-                    CompilationSnapshotJsonContext.Default.ProfileEvent
-                )!
-            )
-            .ToArray();
 }
