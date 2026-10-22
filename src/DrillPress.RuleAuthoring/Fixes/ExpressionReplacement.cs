@@ -1,3 +1,4 @@
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -14,14 +15,14 @@ public sealed class ExpressionReplacement
     private readonly SyntaxNode _original;
     private readonly ExpressionSyntax _replacement;
     private readonly ExpressionInput[] _inputs;
-    private readonly Func<RewriteEvidence, ProofResult>[] _checks;
+    private readonly (string Name, Func<RewriteEvidence, ProofResult> Prove)[] _checks;
 
     internal ExpressionReplacement(
         AnalysisSource source,
         SyntaxNode original,
         ExpressionSyntax replacement,
         ExpressionInput[] inputs,
-        Func<RewriteEvidence, ProofResult>[]? checks = null
+        (string Name, Func<RewriteEvidence, ProofResult> Prove)[]? checks = null
     )
     {
         _source = source;
@@ -64,15 +65,18 @@ public sealed class ExpressionReplacement
                 ExpressionTemplates.Create("{0} != {1}", inputs).Syntax,
                 inputs,
                 [
-                    change =>
-                        change.BeforeModel.GetOperation(change.Before)
-                            is IUnaryOperation
-                            {
-                                OperatorMethod: null,
-                                Type.SpecialType: SpecialType.System_Boolean,
-                            }
-                            ? ProofResult.Proven
-                            : ProofResult.Unknown,
+                    (
+                        "absorbed negation",
+                        change =>
+                            change.BeforeModel.GetOperation(change.Before)
+                                is IUnaryOperation
+                                {
+                                    OperatorMethod: null,
+                                    Type.SpecialType: SpecialType.System_Boolean,
+                                }
+                                ? ProofResult.Proven
+                                : ProofResult.Unknown
+                    ),
                 ]
             );
         return new(source, target, ExpressionTemplates.Create("{0} == {1}", inputs).Syntax, inputs);
@@ -90,32 +94,44 @@ public sealed class ExpressionReplacement
 
     /// <summary>Proposes the replacement when your proof holds in every affected compilation; false withholds the fix and keeps the finding.</summary>
     /// <param name="proof">States why the change preserves behavior, using the original and rewritten expressions, such as <c>change =&gt; change.After.TypeIs&lt;bool&gt;()</c>.</param>
+    /// <returns>The proposal, or a <see cref="FixProposal.Withheld"/> proposal naming the source shape that prevents it.</returns>
     public FixProposal? SafeWhen(Func<ExpressionChange, bool> proof)
     {
-        if (
-            _original is not ExpressionSyntax original
-            || _original.SyntaxTree != _source.Tree
-            || !_source.Document.IsEditable
-            || _source.Document.IsGenerated
-            || ContextualRewrite.HasInteriorContent(_original)
-            || ContextualRewrite.IsObservableSyntax(_source, _original)
-            || _inputs.Any(input =>
-                input.Source != _source || !_original.Span.Contains(input.Original.Span)
-            )
-        )
-            return null;
+        if (Ineligible() is { } reason)
+            return FixProposal.Withheld(reason);
+        var original = (ExpressionSyntax)_original;
         var replacement = ExpressionLayout.Fit(_source, original, _replacement);
         var text = replacement.ToString();
         if (_original.ToString() == text)
-            return null;
+            return FixProposal.Withheld("the replacement is identical to the original expression");
         var edit = SourceChanges.Replace(_source, _original.Span, text);
-        return SourceChanges.Propose([edit], context => Validate(context, replacement, proof));
+        return SourceChanges.ProposeExplained(
+            [edit],
+            context => Validate(context, replacement, proof, [edit])
+        );
     }
 
-    private bool Validate(
+    private string? Ineligible() =>
+        _original is not ExpressionSyntax ? "the replaced node is not an expression"
+        : _original.SyntaxTree != _source.Tree
+            ? "the replaced expression belongs to another compilation membership"
+        : !_source.Document.IsEditable || _source.Document.IsGenerated
+            ? "the expression is in generated or non-editable source"
+        : ContextualRewrite.HasInteriorContent(_original)
+            ? "the expression contains comments, directives or disabled text"
+        : ContextualRewrite.IsObservableSyntax(_source, _original)
+            ? "the expression is inside nameof or an expression tree"
+        : _inputs.Any(input =>
+            input.Source != _source || !_original.Span.Contains(input.Original.Span)
+        )
+            ? "a kept operand is not part of the replaced expression"
+        : null;
+
+    private string? Validate(
         RewriteContext context,
         ExpressionSyntax replacement,
-        Func<ExpressionChange, bool> proof
+        Func<ExpressionChange, bool> proof,
+        IReadOnlyList<SourceEdit> edits
     )
     {
         var memberships = context
@@ -123,38 +139,53 @@ public sealed class ExpressionReplacement
                 source.Document.FileIdentity == _source.Document.FileIdentity
             )
             .ToArray();
-        return memberships.Length > 0
-            && memberships.All(source => ValidateMembership(context, source, replacement, proof));
+        if (memberships.Length == 0)
+            return "the edited file is not part of this compilation";
+        foreach (var source in memberships)
+            if (ValidateMembership(context, source, replacement, proof, edits) is { } reason)
+                return reason;
+        return null;
     }
 
-    private bool ValidateMembership(
+    private string? ValidateMembership(
         RewriteContext context,
         AnalysisSource source,
         ExpressionSyntax replacement,
-        Func<ExpressionChange, bool> proof
+        Func<ExpressionChange, bool> proof,
+        IReadOnlyList<SourceEdit> edits
     )
     {
         var before = source
             .Tree.GetRoot(source.Project.CancellationToken)
             .FindNode(_original.Span, getInnermostNodeForTie: true);
+        if (before.Span != _original.Span || before.RawKind != _original.RawKind)
+            return "the expression parses differently in this compilation";
         if (
-            before.Span != _original.Span
-            || before.RawKind != _original.RawKind
-            || ContextualRewrite.HasInteriorContent(before)
+            ContextualRewrite.HasInteriorContent(before)
             || ContextualRewrite.IsObservableSyntax(source, before)
-            || context.Map(source, before) is not { After: ExpressionSyntax } mapped
+        )
+            return "the expression contains comments or is inside nameof or an expression tree in this compilation";
+        if (
+            context.Map(source, before) is not { After: ExpressionSyntax } mapped
             || context.RewrittenSource(source) is not { } rewritten
         )
-            return false;
+            return "the replacement does not parse as one expression in place of the original";
         var inputs = ReadInputs(source, mapped, replacement);
         if (inputs is null)
-            return false;
-        var evidence = new RewriteEvidence(context, mapped, inputs);
-        return RewriteChecks.SameEnclosingBindings(evidence) == ProofResult.Proven
-            && RewriteChecks.SameRetainedBindings(evidence) == ProofResult.Proven
-            && RewriteChecks.SameCompilerSuppliedArguments(evidence) == ProofResult.Proven
-            && _checks.All(check => check(evidence) == ProofResult.Proven)
-            && proof(new ExpressionChange(evidence, rewritten));
+            return "a kept operand cannot be found in the replacement";
+        var evidence = new RewriteEvidence(context, mapped, inputs, edits);
+        if (RewriteChecks.EnclosingBindings(evidence) is { Holds: false } enclosing)
+            return enclosing.Reason;
+        if (RewriteChecks.SameRetainedBindings(evidence) != ProofResult.Proven)
+            return "a kept operand changes syntax, type or binding";
+        if (RewriteChecks.CompilerSuppliedArguments(evidence, null) is { Holds: false } supplied)
+            return supplied.Reason;
+        foreach (var (name, prove) in _checks)
+            if (prove(evidence) is var result && result != ProofResult.Proven)
+                return $"the {name} check is {result.ToString().ToLowerInvariant()}";
+        return proof(new ExpressionChange(evidence, rewritten))
+            ? null
+            : "the rule's SafeWhen proof returned false";
     }
 
     private IReadOnlyList<InputRewrite>? ReadInputs(

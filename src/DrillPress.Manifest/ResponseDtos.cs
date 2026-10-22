@@ -74,6 +74,12 @@ public sealed record Finding(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]
     public RuleFixComplexity? FixComplexity { get; init; }
+
+    /// <summary>Why the rule's proposed correction was withheld, as single-line reasons; absent when it has a fix or the rule proposed none.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string? FixWithheld { get; init; }
 }
 
 /// <summary>All edits for a correction; conflicts withhold the entire batch.</summary>
@@ -154,6 +160,12 @@ public sealed record AggregatedFinding(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]
     public RuleFixComplexity? FixComplexity { get; init; }
+
+    /// <summary>Why a proposed correction was withheld, from every contributing context and from conflict filtering; null when the finding has a fix or none was proposed.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string? FixWithheld { get; init; }
 }
 
 /// <summary>Validated diagnostics and the same conflict-filtered plan used for automatic writes.</summary>

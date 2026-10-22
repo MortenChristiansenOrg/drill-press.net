@@ -32,6 +32,8 @@ internal static class RuleFixSelection
                     ? finding with
                     {
                         BatchId = null,
+                        FixWithheld =
+                            "its fix shares edits with a fix for a rule outside --fix-complexity",
                     }
                     : finding
             )

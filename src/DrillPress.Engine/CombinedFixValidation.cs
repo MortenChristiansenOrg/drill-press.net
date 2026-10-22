@@ -6,7 +6,11 @@ namespace DrillPress.Engine;
 
 internal static class CombinedFixValidation
 {
-    internal static (FixBatch[] Batches, Dictionary<string, string> Ids) Combine(
+    internal static (
+        FixBatch[] Batches,
+        Dictionary<string, string> Ids,
+        Dictionary<string, string> Rejections
+    ) Combine(
         AnalysisSolution solution,
         Dictionary<string, FixBatch> batches,
         Dictionary<string, List<FixProposal>> proposals,
@@ -15,21 +19,30 @@ internal static class CombinedFixValidation
     {
         var candidates = batches.Values.ToArray();
         var conflicted = new HashSet<string>();
+        var rejections = new Dictionary<string, string>();
         for (var first = 0; first < candidates.Length; first++)
         for (var second = first + 1; second < candidates.Length; second++)
-            if (
-                candidates[first]
-                    .Edits.Any(left =>
-                        candidates[second]
-                            .Edits.Any(right =>
-                                left != right && SourceChanges.Conflict(left, right)
-                            )
-                    )
-            )
-            {
-                conflicted.Add(candidates[first].Id);
-                conflicted.Add(candidates[second].Id);
-            }
+        {
+            var conflict = candidates[first]
+                .Edits.SelectMany(left =>
+                    candidates[second]
+                        .Edits.Where(right => left != right && SourceChanges.Conflict(left, right))
+                        .Select(right => (Left: left, Right: right))
+                )
+                .FirstOrDefault();
+            if (conflict.Left is null)
+                continue;
+            conflicted.Add(candidates[first].Id);
+            conflicted.Add(candidates[second].Id);
+            rejections.TryAdd(
+                candidates[first].Id,
+                $"its edit at {Position(solution, conflict.Left)} conflicts with another fix's edit at {Position(solution, conflict.Right)}"
+            );
+            rejections.TryAdd(
+                candidates[second].Id,
+                $"its edit at {Position(solution, conflict.Right)} conflicts with another fix's edit at {Position(solution, conflict.Left)}"
+            );
+        }
 
         var reportingMemberships = reportingGroups
             .SelectMany((members, index) => members.Select(id => (Id: id, Group: index)))
@@ -64,7 +77,7 @@ internal static class CombinedFixValidation
                 index = 0;
             }
 
-            group = ValidatedGroup(solution, group, proposals);
+            group = ValidatedGroup(solution, group, proposals, rejections);
             if (group.Count == 0)
                 continue;
             contexts = group
@@ -103,56 +116,82 @@ internal static class CombinedFixValidation
             foreach (var batch in group)
                 ids.Add(batch.Id, id);
         }
-        return (result.ToArray(), ids);
+        return (result.ToArray(), ids, rejections);
     }
 
     private static List<FixBatch> ValidatedGroup(
         AnalysisSolution solution,
         List<FixBatch> group,
-        Dictionary<string, List<FixProposal>> proposals
+        Dictionary<string, List<FixProposal>> proposals,
+        Dictionary<string, string> rejections
     )
     {
         while (group.Count > 0)
         {
             var edits = Edits(group);
-            var accepted = group
-                .Where(batch => Validate(solution, batch, proposals[batch.Id], edits))
-                .ToList();
+            var reasons = group.ToDictionary(
+                batch => batch.Id,
+                batch => Check(solution, batch, proposals[batch.Id], edits)
+            );
+            var accepted = group.Where(batch => reasons[batch.Id] is null).ToList();
             if (accepted.Count == group.Count)
                 return group;
             if (accepted.Count > 0)
             {
+                foreach (var batch in group.Where(batch => reasons[batch.Id] is not null))
+                    rejections[batch.Id] = reasons[batch.Id]!;
                 group = accepted;
                 continue;
             }
             // A union may fail compilation before any individual proof runs. Isolate invalid proposals once;
             // if all work alone but fail together, withhold the interacting group.
-            var individual = group
-                .Where(batch => Validate(solution, batch, proposals[batch.Id], batch.Edits))
-                .ToList();
-            if (individual.Count == group.Count)
+            var individual = group.ToDictionary(
+                batch => batch.Id,
+                batch => Check(solution, batch, proposals[batch.Id], batch.Edits)
+            );
+            if (individual.Values.All(reason => reason is null))
+            {
+                foreach (var batch in group)
+                    rejections[batch.Id] =
+                        $"safe alone, but not together with {group.Count - 1} other fixes in the same compilation: {reasons[batch.Id]}";
                 return [];
-            group = individual;
+            }
+            foreach (var batch in group.Where(batch => individual[batch.Id] is not null))
+                rejections[batch.Id] = individual[batch.Id]!;
+            group = group.Where(batch => individual[batch.Id] is null).ToList();
         }
         return [];
     }
 
-    private static bool Validate(
+    // The first reason any affected context gives, naming the context when the batch has several.
+    private static string? Check(
         AnalysisSolution solution,
         FixBatch batch,
         List<FixProposal> proposals,
         SourceEdit[] edits
-    ) =>
-        batch.Validations.All(validation =>
-            proposals.All(proposal =>
-                proposal.IsSafeIn(
-                    solution.Projects.Single(project =>
-                        project.Snapshot.ContextId == validation.ContextId
-                    ),
-                    edits
-                )
-            )
-        );
+    )
+    {
+        foreach (var validation in batch.Validations)
+        {
+            var project = solution.Projects.Single(project =>
+                project.Snapshot.ContextId == validation.ContextId
+            );
+            foreach (var proposal in proposals)
+                if (proposal.Check(project, edits) is { } reason)
+                    return batch.Validations.Length == 1
+                        ? reason
+                        : $"{project.Snapshot.Name} ({project.Snapshot.TargetFramework}): {reason}";
+        }
+        return null;
+    }
+
+    private static string Position(AnalysisSolution solution, SourceEdit edit) =>
+        solution
+            .Projects.SelectMany(project => project.Sources)
+            .FirstOrDefault(source => source.Document.FileIdentity == edit.FileIdentity)
+            is { } source
+            ? FixReasons.Position(source, edit.Start)
+            : edit.Start.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private static SourceEdit[] Edits(IEnumerable<FixBatch> batches) =>
         batches

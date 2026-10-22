@@ -124,7 +124,6 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
     [InlineData(
         "class A { static void Use(string value) {} void M() { checked { Use(\"/x\"); Use(\"/x\"); } } }"
     )]
-    [InlineData("class A { static void Use(string? value) {} void M() { Use(null); Use(null); } }")]
     [InlineData(
         "class A { static void Use(string value) {} void M() { Use(\"/x\"); Use(\"/x\"); } }\nclass B { static void Log([System.Runtime.CompilerServices.CallerLineNumber] int line = 0) {} void N() => Log(); }"
     )]
@@ -137,6 +136,29 @@ public sealed class ExpressionExtractionTests(SdkFixture fixture) : IClassFixtur
 
         Assert.Equal([false], result.Findings.Select(finding => finding.HasFix));
         Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task Target_typed_null_extracts_to_a_constant_of_its_converted_type()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { static void Use(string? value) {} void M() { Use(null); Use(null); } }"
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Constants(), TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], result.Findings.Select(finding => finding.HasFix));
+        Assert.Equal(
+            "class A { static void Use(string? value) {} void M() { Use(global::A.Route); Use(global::A.Route); } \n    private const string? Route = null;\n}",
+            result.FixedText("A.cs")
+        );
     }
 
     [Fact]

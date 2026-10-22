@@ -19,6 +19,9 @@ internal sealed class RuleResponseBuilder
         var findingBatches = new Dictionary<Finding, List<string>>(
             ReferenceEqualityComparer.Instance
         );
+        var findingReasons = new Dictionary<Finding, List<string>>(
+            ReferenceEqualityComparer.Instance
+        );
         var findings = solution.Projects.ToDictionary(
             project => project.Snapshot.ContextId,
             _ => new List<Finding>()
@@ -45,6 +48,7 @@ internal sealed class RuleResponseBuilder
                     "A selected diagnostic location is outside its compilation context."
                 );
             var batchIds = new List<string>();
+            var reasons = new List<string>();
             foreach (
                 var proposal in diagnostic.Fixes.Count > 0 ? diagnostic.Fixes
                 : diagnostic.Fix is { } single ? [single]
@@ -53,6 +57,11 @@ internal sealed class RuleResponseBuilder
             {
                 if (RegisterProposal(solution, proposal, targetFiles, batches, proposals) is { } id)
                     batchIds.Add(id);
+                else
+                    reasons.Add(
+                        proposal.WithheldReason
+                            ?? "the fix edits a file outside the analysis target, or generated source"
+                    );
             }
 
             var finding = new Finding(
@@ -72,6 +81,7 @@ internal sealed class RuleResponseBuilder
             };
             findings[source.Project.Snapshot.ContextId].Add(finding);
             findingBatches.Add(finding, batchIds);
+            findingReasons.Add(finding, reasons);
         }
 
         var combined = CombinedFixValidation.Combine(
@@ -82,12 +92,25 @@ internal sealed class RuleResponseBuilder
         );
         foreach (var list in findings.Values)
             for (var index = 0; index < list.Count; index++)
+            {
+                var batchId = findingBatches[list[index]]
+                    .Select(id => combined.Ids.GetValueOrDefault(id))
+                    .FirstOrDefault(id => id is not null);
                 list[index] = list[index] with
                 {
-                    BatchId = findingBatches[list[index]]
-                        .Select(id => combined.Ids.GetValueOrDefault(id))
-                        .FirstOrDefault(id => id is not null),
+                    BatchId = batchId,
+                    FixWithheld = batchId is null
+                        ? Explain(
+                            findingReasons[list[index]]
+                                .Concat(
+                                    findingBatches[list[index]]
+                                        .Select(id => combined.Rejections.GetValueOrDefault(id))
+                                        .OfType<string>()
+                                )
+                        )
+                        : null,
                 };
+            }
 
         return new(
             BundleResponseProtocol.CurrentVersion,
@@ -104,6 +127,16 @@ internal sealed class RuleResponseBuilder
         {
             SkippedRules = skippedRules.Length == 0 ? null : skippedRules,
         };
+    }
+
+    // Distinct single-line reasons, or null when the rule proposed no fix.
+    private static string? Explain(IEnumerable<string> reasons)
+    {
+        var distinct = reasons
+            .Select(reason => reason.ReplaceLineEndings(" "))
+            .Distinct()
+            .ToArray();
+        return distinct.Length == 0 ? null : string.Join("; ", distinct);
     }
 
     private static string? RegisterProposal(

@@ -22,12 +22,12 @@ public sealed class BlockWrapping
     /// <remarks>Gates: editable ordinary source, a supported if/else branch, safe boundary trivia, and unchanged branch ownership, bound expressions and compiler-supplied arguments in every affected compilation.</remarks>
     public FixProposal? Propose()
     {
-        if (
-            _statement is not StatementSyntax statement
-            || !Eligible(_source, statement)
-            || Owner(statement) is not { } owner
-        )
-            return null;
+        if (_statement is not StatementSyntax statement)
+            return FixProposal.Withheld("the branch is not a statement");
+        if (Ineligible(_source, statement) is { } ineligible)
+            return FixProposal.Withheld(ineligible);
+        if (Owner(statement) is not { } owner)
+            return FixProposal.Withheld("the statement is not an if or else branch");
         var text = _source.Tree.GetText();
         var line = text.Lines.GetLineFromPosition(statement.SpanStart);
         var prefix = text.ToString(TextSpan.FromBounds(line.Start, statement.SpanStart));
@@ -50,7 +50,9 @@ public sealed class BlockWrapping
             )
                 end = trivia.Span.End;
             else if (!trivia.IsKind(SyntaxKind.WhitespaceTrivia))
-                return null;
+                return FixProposal.Withheld(
+                    "the statement is followed by trivia that cannot stay on its line"
+                );
         }
         var edits = new[]
         {
@@ -65,7 +67,7 @@ public sealed class BlockWrapping
                 layout.NewLine + layout.Indent + "}"
             ),
         };
-        return SourceChanges.Propose(
+        return SourceChanges.ProposeExplained(
             edits,
             context =>
             {
@@ -74,32 +76,38 @@ public sealed class BlockWrapping
                         source.Document.FileIdentity == _source.Document.FileIdentity
                     )
                     .ToArray();
-                return sources.Length > 0
-                    && sources.All(source => Validate(context, source, edits));
+                if (sources.Length == 0)
+                    return "the edited file is not part of this compilation";
+                foreach (var source in sources)
+                    if (Validate(context, source, edits) is { } reason)
+                        return reason;
+                return null;
             }
         );
     }
 
-    private bool Validate(RewriteContext context, AnalysisSource source, SourceEdit[] edits)
+    private string? Validate(RewriteContext context, AnalysisSource source, SourceEdit[] edits)
     {
         var before =
             source
                 .Tree.GetRoot(source.Project.CancellationToken)
                 .FindNode(_statement.Span, getInnermostNodeForTie: true) as StatementSyntax;
+        if (before is null || before.Span != _statement.Span)
+            return "the statement parses differently in this compilation";
+        if (Ineligible(source, before) is { } ineligible)
+            return ineligible;
         if (
-            before is null
-            || before.Span != _statement.Span
-            || !Eligible(source, before)
-            || context.Evidence(source, before, edits)
-                is not { After: StatementSyntax after } evidence
+            context.Evidence(source, before, edits) is not { After: StatementSyntax after } evidence
             || after.Parent is not BlockSyntax { Statements.Count: 1 } block
             || block.Statements[0] != after
             || !SyntaxFactory.AreEquivalent(before, after)
-            || !SameOwner(context, source, before, block)
         )
-            return false;
-        return RewriteChecks.SameSourceBindings(evidence) == ProofResult.Proven
-            && RewriteChecks.CompilerSuppliedArguments(evidence, null).Holds;
+            return "the statement is not the only, unchanged statement of the new block";
+        if (!SameOwner(context, source, before, block))
+            return "the new block does not belong to the same statement";
+        if (RewriteChecks.SourceBindings(evidence) is { Holds: false } bindings)
+            return bindings.Reason;
+        return RewriteChecks.CompilerSuppliedArguments(evidence, null).Reason;
     }
 
     private static bool SameOwner(
@@ -119,16 +127,20 @@ public sealed class BlockWrapping
             _ => false,
         };
 
-    private static bool Eligible(AnalysisSource source, StatementSyntax statement)
+    private static string? Ineligible(AnalysisSource source, StatementSyntax statement)
     {
         if (
             statement.SyntaxTree != source.Tree
             || !source.Document.IsEditable
             || source.Document.IsGenerated
-            || statement is BlockSyntax
-            || statement.ContainsDiagnostics
-            || statement.ContainsDirectives
-            || statement
+        )
+            return "the statement is in generated or non-editable source";
+        if (statement is BlockSyntax)
+            return "the statement already has braces";
+        if (statement.ContainsDiagnostics || statement.ContainsDirectives)
+            return "the statement contains directives or syntax errors";
+        if (
+            statement
                 .DescendantNodesAndSelf()
                 .Any(node =>
                     node
@@ -138,7 +150,7 @@ public sealed class BlockWrapping
                             or LocalFunctionStatementSyntax
                 )
         )
-            return false;
+            return "the statement contains a label, goto, yield or local function";
         var headerEnd = statement.Parent switch
         {
             IfStatementSyntax owner when owner.Statement == statement => owner
@@ -151,11 +163,14 @@ public sealed class BlockWrapping
                 .End,
             _ => -1,
         };
-        return headerEnd >= 0
-            && source
-                .Tree.GetText()
-                .ToString(TextSpan.FromBounds(headerEnd, statement.SpanStart))
-                .All(char.IsWhiteSpace);
+        if (headerEnd < 0)
+            return "the statement is not an if or else branch";
+        return source
+            .Tree.GetText()
+            .ToString(TextSpan.FromBounds(headerEnd, statement.SpanStart))
+            .All(char.IsWhiteSpace)
+            ? null
+            : "a comment between the header and the statement has no unambiguous place";
     }
 
     private static IfStatementSyntax? Owner(StatementSyntax statement)

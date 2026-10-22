@@ -135,6 +135,36 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
     }
 
     [Fact]
+    public async Task Explained_output_names_the_check_that_withheld_the_fix()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A\n{\n    void M(bool test)\n    {\n        if (test) /* why */ Run();\n        if (test) Log();\n    }\n    void Run() {}\n    void Log([System.Runtime.CompilerServices.CallerLineNumber] int line = 0) {}\n}"
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            BLOCK Wrap the selected statement.
+            A.cs
+              5:29
+                fix withheld: a comment between the header and the statement has no unambiguous place
+              6:19
+                fix withheld: `Log()` at 6:19 receives different compiler-supplied arguments, such as a caller line number
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+    }
+
+    [Fact]
     public async Task Wrapping_an_else_if_keeps_the_complete_chain_as_one_statement()
     {
         var workspace = fixture.Workspace();

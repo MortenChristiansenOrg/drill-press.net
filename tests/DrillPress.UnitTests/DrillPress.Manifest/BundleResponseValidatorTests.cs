@@ -329,6 +329,7 @@ public sealed class BundleResponseValidatorTests
             )
             {
                 Evidence = "coverage: uncovered; coverage: unknown",
+                FixWithheld = "the fix was not validated in every compilation containing its files",
             },
             Assert.Single(result.Findings)
         );
@@ -544,7 +545,11 @@ public sealed class BundleResponseValidatorTests
                     1,
                     3,
                     null
-                ),
+                )
+                {
+                    FixWithheld =
+                        "the fix was not validated in every compilation containing its files",
+                },
             ],
             result.Findings
         );

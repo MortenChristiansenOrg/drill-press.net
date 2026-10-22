@@ -130,7 +130,7 @@ The CLI captures and validates a versioned internal bundle response before writi
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle package versions. Snapshot format 5 records analysis
-scope and build overrides; response protocol 9 carries per-occurrence evidence, optional rule fix complexity, and skipped coverage rules.
+scope and build overrides; response protocol 10 carries per-occurrence evidence, optional rule fix complexity, skipped coverage rules, and why proposed fixes were withheld.
 The contracts bind responses to a unique request and preserve compilation and
 document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the

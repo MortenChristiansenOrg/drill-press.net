@@ -141,6 +141,56 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
     }
 
     [Fact]
+    public async Task Explained_output_names_compiler_errors_overloads_and_failed_proofs()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "class A { int Value() => 1; void M() { Pick(Value()); Take(Value()); Keep(Value()); } void Pick(byte value) {} void Pick(long value) {} void Take(int value) {} void Keep(int value) {} }"
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("VALUE", "Use the literal.")
+            .For(
+                Code.Nodes<InvocationExpressionSyntax>()
+                    .Where(node => node.Syntax.ToString() == "Value()")
+            )
+            .Forbid(fix: node =>
+                node.Syntax.Parent?.Parent?.Parent
+                    is InvocationExpressionSyntax
+                    {
+                        Expression: IdentifierNameSyntax { Identifier.ValueText: var name }
+                    }
+                    ? Fix.For(node.AsExpression())
+                        .ReplaceWith(name == "Take" ? "\"one\"" : "1")
+                        .SafeWhen(_ => name != "Keep")
+                    : null
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            VALUE Use the literal.
+            A.cs
+              1:45
+                fix withheld: `Value()` at 1:45 changes its converted type or conversion
+              1:60
+                fix withheld: the edited compilation has an error: CS1503 at A.cs:1:60 Argument 1: cannot convert from 'string' to 'int'
+              1:75
+                fix withheld: the rule's SafeWhen proof returned false
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+    }
+
+    [Fact]
     public async Task A_discarded_statement_value_can_change_type()
     {
         var workspace = fixture.Workspace();

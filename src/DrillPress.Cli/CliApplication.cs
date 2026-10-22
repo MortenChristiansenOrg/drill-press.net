@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck;
@@ -21,6 +21,7 @@ public sealed class CliApplication
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --explain-coverage  Show typed reasons, context identity and matching source ranges.
+        --explain-fixes  Show why each proposed fix without '+' was withheld.
         --refresh-coverage  Rerun tests even when cached coverage inputs match.
         --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
         --show-fix-complexity  Include assigned agent fix effort once per rule.
@@ -170,7 +171,8 @@ public sealed class CliApplication
                             : renderer.Render(
                                 evaluation.Result,
                                 options.ShowFixComplexity,
-                                options.ExplainCoverage
+                                options.ExplainCoverage,
+                                options.ExplainFixes
                             );
                     if (profile.Enabled)
                     {

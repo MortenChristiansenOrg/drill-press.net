@@ -129,17 +129,30 @@ public sealed class ExpressionExtraction
     /// <summary>Proposes a constant extraction, whose equivalence the library proves. Template groups need <see cref="SafeWhen"/>.</summary>
     /// <remarks>Gates: editable ordinary partial parts, trivia and observable contexts, owner and group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context.</remarks>
     public FixProposal? Propose() =>
-        _group.Kind == ExpressionGroupKind.Constant ? SafeWhen(_ => true) : null;
+        _group.Kind == ExpressionGroupKind.Constant
+            ? SafeWhen(_ => true)
+            : FixProposal.Withheld(
+                "Propose() proves only constant extraction; templates need SafeWhen"
+            );
 
     /// <summary>Proposes the member insertion and every replacement as one batch when your proof holds; template extraction must justify formatting, culture and moved-call behavior.</summary>
     /// <remarks>Gates: editable ordinary partial parts, trivia and observable contexts, owner and group identity, constant values or template shape, capture correspondence, moved-call bindings, enclosing bindings, compiler-supplied arguments and the combined compilation in every affected context.</remarks>
     public FixProposal? SafeWhen(Func<ExtractionChange, bool> proof)
     {
-        if (_name is null || _part is null || !Covers(_group.Owner.Source.Project))
-            return null;
+        if (_name is null)
+            return FixProposal.Withheld("the extraction has no member name");
+        if (_part is null)
+            return FixProposal.Withheld("the group's owner is not a type declaration part");
+        if (!Covers(_group.Owner.Source.Project))
+            return FixProposal.Withheld(
+                "the group does not cover every selected expression in its owner"
+            );
         return ExtractionPlan
-            .Create(_group, _destination, _part, _name, _parameter, _reuse, _collision)
-            ?.Propose(evidence => Covers(evidence.Context.Original) && proof(evidence));
+                .Create(_group, _destination, _part, _name, _parameter, _reuse, _collision)
+                ?.Propose(evidence => Covers(evidence.Context.Original) && proof(evidence))
+            ?? FixProposal.Withheld(
+                "the group cannot be extracted: an occurrence is ineligible, its type is not denotable or the name is taken"
+            );
     }
 
     private bool Covers(AnalysisProject project)

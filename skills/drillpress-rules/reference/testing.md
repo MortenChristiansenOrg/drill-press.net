@@ -45,6 +45,9 @@ linked file.
   Format: `ID message`, then each file, then `  line:column` (column omitted when 1);
   `+` before the line marks a validated fix; coverage findings append `[coverage: state]`.
 - `result.FixedText(path)` applies validated fixes in memory; assert the complete text.
+- `result.ExplainedOutput` is `Output` plus a `    fix withheld: <reason>` line under each
+  finding whose proposed fix was withheld, naming the check that rejected it. Use it to
+  debug a missing `+`, and to assert why a fix is withheld.
 - `result.Findings` gives `TestFinding(Rule, Path, Line, Column, Text, HasFix)` when the
   highlighted text matters.
 - `workspace.Analyze()` returns an `AnalysisSolution`; `query.In(solution)` materializes

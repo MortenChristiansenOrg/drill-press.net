@@ -1,4 +1,5 @@
 using DrillPress;
+using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -61,28 +62,42 @@ public sealed class ArgumentRemoval
     /// <summary>Proposes the removal when the overload change is expected, the value and evaluation proofs hold, and your final proof that both overloads behave the same holds in every affected compilation.</summary>
     public FixProposal? SafeWhen(Func<ArgumentRemovalChange, bool> proof)
     {
+        if (_transition is null)
+            return FixProposal.Withheld("the removal has no expected overload change");
+        if (_value is null || _evaluation is null)
+            return FixProposal.Withheld(
+                "the removal needs both RequireRemovedValue and RequireRemovedEvaluation"
+            );
         if (
-            _transition is null
-            || _value is null
-            || _evaluation is null
-            || _syntax is not InvocationExpressionSyntax syntax
+            _syntax is not InvocationExpressionSyntax syntax
             || syntax.SyntaxTree != _source.Tree
             || !_source.Document.IsEditable
             || _source.Document.IsGenerated
-            || ContextualRewrite.IsObservableSyntax(_source, syntax)
-            || ContextualRewrite.HasInteriorContent(syntax.ArgumentList)
-            || Read(_source, syntax) is not { } original
-            || Removable(original) is not { SourceIndex: { } index }
         )
-            return null;
+            return FixProposal.Withheld(
+                "the call is not an invocation in editable ordinary source"
+            );
+        if (
+            ContextualRewrite.IsObservableSyntax(_source, syntax)
+            || ContextualRewrite.HasInteriorContent(syntax.ArgumentList)
+        )
+            return FixProposal.Withheld(
+                "the call is inside nameof or an expression tree, or its arguments contain comments"
+            );
+        if (Read(_source, syntax) is not { } original)
+            return FixProposal.Withheld("the call does not resolve");
+        if (Removable(original) is not { SourceIndex: { } index })
+            return FixProposal.Withheld(
+                $"no single explicit, non-params, non-receiver argument binds to {_parameter}"
+            );
         var replacement = syntax.ArgumentList.RemoveNode(
             syntax.ArgumentList.Arguments[index],
             SyntaxRemoveOptions.KeepNoTrivia
         );
         if (replacement is null)
-            return null;
+            return FixProposal.Withheld("the argument cannot be removed from the list");
         var edit = SourceChanges.Replace(_source, syntax.ArgumentList.Span, replacement.ToString());
-        return SourceChanges.Propose(
+        return SourceChanges.ProposeExplained(
             [edit],
             context =>
             {
@@ -91,16 +106,21 @@ public sealed class ArgumentRemoval
                         source.Document.FileIdentity == _source.Document.FileIdentity
                     )
                     .ToArray();
-                return sources.Length > 0
-                    && sources.All(source => Validate(context, source, proof));
+                if (sources.Length == 0)
+                    return "the edited file is not part of this compilation";
+                foreach (var source in sources)
+                    if (Validate(context, source, proof, [edit]) is { } reason)
+                        return reason;
+                return null;
             }
         );
     }
 
-    private bool Validate(
+    private string? Validate(
         RewriteContext context,
         AnalysisSource source,
-        Func<ArgumentRemovalChange, bool> provesBehavior
+        Func<ArgumentRemovalChange, bool> provesBehavior,
+        IReadOnlyList<SourceEdit> edits
     )
     {
         var syntax =
@@ -113,26 +133,31 @@ public sealed class ArgumentRemoval
             || Read(source, syntax) is not { } before
             || Removable(before) is not { } removed
             || ContextualRewrite.IsObservableSyntax(source, syntax)
-            || context.Evidence(source, syntax)
+        )
+            return "the call or argument differs in this compilation";
+        if (
+            context.Evidence(source, syntax, edits)
                 is not { After: InvocationExpressionSyntax afterSyntax } rewrite
             || rewrite.AfterModel.GetOperation(afterSyntax) is not IInvocationOperation after
-            || _transition!.Resolve(source.Project, before.Declaration) is not { } expected
+        )
+            return "the call has no counterpart after the edit";
+        if (
+            _transition!.Resolve(source.Project, before.Declaration) is not { } expected
             || !SymbolEqualityComparer.Default.Equals(
                 before.Declaration,
                 Normalize(expected.Before)
             )
-            || !RewriteSymbols.Same(
-                Normalize(expected.After),
-                Normalize(after.TargetMethod),
-                context
-            )
+        )
+            return "the call does not bind to the expected original overload";
+        if (
+            !RewriteSymbols.Same(Normalize(expected.After), Normalize(after.TargetMethod), context)
             || !ArgumentTransitionChecks.SameTypeArguments(
                 before.Declaration,
                 Normalize(after.TargetMethod),
                 context
             )
         )
-            return false;
+            return $"the edited call binds to {after.TargetMethod.ToDisplayString()}, not the expected overload";
         var evidence = new ArgumentRemovalChange(
             rewrite,
             before.Operation,
@@ -141,17 +166,24 @@ public sealed class ArgumentRemoval
             expected
         );
         var parameters = _transition.ParametersFor(expected);
-        return parameters is not null
-            && ArgumentTransitionChecks.RetainedArguments(evidence, parameters)
-            && RewriteChecks.SameEnclosingBindings(rewrite) == ProofResult.Proven
-            && RewriteChecks.CompilerSuppliedArguments(rewrite, syntax).Holds
-            && (
-                ArgumentTransitionChecks.SameDefaults(evidence, parameters)
-                || _defaults?.Invoke(evidence) == true
-            )
-            && _value!(evidence)
-            && _evaluation!(evidence)
-            && provesBehavior(evidence);
+        if (parameters is null)
+            return "the overloads' parameters cannot be mapped by name and type";
+        if (!ArgumentTransitionChecks.RetainedArguments(evidence, parameters))
+            return "a retained argument changes order, parameter, conversion or binding";
+        if (RewriteChecks.EnclosingBindings(rewrite) is { Holds: false } enclosing)
+            return enclosing.Reason;
+        if (RewriteChecks.CompilerSuppliedArguments(rewrite, syntax) is { Holds: false } supplied)
+            return supplied.Reason;
+        if (
+            !ArgumentTransitionChecks.SameDefaults(evidence, parameters)
+            && _defaults?.Invoke(evidence) != true
+        )
+            return "compiler-supplied arguments change without RequireSynthesizedArguments approval";
+        if (!_value!(evidence))
+            return "the RequireRemovedValue proof returned false";
+        if (!_evaluation!(evidence))
+            return "the RequireRemovedEvaluation proof returned false";
+        return provesBehavior(evidence) ? null : "the rule's SafeWhen proof returned false";
     }
 
     private CodeArgument? Removable(CodeInvocation call) =>

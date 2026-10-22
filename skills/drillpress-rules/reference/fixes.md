@@ -1,7 +1,10 @@
 # Fixes
 
 A fix factory receives the violating candidate and returns `FixProposal?`. Null keeps
-the finding without a fix. Every chain starts at `Fix.For(candidate)` (or
+the finding without a fix; `FixProposal.Withheld("reason")` does too and records why.
+Builders return such a withheld proposal when the source shape rules them out, and
+`drillpress check --explain-fixes` (or `result.ExplainedOutput` in tests) prints the
+reason, or the check that rejected the fix during validation, under the finding. Every chain starts at `Fix.For(candidate)` (or
 `Fix.Extract(group)`) and ends in `Propose()` or `SafeWhen(proof)`.
 
 ## Builders
