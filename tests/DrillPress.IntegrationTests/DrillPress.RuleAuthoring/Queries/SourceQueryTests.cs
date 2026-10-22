@@ -121,4 +121,22 @@ public sealed class SourceQueryTests(SdkFixture fixture) : IClassFixture<SdkFixt
         Assert.Equal("value", node.Constant.Value);
         Assert.Equal(SpecialType.System_String, node.TypeInfo.Type!.SpecialType);
     }
+
+    [Fact]
+    public void Project_queries_take_the_project_place_filters()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject("Shop.Core", [new("Core.cs", "class Core { }")]);
+        workspace.AddProject("Shop.Api", [new("Api.cs", "class Api { }")]);
+        workspace.AddProject("Shop.Tests", [new("Tests.cs", "class Tests { }")], isTest: true);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var tests = Code.Projects.InTestProjects().In(solution);
+        var production = Code.Projects.InNonTestProjects().InProject("Shop.C*").In(solution);
+        var withType = Code.Projects.InProjectsWithType(CodeType.Named("Api")).In(solution);
+
+        Assert.Equal(["Shop.Tests"], tests.Select(project => project.Name));
+        Assert.Equal(["Shop.Core"], production.Select(project => project.Name));
+        Assert.Equal(["Shop.Api"], withType.Select(project => project.Name));
+    }
 }

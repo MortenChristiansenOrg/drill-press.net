@@ -48,7 +48,7 @@ rules.Rule("TEAM001", "Use the application's current storage contract.")
 a forgotten obligation cannot silently disable a rule.
 
 `Code` is the single discovery root: `Code.Files`, `Code.Projects`, `Code.Types`,
-`Code.TypeDeclarations`, `Code.Methods`, `Code.Fields`, `Code.Properties`,
+`Code.TypeDeclarations`, `Code.Methods`, `Code.Fields`, `Code.EnumMembers`, `Code.Properties`,
 `Code.Parameters`, `Code.Calls`, `Code.ObjectCreations`, `Code.MemberReferences`,
 `Code.TypeReferences`, `Code.NullChecks`, `Code.Catches`, `Code.Comments`,
 `Code.TestMethods`, `Code.TestClasses`, and the statement roots. They share one
@@ -76,8 +76,8 @@ rules.Rule("TEAM001", "Use a descriptive method name.")
 
 ### Shared declaration filters
 
-Types, type parts, methods, fields, properties, parameters and declared symbols
-implement `ICodeDeclaration`. The same filters and predicates apply to each:
+Types, type parts, methods, fields, enum members, properties, parameters and declared
+symbols implement `ICodeDeclaration`. The same filters and predicates apply to each:
 
 | Filter on a query | Predicate on one declaration |
 | --- | --- |
@@ -98,7 +98,9 @@ modifiers and documentation of all parts.
 
 Every source element also accepts the same scope filters: `InProject(glob)`,
 `InTestProjects()`, `InNonTestProjects()`, `InProjectsWithType(type)`,
-`InFolder(folder)`, `InFilesNamed(glob)` and `InNamespace(pattern)`.
+`InFolder(folder)`, `InFilesNamed(glob)` and `InNamespace(pattern)`. `Code.Projects`
+accepts the project filters too: `InProject(glob)`, `InTestProjects()`,
+`InNonTestProjects()` and `InProjectsWithType(type)`.
 
 ### Typed clauses under one identity
 
@@ -135,8 +137,10 @@ validated batch. Display grouping never bypasses those checks.
 ### Reporting locations
 
 Without `ReportAt`, methods, types, fields, properties and parameters report at
-their identifier, references and calls at the complete expression, and catch
-clauses at their header. `ReportAt` accepts an element in the candidate's own
+their identifier, calls at the written method name (`ThenBy` in
+`items.OrderBy(a).ThenBy(b)`, so calls in one chain never share a location),
+references at the complete expression, and catch clauses at their header. Use
+`ReportAt(call => call.Operation.Syntax)` to report a call's complete expression. `ReportAt` accepts an element in the candidate's own
 compilation, an original syntax node or token, or a physical `SourceLocation`.
 Returning null keeps the candidate's own location. Candidates without a location,
 such as tuples from `Select` or `Join`, must report at an element:
@@ -150,7 +154,12 @@ rules.Rule("SDK2007", "Keep reader and writer format inventories in agreement.")
     .Forbid();
 ```
 
-Synthetic syntax and elements from another compilation are rejected.
+A tuple resolves syntax, tokens and `SourceLocation`s in the compilation of its first
+code element (searching nested tuples), so `.ReportAt(pair => pair.Reader.Syntax.Identifier)`
+also works. Other candidate types without a compilation, such as a record that does not
+implement `ICodeElement`, are rejected when the clause is registered: `ReportAt` with
+syntax, a token or a location throws, and so does `Forbid` or `Require` without
+`ReportAt`. Synthetic syntax and elements from another compilation are rejected.
 
 Use semantic identities instead of source spelling:
 
@@ -466,6 +475,13 @@ including its final line break, while retaining adjacent blank lines. Inline
 removal keeps a separator when needed. Token correspondence, compilation and
 compiler-supplied argument checks withhold changes that alter parsing or caller
 information, such as subsequent `CallerLineNumber` values.
+
+`element.ExplanatoryComment()` (or `source.ExplanatoryComment(position)` for a token
+inside the element) finds the ordinary comment that explains a line: a `//` or `/* */`
+comment on it, on the comment line directly above it, or directly above the statement
+or member that contains it. Documentation comments and `drillpress-allow` comments do
+not count, and a blank line separates a comment from the code below it.
+`HasExplanatoryComment()` tests for one, for rules such as "say why this `!` is safe".
 
 Use `Remove(preserveLines: true)` to retain every original line break while
 deleting the comment text, including multiline comments. Standalone comment lines

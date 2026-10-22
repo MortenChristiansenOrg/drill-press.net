@@ -33,7 +33,7 @@ public sealed class CoveragePolicyTests
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Skip()", "Choose()"], result.Findings.Select(finding => finding.Text));
+        Assert.Equal(["Skip", "Choose"], result.Findings.Select(finding => finding.Text));
         Assert.Equal(
             ["Exercise this call.", "Inspect mapping evidence."],
             result.Findings.Select(finding => finding.OutcomeRemediation)
@@ -227,7 +227,7 @@ public sealed class CoveragePolicyTests
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Skip()", Assert.Single(result.Findings).Text);
+        Assert.Equal("Skip", Assert.Single(result.Findings).Text);
         Assert.Equal(FindingDisposition.Violation, Assert.Single(result.Findings).Disposition);
         Assert.Equal(
             ExecutionCoverage.Uncovered,

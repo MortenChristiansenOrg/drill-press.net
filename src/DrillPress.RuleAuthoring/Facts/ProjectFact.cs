@@ -21,7 +21,7 @@ public sealed class ProjectFact<T>(Func<AnalysisProject, T> compute)
         {
             if (!cache.TryGetValue(project, out value!))
             {
-                value = new(() => compute(project));
+                value = new(() => solution.Shared("facts", () => compute(project)));
                 cache.Add(project, value);
             }
         }

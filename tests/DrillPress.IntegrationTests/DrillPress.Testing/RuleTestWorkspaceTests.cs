@@ -290,4 +290,60 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
         );
         Assert.Equal("class A { int M() => 1; }", result.FixedText("A.cs"));
     }
+
+    [Fact]
+    public void Workspace_projects_replace_referenced_assemblies_of_the_same_name()
+    {
+        var workspace = fixture.Workspace();
+        var manifest = workspace.AddProject(
+            "DrillPress.Manifest",
+            [new("Thing.cs", "namespace Fake; public class Thing { }")]
+        );
+
+        var app = workspace.AddProject(
+            "App",
+            [new("App.cs", "class App { Fake.Thing? Value; }")],
+            dependencies: [manifest]
+        );
+
+        Assert.Empty(
+            app.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+                .Where(diagnostic =>
+                    diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error
+                )
+        );
+        Assert.DoesNotContain(
+            manifest.Compilation.ReferencedAssemblyNames,
+            identity => identity.Name == "DrillPress.Manifest"
+        );
+    }
+
+    [Fact]
+    public async Task Console_projects_compile_top_level_statements()
+    {
+        var workspace = fixture.Workspace();
+        var tool = workspace.AddProject(
+            "Tool",
+            [new("Program.cs", "System.Console.WriteLine(1);")],
+            outputKind: Microsoft.CodeAnalysis.OutputKind.ConsoleApplication
+        );
+        var rules = new RuleCatalog();
+        rules.Rule("CONSOLE", "Log instead.").For(Code.Calls.ToMethodsNamed("WriteLine")).Forbid();
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            CONSOLE Log instead.
+            Program.cs
+              1:16
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+        Assert.Equal(
+            (int)Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,
+            tool.Snapshot.OutputKind
+        );
+    }
 }

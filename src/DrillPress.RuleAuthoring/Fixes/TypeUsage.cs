@@ -21,7 +21,7 @@ internal static class TypeUsage
             return "the library proves only sealed and static classes";
         if (type.IsAbstract || type.IsStatic)
             return "the class is abstract or static";
-        var projects = project.Solution?.Projects ?? [project];
+        var projects = project.SolutionOrNull?.Projects ?? [project];
         var identity = RewriteSymbols.Identity(type);
         foreach (
             var candidate in projects.SelectMany(loaded =>

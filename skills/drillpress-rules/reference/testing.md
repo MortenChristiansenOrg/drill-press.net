@@ -31,11 +31,14 @@ workspace.AddProject("Shop.Tests", [
 | `packages` | direct package facts for `ReferencesPackage` (nothing is downloaded) |
 | `nullable`, `languageVersion` | compiler options; defaults are enabled and C# 14 |
 | `implicitUsings` | `true` adds the .NET SDK default global usings (`System`, `System.Linq`, `System.Threading.Tasks`, ...), like a project with `ImplicitUsings` enabled; off by default |
+| `outputKind` | `OutputKind.ConsoleApplication` for top-level statements; a class library by default |
 
 `new TestSource(path, text, Generated: true)` marks generated code. The default
 references are the test process's own assemblies, so snippets can use the BCL and
 packages the test project references, such as test-framework attributes for rules
-about `Code.TestMethods`. Use the same path and text in two projects to model a
+about `Code.TestMethods`. A reference to an assembly named like the workspace project
+or one of its dependencies is left out, so a project can be named `Shop.Core` even when
+the test process loads the real `Shop.Core.dll`. Use the same path and text in two projects to model a
 linked file.
 
 ## Assertions
@@ -99,7 +102,7 @@ public sealed class LoggingAllowanceTests
             """
             TEAM001 Use the application logger instead of Console.WriteLine.
             App.cs
-              7:9
+              7:17
 
             """.ReplaceLineEndings("\n"),
             result.Output);

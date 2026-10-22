@@ -20,6 +20,20 @@ public sealed class CodeBody
             call => call.ArgumentsFor(withArgument).Any(argument => argument.Is(equalTo))
         );
 
+    /// <summary>Scopes body queries to any original syntax node, such as one statement, a loop body or a lambda body.</summary>
+    /// <exception cref="ArgumentException">The node does not belong to the source's syntax tree.</exception>
+    public static CodeBody Of(
+        AnalysisSource source,
+        SyntaxNode root,
+        NestedFunctions nested = NestedFunctions.Exclude
+    ) =>
+        root.SyntaxTree == source.Tree
+            ? new(source, root, nested)
+            : throw new ArgumentException(
+                "The node must belong to the source's original syntax tree.",
+                nameof(root)
+            );
+
     internal CodeBody(AnalysisSource source, SyntaxNode root, NestedFunctions nested)
     {
         Source = source;
@@ -69,6 +83,46 @@ public sealed class CodeBody
                     ? new[] { new CodeInvocation(Source, call) }
                     : []
             );
+
+    /// <summary>The block's statements in sections separated by blank lines, as in a test's Arrange, Act and Assert; empty for an expression body.</summary>
+    /// <remarks>A blank line is a whitespace-only line between two statements. Comment lines do not separate sections, and neither do blank lines inside a statement, a comment or disabled code.</remarks>
+    public IReadOnlyList<CodeSection> Sections()
+    {
+        if (Root is not BlockSyntax block)
+            return [];
+        var sections = new List<List<StatementSyntax>>();
+        StatementSyntax? previous = null;
+        foreach (var statement in block.Statements)
+        {
+            if (previous is null || HasBlankLineBetween(previous, statement))
+                sections.Add([]);
+            sections[^1].Add(statement);
+            previous = statement;
+        }
+        return sections
+            .Select((statements, index) => new CodeSection(Source, statements, index, Nested))
+            .ToArray();
+    }
+
+    private bool HasBlankLineBetween(StatementSyntax previous, StatementSyntax next)
+    {
+        var text = Source.Tree.GetText(Source.Project.CancellationToken);
+        var root = Source.Tree.GetRoot(Source.Project.CancellationToken);
+        var first = text.Lines.GetLineFromPosition(previous.Span.End).LineNumber + 1;
+        var last = text.Lines.GetLineFromPosition(next.SpanStart).LineNumber - 1;
+        for (var number = first; number <= last; number++)
+        {
+            var line = text.Lines[number];
+            if (
+                string.IsNullOrWhiteSpace(text.ToString(line.Span))
+                && root.FindTrivia(line.Start, findInsideTrivia: true).Kind()
+                    is SyntaxKind.WhitespaceTrivia
+                        or SyntaxKind.EndOfLineTrivia
+            )
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>Finds selected syntax categories, including an expression-bodied method's root expression.</summary>
     public IEnumerable<CodeNode<SyntaxNode>> ControlFlowNodes(ControlFlowKinds kinds) =>

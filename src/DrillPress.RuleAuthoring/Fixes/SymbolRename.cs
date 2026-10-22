@@ -50,7 +50,7 @@ public sealed class SymbolRename
             );
         var sources = Scope(_source, _symbol, local) is { } scope
             ? scope.Select(node => (Source: _source, Node: node))
-            : (_source.Project.Solution?.Projects ?? [_source.Project])
+            : (_source.Project.SolutionOrNull?.Projects ?? [_source.Project])
                 .SelectMany(project => project.Sources)
                 .Select(source =>
                     (Source: source, Node: source.Tree.GetRoot(source.Project.CancellationToken))

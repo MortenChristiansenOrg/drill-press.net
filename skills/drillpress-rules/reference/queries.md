@@ -13,6 +13,7 @@ cached per analysis; materialize one with `query.In(solution)` in tests.
 | `TypeDeclarations` | `CodeTypeDeclaration` | every written part; `TopLevel()` |
 | `Methods` | `CodeMethod` | ordinary methods, not constructors, accessors or local functions |
 | `Fields` / `Properties` / `Parameters` | `CodeField` / `CodeProperty` / `CodeParameter` | one field candidate per variable; parameters include lambdas and primary constructors |
+| `EnumMembers` | `CodeEnumMember` | enum members (not in `Fields`): `Value`, `HasExplicitValue`, `ContainingType` |
 | `Declarations` | `CodeSymbol` | every declared symbol, including events, locals, accessors |
 | `TestMethods`, `TestClasses`, `AbstractTestClasses` | `CodeMethod`, `CodeTypeDefinition` | xUnit, NUnit, MSTest markers incl. derived attributes |
 | `Calls` | `CodeInvocation` | every bound call in bodies, initializers, attributes, top-level code |
@@ -49,6 +50,7 @@ File selections narrow discovery before binding: `files.Calls()`, `files.Nodes<T
 Every query of `ICodeElement` (anything reportable):
 
 - `InProject(glob)`, `InTestProjects()`, `InNonTestProjects()`, `InProjectsWithType(type)`
+  (also on `Code.Projects`)
 - `InNamespace("A.B")`, `"A.*"` (one segment), `"A.**"` (A and descendants)
 - `InFolder("Domain")` (whole segments at any depth), `InFilesNamed("*Tests.cs")`
 - predicates: `element.IsInProject(glob)`, `IsInNamespace(pattern)`, `IsInFolder(folder)`
@@ -77,7 +79,9 @@ parameters, symbols):
 - `CodeTypeDeclaration`: `IsTopLevel`, `Syntax`, `Symbol`; attributes are those written on this part.
 - `CodeMethod`: `IsAsync`, `IsStatic`, `ReturnsVoid`, `ReturnTypeIs(type)`, `Parameters`,
   `HasBody`, `HasEmptyBody`, `HasNoStatements`, `Body(nested?)`, `ContainingType`,
-  `Flow`, `Reaches(member)` (static call paths through loaded source), `Syntax`.
+  `Flow`, `Reaches(member)` (static call paths through loaded source), `Syntax`,
+  `Callees(sameType: false, transitive: false, nested: Include)` (source methods it calls,
+  in call order; `sameType`/`transitive` give e.g. everything `ExecuteAsync` runs in its type).
   Queries: `DeclaredInTypesDerivedFrom(types)`, `Overriding(member)`,
   `DirectlyOverriding(member)`, `WhereBody(MethodBodyShape)`, `ContainingTypes()`.
 - `CodeField`: `Type`, `TypeIs<T>()`, `IsConst`, `IsReadOnly`, `IsStatic`, `Initializer`, `Declaration`.
@@ -96,8 +100,10 @@ parameters, symbols):
   `CanUseVar`, `Variables`; queries `WithExplicitType()`, `WithInitializer()`, `WhereVarPreservesType()`.
 - `CodeNode<T>`: `Syntax`, `ContainingSymbol`, `Operation`, `TypeInfo`, `Constant`
   (`HasValue` first), `AsExpression()`; query `Duplicates(minimumTokens)` (repeated token shapes).
-- `CodeBody` (`method.Body()`, `methods.Body()`): `Calls()`, `Calls(member)`, `Nodes<T>()`,
-  `ControlFlowNodes(kinds)`, `NestedBodies()`, `IsEmpty`; `bodies.Conditions().Checks(pattern)`
+- `CodeBody` (`method.Body()`, `methods.Body()`, `CodeBody.Of(source, node)` for any syntax
+  node): `Calls()`, `Calls(member)`, `Nodes<T>()`, `ControlFlowNodes(kinds)`, `NestedBodies()`,
+  `IsEmpty`, `Sections()` (`CodeSection`: statements between blank lines, as in Arrange/Act/
+  Assert, with `Statements`, `Index`, `Calls()`, `Nodes<T>()`); `bodies.Conditions().Checks(pattern)`
   with `ConditionPattern.Null`, `EmptyString`, `NullOrEmptyString`, `NullOrWhiteSpaceString`,
   `ForCall(...)`; `bodies.NullChecks()`.
 
@@ -109,7 +115,7 @@ parameters, symbols):
 - `type.Member("Name")` (all overloads, fields, properties), `.WithParameters(types)`
   (one overload; none = parameterless), `type.Constructor(types)`.
 - `member.References` (`MemberReference`: `Symbol`, `Expression`, `Facts`, `AsArgument()`);
-  `references.OutsideNameOf()`.
+  `references.OutsideNameOf()`; `Code.MemberReferences.To(memberA, memberB)` for several.
 - `ApiSet(members)`: `Contains(method)`, `Union(other)`; usable with `calls.To(set)`.
 - `CodeTypeReference`: `Type`, `RefersTo<T>()`, `RefersTo(type)`.
 - Raw symbols: `symbol.Attributes()` → `CodeAttribute` (`ConstructorValue<T>(name)`,
@@ -121,7 +127,13 @@ parameters, symbols):
 - `CodeInvocation`: `Target` (chosen overload), `Receiver`, `Arguments`,
   `Argument("name")` (bound, including omitted defaults; null for unknown names),
   `ArgumentsFor("name")`, `Calls(member)`, `IsDeclaredOn(type)`, `TargetNameMatches(glob)`,
-  `IsConditional` (`?.`), `Expression`, `IsResolved`.
+  `IsConditional` (`?.`), `Expression`, `IsResolved`, `Chain()`. Reports at the method
+  name; `ReportAt(call => call.Operation.Syntax)` reports the complete call.
+- `CodeCallChain` (`call.Chain()`): `Calls` in evaluation order (`Where`, `OrderBy`, `ToList`
+  in `items.Where(a).OrderBy(b).ToList()`), `First`, `Last`, `Root` (the value it starts
+  from), `Local`, `Before(call)`, `After(call)`. `ThroughLocal()` adds the chains assigned to
+  the root local and the chains that start from it in the same body (`q = q.Where(...)`,
+  builders changed in place), in source order, ignoring statement order and branches.
 - Call filters: `To(member | apiSet)`, `ToMethodsNamed(names)`, `ToMethodsMatching(glob)`,
   `ToMethodsDeclaredOn(type)`, `ToMethodsDeclaredOnOrDerivedFrom(type)`,
   `OnReceiverOfType<T>()`, `WhereReceiver(expr => ...)`, `WhereArgument(name, arg => ...)`,
@@ -136,13 +148,23 @@ parameters, symbols):
   `Symbol`, `RefersTo(member)`, `IsNameOf(symbol)`, `FlowState`, `MayBeNull`,
   `DeclaredNullability`, `Facts` (`IsInsideNameOf`, `IsInsideExpressionTree`, comments),
   `AsInvocation()`, `AsBuiltString()`.
+- `element.ValuesInScope<T>()` / `ValuesInScope(type)`: `ScopedValue` (`Symbol`, `Name`,
+  `Kind`: `Local`/`Parameter`/`Field`/`Property`, `Type` with nullable annotation) for each
+  value of the type (or a derived/implementing type) readable by name at the element,
+  nearest first; instance state is left out in static contexts. Use it to find the
+  `CancellationToken` or `TimeProvider` to pass on.
+- `element.ExplanatoryComment()` / `HasExplanatoryComment()`, `source.ExplanatoryComment(position)`:
+  the ordinary comment on the line, on the line above, or above the statement or member;
+  documentation and `drillpress-allow` comments do not count. Use for "explain this `!`".
 - `CodeNullCheck`: `CheckedValue`, `Polarity`, `Domain`, `Form`, `IsKnownNotNullBeforeCheck`.
 - `method.Flow` (`MethodFlow`): `Graph`, `Data` (check `Succeeded`), `NullState(expression)`.
 
 ## Projects and relationships
 
 - `AnalysisProject`: `Name`, `TargetFramework`, `IsTestProject`, `Packages`,
-  `ReferencesPackage(id)`, `Properties`, `HasType(type)`, `Compilation`, `Sources`.
+  `ReferencesPackage(id)`, `Properties`, `HasType(type)`, `Compilation`, `Sources`, `Solution`.
+- `candidate.Source.Solution` (or `project.Solution`) is the current analysis: read facts
+  and queries in predicates and fixes with `fact.In(candidate.Source.Solution)`.
 - `solution.ProjectGraph`: `Includes(consumer, owner)`, `DependenciesOf`, `CompatibleViewsOf`.
 - `solution.Relationships`: `CallsFrom`, `CallersOf`, `Reaches`, `DerivedTypes`, `FilesOf`.
 - `ImplementationView` (`Interface`, `Projects`, `Implementations`): `IgnoringTestProjects()`,

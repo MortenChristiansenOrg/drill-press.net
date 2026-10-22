@@ -178,16 +178,7 @@ public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
 
         Assert.Equal(
-            [
-                new TestFinding(
-                    "SDK2002",
-                    "ConsoleTrace.cs",
-                    1,
-                    40,
-                    "System.Console.WriteLine(\"trace\")",
-                    false
-                ),
-            ],
+            [new TestFinding("SDK2002", "ConsoleTrace.cs", 1, 55, "WriteLine", false)],
             result.Findings
         );
         Assert.Equal(source, result.FixedText("ConsoleTrace.cs"));

@@ -55,7 +55,7 @@ Start from the `Code` root that names what the convention is about:
 | --- | --- |
 | `Files`, `Projects` | `CodeFile`, `AnalysisProject` |
 | `Types`, `Interfaces`; `TypeDeclarations` (each partial part) | `CodeTypeDefinition`; `CodeTypeDeclaration` |
-| `Methods`, `Fields`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
+| `Methods`, `Fields`, `EnumMembers`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeEnumMember`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
 | `TestMethods`, `TestClasses` (xUnit, NUnit, MSTest) | `CodeMethod`, `CodeTypeDefinition` |
 | `Calls`, `ObjectCreations` | `CodeInvocation`, `CodeObjectCreation` |
 | `MemberReferences`, `TypeReferences`, `ReferencesTo(symbol)` | `MemberReference`, `CodeTypeReference`, `CodeSymbol` |
@@ -74,6 +74,9 @@ Narrow with composable filters:
   `ArgumentsFor("name")` (argument candidates). Include `To`, `ToMethodsNamed` or
   `ToMethodsMatching` when the target is known: only documents that can contain
   such a call are bound, while `Code.Calls.Where(...)` alone binds the whole solution.
+  Place filters (`InTestProjects()`, `InProject`, `InFolder`, `InFilesNamed`) also skip
+  other documents before binding; prefer them and `member.References`,
+  `MemberReferences.To(members)` or `ObjectCreations.Of(type)` over a custom `Where`.
 - Types and statements: `DerivedFrom`, `ImplementingInterface`, `ImplementationViews()`,
   `Branches().WithoutBraces()`, `Code.EmbeddedStatements.WithoutBraces()` (if/else and
   loop, using, lock and fixed bodies), `WithExplicitType()`.
@@ -87,9 +90,9 @@ member is listed in [reference/queries.md](reference/queries.md).
 
 ## Report locations
 
-Declarations report at their identifier, calls at the call, arguments at the argument,
-catch clauses at their header, branches at the statement and projects at their first
-file. `ReportAt` points elsewhere and is required for tuples and computed values:
+Declarations report at their identifier, calls at the method name (`ThenBy` in
+`a.OrderBy(x).ThenBy(y)`), arguments at the argument, catch clauses at their header,
+branches at the statement and projects at their first file. `ReportAt` points elsewhere and is required for tuples and computed values:
 
 ```csharp
 using DrillPress;
@@ -110,7 +113,9 @@ rules.Rule("PARAM001", "Group long parameter lists into a request type.")
 ```
 
 `ReportAt` accepts a candidate part, syntax node, token (`type.ExplicitModifier(...)`)
-or `SourceLocation`. `ReportOncePer(key)` shows one finding per key.
+or `SourceLocation`; a tuple resolves syntax in the compilation of its first code
+element. A custom record must implement `ICodeElement` (`Source`, `Location`) or report
+at an element, otherwise registration throws. `ReportOncePer(key)` shows one finding per key.
 
 ## Fixes
 
@@ -165,7 +170,7 @@ public sealed class LoggingRuleTests
             """
             TEAM001 Use the application logger instead of Console.WriteLine.
             App.cs
-              1:30
+              1:45
 
             """.ReplaceLineEndings("\n"),
             result.Output);

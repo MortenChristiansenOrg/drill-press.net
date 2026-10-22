@@ -63,7 +63,7 @@ var repeatedNames = names.SelectMany(counts =&gt;
 
 var repeatedTypes = publicTypes.Join(
     repeatedNames, type =&gt; type.Name, name =&gt; name, (type, _) =&gt; type);</code></pre></div>
-<p><code>AnalysisFact&lt;T&gt;.In(solution)</code> computes once per fact instance per analysis. <code>SelectMany</code> turns part of its value into a query. Values should be treated as immutable.</p>
+<p><code>AnalysisFact&lt;T&gt;.In(solution)</code> computes once per fact instance per analysis. <code>SelectMany</code> turns part of its value into a query. Values should be treated as immutable. Inside a predicate, <code>ReportAt</code> or fix, read the analysis from any candidate with <code>candidate.Source.Solution</code> (or <code>project.Solution</code>), as in <code>names.In(type.Source.Solution)</code>, instead of wrapping candidates in records that carry facts.</p>
 <p><code>ProjectFact&lt;T&gt;</code> instead takes a function of <code>AnalysisProject</code>. Read it with <code>In(solution, project)</code>; the project must belong to that solution. Alternative frameworks do not share values. Fact dependencies may read other facts, but cycles fail, and computation failures remain cached for that analysis. None of these caches persist across runs.</p>
 <h2 id="sets">Compare inventories and repeated syntax</h2>
 <div class="codeblock"><div class="codehead"><span>Understand missing and unexpected items</span></div><pre tabindex="0" data-check="program" id="example-26"><code>using DrillPress;

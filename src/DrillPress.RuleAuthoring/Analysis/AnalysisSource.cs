@@ -1,5 +1,6 @@
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
@@ -9,6 +10,7 @@ public sealed class AnalysisSource
 {
     private readonly Lazy<SemanticModel> _model;
     private readonly Lazy<LocalAssignments> _localAssignments;
+    private readonly Lazy<IReadOnlyList<CodeObjectCreation>> _objectCreations;
 
     internal AnalysisSource(AnalysisProject project, DocumentSnapshot document, SyntaxTree tree)
     {
@@ -18,11 +20,23 @@ public sealed class AnalysisSource
         _model = new(() => project.Compilation.GetSemanticModel(tree));
         _localAssignments = new(() => new LocalAssignments(this));
         Operations = new(this);
+        _objectCreations = new(() =>
+            Array.AsReadOnly(
+                tree.GetRoot(project.CancellationToken)
+                    .DescendantNodes()
+                    .OfType<BaseObjectCreationExpressionSyntax>()
+                    .Select(syntax => new CodeObjectCreation(this, syntax))
+                    .ToArray()
+            )
+        );
         Errors = new(this);
     }
 
     /// <summary>The independent compilation context containing this document membership.</summary>
     public AnalysisProject Project { get; }
+
+    /// <summary>The analysis that most recently included this document's project; see <see cref="AnalysisProject.Solution"/>.</summary>
+    public AnalysisSolution Solution => Project.Solution;
 
     /// <summary>Original text, byte identity, generated classification, and edit eligibility.</summary>
     public DocumentSnapshot Document { get; }
@@ -36,6 +50,9 @@ public sealed class AnalysisSource
     internal LocalAssignments LocalAssignments => _localAssignments.Value;
 
     internal SourceOperations Operations { get; }
+
+    // Shared, so that every query sees the same creations and binds each one once.
+    internal IReadOnlyList<CodeObjectCreation> ObjectCreations => _objectCreations.Value;
 
     internal SourceErrors Errors { get; }
 

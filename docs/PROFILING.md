@@ -21,6 +21,27 @@ Candidate collections are lazy: their first rule pays their preparation cost.
 Per-rule measurements include that rule's candidate selection and proposed-fix
 construction; cross-context fix validation has its own phase.
 
+Each `rule.<id>` phase is followed by `rule.<id>.own`, the same scope without
+the shared work the rule happened to pay for. Shared work is cached work that
+later rules reuse: binding a document's operations or object creations
+(`operations`), binding member and type reference candidates
+(`member-references`, `type-references`), discovering methods, types and using
+aliases (`declarations`), the project graph and call relationships
+(`relationships`), `AnalysisFact` and `ProjectFact` values (`facts`),
+`MethodFlow.For` graphs and data flow (`flow`), and per-member compiler error
+checks (`errors`). After the rules, one `shared.<kind>` phase per kind that did
+work reports its total, in name order. So the first rule to read `Code.Calls`
+shows a large `rule.<id>` but an ordinary `rule.<id>.own`, and
+`shared.operations` shows what binding cost everyone. A rule's own work also
+includes materializing its own queries, which another rule reusing the same
+query instance gets for free. Shared totals include work done while coverage
+was planned, before the rules ran.
+
+Only the outermost shared work in a flow counts, including work it runs on other
+threads, so shared kinds never count the same time twice. Their CPU is the whole
+process's, like every other phase. Measuring each piece of shared work adds a
+small cost to profiled runs only.
+
 Measurements are inclusive scopes, not an additive breakdown. CLI child-process
 wall phases overlap the corresponding child's own phases. User/kernel CPU and
 peak working set describe the reporting process, excluding child processes and
@@ -81,6 +102,17 @@ compiles each enclosing member once and queries the exact span only when that
 member has errors. Names carry through `Where` and `ExceptWhen` in any order, but
 a call query filtered only by a custom `Where`, or reshaped by `Select`,
 `SelectMany`, `Union` or `Concat` before naming its target, binds every document.
+
+Place filters (`InProject`, `InTestProjects`, `InNonTestProjects`, `InProjectsWithType`,
+`InFolder` and `InFilesNamed`) carry through `Where` and `ExceptWhen` like names: call,
+operation, member-reference, type-reference and object-creation roots skip other
+documents before binding them, and member and type references outside the analysis
+target are never bound. `ObjectCreations.Of(type)` skips explicit creations whose
+written type name is neither the type's name nor a using alias; target-typed and
+keyword creations are always bound. `MemberReferences.To(members)` binds only the
+members' names. `InNamespace` needs a bound location and does not narrow discovery.
+Counters `member.symbol.bindings`, `type.symbol.bindings` and
+`operation.bound.documents` show how much each root bound.
 
 Path, project, folder, namespace and name globs compile once per distinct pattern.
 

@@ -39,7 +39,11 @@ internal sealed class SourceOperations
     internal SourceOperations(AnalysisSource source)
     {
         _source = source;
-        _all = new(Discover);
+        _all = new(() =>
+        {
+            using var scope = source.Project.MeasureShared("operations");
+            return Discover();
+        });
         _invocations = new(() =>
             Array.AsReadOnly(
                 All.OfType<IInvocationOperation>()
@@ -81,10 +85,11 @@ internal sealed class SourceOperations
         foreach (
             var syntax in _source
                 .Tree.GetRoot(token)
-                .DescendantNodes()
+                .DescendantNodesAndSelf()
                 .Where(node =>
                     node
-                        is BaseMethodDeclarationSyntax
+                        is CompilationUnitSyntax { Members: [GlobalStatementSyntax, ..] }
+                            or BaseMethodDeclarationSyntax
                             or AccessorDeclarationSyntax
                             or EqualsValueClauseSyntax
                             or GlobalStatementSyntax

@@ -17,6 +17,9 @@ public sealed class RuleCondition<T>
     }
 
     internal NameFilter? MemberNames { get; }
+
+    /// <summary>The documents whose candidates can satisfy this condition, such as those of test projects; null accepts every document.</summary>
+    internal Func<AnalysisSource, bool>? SourceFilter { get; init; }
     internal bool RequiresCoverage { get; init; }
     internal Func<T, string>? Detail { get; init; }
     internal Func<T, IReadOnlyList<CoverageEvidence>>? CoverageFacts { get; init; }
@@ -43,6 +46,10 @@ public sealed class RuleCondition<T>
                 : MemberNames.And(other.MemberNames)
         )
         {
+            SourceFilter =
+                SourceFilter is not { } left ? other.SourceFilter
+                : other.SourceFilter is not { } right ? left
+                : source => left(source) && right(source),
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),
@@ -66,6 +73,10 @@ public sealed class RuleCondition<T>
                 : MemberNames.Or(other.MemberNames)
         )
         {
+            SourceFilter =
+                SourceFilter is { } left && other.SourceFilter is { } right
+                    ? source => left(source) || right(source)
+                    : null,
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),

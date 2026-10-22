@@ -100,15 +100,8 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
                         ? Operation.Arguments.FirstOrDefault(a => a.Parameter?.Ordinal == 0)?.Value
                         : null
                 );
-            if (value is IConditionalAccessInstanceOperation)
-            {
-                for (var parent = Operation.Parent; parent is not null; parent = parent.Parent)
-                    if (parent is IConditionalAccessOperation conditional)
-                    {
-                        value = conditional.Operation;
-                        break;
-                    }
-            }
+            if (value is IConditionalAccessInstanceOperation instance)
+                value = CallChainLinks.AccessOf(instance)?.Operation;
             return value is IInstanceReferenceOperation { IsImplicit: true }
                 && Operation.Syntax is ExpressionSyntax anchor
                     ? CodeExpression.ImplicitReceiver(Source, anchor, value)
@@ -220,8 +213,33 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
         }
     }
 
-    /// <summary>The complete call span.</summary>
-    public SourceLocation Location => Source.Locate(Operation.Syntax.Span);
+    /// <summary>The called method's written name, including any type arguments, such as <c>ThenBy</c> in <c>items.OrderBy(a).ThenBy(b)</c>, so chained calls have distinct locations. Calls without a written name, such as invoking a call's delegate result or compiler-implied calls, use the complete call. Report at <c>Operation.Syntax</c> for the complete call.</summary>
+    public SourceLocation Location => Source.Locate(NameSyntax.Span);
+
+    // The name that selects the method: the right side of a member access or binding, or a simple name.
+    private SyntaxNode NameSyntax =>
+        Operation.Syntax switch
+        {
+            InvocationExpressionSyntax { Expression: var callee } => callee switch
+            {
+                MemberAccessExpressionSyntax access => access.Name,
+                MemberBindingExpressionSyntax binding => binding.Name,
+                AliasQualifiedNameSyntax alias => alias.Name,
+                SimpleNameSyntax name => name,
+                _ => Operation.Syntax,
+            },
+            _ => Operation.Syntax,
+        };
+
+    /// <summary>The fluent chain this call belongs to: the calls whose results it receives and the calls that receive its result, in the same expression.</summary>
+    public CodeCallChain Chain() => CodeCallChain.Of(this);
+
+    /// <summary>The same bound call in the same compilation membership, however it was selected.</summary>
+    public override bool Equals(object? obj) =>
+        obj is CodeInvocation other && other.Source == Source && other.Operation == Operation;
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => HashCode.Combine(Source, Operation);
 
     /// <summary>Matches a configured API independently of aliases, static imports or extension-call spelling.</summary>
     public bool Calls(CodeMember member) => member.Matches(Target);

@@ -739,7 +739,7 @@ public sealed class CoverageCollectorTests
             );
 
         Assert.Equal(
-            ["Hit()", "HitValue()", "HitValue()"],
+            ["Hit", "HitValue", "HitValue"],
             diagnostics.Select(diagnostic =>
                 CoverageFixture.Source.Substring(
                     diagnostic.Location.Start,
@@ -969,7 +969,7 @@ public sealed class CoverageCollectorTests
 
         Assert.Equal(1, fixture.Process.Collections);
         Assert.Equal(
-            "Hit()",
+            "Hit",
             CoverageFixture.Source.Substring(
                 Assert.Single(diagnostics).Location.Start,
                 diagnostics[0].Location.Length
