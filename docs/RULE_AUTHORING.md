@@ -98,7 +98,9 @@ modifiers and documentation of all parts.
 
 Every source element also accepts the same scope filters: `InProject(glob)`,
 `InTestProjects()`, `InNonTestProjects()`, `InProjectsWithType(type)`,
-`InFolder(folder)`, `InFilesNamed(glob)` and `InNamespace(pattern)`.
+`InFolder(folder)`, `InFilesNamed(glob)` and `InNamespace(pattern)`. `Code.Projects`
+accepts the project filters too: `InProject(glob)`, `InTestProjects()`,
+`InNonTestProjects()` and `InProjectsWithType(type)`.
 
 ### Typed clauses under one identity
 

@@ -27,6 +27,33 @@ public static class ScopeQueries
         return query.InSources(source => match.Matches(source.Project.Name));
     }
 
+    /// <summary>Selects projects that BuildHost classifies as test projects.</summary>
+    public static CodeQuery<AnalysisProject> InTestProjects(
+        this CodeQuery<AnalysisProject> projects
+    ) => projects.Where(project => project.IsTestProject);
+
+    /// <summary>Selects projects that BuildHost does not classify as test projects.</summary>
+    public static CodeQuery<AnalysisProject> InNonTestProjects(
+        this CodeQuery<AnalysisProject> projects
+    ) => projects.Where(project => !project.IsTestProject);
+
+    /// <summary>Selects projects whose compilation uniquely contains the configured type identity, including through transitive references.</summary>
+    public static CodeQuery<AnalysisProject> InProjectsWithType(
+        this CodeQuery<AnalysisProject> projects,
+        CodeType type
+    ) => projects.Where(project => project.HasType(type));
+
+    /// <summary>Selects projects whose name matches a case-sensitive glob, such as <c>Contoso.*</c>.</summary>
+    public static CodeQuery<AnalysisProject> InProject(
+        this CodeQuery<AnalysisProject> projects,
+        string pattern
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
+        var match = new PathPattern(pattern);
+        return projects.Where(project => match.Matches(project.Name));
+    }
+
     /// <summary>Tests the element's evaluated project name against a case-sensitive glob.</summary>
     public static bool IsInProject(this ICodeElement element, string pattern) =>
         new PathPattern(pattern).Matches(element.Source.Project.Name);

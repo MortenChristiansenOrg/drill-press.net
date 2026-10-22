@@ -227,7 +227,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Read evaluated project facts · Projects and relationships",
     "url": "relationships.html#projects",
-    "text": "Keep a legacy package out of production projects using DrillPress; var rules = new RuleCatalog(); rules.Rule(\"TEAM015\", \"Use the application's System.Text.Json contract.\") .For(Code.Projects.Where(project => !project.IsTestProject && project.ReferencesPackage(\"Newtonsoft.Json\"))) .Forbid(); A project finding reports at the start of the project’s first ordinary source file; an empty project cannot be reported by this source-diagnostic protocol. To report on every file instead, select Code.Files and test file.Source.Project. InTestProjects() and InNonTestProjects() use the project classification captured by the loader, not project names. ReferencesPackage compares direct package identifiers case-insensitively. AnalysisProject offers Name, ProjectPath, TargetFramework, IsTestProject, Packages, Properties, SourceRoots and HasType. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment."
+    "text": "Keep a legacy package out of production projects using DrillPress; var rules = new RuleCatalog(); rules.Rule(\"TEAM015\", \"Use the application's System.Text.Json contract.\") .For(Code.Projects.Where(project => !project.IsTestProject && project.ReferencesPackage(\"Newtonsoft.Json\"))) .Forbid(); A project finding reports at the start of the project’s first ordinary source file; an empty project cannot be reported by this source-diagnostic protocol. To report on every file instead, select Code.Files and test file.Source.Project. Code.Projects takes the same project filters as other queries: InProject(glob), InTestProjects(), InNonTestProjects() and InProjectsWithType(type). InTestProjects() and InNonTestProjects() use the project classification captured by the loader, not project names. ReferencesPackage compares direct package identifiers case-insensitively. AnalysisProject offers Name, ProjectPath, TargetFramework, IsTestProject, Packages, Properties, SourceRoots and HasType. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment."
   },
   {
     "title": "Require a counterpart · Projects and relationships",
@@ -412,7 +412,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Place filters · API field guide",
     "url": "reference.html#api-place-filters",
-    "text": "InProject(glob); InTestProjects(); InNonTestProjects(); InProjectsWithType(type); InNamespace(pattern); InFolder(folder); InFilesNamed(glob) Available on every query of reportable elements. Test projects come from the build classification, not names."
+    "text": "InProject(glob); InTestProjects(); InNonTestProjects(); InProjectsWithType(type); InNamespace(pattern); InFolder(folder); InFilesNamed(glob) Available on every query of reportable elements; the project filters also work on Code.Projects. Test projects come from the build classification, not names."
   },
   {
     "title": "Declaration filters · API field guide",

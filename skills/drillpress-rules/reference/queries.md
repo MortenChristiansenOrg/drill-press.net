@@ -49,6 +49,7 @@ File selections narrow discovery before binding: `files.Calls()`, `files.Nodes<T
 Every query of `ICodeElement` (anything reportable):
 
 - `InProject(glob)`, `InTestProjects()`, `InNonTestProjects()`, `InProjectsWithType(type)`
+  (also on `Code.Projects`)
 - `InNamespace("A.B")`, `"A.*"` (one segment), `"A.**"` (A and descendants)
 - `InFolder("Domain")` (whole segments at any depth), `InFilesNamed("*Tests.cs")`
 - predicates: `element.IsInProject(glob)`, `IsInNamespace(pattern)`, `IsInFolder(folder)`
