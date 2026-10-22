@@ -186,6 +186,7 @@ touch another edit, so fold it into the adjacent replacement.
 
 ## Testing fixes
 
-Assert `result.Output` (validated fixes show `+` before the line) and the complete
+Assert `result.Output` (a validated fix shows as `  +5:32`, `+` directly before the
+line number) and the complete
 `result.FixedText(path)`. Add a case where the proof fails and assert the finding has
 no `+` and `FixedText` returns the original text.

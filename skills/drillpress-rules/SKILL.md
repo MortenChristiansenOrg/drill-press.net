@@ -170,8 +170,9 @@ public sealed class LoggingRuleTests
 }
 ```
 
-`Output` is exactly what the CLI prints: rule line, file, then `line:column`
-(column omitted when 1), with `+` marking a validated fix. `FixedText(path)` applies
+`Output` is exactly what the CLI prints: rule line, file, then `  line:column`
+(two spaces; column omitted when 1). A validated fix is marked `  +5:32`, with `+`
+directly before the line number. `FixedText(path)` applies
 validated fixes in memory. `isTest: true`, `dependencies`, `allowErrors` and coverage
 fakes are in [reference/testing.md](reference/testing.md).
 

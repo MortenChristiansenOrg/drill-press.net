@@ -138,8 +138,9 @@ child and fails the check before rendering diagnostics.
 
 Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
 relative file path, then source span. Each rule's remediation appears once. A
-location is `line` or `line:column` (one-based physical UTF-16 coordinates); `+`
-before the line marks an agreed safe correction. Paths containing controls,
+location is `line` or `line:column` (one-based physical UTF-16 coordinates),
+indented two spaces; `+` directly before the line number, as in `  +5:32`, marks an
+agreed safe correction. Paths containing controls,
 quotes, or surrounding whitespace use JSON escaping. Runs with no findings emit nothing.
 
 Rules can optionally estimate agent fix effort as `Trivial`, `Local`, `Complex`,
