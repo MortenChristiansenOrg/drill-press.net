@@ -28,12 +28,19 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
                 return 0;
             }
 
+            if (args is ["--queries", "--output", var queryOutput])
+            {
+                MeasureQueries(queryOutput);
+                Console.WriteLine($"Reports: {queryOutput}");
+                return 0;
+            }
+
             var output = args switch
             {
                 [] => null,
                 ["--output", var path] when !string.IsNullOrWhiteSpace(path) => path,
                 _ => throw new ArgumentException(
-                    "Usage: NativeBundles.cs [--output <new-directory>]"
+                    "Usage: NativeBundles.cs [--output <new-directory>] | --queries --output <new-directory>"
                 ),
             };
             using var session = await VerificationSession.CreateAsync(fileSystem, output);
@@ -46,6 +53,36 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
             Console.Error.WriteLine($"native-bundles: {error.Message}");
             return 1;
         }
+    }
+
+    // Query scaling runs in process; each iteration binds a fresh synthetic solution.
+    private void MeasureQueries(string output)
+    {
+        if (fileSystem.Directory.Exists(output) || fileSystem.File.Exists(output))
+            throw new ArgumentException("The query benchmark output must be a new directory.");
+        fileSystem.Directory.CreateDirectory(output);
+        var job = Job
+            .Default.WithId("Queries")
+            .WithStrategy(RunStrategy.Monitoring)
+            .WithLaunchCount(1)
+            .WithWarmupCount(1)
+            .WithIterationCount(5)
+            .WithInvocationCount(1)
+            .WithUnrollFactor(1);
+        var config = ManualConfig
+            .Create(DefaultConfig.Instance)
+            .AddJob(job)
+            .AddExporter(JsonExporter.Full)
+            .WithArtifactsPath(fileSystem.Path.GetFullPath(output));
+        var summary = BenchmarkRunner.Run<QueryBenchmarks>(config);
+        if (
+            summary.HasCriticalValidationErrors
+            || summary.Reports.Length != 6
+            || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)
+        )
+            throw new InvalidOperationException(
+                "BenchmarkDotNet did not complete all six query benchmarks."
+            );
     }
 
     private async Task MeasureAsync(VerificationSession session)
