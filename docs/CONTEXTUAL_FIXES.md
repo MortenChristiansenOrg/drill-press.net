@@ -19,6 +19,7 @@ rules.Rule("EMPTY", "Use \"\" instead of string.Empty.")
 | `ReplaceWithLiteral(value)` | A typed string, character, Boolean, number, enum value or null literal. Numeric and enum types are preserved. |
 | `ReplaceWith("{0} == {1}", left, right)` | A C# expression template whose holes embed original sub-expressions unchanged. |
 | `ReplaceWithEquality(left, right, absorbNegation: true)` | `left == right`; an enclosing built-in `!` becomes `left != right`. |
+| `ReplaceWithReference(symbol)` | A field, property, enum member, constant, local, parameter or type, spelled as briefly as binds here: `Size`, `Defaults.Size`, `Company.App.Defaults.Size` or a `global::` name. The library checks that it binds to that symbol. |
 | `ReplaceWith(syntax)` | Hand-built Roslyn syntax; kept operands are not tracked. |
 
 The proof receives an `ExpressionChange`. `Before` and `After` are
@@ -46,6 +47,12 @@ bindings, kept operands' bindings and compiler-supplied arguments (including
 caller argument expressions and caller line numbers). Every proof runs against
 the actual edited compilation in each loaded membership, including linked
 contexts that did not report a finding.
+
+`ReplaceWithReference` tries the bare name, then the minimally qualified name, then
+the fully qualified `global::` name, and keeps the first that binds to the symbol
+at the replaced position. Roslyn's simplifier needs a workspace, which rule bundles
+do not load, so speculative binding takes its place; the rewritten compilation is
+checked again in every affected context.
 
 ### Target-typed and discarded values
 

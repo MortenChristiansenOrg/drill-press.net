@@ -13,21 +13,21 @@ public sealed class ExpressionReplacement
 {
     private readonly AnalysisSource _source;
     private readonly SyntaxNode _original;
-    private readonly ExpressionSyntax _replacement;
+    private readonly ExpressionSyntax? _replacement;
     private readonly ExpressionInput[] _inputs;
     private readonly (string Name, Func<RewriteEvidence, ProofResult> Prove)[] _checks;
 
     internal ExpressionReplacement(
         AnalysisSource source,
         SyntaxNode original,
-        ExpressionSyntax replacement,
+        ExpressionSyntax? replacement,
         ExpressionInput[] inputs,
         (string Name, Func<RewriteEvidence, ProofResult> Prove)[]? checks = null
     )
     {
         _source = source;
         _original = original;
-        _replacement = replacement.WithoutTrivia();
+        _replacement = replacement?.WithoutTrivia();
         _inputs = inputs;
         _checks = checks ?? [];
     }
@@ -99,6 +99,8 @@ public sealed class ExpressionReplacement
     {
         if (Ineligible() is { } reason)
             return FixProposal.Withheld(reason);
+        if (_replacement is null)
+            return FixProposal.Withheld("no spelling of the referenced symbol binds to it here");
         var original = (ExpressionSyntax)_original;
         var replacement = ExpressionLayout.Fit(_source, original, _replacement);
         var text = replacement.ToString();

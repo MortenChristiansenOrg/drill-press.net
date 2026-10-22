@@ -190,6 +190,61 @@ public sealed class ExpressionReplacementTests(SdkFixture fixture) : IClassFixtu
         );
     }
 
+    [Theory]
+    [InlineData("namespace Company.App; class B { int M() => 3; }", "Defaults.Size")]
+    [InlineData("namespace Other; class B { int M() => 3; }", "Company.App.Defaults.Size")]
+    [InlineData("using Company.App; namespace Other; class B { int M() => 3; }", "Defaults.Size")]
+    [InlineData(
+        "using Company.App; namespace Other; class B { int Defaults => 1; int M() => 3; }",
+        "Company.App.Defaults.Size"
+    )]
+    [InlineData(
+        "namespace Company.App; static partial class Defaults { static int M() => 3; }",
+        "Size"
+    )]
+    public async Task References_use_the_shortest_spelling_that_binds(
+        string source,
+        string reference
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    "namespace Company.App; static partial class Defaults { public const int Size = 3; }"
+                ),
+                new("B.cs", source),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("SIZE", "Use the named size.")
+            .For(
+                Code.Nodes<LiteralExpressionSyntax>()
+                    .Where(node =>
+                        node.Source.Document.Path == "B.cs" && node.Syntax.ToString() == "3"
+                    )
+            )
+            .Forbid(fix: node =>
+                Fix.For(node.AsExpression())
+                    .ReplaceWithReference(
+                        node.Source.Project.Compilation.GetTypeByMetadataName(
+                                "Company.App.Defaults"
+                            )!
+                            .GetMembers("Size")
+                            .Single()
+                    )
+                    .SafeWhen(change => change.After.Is(3))
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(source.Replace("=> 3;", "=> " + reference + ";"), result.FixedText("B.cs"));
+    }
+
     [Fact]
     public async Task A_discarded_statement_value_can_change_type()
     {

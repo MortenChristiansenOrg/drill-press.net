@@ -11,7 +11,7 @@ reason, or the check that rejected the fix during validation, under the finding.
 
 | `Fix.For(...)` of | Edit | Finish |
 | --- | --- | --- |
-| `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWith(syntax)` | `SafeWhen` |
+| `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWithReference(symbol)` (shortest spelling that binds), `ReplaceWith(syntax)` | `SafeWhen` |
 | `CodeInvocation` / `CodeArgument` | `RemoveArgument("name")` / `Remove()` | `SafeWhen` |
 | `CodeInvocation` | `AddArgument("name", "expression")`, optionally `.ExpectOverloadChange(from, to)` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
