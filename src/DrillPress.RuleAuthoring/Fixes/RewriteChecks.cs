@@ -333,7 +333,7 @@ public static class RewriteChecks
             _ => null,
         };
 
-    /// <summary>Compares compiler-supplied argument constants on retained calls, including caller-line and caller-argument-expression values outside the edited expression.</summary>
+    /// <summary>Compares compiler-supplied argument constants on retained calls and attributes, including caller-line and caller-argument-expression values outside the edited expression.</summary>
     /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change) =>
         CompilerSuppliedArguments(change, null).Result;
@@ -363,6 +363,7 @@ public static class RewriteChecks
                             is InvocationExpressionSyntax
                                 or BaseObjectCreationExpressionSyntax
                                 or ElementAccessExpressionSyntax
+                                or AttributeSyntax
                     )
             )
             {
@@ -381,7 +382,9 @@ public static class RewriteChecks
                         FixReasons.Describe(source, syntax)
                             + " receives compiler-supplied arguments but has no corresponding call after the edit"
                     );
-                var newArguments = Arguments(mapped.Model.GetOperation(mapped.After));
+                var newArguments = MappedCall(syntax, mapped.After) is { } call
+                    ? Arguments(mapped.Model.GetOperation(call))
+                    : null;
                 if (newArguments is null)
                 {
                     if (
@@ -441,6 +444,14 @@ public static class RewriteChecks
             && !own.Contains(edit)
         );
 
+    // An attribute without an argument list spans only its name, which is the innermost mapped node.
+    private static SyntaxNode? MappedCall(SyntaxNode before, SyntaxNode after) =>
+        before is not AttributeSyntax ? after
+        : after.FirstAncestorOrSelf<AttributeSyntax>() is { } attribute
+        && attribute.Span == after.Span
+            ? attribute
+        : null;
+
     internal static IOperation? Operation(SemanticModel model, SyntaxNode node)
     {
         while (node is ParenthesizedExpressionSyntax parenthesized)
@@ -454,6 +465,7 @@ public static class RewriteChecks
             IInvocationOperation call => call.Arguments,
             IObjectCreationOperation creation => creation.Arguments,
             IPropertyReferenceOperation property => property.Arguments,
+            IAttributeOperation attribute => Arguments(attribute.Operation),
             _ => null,
         };
 

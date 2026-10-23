@@ -43,8 +43,8 @@ insufficient. Built-in gates withhold fixes in generated or non-editable source,
 for interior comments, directives or disabled text, inside `nameof` and
 expression trees, and when any affected compilation has errors. They compare
 expression and converted types, conversions, enclosing overload/operator
-bindings, kept operands' bindings and compiler-supplied arguments (including
-caller argument expressions and caller line numbers). Every proof runs against
+bindings, kept operands' bindings and compiler-supplied arguments of calls and
+attributes (including caller argument expressions and caller line numbers). Every proof runs against
 the actual edited compilation in each loaded membership, including linked
 contexts that did not report a finding.
 

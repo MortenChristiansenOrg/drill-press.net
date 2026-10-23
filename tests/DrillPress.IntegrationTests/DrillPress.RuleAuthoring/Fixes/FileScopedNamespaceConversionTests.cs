@@ -52,6 +52,41 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
     }
 
     [Fact]
+    public async Task A_caller_line_number_on_an_attribute_that_moves_withholds_the_conversion()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            using System;
+            using System.Runtime.CompilerServices;
+            namespace N {
+                sealed class LineAttribute([CallerLineNumber] int line = 0) : Attribute
+                {
+                    public int Line { get; } = line;
+                }
+
+                [Line]
+                class A { }
+            }
+
+            """;
+        workspace.AddProject("A", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            NS Use a file-scoped namespace.
+            A.cs
+              3
+                fix withheld: `Line` at 9:6 receives different compiler-supplied arguments, such as a caller line number
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
     public async Task A_multiline_UTF8_raw_string_is_not_reindented()
     {
         var workspace = fixture.Workspace();
