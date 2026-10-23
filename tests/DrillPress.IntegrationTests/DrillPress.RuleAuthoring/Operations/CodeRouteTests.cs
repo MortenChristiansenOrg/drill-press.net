@@ -4,7 +4,7 @@ using Xunit;
 
 namespace DrillPress.IntegrationTests.RuleAuthoring.Operations;
 
-public sealed class EndpointRoutesTests(SdkFixture fixture) : IClassFixture<SdkFixture>
+public sealed class CodeRouteTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
     public void Routes_read_constant_group_paths_handlers_and_bound_configuration()
@@ -43,27 +43,23 @@ public sealed class EndpointRoutesTests(SdkFixture fixture) : IClassFixture<SdkF
         var solution = workspace.Analyze(TestContext.Current.CancellationToken);
         var marker = CodeType.Named("Microsoft.AspNetCore.Builder.Config").Member("Mark");
 
-        var routes = EndpointRoutes
-            .All.In(solution)
+        var routes = Code
+            .Routes.In(solution)
             .Select(route =>
-                (
-                    route.Path,
-                    route.Handler?.Name,
-                    route.Calls(marker),
-                    route.CallsOnRouteOrGroup(marker)
-                )
+                $"{route.Path}:{route.HandlerExpression?.Syntax}:{route.Handler?.MethodKind}:{route.IsConfiguredWith(marker)}:{route.IsConfiguredWith(marker, includeGroups: true)}"
             )
             .ToArray();
-        var groups = EndpointRoutes.Groups.In(solution).Select(route => route.Path).ToArray();
+        var groups = Code
+            .RouteGroups.In(solution)
+            .Select(group =>
+                $"{group.Path}:{group.HandlerExpression}:{group.IsConfiguredWith(marker)}"
+            )
+            .ToArray();
 
         Assert.Equal(
-            new (string?, string?, bool, bool)[]
-            {
-                ("/api/items", "Handler", true, true),
-                ((string?)null, "", false, true),
-            },
+            ["/api/items:Handler:Ordinary:True:True", ":() => 2:AnonymousFunction:False:True"],
             routes
         );
-        Assert.Equal(["/api"], groups);
+        Assert.Equal(["/api::True"], groups);
     }
 }

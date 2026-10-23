@@ -58,4 +58,33 @@ public static class Symbols
     /// <summary>Tests all implemented interfaces, including inherited and constructed interfaces.</summary>
     public static bool Implements(INamedTypeSymbol type, CodeType contract) =>
         type.AllInterfaces.Any(contract.Matches);
+
+    /// <summary>Whether the method overrides a base member or implements an interface member, explicitly or implicitly, so another declaration decides its signature and parameter names.</summary>
+    public static bool ImplementsOrOverrides(this IMethodSymbol method)
+    {
+        if (method.IsOverride || method.ExplicitInterfaceImplementations.Length > 0)
+            return true;
+        var type = method.ContainingType;
+        return type is not null
+            && type.AllInterfaces.Any(contract =>
+                contract
+                    .GetMembers(method.Name)
+                    .OfType<IMethodSymbol>()
+                    .Any(member =>
+                        SymbolEqualityComparer.Default.Equals(
+                            type.FindImplementationForInterfaceMember(member),
+                            method
+                        )
+                    )
+            );
+    }
+
+    /// <summary>Whether the method has the event-handler signature: an <c>object</c> sender followed by <c>EventArgs</c> or a type derived from it.</summary>
+    public static bool IsEventHandler(this IMethodSymbol method) =>
+        method.Parameters
+            is [
+                { Type.SpecialType: SpecialType.System_Object },
+                { Type: INamedTypeSymbol arguments },
+            ]
+        && arguments.IsOrDerivesFrom(CodeType.Of<EventArgs>());
 }

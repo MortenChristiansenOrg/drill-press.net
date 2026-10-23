@@ -48,3 +48,16 @@ public enum ControlFlowKinds
     /// <summary>Conditional member access.</summary>
     ConditionalAccess = 256,
 }
+
+/// <summary>The kind of exception handler clause code runs in.</summary>
+public enum HandlerClause
+{
+    /// <summary>Not in a catch or finally clause.</summary>
+    None,
+
+    /// <summary>In a catch clause, while an exception is handled.</summary>
+    Catch,
+
+    /// <summary>In a finally clause, which also runs while an exception propagates.</summary>
+    Finally,
+}

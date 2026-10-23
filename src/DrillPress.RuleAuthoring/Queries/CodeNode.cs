@@ -3,9 +3,13 @@ using Microsoft.CodeAnalysis;
 namespace DrillPress;
 
 /// <summary>A syntax candidate with precise physical reporting and its original semantic context.</summary>
-public sealed class CodeNode<TSyntax>(AnalysisSource source, TSyntax syntax) : ICodeElement
+public sealed class CodeNode<TSyntax>(AnalysisSource source, TSyntax syntax)
+    : ICodeElement,
+        ElementSyntax.IWritten
     where TSyntax : SyntaxNode
 {
+    SyntaxNode ElementSyntax.IWritten.Syntax => Syntax;
+
     /// <summary>The captured document membership, including its compilation.</summary>
     public AnalysisSource Source { get; } = source;
 

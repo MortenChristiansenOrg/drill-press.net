@@ -66,4 +66,36 @@ public sealed class CodeExpressionTests(SdkFixture fixture) : IClassFixture<SdkF
 
         Assert.Equal([null, null], views);
     }
+
+    [Fact]
+    public void Awaited_calls_look_through_conversions_and_ConfigureAwait()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Awaits",
+            [
+                new(
+                    "Awaits.cs",
+                    """
+                    using System.Threading.Tasks;
+                    class C {
+                        async Task M(Task pending) {
+                            await Task.Delay(1);
+                            await Task.Delay(2).ConfigureAwait(false);
+                            await pending;
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var awaited = Code.Nodes<AwaitExpressionSyntax>()
+            .In(solution)
+            .Select(node => node.AsExpression().AwaitedCall()?.Expression?.Syntax.ToString())
+            .ToArray();
+
+        Assert.Equal(["Task.Delay(1)", "Task.Delay(2)", null], awaited);
+    }
 }

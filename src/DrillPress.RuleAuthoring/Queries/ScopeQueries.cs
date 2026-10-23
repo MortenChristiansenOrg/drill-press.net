@@ -1,9 +1,10 @@
 using DrillPress;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
 
-/// <summary>Project, file, folder and namespace scopes shared by every reportable source element.</summary>
+/// <summary>Project, file, folder, namespace, type, method and loop scopes shared by every reportable source element.</summary>
 public static class ScopeQueries
 {
     /// <summary>Selects elements in projects that BuildHost classifies as test projects, without project naming assumptions.</summary>
@@ -75,7 +76,7 @@ public static class ScopeQueries
         where T : ICodeElement
     {
         var match = FolderPattern(folder);
-        return query.InSources(source => match.Matches(RelativePath(source, sourceRoot)));
+        return query.InSources(source => match.Matches(RelativePath(source, sourceRoot) ?? ""));
     }
 
     /// <summary>Tests whole physical folder segments with the same rules as InFolder.</summary>
@@ -83,7 +84,7 @@ public static class ScopeQueries
         this ICodeElement element,
         string folder,
         string? sourceRoot = null
-    ) => FolderPattern(folder).Matches(RelativePath(element.Source, sourceRoot));
+    ) => FolderPattern(folder).Matches(RelativePath(element.Source, sourceRoot) ?? "");
 
     /// <summary>Matches namespace segments; * matches one segment and a trailing ** includes the root and all descendants.</summary>
     public static CodeQuery<T> InNamespace<T>(this CodeQuery<T> query, string pattern)
@@ -96,6 +97,72 @@ public static class ScopeQueries
     /// <summary>Tests the candidate's semantic namespace with the same segment rules as InNamespace.</summary>
     public static bool IsInNamespace(this ICodeElement element, string pattern) =>
         MatchesNamespace(element, NamespacePattern(pattern));
+
+    /// <summary>Tests the type whose code contains the element, and the types containing that one, by semantic identity. Code in lambdas and local functions belongs to the type that declares them.</summary>
+    public static bool IsInType(this ICodeElement element, CodeType type)
+    {
+        for (var owner = EnclosingType(element); owner is not null; owner = owner.ContainingType)
+            if (type.Matches(owner))
+                return true;
+        return false;
+    }
+
+    /// <summary>The method, constructor, accessor or operator whose body contains the element, walking out of lambdas and local functions; null in field initializers and other code outside a method.</summary>
+    public static IMethodSymbol? ContainingMethod(this ICodeElement element)
+    {
+        var symbol = EnclosingSymbol(element);
+        while (
+            symbol
+                is IMethodSymbol
+                {
+                    MethodKind: MethodKind.AnonymousFunction or MethodKind.LocalFunction
+                }
+        )
+            symbol = symbol.ContainingSymbol;
+        return symbol as IMethodSymbol;
+    }
+
+    /// <summary>The nearest for, foreach, while or do statement around the element, without leaving the lambda, local function or member that contains it.</summary>
+    /// <remarks>Reads written syntax: any part of the loop counts, including a foreach collection, and a loop the element only reaches through a call does not.</remarks>
+    public static CodeNode<StatementSyntax>? EnclosingLoop(this ICodeElement element)
+    {
+        foreach (var ancestor in ElementSyntax.Of(element).Ancestors())
+        {
+            if (
+                ancestor
+                is AnonymousFunctionExpressionSyntax
+                    or LocalFunctionStatementSyntax
+                    or MemberDeclarationSyntax
+            )
+                return null;
+            if (
+                ancestor
+                is WhileStatementSyntax
+                    or DoStatementSyntax
+                    or ForStatementSyntax
+                    or CommonForEachStatementSyntax
+            )
+                return new(element.Source, (StatementSyntax)ancestor);
+        }
+        return null;
+    }
+
+    /// <summary>Whether a for, foreach, while or do statement surrounds the element in its own function, as <see cref="EnclosingLoop"/> finds it.</summary>
+    public static bool IsInLoop(this ICodeElement element) => element.EnclosingLoop() is not null;
+
+    private static ISymbol? EnclosingSymbol(ICodeElement element) =>
+        element.Source.Model.GetEnclosingSymbol(
+            ElementSyntax.Of(element).SpanStart,
+            element.Source.Project.CancellationToken
+        );
+
+    private static INamedTypeSymbol? EnclosingType(ICodeElement element) =>
+        EnclosingSymbol(element) switch
+        {
+            INamedTypeSymbol type => type,
+            { } symbol => symbol.ContainingType,
+            null => null,
+        };
 
     // A place filter decides by document alone, so query roots can skip other documents before binding them.
     private static CodeQuery<T> InSources<T>(
@@ -133,7 +200,8 @@ public static class ScopeQueries
             );
     }
 
-    private static string RelativePath(AnalysisSource source, string? sourceRoot)
+    // The path below the project directory, or below sourceRoot or the invocation directory for loose sources; null outside it.
+    internal static string? RelativePath(AnalysisSource source, string? sourceRoot)
     {
         var project = source.Project;
         var path = project.FileSystem.Path;
@@ -152,7 +220,7 @@ public static class ScopeQueries
             relative == ".."
             || relative.StartsWith("../", StringComparison.Ordinal)
             || path.IsPathRooted(relative)
-            ? ""
+            ? null
             : relative;
     }
 }

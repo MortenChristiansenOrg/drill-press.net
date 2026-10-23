@@ -124,6 +124,44 @@ public sealed class CodeBody
         return false;
     }
 
+    /// <summary>The whitespace-only lines inside the block, as between a test's Arrange, Act and Assert sections; zero for an expression body.</summary>
+    /// <remarks>Lines inside a token, such as a multi-line string, don't count, and neither do lines in lambdas and local functions unless the body includes nested functions.</remarks>
+    public int BlankLines
+    {
+        get
+        {
+            if (Root is not BlockSyntax block)
+                return 0;
+            var text = Source.Tree.GetText(Source.Project.CancellationToken);
+            var first =
+                text.Lines.GetLineFromPosition(block.OpenBraceToken.Span.End).LineNumber + 1;
+            var last =
+                text.Lines.GetLineFromPosition(block.CloseBraceToken.SpanStart).LineNumber - 1;
+            var functions =
+                Nested == NestedFunctions.Include
+                    ? []
+                    : block.DescendantNodes().Where(IsFunction).Select(node => node.Span).ToList();
+            var count = 0;
+            for (var number = first; number <= last; number++)
+            {
+                var span = text.Lines[number].Span;
+                if (
+                    string.IsNullOrWhiteSpace(text.ToString(span))
+                    && !IsInsideToken(block, span.Start)
+                    && !functions.Any(function => function.Contains(span.Start))
+                )
+                    count++;
+            }
+            return count;
+        }
+    }
+
+    private static bool IsInsideToken(SyntaxNode block, int position)
+    {
+        var token = block.FindToken(position);
+        return token.Span.Start < position && position < token.Span.End;
+    }
+
     /// <summary>Finds selected syntax categories, including an expression-bodied method's root expression.</summary>
     public IEnumerable<CodeNode<SyntaxNode>> ControlFlowNodes(ControlFlowKinds kinds) =>
         Nodes<SyntaxNode>().Where(node => (Kind(node.Syntax) & kinds) != 0);

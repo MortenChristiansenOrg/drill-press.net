@@ -84,6 +84,12 @@ public static class Code
     /// <summary>Object creations, including target-typed <c>new()</c>, with their bound type and constructor.</summary>
     public static CodeQuery<CodeObjectCreation> ObjectCreations => OperationQueries.ObjectCreations;
 
+    /// <summary>Minimal API routes mapped with <c>MapGet</c>, <c>MapPost</c>, <c>MapPut</c>, <c>MapDelete</c>, <c>MapPatch</c>, <c>MapMethods</c>, <c>MapFallback</c> or <c>Map</c>, with their paths, handlers and configuration.</summary>
+    public static CodeQuery<CodeRoute> Routes => RouteMappings.Routes;
+
+    /// <summary>Minimal API route groups mapped with <c>MapGroup</c>, with their path prefixes and configuration.</summary>
+    public static CodeQuery<CodeRoute> RouteGroups => RouteMappings.Groups;
+
     /// <summary>Resolved field, property and method references, including aliases and static imports. Prefer <c>CodeType.Member(name).References</c> for one member.</summary>
     public static CodeQuery<MemberReference> MemberReferences => Roots.MemberReferences;
 

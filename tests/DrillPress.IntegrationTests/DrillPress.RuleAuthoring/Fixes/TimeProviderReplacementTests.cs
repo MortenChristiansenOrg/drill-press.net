@@ -55,7 +55,7 @@ public sealed class TimeProviderReplacementTests(SdkFixture fixture) : IClassFix
             .Forbid(fix: reference => Fix.For(reference).UseTimeProvider("clock").Propose());
         rules
             .Rule("WAIT", "Use the clock.")
-            .For(Code.Calls.ToMethodsNamed("Delay").Where(TimeProviderFacts.WaitsWithoutClock))
+            .For(Code.Calls.ToMethodsNamed("Delay").Where(call => call.WaitsWithoutTimeProvider()))
             .Forbid(fix: call => Fix.For(call).UseTimeProvider("clock").Propose());
 
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);

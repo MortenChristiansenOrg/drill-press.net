@@ -90,6 +90,16 @@ public sealed class CodeTypeDefinition : ICodeDeclaration
     /// <summary>Whether the type is nested in another type.</summary>
     public bool IsNested => Symbol.ContainingType is not null;
 
+    /// <summary>Whether the type declares members and every one of them is static, a constant or a nested type, so no instance is needed to use it. Compiler-generated members don't count.</summary>
+    public bool HasOnlyStaticMembers =>
+        Symbol.GetMembers().Where(member => !member.IsImplicitlyDeclared).ToList()
+            is { Count: > 0 } members
+        && members.All(member => member.IsStatic || member is INamedTypeSymbol);
+
+    /// <summary>Whether this is the class the compiler generates for a program's top-level statements, which a test host names as <c>WebApplicationFactory&lt;Program&gt;</c>, including a partial declaration of it.</summary>
+    public bool IsTopLevelProgram =>
+        Symbol.GetMembers().Any(member => member is IMethodSymbol { Name: "<Main>$" });
+
     /// <summary>Tests all inherited and constructed interfaces by semantic identity.</summary>
     public bool Implements(CodeType contract) => Symbols.Implements(Symbol, contract);
 

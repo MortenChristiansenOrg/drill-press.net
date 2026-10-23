@@ -44,4 +44,45 @@ public sealed class MethodOverloadsTests(SdkFixture fixture) : IClassFixture<Sdk
 
         Assert.Equal(new[] { ("Same", 1, 1), ("Renamed", 0, 1), ("Ref", 0, 1) }, matches);
     }
+
+    [Fact]
+    public void Generic_overloads_match_through_the_methods_own_type_parameters_ignoring_nullability()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """
+                    #nullable enable
+                    using System;
+                    using System.Threading;
+                    using System.Threading.Tasks;
+                    class A {
+                        static T Wrap<T>(Func<T> make) => make(); static T Wrap<T>(Func<T> make, CancellationToken token) => make();
+                        static T Shift<T>(Func<T> make) => make(); static T? Shift<T>(Func<T?> make, CancellationToken token) => default;
+                        string Rent() => "";
+                        void M() { Wrap(Rent); Shift(Rent); Task.Run(Rent); Task.Run(() => Task.CompletedTask); }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var matches = Code
+            .Calls.In(solution)
+            .Where(call => call.Target.Name != "Invoke")
+            .Select(call =>
+                (
+                    call.Target.Name,
+                    call.Target.AddingParameter(CodeType.Of<CancellationToken>(), matchNames: false)
+                        .Count()
+                )
+            )
+            .ToArray();
+
+        Assert.Equal(new[] { ("Wrap", 1), ("Shift", 1), ("Run", 1), ("Run", 1) }, matches);
+    }
 }

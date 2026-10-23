@@ -38,9 +38,10 @@ public sealed class AssertionLoopConversion
             || !ImplementsEnumerableOf(collection, element)
             || loop.Source.Model.GetSymbolInfo(assertion).Symbol is not IMethodSymbol asserted
             || !_assert.Matches(asserted.ContainingType)
-            || SyntaxScopes
-                .OwnNodes(assertion, includeSelf: true)
-                .Any(node => node is AwaitExpressionSyntax or RefExpressionSyntax)
+            || CodeBody
+                .Of(loop.Source, assertion)
+                .Nodes<SyntaxNode>()
+                .Any(node => node.Syntax is AwaitExpressionSyntax or RefExpressionSyntax)
         )
         {
             return null;

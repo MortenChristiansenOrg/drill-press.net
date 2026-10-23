@@ -350,4 +350,46 @@ public sealed class DeclarationElementsTests(SdkFixture fixture) : IClassFixture
         workspace.AddProject("Shop", [new("Order.cs", Source)]);
         return workspace.Analyze(TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public void Types_with_only_static_members_and_the_top_level_program_are_recognized()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "App",
+            [
+                new("Program.cs", "System.Console.WriteLine(Helper.Count());"),
+                new(
+                    "Types.cs",
+                    """
+                    class Helper { public const int Limit = 1; public static int Count() => Limit; class Nested { } }
+                    static class Tools { public static void Run() { } }
+                    class Data { public int Value { get; set; } public static Data Empty => new(); }
+                    class Empty { }
+                    public partial class Program;
+                    """
+                ),
+            ],
+            outputKind: OutputKind.ConsoleApplication
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var types = Code
+            .Types.In(solution)
+            .Where(type => !type.IsNested)
+            .Select(type => $"{type.Name}:{type.HasOnlyStaticMembers}:{type.IsTopLevelProgram}")
+            .Order()
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "Data:False:False",
+                "Empty:False:False",
+                "Helper:True:False",
+                "Program:True:True",
+                "Tools:True:False",
+            ],
+            types
+        );
+    }
 }

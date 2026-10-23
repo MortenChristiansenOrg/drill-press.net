@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
 
@@ -16,6 +17,14 @@ public sealed class CodeFile(AnalysisSource source) : ICodeElement
 
     /// <summary>The containing path, or an empty string for a bare filename.</summary>
     public string Folder => Path.LastIndexOf('/') is var index && index >= 0 ? Path[..index] : "";
+
+    /// <summary>The path below the project directory, with forward slashes, such as <c>Orders/OrderService.cs</c>; null for a file outside it, such as a linked file. Loose sources are read from the directory analysis was started in.</summary>
+    public string? RelativePath => ScopeQueries.RelativePath(Source, null);
+
+    /// <summary>Whether the file contains top-level statements, which make it the program's entry point.</summary>
+    public bool HasTopLevelStatements =>
+        Source.Tree.GetRoot(Source.Project.CancellationToken) is CompilationUnitSyntax unit
+        && unit.Members.OfType<GlobalStatementSyntax>().Any();
 
     /// <summary>The start of the existing file, suitable for missing-counterpart diagnostics.</summary>
     public SourceLocation Location => Source.Locate(new(0, 0));

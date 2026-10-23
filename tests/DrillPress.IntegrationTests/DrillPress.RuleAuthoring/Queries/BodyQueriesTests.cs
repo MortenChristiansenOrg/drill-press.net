@@ -227,4 +227,40 @@ public sealed class BodyQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
         Assert.Equal(5, sections[0].Location.Line);
         Assert.Empty(arrow);
     }
+
+    [Fact]
+    public void Blank_lines_leave_out_string_tokens_and_nested_functions_unless_included()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """"
+                    class A {
+                        void M() {
+                            var value = """
+
+                                text
+                                """;
+
+                            void Local() {
+
+                            }
+
+                            System.Console.WriteLine(value);
+                        }
+                    }
+                    """"
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var method = Code.Methods.Named("M").In(solution).Single();
+
+        var counts = (method.Body()!.BlankLines, method.Body(NestedFunctions.Include)!.BlankLines);
+
+        Assert.Equal((2, 3), counts);
+    }
 }

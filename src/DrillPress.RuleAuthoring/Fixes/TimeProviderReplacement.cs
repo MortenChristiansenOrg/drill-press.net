@@ -1,8 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
-using static DrillPress.AsyncFacts;
-using static DrillPress.TimeProviderFacts;
+using static DrillPress.TimeProviderQueries;
 
 namespace DrillPress;
 
@@ -10,6 +9,14 @@ namespace DrillPress;
 /// <remarks>Local date kinds are not changed. Stopwatch measurements require a timestamp local used only by GetElapsedTime in the same function. Named/default timed-wait shapes not supported by the proof are withheld.</remarks>
 public sealed class TimeProviderReplacement
 {
+    private static readonly CodeType _stopwatch = CodeType.Framework(
+        "System.Diagnostics.Stopwatch"
+    );
+    private static readonly CodeType _timeSpan = CodeType.Of<TimeSpan>();
+    private static readonly CodeType _periodicTimer = CodeType.Of<PeriodicTimer>();
+    private static readonly CodeType _cancellationSource = CodeType.Of<CancellationTokenSource>();
+    private static readonly CodeType _cancellationToken = CodeType.Of<CancellationToken>();
+
     private readonly AnalysisSource _source;
     private readonly ExpressionSyntax _syntax;
     private readonly string _clock;
@@ -30,11 +37,10 @@ public sealed class TimeProviderReplacement
                 when CodeType.Of<DateTime>().Matches(property.Property.ContainingType)
                     || CodeType.Of<DateTimeOffset>().Matches(property.Property.ContainingType) =>
                 ReadInjectedClock(new(_source, _syntax), _clock),
-            IInvocationOperation call
-                when IsType(call.TargetMethod.ContainingType, "System.Diagnostics", "Stopwatch") =>
+            IInvocationOperation call when _stopwatch.Matches(call.TargetMethod.ContainingType) =>
                 MeasureWithClock(new(_source, call), _clock),
             IInvocationOperation call
-                when TimeProviderFacts.WaitsWithoutClock(new(_source, call)) => WaitWithClock(
+                when new CodeInvocation(_source, call).WaitsWithoutTimeProvider() => WaitWithClock(
                 new(_source, call),
                 _clock
             ),
@@ -44,7 +50,7 @@ public sealed class TimeProviderReplacement
         };
 
     private static bool IsCancellationToken(ITypeSymbol? type) =>
-        IsType(type, "System.Threading", "CancellationToken");
+        type is not null && _cancellationToken.Matches(type);
 
     private static FixProposal? ReadInjectedClock(CodeExpression reference, string clock)
     {
@@ -130,12 +136,12 @@ public sealed class TimeProviderReplacement
                 is not VariableDeclaratorSyntax { Initializer.Value: var initializer } declarator
             || model.GetOperation(initializer)
                 is not IInvocationOperation { TargetMethod.Name: "GetTimestamp" } timestamp
-            || !IsType(timestamp.TargetMethod.ContainingType, "System.Diagnostics", "Stopwatch")
+            || !_stopwatch.Matches(timestamp.TargetMethod.ContainingType)
         )
         {
             return false;
         }
-        if (declarator.Ancestors().FirstOrDefault(IsFunctionBoundary) is not { } function)
+        if (declarator.Ancestors().FirstOrDefault(ElementSyntax.IsFunction) is not { } function)
             return false;
         return function
             .DescendantNodes()
@@ -155,7 +161,7 @@ public sealed class TimeProviderReplacement
                     }
                 && model.GetSymbolInfo(use).Symbol
                     is IMethodSymbol { Name: "GetElapsedTime" } elapsed
-                && IsType(elapsed.ContainingType, "System.Diagnostics", "Stopwatch")
+                && _stopwatch.Matches(elapsed.ContainingType)
             );
     }
 
@@ -166,7 +172,7 @@ public sealed class TimeProviderReplacement
             call.Arguments.Any(argument => !argument.IsExplicit && !argument.IsReceiver)
             || call.Arguments.Where(argument => !argument.IsReceiver).FirstOrDefault()
                 is not { Value: { } delay } first
-            || !IsType(first.Parameter.Type, "System", "TimeSpan")
+            || !_timeSpan.Matches(first.Parameter.Type)
         )
         {
             return null;
@@ -195,11 +201,9 @@ public sealed class TimeProviderReplacement
         if (
             creation.Syntax is not ObjectCreationExpressionSyntax { Type: var type }
             || creation.Constructor is not { Parameters: [var parameter] }
-            || !IsType(parameter.Type, "System", "TimeSpan")
-            || !(
-                IsType(creation.Type, "System.Threading", "PeriodicTimer")
-                || IsType(creation.Type, "System.Threading", "CancellationTokenSource")
-            )
+            || !_timeSpan.Matches(parameter.Type)
+            || creation.Type is not { } created
+            || !(_periodicTimer.Matches(created) || _cancellationSource.Matches(created))
             || creation.Argument(parameter.Name) is not { } period
         )
         {

@@ -158,4 +158,27 @@ public sealed class CodeTypeTests(SemanticRuleFixture fixture) : IClassFixture<S
             )
         );
     }
+
+    [Fact]
+    public void A_symbol_descriptor_keeps_nested_metadata_and_constructed_type_identity()
+    {
+        var project = fixture.Project(
+            "namespace A; class Outer<T> { public class Inner<U> {} } class Use { Outer<int>.Inner<string>? value; }",
+            "App"
+        );
+        var use = project.Compilation.GetTypeByMetadataName("A.Use")!;
+        var type = (INamedTypeSymbol)((IFieldSymbol)use.GetMembers("value").Single()).Type;
+
+        var descriptor = CodeType.FromSymbol(type);
+
+        Assert.Equal(
+            ("A.Outer`1+Inner`1", "App", true, false),
+            (
+                descriptor.MetadataName,
+                descriptor.AssemblyName,
+                descriptor.Matches(type),
+                descriptor.Matches(type.OriginalDefinition)
+            )
+        );
+    }
 }

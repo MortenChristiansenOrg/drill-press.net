@@ -7,7 +7,8 @@ namespace DrillPress;
 /// <summary>A written catch clause with its caught type, optional filter and body.</summary>
 public sealed class CodeCatch : ICodeElement
 {
-    internal CodeCatch(AnalysisSource source, CatchClauseSyntax syntax)
+    /// <summary>Views a written catch clause, such as one of a try statement's <c>Catches</c>, in its source's compilation.</summary>
+    public CodeCatch(AnalysisSource source, CatchClauseSyntax syntax)
     {
         Source = source;
         Syntax = syntax;

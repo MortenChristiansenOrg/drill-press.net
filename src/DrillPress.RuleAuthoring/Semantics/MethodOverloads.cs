@@ -5,7 +5,7 @@ namespace DrillPress;
 /// <summary>Candidate overloads that add a typed parameter. Selection is evidence, never proof that changing an overload preserves behavior.</summary>
 public static class MethodOverloads
 {
-    /// <summary>Enumerates same-name, same-static-shape overloads adding exactly one parameter of the requested type and retaining the other parameter types in order. Generic declarations compare original type spellings. By default, existing parameter names, ref kinds and generic arity must also match.</summary>
+    /// <summary>Enumerates same-name, same-static-shape overloads adding exactly one parameter of the requested type and retaining the other parameter types in order. Types compare by symbol identity, ignoring nullable annotations, and generic overloads compare with the method's own type parameters in place of theirs. By default, existing parameter names, ref kinds and generic arity must also match.</summary>
     /// <param name="method">The original bound method (extension methods are normalized).</param>
     /// <param name="parameterType">The single new parameter's type.</param>
     /// <param name="matchNames">Whether retained names, ref kinds and arity must match, suitable for named-argument transitions.</param>
@@ -39,15 +39,27 @@ public static class MethodOverloads
                                     )
                                 )
                             )
-                        : candidate
-                            .Parameters.Where(parameter => !parameterType.Matches(parameter.Type))
-                            .Select(parameter => parameter.Type.ToDisplayString())
+                        : RetainedTypes(candidate, target.OriginalDefinition)
+                            .Where(type => !parameterType.Matches(type))
                             .SequenceEqual(
                                 target.OriginalDefinition.Parameters.Select(parameter =>
-                                    parameter.Type.ToDisplayString()
-                                )
+                                    parameter.Type
+                                ),
+                                SymbolEqualityComparer.Default
                             )
                 )
             );
     }
+
+    // The candidate's parameter types, with its own type parameters replaced by the original method's, so generic
+    // overloads compare by identity.
+    private static IEnumerable<ITypeSymbol> RetainedTypes(
+        IMethodSymbol candidate,
+        IMethodSymbol original
+    ) =>
+        (
+            candidate.Arity > 0 && candidate.Arity == original.Arity
+                ? candidate.Construct([.. original.TypeParameters])
+                : candidate
+        ).Parameters.Select(parameter => parameter.Type);
 }

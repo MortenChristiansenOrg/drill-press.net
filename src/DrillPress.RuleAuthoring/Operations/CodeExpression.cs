@@ -36,6 +36,24 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
             : null;
     }
 
+    /// <summary>For an await expression, the call it awaits, looking through conversions and a <c>ConfigureAwait</c> call, as in <c>await SaveAsync().ConfigureAwait(false)</c>; null for other expressions and awaited values that aren't calls.</summary>
+    public CodeInvocation? AwaitedCall()
+    {
+        if (Operation is not IAwaitOperation { Operation: var operation })
+            return null;
+        while (operation is IConversionOperation conversion)
+            operation = conversion.Operand;
+        if (
+            operation is IInvocationOperation
+            {
+                TargetMethod.Name: "ConfigureAwait",
+                Instance: { } configured
+            }
+        )
+            operation = configured;
+        return operation is IInvocationOperation call ? new(Source, call) : null;
+    }
+
     /// <summary>Facts about enclosing observable syntax and interior trivia, independent of rewrite authorization.</summary>
     public ExpressionSourceFacts Facts => new(Source, Syntax);
 
