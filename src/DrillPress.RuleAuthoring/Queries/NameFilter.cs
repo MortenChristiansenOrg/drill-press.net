@@ -21,6 +21,9 @@ internal sealed class NameFilter
 
     internal static NameFilter Matching(PathPattern pattern) => new(null, pattern.Matches);
 
+    /// <summary>The exact names the filter accepts; null for a predicate such as a glob.</summary>
+    internal IReadOnlySet<string>? Names => _names;
+
     internal bool Accepts(string name) => _accepts(name);
 
     /// <summary>Whether any of the names written in some syntax can satisfy this filter.</summary>
