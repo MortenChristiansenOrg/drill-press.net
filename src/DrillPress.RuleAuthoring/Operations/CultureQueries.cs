@@ -25,6 +25,8 @@ public static class CultureQueries
         "c",
     ];
 
+    private static readonly CodeType _numberStyles = CodeType.Of<NumberStyles>();
+
     private static readonly CodeType[] _temporalTypes =
     [
         CodeType.Of<DateTime>(),
@@ -131,8 +133,9 @@ public static class CultureQueries
                 when IsTemporal(owner)
                     && IsInvariantDateFormat(call.Argument("format")?.Value?.TextValue):
                 return false;
-            // Parsing an integer only depends on the culture's signs, like its default format.
-            case "Parse" or "TryParse" when IsIntegral(owner):
+            // Parsing an integer only depends on the culture's signs, like its default format, unless its number
+            // styles allow group separators, a decimal point or a currency symbol.
+            case "Parse" or "TryParse" when IsIntegral(owner) && !AllowsCultureSymbols(call):
                 return false;
             case "ToString" or "Parse" or "TryParse" or "ParseExact" or "TryParseExact":
                 return IsFormattedWithCulture(owner) && HasProviderOverload(target);
@@ -169,6 +172,21 @@ public static class CultureQueries
             && !(format.Length > 0 && format[0] is 'D' or 'd' or 'X' or 'x')
             && !format.All(character => character == '0');
     }
+
+    private static bool AllowsCultureSymbols(CodeInvocation call) =>
+        call.Operation.Arguments.FirstOrDefault(argument =>
+            argument.Parameter is { } parameter && _numberStyles.Matches(parameter.Type)
+        )
+            is { } style
+        && (
+            style.Value.ConstantValue is not { HasValue: true, Value: int value }
+            || (value & (int)CultureSymbolStyles) != 0
+        );
+
+    private const NumberStyles CultureSymbolStyles =
+        NumberStyles.AllowThousands
+        | NumberStyles.AllowDecimalPoint
+        | NumberStyles.AllowCurrencySymbol;
 
     private static bool IsFormattedWithCulture(ITypeSymbol? type) =>
         IsIntegral(type) || IsFractional(type) || IsTemporal(type);

@@ -27,6 +27,7 @@ public sealed class CultureQueriesTests(SdkFixture fixture) : IClassFixture<SdkF
                         text.ToLower(); new[] { text }.Order(); new[] { 1 }.Order(); names.Sort(); names.Sort(StringComparer.Ordinal);
                         number.ToString(); count.ToString(); date.ToString("O"); date.ToString("d");
                         double.Parse("1.2"); double.Parse("1.2", CultureInfo.InvariantCulture); int.Parse("2");
+                        int.Parse(text, NumberStyles.AllowThousands); int.Parse(text, NumberStyles.Integer);
                         builder.AppendFormat("{0}", number); Convert.ToDouble("1.5");
                         var formatted = $"{number} {count} {count:N0} {count:D2} {date:O} {date:d}";
                     } }
@@ -61,6 +62,7 @@ public sealed class CultureQueriesTests(SdkFixture fixture) : IClassFixture<SdkF
                 "number.ToString()",
                 "date.ToString(\"d\")",
                 "double.Parse(\"1.2\")",
+                "int.Parse(text, NumberStyles.AllowThousands)",
                 "builder.AppendFormat(\"{0}\", number)",
                 "Convert.ToDouble(\"1.5\")",
             ],
