@@ -75,7 +75,7 @@ public sealed class ReusableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
                     {
                         class A { }
                     }
-                    """
+                    """.ReplaceLineEndings("\n")
                 ),
             ]
         );
