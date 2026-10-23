@@ -46,6 +46,8 @@ public static class RewriteChecks
                     FixReasons.Describe(source, expression)
                         + " has no corresponding expression after the edit"
                 );
+            if (Typeless(source.Model, expression) && Typeless(mapped.Model, after))
+                continue;
             if (!SameTypes(source.Model, expression, mapped.Model, after))
                 return CheckOutcome.Disproven(
                     FixReasons.Describe(source, expression) + " changes type or conversion"
@@ -63,6 +65,14 @@ public static class RewriteChecks
         }
         return CheckOutcome.Proven;
     }
+
+    // Syntax that never has a type of its own: the nameof keyword, whose expression keeps its type and
+    // constant, and an omitted array size or type argument, whose enclosing expression keeps its type.
+    private static bool Typeless(SemanticModel model, ExpressionSyntax expression) =>
+        expression is OmittedArraySizeExpressionSyntax or OmittedTypeArgumentSyntax
+        || expression is IdentifierNameSyntax { Parent: InvocationExpressionSyntax invocation } name
+            && invocation.Expression == name
+            && model.GetOperation(invocation) is INameOfOperation;
 
     private static bool EditsOverlap(IEnumerable<SourceEdit> edits, TextSpan span) =>
         edits.Any(edit =>
@@ -334,7 +344,7 @@ public static class RewriteChecks
         };
 
     /// <summary>Compares compiler-supplied argument constants on retained calls and attributes, including caller-line and caller-argument-expression values outside the edited expression.</summary>
-    /// <remarks>Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
+    /// <remarks>An attribute's caller line number and file path are not compared: they say where the code is, and only reflection reads them. Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change) =>
         CompilerSuppliedArguments(change, null).Result;
 
@@ -372,9 +382,7 @@ public static class RewriteChecks
                 var oldArguments = Arguments(source.Model.GetOperation(syntax));
                 if (
                     oldArguments is null
-                    || oldArguments.All(argument =>
-                        argument.ArgumentKind != ArgumentKind.DefaultValue
-                    )
+                    || !oldArguments.Any(argument => Compared(syntax, argument))
                 )
                     continue;
                 if (change.Context.Map(source, syntax) is not { } mapped)
@@ -382,9 +390,7 @@ public static class RewriteChecks
                         FixReasons.Describe(source, syntax)
                             + " receives compiler-supplied arguments but has no corresponding call after the edit"
                     );
-                var newArguments = MappedCall(syntax, mapped.After) is { } call
-                    ? Arguments(mapped.Model.GetOperation(call))
-                    : null;
+                var newArguments = Arguments(mapped.Model.GetOperation(mapped.After));
                 if (newArguments is null)
                 {
                     if (
@@ -411,12 +417,12 @@ public static class RewriteChecks
                     : [];
                 var before = oldArguments
                     .Where(argument =>
-                        argument.ArgumentKind == ArgumentKind.DefaultValue
+                        Compared(syntax, argument)
                         && !suppliedElsewhere.Contains(argument.Parameter?.Name)
                     )
                     .Select(DefaultIdentity);
                 var after = newArguments
-                    .Where(argument => argument.ArgumentKind == ArgumentKind.DefaultValue)
+                    .Where(argument => Compared(syntax, argument))
                     .Select(DefaultIdentity);
                 if (!before.SequenceEqual(after))
                     return CheckOutcome.Disproven(
@@ -427,6 +433,25 @@ public static class RewriteChecks
         }
         return CheckOutcome.Proven;
     }
+
+    // A program observes every compiler-supplied argument of a call. An attribute's caller line number and
+    // file path are metadata that describe where the code is, so moving it does not change what it does.
+    private static bool Compared(SyntaxNode syntax, IArgumentOperation argument) =>
+        argument.ArgumentKind == ArgumentKind.DefaultValue
+        && !(
+            syntax is AttributeSyntax
+            && argument
+                .Parameter?.GetAttributes()
+                .Any(attribute =>
+                    attribute.AttributeClass?.ToDisplayString()
+                        is CallerLineNumber
+                            or CallerFilePath
+                ) == true
+        );
+
+    private const string CallerLineNumber =
+        "System.Runtime.CompilerServices.CallerLineNumberAttribute";
+    private const string CallerFilePath = "System.Runtime.CompilerServices.CallerFilePathAttribute";
 
     // Only an exact insertion at another call's closing parenthesis can supply a previously
     // omitted parameter. Changes to its remaining defaults are still checked above.
@@ -443,14 +468,6 @@ public static class RewriteChecks
             && edit.Length == 0
             && !own.Contains(edit)
         );
-
-    // An attribute without an argument list spans only its name, which is the innermost mapped node.
-    private static SyntaxNode? MappedCall(SyntaxNode before, SyntaxNode after) =>
-        before is not AttributeSyntax ? after
-        : after.FirstAncestorOrSelf<AttributeSyntax>() is { } attribute
-        && attribute.Span == after.Span
-            ? attribute
-        : null;
 
     internal static IOperation? Operation(SemanticModel model, SyntaxNode node)
     {

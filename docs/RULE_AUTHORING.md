@@ -352,7 +352,7 @@ outside the target and in generated files are ignored. Built-in rules cannot be
 allowed. Fix complexity selection applies to the built-in findings like any
 other rule's, and `fix` removes unused allowances that pass the usual comment
 removal checks; removing a whole line is withheld when it would change a later
-`CallerLineNumber` value.
+call's `CallerLineNumber` value.
 
 
 ## Fix contracts
@@ -478,7 +478,9 @@ endings after removing each `///` prefix or the outer `/** */` delimiters.
 including its final line break, while retaining adjacent blank lines. Inline
 removal keeps a separator when needed. Token correspondence, compilation and
 compiler-supplied argument checks withhold changes that alter parsing or caller
-information, such as subsequent `CallerLineNumber` values.
+information, such as the `CallerLineNumber` values of subsequent calls. An
+attribute's caller line number and file path, such as those of xUnit's `[Fact]`,
+are not compared, because only reflection reads them.
 
 `element.ExplanatoryComment()` (or `source.ExplanatoryComment(position)` for a token
 inside the element) finds the ordinary comment that explains a line: a `//` or `/* */`

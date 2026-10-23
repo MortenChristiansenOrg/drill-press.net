@@ -174,6 +174,44 @@ public sealed class BlockWrappingTests(SdkFixture fixture) : IClassFixture<SdkFi
     }
 
     [Theory]
+    [InlineData("var size = nameof(test).Length;")]
+    [InlineData("var items = new int[] { 1 };")]
+    [InlineData("var jagged = new int[2][];")]
+    [InlineData("var open = typeof(System.Collections.Generic.Dictionary<,>);")]
+    [InlineData("var pairs = new System.Collections.Generic.Dictionary<int, int> { [1] = 2 };")]
+    public async Task Branches_are_wrapped_beside_nameof_omitted_sizes_and_indexer_initializers(
+        string statement
+    )
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    $"class A\n{{\n    void M(bool test)\n    {{\n        if (test)\n            Run();\n        {statement}\n    }}\n    void Run() {{}}\n}}"
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            BLOCK Wrap the selected statement.
+            A.cs
+              +6:13
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(
+            $"class A\n{{\n    void M(bool test)\n    {{\n        if (test)\n        {{\n            Run();\n        }}\n        {statement}\n    }}\n    void Run() {{}}\n}}",
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Theory]
     [InlineData("class A { void M(bool test) { if (test) /* header */ Run(); } void Run() {} }")]
     [InlineData(
         "class A { void M(bool test) { if (test) Run(); } void Run([System.Runtime.CompilerServices.CallerLineNumber] int line = 0) {} }"

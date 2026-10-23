@@ -52,16 +52,19 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
     }
 
     [Fact]
-    public async Task A_caller_line_number_on_an_attribute_that_moves_withholds_the_conversion()
+    public async Task A_caller_line_number_and_file_path_on_an_attribute_that_moves_do_not_withhold_the_conversion()
     {
         var workspace = fixture.Workspace();
         const string source = """
             using System;
             using System.Runtime.CompilerServices;
             namespace N {
-                sealed class LineAttribute([CallerLineNumber] int line = 0) : Attribute
+                sealed class LineAttribute(
+                    [CallerFilePath] string path = "",
+                    [CallerLineNumber] int line = 0
+                ) : Attribute
                 {
-                    public int Line { get; } = line;
+                    public string Location { get; } = path + ":" + line;
                 }
 
                 [Line]
@@ -77,13 +80,31 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
             """
             NS Use a file-scoped namespace.
             A.cs
-              3
-                fix withheld: `Line` at 9:6 receives different compiler-supplied arguments, such as a caller line number
+              +3
 
             """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
-        Assert.Equal(source, result.FixedText("A.cs"));
+        Assert.Equal(
+            """
+            using System;
+            using System.Runtime.CompilerServices;
+            namespace N;
+
+            sealed class LineAttribute(
+                [CallerFilePath] string path = "",
+                [CallerLineNumber] int line = 0
+            ) : Attribute
+            {
+                public string Location { get; } = path + ":" + line;
+            }
+
+            [Line]
+            class A { }
+
+            """.ReplaceLineEndings("\n"),
+            result.FixedText("A.cs")
+        );
     }
 
     [Fact]
