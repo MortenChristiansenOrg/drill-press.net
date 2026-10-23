@@ -12,26 +12,26 @@ internal sealed class RewriteValidationCache(AnalysisProject project)
             .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
     );
     private SourceEdit[]? _edits;
-    private RewriteContext? _context;
+    private PreparedRewrite _prepared;
 
     internal bool OriginalHasErrors => _originalHasErrors.Value;
 
-    internal RewriteContext? Get(
+    internal PreparedRewrite Get(
         IReadOnlyList<SourceEdit> edits,
-        Func<SourceEdit[], RewriteContext?> create
+        Func<SourceEdit[], PreparedRewrite> create
     )
     {
         project.CancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
             if (_edits is not null && _edits.SequenceEqual(edits))
-                return _context;
+                return _prepared;
             var snapshot = edits.ToArray();
-            var context = create(snapshot);
+            var prepared = create(snapshot);
             // Bound retention to one compilation, and compare edit values rather than mutable list identity.
             _edits = snapshot;
-            _context = context;
-            return context;
+            _prepared = prepared;
+            return prepared;
         }
     }
 }

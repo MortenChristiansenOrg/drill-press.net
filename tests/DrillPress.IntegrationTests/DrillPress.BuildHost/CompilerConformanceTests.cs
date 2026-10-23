@@ -20,6 +20,15 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         "netstandard2.0",
         "Analyzers.dll"
     );
+    private static readonly string GeneratorPath = RepositoryPath(
+        "fixtures",
+        "CompilerSnapshot",
+        "Generator",
+        "bin",
+        "Release",
+        "netstandard2.0",
+        "Generator.dll"
+    );
     private readonly CompilerFixture _fixture = fixture;
 
     [Fact]
@@ -220,7 +229,9 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
 
     [Theory]
     [MemberData(nameof(GeneratorOptions))]
-    public async Task Generator_exceptions_fail_fast_and_validated_exports(string[] options)
+    public async Task Generator_exceptions_fail_exports_with_the_first_context_in_snapshot_order(
+        string[] options
+    )
     {
         var output = FileSystem.Path.Combine(
             CreateTemporaryDirectory("drillpress-generator-failure-").FullName,
@@ -229,10 +240,56 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
 
         var result = await ExportAsync(output, ["--property", "FailGenerator=true", .. options]);
 
-        Assert.Equal(2, result.ExitCode);
-        Assert.Equal("", result.StandardOutput);
-        Assert.Contains("Requested generator failure.", result.StandardError);
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Source generation failed in 'Consumer(net10.0)': Requested generator failure.{Environment.NewLine}"
+            ),
+            result
+        );
         Assert.False(FileSystem.File.Exists(output));
+    }
+
+    [Fact]
+    public async Task Generators_receive_additional_files_in_build_order()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            "",
+            "namespace Fixture; public interface IContract { string Value { get; } }",
+            analyzer: GeneratorPath,
+            items: """
+            <AdditionalFiles Include="zeta.fixture" />
+            <AdditionalFiles Include="alpha.fixture" />
+            <AdditionalFiles Include="mid.fixture" />
+            <AdditionalFiles Include="beta.fixture" />
+            """
+        );
+        foreach (var name in new[] { "zeta", "alpha", "mid", "beta" })
+            await FileSystem.File.WriteAllTextAsync(
+                FileSystem.Path.Combine(
+                    FileSystem.Path.GetDirectoryName(target)!,
+                    $"{name}.fixture"
+                ),
+                name,
+                TestContext.Current.CancellationToken
+            );
+
+        var result = await ExportAnalyzedAsync(target);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            ["zeta", "alpha", "mid", "beta"],
+            snapshot
+                .Projects.Single()
+                .Documents.Where(document => document.Path.EndsWith(".fixture.g.cs"))
+                .Select(document => document.Text)
+                .Select(text => text["// ".Length..])
+        );
     }
 
     [Fact]
@@ -500,7 +557,8 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         string properties,
         string source,
         string globalConfig = "",
-        string? analyzer = null
+        string? analyzer = null,
+        string items = ""
     )
     {
         var root = CreateTemporaryDirectory("drillpress-analyzers-").FullName;
@@ -518,6 +576,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
               <ItemGroup>
                 <Analyzer Include="{analyzer ?? AnalyzersPath}" />
                 <GlobalAnalyzerConfigFiles Include="fixture.globalconfig" />
+                {items}
               </ItemGroup>
             </Project>
             """,

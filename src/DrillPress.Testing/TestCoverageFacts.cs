@@ -111,7 +111,7 @@ public sealed class TestCoverageFacts
             )
             .Where(call => call is { IsResolved: true })
             .Cast<CodeInvocation>()
-            .OrderBy(call => call.Location.Start)
+            .OrderBy(call => call.Operation.Syntax.SpanStart)
             .ToArray();
         if (occurrenceIndex is { } occurrence && occurrence < calls.Length)
             return ForCall(calls[occurrence]);

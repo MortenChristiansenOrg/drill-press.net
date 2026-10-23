@@ -31,17 +31,31 @@ public class MsBuildSnapshotLoader
     ) => LoadAsync(projectPath, new SnapshotLoadOptions(), cancellationToken);
 
     /// <summary>Exports every evaluated target context with explicit SDK properties and validation policy.</summary>
-    public virtual async Task<CompilationSnapshot> LoadAsync(
+    public virtual Task<CompilationSnapshot> LoadAsync(
         string target,
         SnapshotLoadOptions options,
         CancellationToken cancellationToken
-    ) => (await LoadCompilationsAsync(target, options, cancellationToken)).Snapshot;
+    ) => LoadAsync(target, options, DisabledProfile(), cancellationToken);
+
+    internal virtual async Task<CompilationSnapshot> LoadAsync(
+        string target,
+        SnapshotLoadOptions options,
+        PipelineProfile profile,
+        CancellationToken cancellationToken
+    ) => (await LoadCompilationsAsync(target, options, profile, cancellationToken)).Snapshot;
 
     /// <summary>Captures live compilations alongside the transport snapshot for conformance and profiling.</summary>
-    public async Task<SnapshotExport> LoadCompilationsAsync(
+    public Task<SnapshotExport> LoadCompilationsAsync(
         string target,
         SnapshotLoadOptions options,
         CancellationToken cancellationToken = default
+    ) => LoadCompilationsAsync(target, options, DisabledProfile(), cancellationToken);
+
+    private async Task<SnapshotExport> LoadCompilationsAsync(
+        string target,
+        SnapshotLoadOptions options,
+        PipelineProfile profile,
+        CancellationToken cancellationToken
     )
     {
         var resolver = new TargetResolver(_fileSystem);
@@ -89,11 +103,14 @@ public class MsBuildSnapshotLoader
                 options,
                 sdk.Version.ToString(),
                 sdk.MSBuildPath,
+                profile,
                 cancellationToken
             ),
             cancellationToken
         );
     }
+
+    private static PipelineProfile DisabledProfile() => new(false, TextWriter.Null, "build-host");
 
     private SnapshotExport Restrict(SnapshotExport export, CancellationToken cancellationToken)
     {

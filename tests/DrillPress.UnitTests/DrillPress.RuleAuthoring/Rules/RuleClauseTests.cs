@@ -132,4 +132,77 @@ public sealed class RuleClauseTests
 
         Assert.Equal("location", exception.ParamName);
     }
+
+    [Fact]
+    public void Tuples_report_at_syntax_and_locations_in_the_compilation_of_their_code_element()
+    {
+        var rules = new RuleCatalog();
+        rules
+            .Rule("SYNTAX", "Syntax.")
+            .For(
+                Code.MemberReferences.Select(reference =>
+                    (Name: reference.MemberName, Reference: reference)
+                )
+            )
+            .ReportAt(pair => pair.Reference.Syntax)
+            .Forbid();
+        rules
+            .Rule("LOCATION", "Location.")
+            .For(
+                Code.MemberReferences.Select(reference =>
+                    (reference.MemberName, Nested: (1, reference))
+                )
+            )
+            .ReportAt(pair => pair.Nested.reference.Location)
+            .Forbid();
+        var solution = RuleTestData.Solution(("A.cs", ["Empty"]));
+
+        var diagnostics = rules.Evaluate(solution);
+
+        Assert.Equal(
+            [
+                ("LOCATION", "A.cs", "Sample.Target.Empty"),
+                ("SYNTAX", "A.cs", "Sample.Target.Empty"),
+            ],
+            diagnostics.Select(RuleTestData.Describe)
+        );
+    }
+
+    [Fact]
+    public void Candidates_that_cannot_have_a_compilation_are_rejected_at_registration()
+    {
+        var clause = new RuleCatalog()
+            .Rule("TEST001", "Name.")
+            .For(
+                Code.MemberReferences.Select(reference => new NamedReference(reference.MemberName))
+            );
+
+        var syntax = Assert.Throws<ArgumentException>(() =>
+            clause.ReportAt(_ => (Microsoft.CodeAnalysis.SyntaxNode?)null)
+        );
+
+        Assert.Equal(
+            "Candidate type 'DrillPress.UnitTests.RuleAuthoring.Rules.RuleClauseTests+NamedReference' has no compilation to find syntax, tokens or locations in: implement ICodeElement, select a tuple that contains a code element, or report at an element with ReportAt(candidate => element). (Parameter 'T')",
+            syntax.Message
+        );
+    }
+
+    [Fact]
+    public void Candidates_that_cannot_have_a_location_must_choose_one_at_registration()
+    {
+        var clause = new RuleCatalog()
+            .Rule("TEST001", "Name.")
+            .For(
+                Code.MemberReferences.Select(reference => new NamedReference(reference.MemberName))
+            );
+
+        var missing = Assert.Throws<InvalidOperationException>(() => clause.Forbid());
+
+        Assert.Equal(
+            "Candidate type 'DrillPress.UnitTests.RuleAuthoring.Rules.RuleClauseTests+NamedReference' has no source location; implement ICodeElement or choose one with ReportAt(...).",
+            missing.Message
+        );
+    }
+
+    private sealed record NamedReference(string Name);
 }

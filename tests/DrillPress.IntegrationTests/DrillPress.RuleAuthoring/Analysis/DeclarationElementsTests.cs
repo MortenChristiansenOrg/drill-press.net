@@ -54,6 +54,51 @@ public sealed class DeclarationElementsTests(SdkFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public void Enum_members_are_declarations_with_their_values()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Enums",
+            [
+                new(
+                    "Enums.cs",
+                    """
+                    namespace Shop;
+                    public enum Status
+                    {
+                        /// <summary>Not started.</summary>
+                        Pending,
+                        [System.Obsolete] Started = 5,
+                        Done,
+                    }
+                    class Holder { const int Constant = 1; }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var members = Code
+            .EnumMembers.InNamespace("Shop")
+            .In(solution)
+            .Select(member =>
+                $"{member.Name}:{member.ContainingType?.Name}:{member.Value}:{member.HasExplicitValue}:{member.HasAttribute(CodeType.Of<ObsoleteAttribute>())}:{member.HasDocumentationComment()}:{member.Location.Line}:{member.Location.Column}"
+            )
+            .ToArray();
+        var fields = Code.Fields.In(solution).Select(field => field.Name);
+
+        Assert.Equal(
+            [
+                "Pending:Status:0:False:False:True:5:5",
+                "Started:Status:5:True:True:False:6:23",
+                "Done:Status:6:False:False:False:7:5",
+            ],
+            members
+        );
+        Assert.Equal(["Constant"], fields);
+    }
+
+    [Fact]
     public void Properties_describe_accessors_and_storage()
     {
         var solution = Analyze();
@@ -304,5 +349,47 @@ public sealed class DeclarationElementsTests(SdkFixture fixture) : IClassFixture
         var workspace = fixture.Workspace();
         workspace.AddProject("Shop", [new("Order.cs", Source)]);
         return workspace.Analyze(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public void Types_with_only_static_members_and_the_top_level_program_are_recognized()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "App",
+            [
+                new("Program.cs", "System.Console.WriteLine(Helper.Count());"),
+                new(
+                    "Types.cs",
+                    """
+                    class Helper { public const int Limit = 1; public static int Count() => Limit; class Nested { } }
+                    static class Tools { public static void Run() { } }
+                    class Data { public int Value { get; set; } public static Data Empty => new(); }
+                    class Empty { }
+                    public partial class Program;
+                    """
+                ),
+            ],
+            outputKind: OutputKind.ConsoleApplication
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var types = Code
+            .Types.In(solution)
+            .Where(type => !type.IsNested)
+            .Select(type => $"{type.Name}:{type.HasOnlyStaticMembers}:{type.IsTopLevelProgram}")
+            .Order()
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "Data:False:False",
+                "Empty:False:False",
+                "Helper:True:False",
+                "Program:True:True",
+                "Tools:True:False",
+            ],
+            types
+        );
     }
 }

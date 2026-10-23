@@ -8,6 +8,7 @@ internal sealed class TypeReferenceIndex
 {
     private readonly TypeSyntaxCandidate[] _candidates;
     private readonly HashSet<string> _aliases = [];
+    private readonly Lazy<Dictionary<string, int[]>> _positions;
     private readonly Dictionary<TypeSyntaxCandidate, CodeTypeReference?> _bindings = [];
     private readonly CancellationToken _cancellationToken;
 
@@ -18,17 +19,25 @@ internal sealed class TypeReferenceIndex
     {
         _cancellationToken = cancellationToken;
         _candidates = sources.SelectMany(Discover).ToArray();
+        _positions = new(IndexPositions);
     }
 
-    internal IEnumerable<CodeTypeReference> Select(IReadOnlySet<string>? names)
+    internal long Bindings => _bindings.Count;
+
+    internal IEnumerable<CodeTypeReference> Select(
+        NameFilter? names,
+        Func<AnalysisSource, bool> sources
+    )
     {
-        foreach (var candidate in _candidates)
+        foreach (var position in Positions(names))
         {
             _cancellationToken.ThrowIfCancellationRequested();
+            var candidate = _candidates[position];
             if (
                 names is not null
-                && !candidate.Keys.Any(names.Contains)
-                && !_aliases.Contains(candidate.Keys[0])
+                    && !candidate.Keys.Any(names.Accepts)
+                    && !_aliases.Contains(candidate.Keys[0])
+                || !sources(candidate.Source)
             )
                 continue;
             if (!_bindings.TryGetValue(candidate, out var reference))
@@ -40,6 +49,28 @@ internal sealed class TypeReferenceIndex
                 yield return reference;
         }
     }
+
+    // Exact names look up only the candidates written with them or with an alias, in source order.
+    private IEnumerable<int> Positions(NameFilter? names)
+    {
+        if (names?.Names is not { } exact)
+            return Enumerable.Range(0, _candidates.Length);
+        var positions = new SortedSet<int>();
+        foreach (var name in exact.Concat(_aliases))
+            positions.UnionWith(_positions.Value.GetValueOrDefault(name, []));
+        return positions;
+    }
+
+    private Dictionary<string, int[]> IndexPositions() =>
+        Enumerable
+            .Range(0, _candidates.Length)
+            .SelectMany(position => _candidates[position].Keys.Select(key => (key, position)))
+            .GroupBy(entry => entry.key, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(entry => entry.position).ToArray(),
+                StringComparer.Ordinal
+            );
 
     internal static IEnumerable<string> NamesOf(CodeType type)
     {
@@ -97,7 +128,7 @@ internal sealed class TypeReferenceIndex
     }
 
     // Native-integer keywords are identifiers that bind to IntPtr and UIntPtr; keep the written name for same-named types.
-    private static string[] Keys(string identifier) =>
+    internal static string[] Keys(string identifier) =>
         identifier switch
         {
             "nint" => [identifier, "IntPtr"],
@@ -125,6 +156,7 @@ internal sealed class TypeReferenceIndex
 
     private CodeTypeReference? Bind(TypeSyntaxCandidate candidate)
     {
+        using var scope = candidate.Source.Project.MeasureShared("type-references");
         var model = candidate.Source.Model;
         var token = candidate.Source.Project.CancellationToken;
         token.ThrowIfCancellationRequested();

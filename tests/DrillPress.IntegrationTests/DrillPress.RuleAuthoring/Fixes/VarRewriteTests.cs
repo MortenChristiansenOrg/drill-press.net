@@ -127,7 +127,8 @@ public sealed class VarRewriteTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         var proposal = Fix.For(declaration).UseVar().Propose();
 
         Assert.Equal(expected, declaration.CanUseVar);
-        Assert.Null(proposal);
+        Assert.Empty(proposal!.Edits);
+        Assert.NotNull(proposal.WithheldReason);
     }
 
     [Fact]

@@ -20,10 +20,12 @@ public sealed class CompactDiagnosticRenderer
     /// <param name="result">The validated and optionally selected diagnostics.</param>
     /// <param name="showFixComplexity">Includes assigned complexity once in each rule header; unclassified rules have no annotation.</param>
     /// <param name="explainCoverage">Adds actionable typed explanations, evaluated context identities, and transported source ranges.</param>
+    /// <param name="explainFixes">Adds, under each finding whose proposed fix was withheld, the check that rejected it.</param>
     public string Render(
         ValidatedResult result,
         bool showFixComplexity = false,
-        bool explainCoverage = false
+        bool explainCoverage = false,
+        bool explainFixes = false
     )
     {
         var output = new StringBuilder();
@@ -74,6 +76,8 @@ public sealed class CompactDiagnosticRenderer
                     output.Append('\n');
                     if (explainCoverage)
                         ExplainCoverage(output, finding);
+                    if (explainFixes && finding.FixWithheld is { } reason)
+                        output.Append("    fix withheld: ").Append(reason).Append('\n');
                 }
             }
         }

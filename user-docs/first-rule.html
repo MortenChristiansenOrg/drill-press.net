@@ -79,10 +79,10 @@ dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-hos
 <p>Replace the last path to check your own project or solution. Quote paths with spaces. The target must be restored first; generated assemblies needed by the target must also be built. The target’s own <code>global.json</code> controls its SDK selection.</p>
 <div class="note"><strong>The bundle is not the project loader</strong><p>Run the CLI with <code>--rules</code>, not your rule DLL with a project path. The CLI loads the project and passes a captured compilation to your bundle. Direct bundle output is an internal protocol, not the human-readable findings.</p></div>
 <h2 id="output">4. Read the result</h2>
-<p>For the target above, the finding points directly to the console call:</p>
+<p>For the target above, the finding points at the name of the called method, <code>WriteLine</code>:</p>
 <div class="codeblock"><div class="codehead"><span>Expected CLI output</span></div><pre tabindex="0"><code>TEAM001 Use the application logger instead of Console.WriteLine.
 samples/MyRuleTarget/Worker.cs
-  3:26</code></pre></div>
+  3:41</code></pre></div>
 <p>Output groups findings by rule and file, followed by physical line/column locations. A clean run prints nothing. Exit codes are <code>0</code> for clean, <code>1</code> for findings, and <code>2</code> when the check could not finish.</p>
 <p>A <code>+</code> before a location means a proposed fix survived validation. This first rule offers none. Only the CLI’s <code>fix</code> command applies changes; <code>check</code> never does.</p>
 <h2 id="organize">5. Keep a growing bundle understandable</h2>

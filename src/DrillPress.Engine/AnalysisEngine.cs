@@ -36,7 +36,7 @@ public sealed class AnalysisEngine
         return new RuleResponseBuilder().Build(
             requestId,
             solution,
-            rules.Evaluate(solution),
+            RuleAllowances.Apply(rules, solution, rules.Evaluate(solution), []),
             [],
             cancellationToken
         );
@@ -201,13 +201,16 @@ public sealed class AnalysisEngine
                 cancellationToken
             );
         }
+        var skippedRules = rules.SkippedRuleIds(options);
         var diagnostics = rules.Evaluate(solution);
+        using (options.Profile.Measure("allowances"))
+            diagnostics = RuleAllowances.Apply(rules, solution, diagnostics, skippedRules);
         using var validation = options.Profile.Measure("fix.validation");
         return new RuleResponseBuilder().Build(
             requestId,
             solution,
             diagnostics,
-            rules.SkippedRuleIds(options),
+            skippedRules,
             cancellationToken
         );
     }

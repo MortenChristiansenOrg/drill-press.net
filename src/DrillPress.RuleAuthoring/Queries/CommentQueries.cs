@@ -45,6 +45,78 @@ public static class CommentQueries
         where TSyntax : SyntaxNode =>
         Unique(nodes.SelectMany(node => Read(node.Source, node.Syntax)));
 
+    /// <summary>
+    /// The ordinary comment that explains the code at a position: a <c>//</c> or <c>/* */</c> comment on its line, or on the
+    /// comment line directly above it or above the statement or member it belongs to. Null when there is none.
+    /// </summary>
+    /// <remarks>Documentation comments describe a member rather than a line, and <c>drillpress-allow</c> comments allow a
+    /// finding rather than explain the code, so neither counts. A blank line between a comment and the code separates them.</remarks>
+    public static CodeComment? ExplanatoryComment(this AnalysisSource source, int position)
+    {
+        var token = source.Project.CancellationToken;
+        var root = source.Tree.GetRoot(token);
+        var text = source.Tree.GetText(token);
+        var line = text.Lines.GetLineFromPosition(position);
+        var onLine = root.DescendantTrivia(line.Span, descendIntoTrivia: true)
+            .FirstOrDefault(trivia =>
+                IsExplanation(trivia) && trivia.Span.IntersectsWith(line.Span)
+            );
+        if (onLine != default)
+            return new(source, onLine);
+        if (CommentAbove(root, text, line) is { } above)
+            return new(source, above);
+        return
+            Owner(root.FindToken(position, findInsideTrivia: true).Parent) is { } owner
+            && text.Lines.GetLineFromPosition(owner.SpanStart) is var ownerLine
+            && ownerLine.LineNumber != line.LineNumber
+            && CommentAbove(root, text, ownerLine) is { } explanation
+            ? new(source, explanation)
+            : null;
+    }
+
+    /// <summary>The ordinary comment that explains the element's reported line or the statement or member it belongs to.</summary>
+    public static CodeComment? ExplanatoryComment(this ICodeElement element) =>
+        element.Source.ExplanatoryComment(element.Location.Start);
+
+    /// <summary>Whether an ordinary comment explains the element's reported line or the statement or member it belongs to.</summary>
+    public static bool HasExplanatoryComment(this ICodeElement element) =>
+        element.ExplanatoryComment() is not null;
+
+    // The statement or member whose first line a comment above explains; blocks and type declarations are too wide.
+    private static SyntaxNode? Owner(SyntaxNode? node) =>
+        node
+            ?.AncestorsAndSelf()
+            .FirstOrDefault(ancestor =>
+                ancestor is StatementSyntax and not BlockSyntax
+                || ancestor
+                    is MemberDeclarationSyntax
+                        and not BaseTypeDeclarationSyntax
+                        and not BaseNamespaceDeclarationSyntax
+            );
+
+    private static SyntaxTrivia? CommentAbove(SyntaxNode root, SourceText text, TextLine line)
+    {
+        if (line.LineNumber == 0)
+            return null;
+        var above = text.Lines[line.LineNumber - 1];
+        for (var position = above.Start; position < above.End; position++)
+        {
+            if (char.IsWhiteSpace(text[position]))
+                continue;
+            var trivia = root.FindTrivia(position, findInsideTrivia: true);
+            return IsExplanation(trivia) ? trivia : null;
+        }
+        return null;
+    }
+
+    private static bool IsExplanation(SyntaxTrivia trivia) =>
+        trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)
+        || trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)
+            && !trivia
+                .ToString()[2..]
+                .TrimStart()
+                .StartsWith("drillpress-allow", StringComparison.Ordinal);
+
     private static CodeQuery<CodeComment> Unique(CodeQuery<CodeComment> comments) =>
         CodeQuery<CodeComment>.Create(solution =>
             comments.In(solution).DistinctBy(comment => (comment.Source, comment.Span))

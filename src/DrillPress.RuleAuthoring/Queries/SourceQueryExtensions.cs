@@ -7,7 +7,7 @@ public static class SourceQueryExtensions
 {
     /// <summary>Selects syntax in these files, including roots and structured trivia.</summary>
     public static CodeQuery<CodeNode<TSyntax>> Nodes<TSyntax>(this CodeQuery<CodeFile> files)
-        where TSyntax : SyntaxNode => files.SelectMany(file => file.Nodes<TSyntax>());
+        where TSyntax : SyntaxNode => Sources.InFiles<TSyntax>(files);
 
     /// <summary>Selects bound calls in these files, including initializers, accessors and lambdas.</summary>
     public static CodeQuery<CodeInvocation> Calls(this CodeQuery<CodeFile> files) =>

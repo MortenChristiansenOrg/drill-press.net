@@ -6,5 +6,6 @@
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../DrillPress.BundleVerification/DrillPress.BundleVerification.csproj" />
+    <ProjectReference Include="../../src/DrillPress.Testing/DrillPress.Testing.csproj" />
   </ItemGroup>
 </Project>

@@ -40,4 +40,30 @@ public sealed class SourceQueryExtensionsTests(SdkFixture fixture) : IClassFixtu
             declarations.Select(declaration => declaration.Symbol.Name)
         );
     }
+
+    [Fact]
+    public void Syntax_roots_preserve_order_trivia_and_scoped_query_independence()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Application",
+            [new("A.cs", "#nullable disable\nclass A { int x = 1; }")]
+        );
+        workspace.AddProject("Tests", [new("T.cs", "class T { int x = 2; }")], isTest: true);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var tests = Code.Nodes<LiteralExpressionSyntax>().InTestProjects().In(solution);
+        var all = Code.Nodes<LiteralExpressionSyntax>().In(solution);
+        var directives = Code
+            .Files.Nodes<NullableDirectiveTriviaSyntax>()
+            .InNonTestProjects()
+            .In(solution);
+
+        Assert.Equal(["2"], tests.Select(node => node.Syntax.ToString()).ToArray());
+        Assert.Equal(["1", "2"], all.Select(node => node.Syntax.ToString()).ToArray());
+        Assert.Equal(
+            ["#nullable disable"],
+            directives.Select(node => node.Syntax.ToString()).ToArray()
+        );
+    }
 }

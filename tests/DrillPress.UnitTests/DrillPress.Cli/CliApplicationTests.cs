@@ -144,6 +144,7 @@ public sealed class CliApplicationTests
             --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --explain-coverage  Show typed reasons, context identity and matching source ranges.
+            --explain-fixes  Show why each proposed fix without '+' was withheld.
             --refresh-coverage  Rerun tests even when cached coverage inputs match.
             --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
             --show-fix-complexity  Include assigned agent fix effort once per rule.
@@ -265,7 +266,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 9)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 5, response 10)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());
@@ -432,7 +433,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -634,7 +635,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --refresh-coverage and --skip-coverage cannot be combined.
-            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -927,7 +928,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

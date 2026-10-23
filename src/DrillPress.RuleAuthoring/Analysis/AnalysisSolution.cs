@@ -19,7 +19,7 @@ public sealed class AnalysisSolution
         {
             if (_oppositeCoveragePlanning is null)
             {
-                _oppositeCoveragePlanning = new(Projects, Options, CancellationToken)
+                _oppositeCoveragePlanning = new(Projects, Options, CancellationToken, false)
                 {
                     IsPlanningCoverage = true,
                     RequiresCertainCoverageMatches = !RequiresCertainCoverageMatches,
@@ -38,6 +38,7 @@ public sealed class AnalysisSolution
     private readonly Lazy<TypeReferenceIndex> _typeReferences;
     private readonly Dictionary<object, Lazy<object>> _facts = [];
     private readonly Lazy<ProjectGraph> _projectGraph;
+    private readonly Lazy<IReadOnlySet<string>> _aliases;
 
     internal T Cached<T>(object key, Func<T> create)
         where T : notnull
@@ -56,6 +57,13 @@ public sealed class AnalysisSolution
         return (T)value.Value;
     }
 
+    // Measures cached work that later rules reuse, so profiles can tell it from each rule's own work.
+    internal T Shared<T>(string kind, Func<T> work)
+    {
+        using var scope = Options.Profile.MeasureShared(kind);
+        return work();
+    }
+
     /// <summary>Creates an analysis over separately evaluated project contexts.</summary>
     public AnalysisSolution(
         IReadOnlyList<AnalysisProject> projects,
@@ -69,43 +77,186 @@ public sealed class AnalysisSolution
         AnalysisOptions options,
         CancellationToken cancellationToken = default
     )
+        : this(projects, options, cancellationToken, true) { }
+
+    // Coverage planning analyses read the same projects without becoming their analysis.
+    internal AnalysisSolution(
+        IReadOnlyList<AnalysisProject> projects,
+        AnalysisOptions options,
+        CancellationToken cancellationToken,
+        bool ownsProjects
+    )
     {
         Options = options;
         CancellationToken = cancellationToken;
         Projects = projects.ToArray();
+        if (ownsProjects)
+            foreach (var project in Projects)
+                project.BelongTo(this);
         Implementations = new(this);
-        _projectGraph = new(() => new ProjectGraph(this));
-        _memberCandidates = new(() => new MemberCandidateIndex(OrdinarySources, CancellationToken));
+        _projectGraph = new(() => Shared("relationships", () => new ProjectGraph(this)));
+        _memberCandidates = new(() =>
+            Shared(
+                "member-references",
+                () => new MemberCandidateIndex(OrdinarySources, CancellationToken)
+            )
+        );
         _typeReferences = new(() =>
-            new TypeReferenceIndex(
-                Projects.SelectMany(project => project.Sources),
-                CancellationToken
+            Shared(
+                "type-references",
+                () =>
+                    new TypeReferenceIndex(
+                        Projects.SelectMany(project => project.Sources),
+                        CancellationToken
+                    )
             )
         );
         _references = new(() =>
-            Options.EnableOptimizations
-                ? _memberCandidates.Value.Select(null).ToArray()
-                : OrdinarySources.SelectMany(DiscoverReferences).ToArray()
+            Shared(
+                "member-references",
+                () =>
+                    Options.EnableOptimizations
+                        ? _memberCandidates.Value.Select(null).ToArray()
+                        : OrdinarySources.SelectMany(DiscoverReferences).ToArray()
+            )
         );
         _methods = new(() =>
-            OrdinarySources
-                .SelectMany(source =>
-                    source
-                        .Tree.GetRoot(source.Project.CancellationToken)
-                        .DescendantNodes()
-                        .OfType<MethodDeclarationSyntax>()
-                        .Select(syntax => new CodeMethod(this, source, syntax))
-                )
-                .ToArray()
+            Shared(
+                "declarations",
+                () =>
+                    OrdinarySources
+                        .SelectMany(source =>
+                            source
+                                .Tree.GetRoot(source.Project.CancellationToken)
+                                .DescendantNodes()
+                                .OfType<MethodDeclarationSyntax>()
+                                .Select(syntax => new CodeMethod(this, source, syntax))
+                        )
+                        .ToArray()
+            )
         );
-        _types = new(DiscoverTypes);
+        _types = new(() => Shared("declarations", DiscoverTypes));
+        _aliases = new(() => Shared("declarations", ReadAliases));
     }
 
-    internal IEnumerable<MemberReference> SelectMemberReferences(IReadOnlySet<string>? names) =>
-        !Options.EnableOptimizations ? MemberReferences : _memberCandidates.Value.Select(names);
+    private IReadOnlySet<string> ReadAliases() =>
+        Projects
+            .SelectMany(project => project.Sources)
+            .SelectMany(source =>
+                source
+                    .Tree.GetRoot(CancellationToken)
+                    .DescendantNodes(node =>
+                        node is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax
+                    )
+                    .OfType<UsingDirectiveSyntax>()
+            )
+            .Select(directive => directive.Alias?.Name.Identifier.ValueText)
+            .OfType<string>()
+            .ToHashSet();
 
-    internal IEnumerable<CodeTypeReference> SelectTypeReferences(IReadOnlySet<string>? names) =>
-        _typeReferences.Value.Select(Options.EnableOptimizations ? names : null);
+    /// <summary>Member references in analysis-target documents, binding only names and documents the filter can accept.</summary>
+    internal IEnumerable<MemberReference> SelectMemberReferences(DiscoveryFilter filter) =>
+        !Options.EnableOptimizations
+            ? MemberReferences.Where(reference =>
+                reference.Source.Project.Snapshot.IsAnalysisTarget
+            )
+            : _memberCandidates.Value.Select(
+                filter.Names,
+                source => source.Project.Snapshot.IsAnalysisTarget && filter.Includes(source)
+            );
+
+    /// <summary>Calls in these files, binding only accepted documents whose syntax can produce an accepted target name.</summary>
+    internal IEnumerable<CodeInvocation> SelectInvocations(
+        IReadOnlyList<CodeFile> files,
+        DiscoveryFilter filter
+    )
+    {
+        var sources = Accepted(files, filter)
+            .Where(source =>
+                filter.Names is not { } names
+                || !Options.EnableOptimizations
+                || names.AcceptsAny(source.Operations.InvocationNames)
+            )
+            .ToArray();
+        PrepareOperations(sources);
+        return sources.SelectMany(source => source.Operations.Invocations);
+    }
+
+    /// <summary>Every operation in the accepted files, in file and discovery order.</summary>
+    internal IEnumerable<CodeOperation<IOperation>> SelectOperations(
+        IReadOnlyList<CodeFile> files,
+        DiscoveryFilter filter
+    )
+    {
+        var sources = Accepted(files, filter).ToArray();
+        PrepareOperations(sources);
+        return sources.SelectMany(source =>
+            source.Operations.All.Select(operation => new CodeOperation<IOperation>(
+                source,
+                operation
+            ))
+        );
+    }
+
+    /// <summary>Written object creations in the accepted files whose written type name can be accepted; target-typed and keyword creations always qualify.</summary>
+    internal IEnumerable<CodeObjectCreation> SelectObjectCreations(
+        IReadOnlyList<CodeFile> files,
+        DiscoveryFilter filter
+    ) =>
+        Accepted(files, filter)
+            .SelectMany(source => source.ObjectCreations)
+            .Where(creation =>
+                filter.Names is not { } names
+                || !Options.EnableOptimizations
+                || CreatedTypeName(creation.Syntax) is not { } name
+                || TypeReferenceIndex.Keys(name).Any(names.Accepts)
+                || Aliases.Contains(name)
+            );
+
+    private IEnumerable<AnalysisSource> Accepted(
+        IReadOnlyList<CodeFile> files,
+        DiscoveryFilter filter
+    ) =>
+        files
+            .Select(file => file.Source)
+            .Where(source => !Options.EnableOptimizations || filter.Includes(source));
+
+    // The rightmost identifier of a written type, which is the created type's name unless it is an alias or a
+    // native-integer keyword.
+    private static string? CreatedTypeName(BaseObjectCreationExpressionSyntax creation) =>
+        (creation as ObjectCreationExpressionSyntax)?.Type switch
+        {
+            SimpleNameSyntax name => name.Identifier.ValueText,
+            QualifiedNameSyntax qualified => qualified.Right.Identifier.ValueText,
+            AliasQualifiedNameSyntax qualified => qualified.Name.Identifier.ValueText,
+            _ => null,
+        };
+
+    /// <summary>Every using alias declared in any loaded document, including global aliases in generated files.</summary>
+    internal IReadOnlySet<string> Aliases => _aliases.Value;
+
+    // Documents bind independently, so they bind in parallel; consumers still read them in order.
+    private void PrepareOperations(IReadOnlyList<AnalysisSource> sources)
+    {
+        var pending = sources.Where(source => !source.Operations.IsBound).Distinct().ToArray();
+        if (!Options.EnableOptimizations || pending.Length < 2)
+            return;
+        using var scope = Options.Profile.MeasureShared("operations");
+        Parallel.ForEach(
+            pending,
+            new ParallelOptions { CancellationToken = CancellationToken },
+            source => source.Operations.Prepare()
+        );
+    }
+
+    /// <summary>Type references in analysis-target documents, binding only names and documents the filter can accept.</summary>
+    internal IEnumerable<CodeTypeReference> SelectTypeReferences(DiscoveryFilter filter) =>
+        _typeReferences.Value.Select(
+            Options.EnableOptimizations ? filter.Names : null,
+            source =>
+                source.Project.Snapshot.IsAnalysisTarget
+                && (!Options.EnableOptimizations || filter.Includes(source))
+        );
 
     /// <summary>Stops evaluation and discovery within this analysis.</summary>
     public CancellationToken CancellationToken { get; }
@@ -140,6 +291,16 @@ public sealed class AnalysisSolution
             "member.symbol.bindings",
             _memberBindings
                 + (_memberCandidates.IsValueCreated ? _memberCandidates.Value.Bindings : 0)
+        );
+        Options.Profile.Count(
+            "type.symbol.bindings",
+            _typeReferences.IsValueCreated ? _typeReferences.Value.Bindings : 0
+        );
+        Options.Profile.Count(
+            "operation.bound.documents",
+            Projects
+                .SelectMany(project => project.Sources)
+                .Count(source => source.Operations.IsBound)
         );
         Implementations.WriteProfileCounters();
     }

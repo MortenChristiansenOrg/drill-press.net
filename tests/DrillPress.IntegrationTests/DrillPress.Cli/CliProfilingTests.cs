@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DrillPress.IntegrationTests.TestInfrastructure;
 using DrillPress.Manifest;
 using Xunit;
@@ -40,7 +39,7 @@ public sealed class CliProfilingTests : IntegrationTest
             RepositoryRoot,
             TestContext.Current.CancellationToken
         );
-        var events = ParseEvents(profiled.StandardError);
+        var events = ParseProfileEvents(profiled.StandardError);
 
         Assert.Equal(1, plain.ExitCode);
         Assert.Equal(1, profiled.ExitCode);
@@ -60,24 +59,47 @@ public sealed class CliProfilingTests : IntegrationTest
                 "rules.reconstruction",
                 "rules.preparation",
                 "rules.rule.SDK2001",
+                "rules.rule.SDK2001.own",
                 "rules.rule.SDK2002",
+                "rules.rule.SDK2002.own",
                 "rules.rule.SDK2003",
+                "rules.rule.SDK2003.own",
                 "rules.rule.SDK2004",
+                "rules.rule.SDK2004.own",
                 "rules.rule.SDK2005",
+                "rules.rule.SDK2005.own",
                 "rules.rule.SDK2006",
+                "rules.rule.SDK2006.own",
                 "rules.rule.SDK2007",
+                "rules.rule.SDK2007.own",
                 "rules.rule.SDK2008",
+                "rules.rule.SDK2008.own",
                 "rules.rule.SDK2011",
+                "rules.rule.SDK2011.own",
                 "rules.rule.SDK2012",
+                "rules.rule.SDK2012.own",
                 "rules.rule.SDK2009",
+                "rules.rule.SDK2009.own",
                 "rules.rule.SDK2010",
+                "rules.rule.SDK2010.own",
                 "rules.rule.DP1001",
+                "rules.rule.DP1001.own",
                 "rules.rule.DP1002",
+                "rules.rule.DP1002.own",
                 "rules.rule.DP1003",
+                "rules.rule.DP1003.own",
                 "rules.rule.DP1004",
+                "rules.rule.DP1004.own",
                 "rules.rule.DP1005",
+                "rules.rule.DP1005.own",
+                "rules.shared.declarations",
+                "rules.shared.facts",
+                "rules.shared.member-references",
                 "rules.member.symbol.bindings",
+                "rules.type.symbol.bindings",
+                "rules.operation.bound.documents",
                 "rules.interface.definition.comparisons",
+                "rules.allowances",
                 "rules.fix.validation",
                 "rules.aggregation",
                 "rules.contexts",
@@ -113,15 +135,4 @@ public sealed class CliProfilingTests : IntegrationTest
                 )
         );
     }
-
-    private static ProfileEvent[] ParseEvents(string output) =>
-        output
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(line =>
-                JsonSerializer.Deserialize(
-                    line["drillpress-profile ".Length..],
-                    CompilationSnapshotJsonContext.Default.ProfileEvent
-                )!
-            )
-            .ToArray();
 }

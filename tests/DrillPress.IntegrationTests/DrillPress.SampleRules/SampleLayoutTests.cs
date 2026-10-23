@@ -32,7 +32,7 @@ public sealed class SampleLayoutTests(SemanticRuleFixture fixture)
         Assert.Equal(
             [
                 ("DP1001", 17, "", (string?)null),
-                ("DP1002", 14, "Assert.Equal(string.Empty, store.Read())", null),
+                ("DP1002", 14, "Equal", null),
                 ("DP1004", 14, "string.Empty", "\"\""),
             ],
             findings

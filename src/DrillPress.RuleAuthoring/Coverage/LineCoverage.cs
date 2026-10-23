@@ -23,7 +23,7 @@ public sealed class LineCoverage
             ),
             ICodeElement { Source: { } source } element => source.Project.Coverage.Measure(
                 [source],
-                element.Location
+                CoverageSpan.Of(element)
             ),
             _ => new(
                 0,

@@ -42,7 +42,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "4. Read the result · Write your first rule",
     "url": "first-rule.html#output",
-    "text": "For the target above, the finding points directly to the console call: Expected CLI output TEAM001 Use the application logger instead of Console.WriteLine. samples/MyRuleTarget/Worker.cs 3:26 Output groups findings by rule and file, followed by physical line/column locations. A clean run prints nothing. Exit codes are 0 for clean, 1 for findings, and 2 when the check could not finish. A + before a location means a proposed fix survived validation. This first rule offers none. Only the CLI’s fix command applies changes; check never does."
+    "text": "For the target above, the finding points at the name of the called method, WriteLine: Expected CLI output TEAM001 Use the application logger instead of Console.WriteLine. samples/MyRuleTarget/Worker.cs 3:41 Output groups findings by rule and file, followed by physical line/column locations. A clean run prints nothing. Exit codes are 0 for clean, 1 for findings, and 2 when the check could not finish. A + before a location means a proposed fix survived validation. This first rule offers none. Only the CLI’s fix command applies changes; check never does."
   },
   {
     "title": "5. Keep a growing bundle understandable · Write your first rule",
@@ -82,7 +82,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Choose where the finding points · Select and compose",
     "url": "selections.html#report-at",
-    "text": "Each candidate reports at its natural location: a declaration at its identifier, a call at its expression, a catch clause at its header. ReportAt moves the finding to a more precise part, or anchors a computed value to source. Report at a part of the candidate using DrillPress; var rules = new RuleCatalog(); rules.Rule(\"ASYNC001\", \"Return Task from async methods instead of void.\") .For(Code.Methods.Where(method => method.IsAsync && method.ReturnsVoid)) .ReportAt(method => method.Syntax.ReturnType) .Forbid(); rules.Rule(\"PARAM001\", \"Group long parameter lists into a request type.\") .For(Code.Methods .Select(method => (Method: method, Count: method.Parameters.Count)) .Where(item => item.Count > 5)) .ReportAt(item => item.Method) .Forbid(); ReportAt accepts another candidate, a syntax node, a token or a SourceLocation; returning null keeps the default. Tuples, projects and other computed values have no location of their own, so they need ReportAt before Forbid or Require."
+    "text": "Each candidate reports at its natural location: a declaration at its identifier, a call at its method name (ThenBy in items.OrderBy(a).ThenBy(b)), a catch clause at its header. ReportAt moves the finding to a more precise part, or anchors a computed value to source. Report at a part of the candidate using DrillPress; var rules = new RuleCatalog(); rules.Rule(\"ASYNC001\", \"Return Task from async methods instead of void.\") .For(Code.Methods.Where(method => method.IsAsync && method.ReturnsVoid)) .ReportAt(method => method.Syntax.ReturnType) .Forbid(); rules.Rule(\"PARAM001\", \"Group long parameter lists into a request type.\") .For(Code.Methods .Select(method => (Method: method, Count: method.Parameters.Count)) .Where(item => item.Count > 5)) .ReportAt(item => item.Method) .Forbid(); ReportAt accepts another candidate, a syntax node, a token or a SourceLocation; returning null keeps the default. Tuples, projects and other computed values have no location of their own, so they need ReportAt before Forbid or Require. A tuple finds syntax, tokens and locations in the compilation of its first code element. A record that does not implement ICodeElement has no compilation, so registering it without ReportAt(candidate => element) fails immediately."
   },
   {
     "title": "Transform and connect selections · Select and compose",
@@ -157,7 +157,12 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Methods, types, and all other declarations · Inspect source code",
     "url": "syntax.html#declarations",
-    "text": "CodeMethod exposes Name, IsAsync, IsStatic, ReturnsVoid, ReturnTypeIs, Parameters, HasEmptyBody, Body(), ContainingType, Flow, Reaches, Syntax and Symbol. The symbol can be null when binding fails. CodeTypeDefinition is a named type with Namespace, kind tests such as IsClass, IsRecord and IsStatic, and Implements/DerivesFrom. Code.TypeDeclarations yields each written part instead; TopLevel() keeps those outside other types. CodeField, CodeProperty and CodeParameter expose Type, TypeIs<T>() and their initializer or default value. Code.Declarations covers every other declared symbol—events, locals, accessors—as CodeSymbol. Code.ReferencesTo(symbol) follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries."
+    "text": "CodeMethod exposes Name, IsAsync, IsStatic, ReturnsVoid, ReturnTypeIs, Parameters, HasEmptyBody, Body(), ContainingType, Flow, Reaches, Syntax and Symbol. The symbol can be null when binding fails. CodeTypeDefinition is a named type with Namespace, kind tests such as IsClass, IsRecord and IsStatic, and Implements/DerivesFrom. Code.TypeDeclarations yields each written part instead; TopLevel() keeps those outside other types. CodeField, CodeProperty and CodeParameter expose Type, TypeIs<T>() and their initializer or default value. Code.EnumMembers selects enum members, which Code.Fields leaves out, with their Value and HasExplicitValue. Code.Declarations covers every other declared symbol—events, locals, accessors—as CodeSymbol. Code.ReferencesTo(symbol) follows compiler identity or matching loaded source declarations across compilations. Neither guesses ambiguous bindings; implicit uses belong to operation queries."
+  },
+  {
+    "title": "Sections, scopes and explanatory comments · Inspect source code",
+    "url": "syntax.html#bodies",
+    "text": "Explain a null-forgiving operator; assert only at the end of a test. ExplanatoryComment(position) on a source, or element.ExplanatoryComment() and HasExplanatoryComment(), find the ordinary // or /* */ comment on the line, on the comment line directly above it, or directly above the statement or member it belongs to. Documentation comments and drillpress-allow comments do not explain code. body.Sections() splits a block body at whitespace-only lines between statements, like the Arrange, Act and Assert sections of a test. Each CodeSection has its Statements, Index, Calls() and Nodes<T>(). CodeBody.Of(source, node) scopes Calls(), Nodes<T>() and the other body queries to any syntax node, such as a loop body."
   },
   {
     "title": "Report the smallest useful location · Inspect source code",
@@ -177,7 +182,17 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Inspect calls and arguments · Calls and flow",
     "url": "analysis.html#invocations",
-    "text": "Disallow an infinite timeout on a specific API using DrillPress; var rules = new RuleCatalog(); var send = CodeType.Named(\"Product.Transport\").Member(\"Send\"); rules.Rule(\"TEAM008\", \"Pass a bounded timeout to Transport.Send.\") .For(Code.Calls.To(send) .WhereArgument(\"timeoutMilliseconds\", argument => argument.Is(-1))) .Forbid(); CodeInvocation.Target is the chosen method overload; To and Calls compare it to your CodeMember whichever way the call is spelled. Argument(\"name\") returns the argument bound to that declared parameter, including an omitted optional default; it returns null for an unknown parameter. A named argument appearing first in the source is not necessarily the first declared parameter, and parameter names keep working when callers reorder them. Member Meaning argument.Is(value), IsOmittedOr(value), ValueAs<T>(), TextValue Compiler constant values, including defaults supplied by the compiler. argument.IsExplicit, Value, Location Written arguments have a source expression and location; findings on omitted defaults report at the call. call.Receiver, WhereReceiver(...), OnReceiverOfType<T>() The object before the dot, including an extension method’s first argument. calls.ArgumentsFor(\"name\"), .SourceValues() Turn calls into argument or written-value candidates that report at the argument."
+    "text": "Disallow an infinite timeout on a specific API using DrillPress; var rules = new RuleCatalog(); var send = CodeType.Named(\"Product.Transport\").Member(\"Send\"); rules.Rule(\"TEAM008\", \"Pass a bounded timeout to Transport.Send.\") .For(Code.Calls.To(send) .WhereArgument(\"timeoutMilliseconds\", argument => argument.Is(-1))) .Forbid(); CodeInvocation.Target is the chosen method overload; To and Calls compare it to your CodeMember whichever way the call is spelled. Argument(\"name\") returns the argument bound to that declared parameter, including an omitted optional default; it returns null for an unknown parameter. A named argument appearing first in the source is not necessarily the first declared parameter, and parameter names keep working when callers reorder them. Member Meaning argument.Is(value), IsOmittedOr(value), ValueAs<T>(), TextValue Compiler constant values, including defaults supplied by the compiler. argument.IsExplicit, Value, Location Written arguments have a source expression and location; findings on omitted defaults report at the call. call.Receiver, WhereReceiver(...), OnReceiverOfType<T>() The object before the dot, including an extension method’s first argument. calls.ArgumentsFor(\"name\"), .SourceValues() Turn calls into argument or written-value candidates that report at the argument. When you know the target, narrow a call query with To, ToMethodsNamed or ToMethodsMatching, before or after any Where. Drill Press then binds only the files that can contain such a call; Code.Calls.Where(...) alone has to bind every file in the solution. Place filters such as InTestProjects() or InFolder(...) likewise skip other files before binding, for calls, operations, member and type references and object creations."
+  },
+  {
+    "title": "Follow a fluent chain · Calls and flow",
+    "url": "analysis.html#chains",
+    "text": "Require an ordering before a query is paged using DrillPress; var rules = new RuleCatalog(); var skip = CodeType.Framework(\"System.Linq.Queryable\").Member(\"Skip\"); rules.Rule(\"DATA003\", \"Order a query before paging it with Skip.\") .For(Code.Calls.To(skip).Where(call => !call.Chain() .ThroughLocal() .SelectMany(chain => chain.Calls) .Any(other => other.TargetNameMatches(\"OrderBy*\")))) .Forbid(); call.Chain() returns the calls that each receive the previous call’s result, in evaluation order. Before(call) and After(call) split it at a call, and Root is the value it starts from. Extension methods link in both spellings, and conditional access links too; an await ends the chain. When a chain starts from a local (chain.Local), ThroughLocal() adds the chains assigned to that local and the chains that start from it anywhere in the same body, including builders that change in place, in source order."
+  },
+  {
+    "title": "Find the values in scope · Calls and flow",
+    "url": "analysis.html#scope",
+    "text": "Pass on the cancellation token a call can reach. element.ValuesInScope<T>() lists the locals, parameters, fields and properties of a type (or a derived or implementing type) that code at the element can read by name, nearest first: locals declared before it, the parameters of enclosing lambdas, local functions and the method, primary constructor parameters, then members by name. Each ScopedValue has its Symbol, Name, Kind and declared Type, so a fix can name the one injected clock, and a rule can ignore a TimeProvider?. Instance state is left out in a static context, the locals and parameters around a static lambda or local function are left out inside it, and an outer type's instance state is left out in a nested type."
   },
   {
     "title": "Look beyond ordinary calls · Calls and flow",
@@ -187,7 +202,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Follow a call path · Calls and flow",
     "url": "analysis.html#paths",
-    "text": "Find blocking sleeps beneath async entry points using DrillPress; var rules = new RuleCatalog(); var sleep = CodeType.Named(\"System.Threading.Thread\").Member(\"Sleep\"); rules.Rule(\"TEAM010\", \"Use an awaited delay along asynchronous call paths.\") .For(Code.Methods.Where(method => method.IsAsync && method.Reaches(sleep))) .Forbid(); method.Reaches(member) follows statically bound calls through loaded source, including helpers in referenced projects and generated implementations. It terminates cycles. It does not infer reflection, runtime interface dispatch, dependency injection, or delegate dispatch into a lambda. An uncalled local function is not attributed to its enclosing method. “Not found” is not a proof of safety A negative result only says the modeled source call paths did not reach that target. It does not prove that runtime execution cannot call it."
+    "text": "Find blocking sleeps beneath async entry points using DrillPress; var rules = new RuleCatalog(); var sleep = CodeType.Named(\"System.Threading.Thread\").Member(\"Sleep\"); rules.Rule(\"TEAM010\", \"Use an awaited delay along asynchronous call paths.\") .For(Code.Methods.Where(method => method.IsAsync && method.Reaches(sleep))) .Forbid(); method.Reaches(member) follows statically bound calls through loaded source, including helpers in referenced projects and generated implementations. It terminates cycles. It does not infer reflection, runtime interface dispatch, dependency injection, or delegate dispatch into a lambda. An uncalled local function is not attributed to its enclosing method. method.Callees() lists the source methods a method calls, in the order its calls appear; Callees(sameType: true, transitive: true) gives every method of its own type that it runs, directly or through others, such as the loop methods a BackgroundService.ExecuteAsync runs. Calls in lambdas count unless you pass nested: NestedFunctions.Exclude. “Not found” is not a proof of safety A negative result only says the modeled source call paths did not reach that target. It does not prove that runtime execution cannot call it."
   },
   {
     "title": "Use method-local flow facts · Calls and flow",
@@ -212,7 +227,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Read evaluated project facts · Projects and relationships",
     "url": "relationships.html#projects",
-    "text": "Keep a legacy package out of production projects using DrillPress; var rules = new RuleCatalog(); rules.Rule(\"TEAM015\", \"Use the application's System.Text.Json contract.\") .For(Code.Projects.Where(project => !project.IsTestProject && project.ReferencesPackage(\"Newtonsoft.Json\"))) .Forbid(); A project finding reports at the start of the project’s first ordinary source file; an empty project cannot be reported by this source-diagnostic protocol. To report on every file instead, select Code.Files and test file.Source.Project. InTestProjects() and InNonTestProjects() use the project classification captured by the loader, not project names. ReferencesPackage compares direct package identifiers case-insensitively. AnalysisProject offers Name, ProjectPath, TargetFramework, IsTestProject, Packages, Properties, SourceRoots and HasType. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment."
+    "text": "Keep a legacy package out of production projects using DrillPress; var rules = new RuleCatalog(); rules.Rule(\"TEAM015\", \"Use the application's System.Text.Json contract.\") .For(Code.Projects.Where(project => !project.IsTestProject && project.ReferencesPackage(\"Newtonsoft.Json\"))) .Forbid(); A project finding reports at the start of the project’s first ordinary source file; an empty project cannot be reported by this source-diagnostic protocol. To report on every file instead, select Code.Files and test file.Source.Project. Code.Projects takes the same project filters as other queries: InProject(glob), InTestProjects(), InNonTestProjects() and InProjectsWithType(type). InTestProjects() and InNonTestProjects() use the project classification captured by the loader, not project names. ReferencesPackage compares direct package identifiers case-insensitively. AnalysisProject offers Name, ProjectPath, TargetFramework, IsTestProject, Packages, Properties, SourceRoots and HasType. Packages are direct evaluated references, including requested central versions—not the entire transitive dependency graph. Properties contain selected policy values and explicit overrides, not the whole environment."
   },
   {
     "title": "Require a counterpart · Projects and relationships",
@@ -247,7 +262,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Cache reusable facts · Facts, comparisons, and baselines",
     "url": "facts.html#facts",
-    "text": "Share an inventory of public type names using DrillPress; using Microsoft.CodeAnalysis; var publicTypes = Code.Types.Where(type => type.Symbol.DeclaredAccessibility == Accessibility.Public); var names = new AnalysisFact<IReadOnlyDictionary<string, int>>(solution => publicTypes.In(solution) .GroupBy(type => type.Name) .ToDictionary(group => group.Key, group => group.Count())); var repeatedNames = names.SelectMany(counts => counts.Where(pair => pair.Value > 1).Select(pair => pair.Key)); var repeatedTypes = publicTypes.Join( repeatedNames, type => type.Name, name => name, (type, _) => type); AnalysisFact<T>.In(solution) computes once per fact instance per analysis. SelectMany turns part of its value into a query. Values should be treated as immutable. ProjectFact<T> instead takes a function of AnalysisProject. Read it with In(solution, project); the project must belong to that solution. Alternative frameworks do not share values. Fact dependencies may read other facts, but cycles fail, and computation failures remain cached for that analysis. None of these caches persist across runs."
+    "text": "Share an inventory of public type names using DrillPress; using Microsoft.CodeAnalysis; var publicTypes = Code.Types.Where(type => type.Symbol.DeclaredAccessibility == Accessibility.Public); var names = new AnalysisFact<IReadOnlyDictionary<string, int>>(solution => publicTypes.In(solution) .GroupBy(type => type.Name) .ToDictionary(group => group.Key, group => group.Count())); var repeatedNames = names.SelectMany(counts => counts.Where(pair => pair.Value > 1).Select(pair => pair.Key)); var repeatedTypes = publicTypes.Join( repeatedNames, type => type.Name, name => name, (type, _) => type); AnalysisFact<T>.In(solution) computes once per fact instance per analysis. SelectMany turns part of its value into a query. Values should be treated as immutable. Inside a predicate, ReportAt or fix, read the analysis from any candidate with candidate.Source.Solution (or project.Solution), as in names.In(type.Source.Solution), instead of wrapping candidates in records that carry facts. ProjectFact<T> instead takes a function of AnalysisProject. Read it with In(solution, project); the project must belong to that solution. Alternative frameworks do not share values. Fact dependencies may read other facts, but cycles fail, and computation failures remain cached for that analysis. None of these caches persist across runs."
   },
   {
     "title": "Compare inventories and repeated syntax · Facts, comparisons, and baselines",
@@ -272,7 +287,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Start from what you selected · Offer safe fixes",
     "url": "fixes.html#builders",
-    "text": "A fix factory receives the violating candidate and returns a FixProposal or null. Returning null keeps the finding but offers no fix. Forbid and Require both accept the optional fix argument. Start the proposal with Fix.For(candidate); the candidate’s type decides which edits are available. Three fixes, three builders using DrillPress; var rules = new RuleCatalog(); var empty = CodeType.Of<string>().Member(nameof(string.Empty)); rules.Rule(\"TEAM022\", \"Use \\\"\\\" instead of string.Empty.\") .For(empty.References.OutsideNameOf()) .Forbid(fix: reference => Fix.For(reference) .ReplaceWithLiteral(\"\") .SafeWhen(change => change.Before.RefersTo(empty) && change.After.Is(\"\"))); rules.Rule(\"TEAM023\", \"Add braces to if and else branches.\") .For(Code.IfStatements.Branches().WithoutBraces()) .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose()); rules.Rule(\"TEAM024\", \"Use var when the type is apparent.\") .For(Code.LocalVariables.WithExplicitType().WithInitializer().WhereVarPreservesType()) .Forbid(fix: declaration => Fix.For(declaration).UseVar().Propose()); Candidate Edits Finish with Expression, member reference, object creation or call ReplaceWithLiteral(value), ReplaceWith(\"{0} == {1}\", a, b), ReplaceWithEquality(a, b), ReplaceWith(syntax) SafeWhen(change => ...) Call or CodeArgument RemoveArgument(\"name\") / Remove() with ExpectOverloadChange, RequireRemovedValue and RequireRemovedEvaluation SafeWhen(...) Any declaration RemoveModifier(Modifier.Private) Propose() for accessibili"
+    "text": "A fix factory receives the violating candidate and returns a FixProposal or null. Returning null keeps the finding but offers no fix. Forbid and Require both accept the optional fix argument. Start the proposal with Fix.For(candidate); the candidate’s type decides which edits are available. Three fixes, three builders using DrillPress; var rules = new RuleCatalog(); var empty = CodeType.Of<string>().Member(nameof(string.Empty)); rules.Rule(\"TEAM022\", \"Use \\\"\\\" instead of string.Empty.\") .For(empty.References.OutsideNameOf()) .Forbid(fix: reference => Fix.For(reference) .ReplaceWithLiteral(\"\") .SafeWhen(change => change.Before.RefersTo(empty) && change.After.Is(\"\"))); rules.Rule(\"TEAM023\", \"Add braces to if and else branches.\") .For(Code.IfStatements.Branches().WithoutBraces()) .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose()); rules.Rule(\"TEAM024\", \"Use var when the type is apparent.\") .For(Code.LocalVariables.WithExplicitType().WithInitializer().WhereVarPreservesType()) .Forbid(fix: declaration => Fix.For(declaration).UseVar().Propose()); Candidate Edits Finish with Expression, member reference, object creation or call ReplaceWithLiteral(value), ReplaceWith(\"{0} == {1}\", a, b), ReplaceWithEquality(a, b), ReplaceWithReference(symbol), ReplaceWith(syntax) SafeWhen(change => ...) Call or CodeArgument RemoveArgument(\"name\") / Remove() with ExpectOverloadChange, RequireRemovedValue and RequireRemovedEvaluation SafeWhen(...) Any declaration RemoveModifier(Modifier.Private) Propose() for accessibili"
   },
   {
     "title": "Keep correction policy in your bundle · Offer safe fixes",
@@ -300,6 +315,11 @@ window.DRILLPRESS_SEARCH = [
     "text": "Check both HasFix and the complete FixedText(path) result. Include linked files, multiple frameworks, conflicting proposals, comments, invalid code, and different overload contexts. “Finding exists” does not prove “fix is safe.” The next chapter uses the production validator in memory."
   },
   {
+    "title": "Reusable structural and framework edits · Offer safe fixes",
+    "url": "fixes.html#reusable-edits",
+    "text": "Fix.For(expression).UseCollectionExpression().Propose() converts supported standard collections/arrays with a written target type, preserving the concrete type and each element's evaluation count and order. Nonempty dictionary initializers, capacity constructors and interface targets changing concrete type are withheld. Fix.For(namespaceNode).UseFileScopedNamespace().Propose() converts a file's single block namespace and removes one four-space indentation level. Nested namespaces, directives, multiline text and ambiguous layouts are withheld, and so is a conversion that would change a string's value or a compiler-supplied argument such as a caller line number. A consumer must exclude source exported or concatenated into a different compilation. Fix.For(call).AddArgumentOfType(type, expression, proof) finds the unique overload adding that type and uses the argument-addition validator. Existing parameter names, types, ref kinds and generic arity must match, comparing generic overloads with the call's type arguments; the supplied proof explains the new value. Fix.For(expression).UseTimeProvider(clockExpression).Propose() supports DateTime.UtcNow, DateTimeOffset.UtcNow/Now, paired Stopwatch timestamp measurements, Task delays/timed waits and explicit new PeriodicTimer(TimeSpan) or new CancellationTokenSource(TimeSpan) constructors. The consumer chooses the application's clock; the library requires a TimeProvider local, parameter or instance member. Either end of a Stopwatch measurement yields one fix that rewrites the timestamp and every elapsed-time use together. Local DateTime kinds, ambiguous timestamp uses, timer creations with an object initializer and unsupported argument shapes are withheld. Fix.For(property).UseInitOnly().SafeWhen(symbol => ...) converts an unrestricted automatic setter to init, proves symbol correspondence and compilation, and asks the consumer to approve its construction/serialization contract. Implemented or restricted setters are withheld. Fix.For(creation).AddInitializer(member, expression).SafeWhen(value => ...) adds a previously unassigned simple member, proves unchanged constructed type, enclosing bindings, compiler-supplied arguments such as CallerArgumentExpression and binding to that member, and asks the consumer to prove the new value. Existing assignments remain. Adding static to a sealed class replaces the written sealed token; ModifierChange reports both the removed and added tokens. Rename permits a destination name in an unrelated scope, but rebinds references spelled like either name to reject capture or shadowing. Independent argument additions validate their own changed defaults in an atomic batch; caller-info changes around other edits remain unsafe. Evaluation-count checks with no registered inputs succeed only when both bounded evaluation traces have no child evaluations, so empty collections need no special-case bypass. Fix.For(statementNode).UseAssertAll().Propose() converts a synchronous var foreach with one xUnit assertion to Assert.All , preserving element type and assertion binding. Choosing it explicitly accepts aggregated failure reporting. Await/ref expressions, pattern-only enumerators and a public GetEnumerator that is not the interface's (outside arrays and the common System.Collections.Generic collections) are withheld."
+  },
+  {
     "title": "Test and run your rules",
     "url": "testing.html",
     "text": "Prove the rule finds the right code—and leaves the rest alone. Keep tests small enough that the intended violation is obvious. Test the negative cases as carefully as the positive ones: a noisy convention quickly stops being useful."
@@ -317,12 +337,17 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Model the contexts your policy depends on · Test and run your rules",
     "url": "testing.html#contexts",
-    "text": "AddProject returns an AnalysisProject. Dependencies must already belong to the workspace. Its options are: Argument Purpose name, sources Project identity and exact TestSource(Path, Text, Generated) values. framework A context label, defaulting to net10.0. It does not select reference assemblies. isTest Mark a test project for project-role policies. dependencies Previously added source projects to reference. symbols Conditional compilation symbols for #if. allowErrors Keep deliberately invalid source for failure-path tests. references, packages Override compiler references or supply direct package facts. Package facts do not download packages or supply assemblies. Model a referenced production project using DrillPress.Testing; var workspace = new RuleTestWorkspace(); var production = workspace.AddProject(\"Product\", [ new TestSource(\"Codec.cs\", \"public class Codec { }\") ]); workspace.AddProject(\"Product.Tests\", [ new TestSource(\"Tests.cs\", \"class Tests { Codec value = new(); }\") ], isTest: true, dependencies: [production]); Use the same source path and text across projects to test linked-file agreement. Use different reference sets for real framework differences. For xUnit attribute detection, isTest: true alone is not enough: include real xUnit references and Fact/Theory attributes."
+    "text": "AddProject returns an AnalysisProject. Dependencies must already belong to the workspace. Its options are: Argument Purpose name, sources Project identity and exact TestSource(Path, Text, Generated) values. framework A context label, defaulting to net10.0. It does not select reference assemblies. isTest Mark a test project for project-role policies. dependencies Previously added source projects to reference. symbols Conditional compilation symbols for #if. allowErrors Keep deliberately invalid source for failure-path tests. references, packages Override compiler references or supply direct package facts. Package facts do not download packages or supply assemblies. A project named like an assembly your test process loads keeps that assembly, so its snippets can use the real types; projects that depend on it see the workspace project instead. outputKind The compilation kind, defaulting to a class library. Use OutputKind.ConsoleApplication for top-level statements. nullable, languageVersion Compiler options, defaulting to nullable annotations and warnings enabled and C# 14. implicitUsings When true, adds the .NET SDK’s default global usings (System, System.Collections.Generic, System.IO, System.Linq, System.Net.Http, System.Threading, System.Threading.Tasks) as a generated file, like a project with ImplicitUsings enabled. Off by default. Model a referenced production project using DrillPress.Testing; var workspace = new RuleTestWorkspace(); var production = workspace.AddProject(\"Product\", [ new TestSource(\"Codec.cs\", \"public class Codec { }\") ]); workspace.AddProject(\"Product.Tests\", [ new TestSource(\"Tests.cs\", \"class Tests { Codec value = new(); }\") ], isTest: true, dependencies: [production]); Use the same source path and text across projects to test linked-file agreement. Use different reference sets for real framework differences. For xUnit attribute detection, isTest: true alone is not enough: include real xUnit references and Fact/Theory attributes."
   },
   {
     "title": "Rules about tests · Test and run your rules",
     "url": "testing.html#xunit",
     "text": "Code.TestMethods and Code.TestClasses recognize xUnit, NUnit and MSTest markers by compiler identity, so rules about tests need no attribute lists of their own. Layout and assertion conventions stay in your bundle: the sample body analysis shows a cached consumer fact built from public APIs. To test such rules, add the real test-framework assemblies to the workspace with references, and mark the project with isTest: true. The project flag alone does not make a method a test. When a fixture's exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore."
+  },
+  {
+    "title": "Show that exceptions can be allowed · Test and run your rules",
+    "url": "testing.html#allowances",
+    "text": "Teams that run rules as hard errors still need a way to accept a justified exception. Instead of teaching each rule to look for comments, the code names the rule and the reason in an ordinary comment: // drillpress-allow RULE-ID: reason, with several IDs separated by commas. After code, it allows findings that start on that line. On its own line, it allows the whole statement or member or type declaration that starts on the next code line, such as a multi-line statement or a complete test method; only comment lines may come between, not blank lines, #if directives or inactive code. An allowance accepts one finding using DrillPress; using DrillPress.Testing; using Xunit; public class ClockRuleTests { [Fact] public async Task An_explained_allowance_accepts_one_clock_read() { var workspace = new RuleTestWorkspace(); workspace.AddProject(\"Shop\", [new TestSource(\"Orders.cs\", \"\"\" class Orders { DateTime Placed() => DateTime.Now; // drillpress-allow TEAM030: shown to the clerk in local time DateTime Shipped() => DateTime.Now; } \"\"\")], implicitUsings: true); var rules = new RuleCatalog(); rules.Rule(\"TEAM030\", \"Read the time from TimeProvider.\").For(CodeType.Of<DateTime>().Member(nameof(DateTime.Now)).References).Forbid(); var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken); Assert.Equal( \"\"\" TEAM030 Read the time from TimeProvider. Orders.cs 4:27 \"\"\", result.Output); } } Allowed findings are not printed, counted or fixed. Allowances are checked too: one that allows nothing is reported as drillpress-allow-unused, with a fix that removes it unless it covers #if directives or inactive code that another build configuration may compile, and one without a rule ID or reason, naming an unknown rule, or separated from its code by a blank line, directive or inactive code is reported as drillpress-allow-invalid. Rule IDs starting with drillpress- are reserved for these built-in rules. The rule authoring reference defines the exact scope."
   },
   {
     "title": "Test an accepted baseline · Test and run your rules",
@@ -382,7 +407,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Code · API field guide",
     "url": "reference.html#api-code",
-    "text": "Files; FilesIncludingGenerated; Projects; Types; Interfaces; TypeDeclarations; Methods; Fields; Properties; Parameters; Declarations; TestMethods; TestClasses; AbstractTestClasses; Calls; ObjectCreations; MemberReferences; TypeReferences; IfStatements; Catches; LocalVariables; ForEachLoops; OutVariables; Enumerations; NullChecks; Comments; Nodes<T>(); Operations<T>(); ReferencesTo(symbol) The single starting point. Ordinary roots exclude generated files; types are deduplicated per evaluated context."
+    "text": "Files; FilesIncludingGenerated; Projects; Types; Interfaces; TypeDeclarations; Methods; Fields; EnumMembers; Properties; Parameters; Declarations; TestMethods; TestClasses; AbstractTestClasses; Calls; ObjectCreations; Routes; RouteGroups; MemberReferences; TypeReferences; IfStatements; Catches; LocalVariables; ForEachLoops; OutVariables; Enumerations; NullChecks; Comments; Nodes<T>(); Operations<T>(); ReferencesTo(symbol) The single starting point. Ordinary roots exclude generated files; types are deduplicated per evaluated context."
   },
   {
     "title": "CodeQuery<T> · API field guide",
@@ -392,7 +417,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Place filters · API field guide",
     "url": "reference.html#api-place-filters",
-    "text": "InProject(glob); InTestProjects(); InNonTestProjects(); InProjectsWithType(type); InNamespace(pattern); InFolder(folder); InFilesNamed(glob) Available on every query of reportable elements. Test projects come from the build classification, not names."
+    "text": "InProject(glob); InTestProjects(); InNonTestProjects(); InProjectsWithType(type); InNamespace(pattern); InFolder(folder); InFilesNamed(glob) Available on every query of reportable elements; the project filters also work on Code.Projects. Test projects come from the build classification, not names."
   },
   {
     "title": "Declaration filters · API field guide",
@@ -410,6 +435,11 @@ window.DRILLPRESS_SEARCH = [
     "text": "Source; Location; IsInProject; IsInNamespace; IsInFolder / FilePath, Start, Length, Line, Column The contract for reportable candidates and physical UTF-16 spans."
   },
   {
+    "title": "Enclosing code · API field guide",
+    "url": "reference.html#api-enclosing-code",
+    "text": "element.IsInType(type); ContainingMethod(); EnclosingLoop(); IsInLoop(); IsGuardedByCatchAll(); UnguardedHandler() Where any reportable element runs. Code in lambdas and local functions belongs to the type and method that declare them, while loops and try statements count only within the element's own function. UnguardedHandler returns the HandlerClause (None, Catch or Finally) whose failure would replace the exception being handled; a catch clause that catches any exception guards it, without evaluating filters."
+  },
+  {
     "title": "Declarations and statements · API field guide",
     "url": "reference.html#source",
     "text": "DrillPress · Read the guide →"
@@ -417,7 +447,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeTypeDefinition · API field guide",
     "url": "reference.html#api-codetypedefinition",
-    "text": "Name; Namespace; IsClass; IsInterface; IsStruct; IsEnum; IsRecord; IsAbstract; IsStatic; IsNested; Implements; DerivesFrom; IsOrDerivesFrom; Symbol; Syntax; Solution One named type per evaluated context. Query forms: DerivedFrom, ImplementingInterface, ImplementationViews."
+    "text": "Name; Namespace; IsClass; IsInterface; IsStruct; IsEnum; IsRecord; IsAbstract; IsStatic; IsNested; HasOnlyStaticMembers; IsTopLevelProgram; Implements; DerivesFrom; IsOrDerivesFrom; Symbol; Syntax; Solution One named type per evaluated context. IsTopLevelProgram recognizes the Program class generated for top-level statements, including a partial declaration of it. Query forms: DerivedFrom, ImplementingInterface, ImplementationViews."
   },
   {
     "title": "CodeTypeDeclaration · API field guide",
@@ -427,12 +457,17 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeMethod · API field guide",
     "url": "reference.html#api-codemethod",
-    "text": "IsAsync; IsStatic; ReturnsVoid; ReturnTypeIs; Parameters; HasBody; HasEmptyBody; HasNoStatements; Body(nested?); ContainingType; Flow; Reaches(member) An ordinary method. Query forms: DeclaredInTypesDerivedFrom, Overriding, DirectlyOverriding, OverrideMatches, WhereBody, ContainingTypes."
+    "text": "IsAsync; IsStatic; ReturnsVoid; ReturnTypeIs; Parameters; HasBody; HasEmptyBody; HasNoStatements; Body(nested?); ContainingType; Flow; Reaches(member); Callees(sameType?, transitive?, nested?) An ordinary method. Query forms: DeclaredInTypesDerivedFrom, Overriding, DirectlyOverriding, OverrideMatches, WhereBody, ContainingTypes."
   },
   {
     "title": "CodeField / CodeProperty / CodeParameter · API field guide",
     "url": "reference.html#api-codefield-codeproperty-codeparameter",
     "text": "Type; TypeIs<T>(); IsConst, IsReadOnly, IsStatic, Initializer / HasGetter, HasSetter, HasInit, IsAutoProperty / Ordinal, ContainingSymbol, IsLambdaParameter, HasDefaultValue, DefaultValue Member declarations reported at their identifier. Each field variable is its own candidate."
+  },
+  {
+    "title": "CodeEnumMember · API field guide",
+    "url": "reference.html#api-codeenummember",
+    "text": "Name; Symbol; Value; HasExplicitValue; ContainingType; Syntax One enum member, reported at its name; Code.Fields leaves enum members out."
   },
   {
     "title": "CodeSymbol · API field guide",
@@ -442,7 +477,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeFile · API field guide",
     "url": "reference.html#api-codefile",
-    "text": "Path; Name; Folder; Nodes<T>(); files.Calls(); files.Operations<T>(); files.Declarations(); files.Comments() One document membership. File queries restrict discovery to that scope."
+    "text": "Path; Name; Folder; RelativePath; HasTopLevelStatements; Nodes<T>(); files.Calls(); files.Operations<T>(); files.Declarations(); files.Comments() One document membership. RelativePath is the path below the project directory, null for a linked file outside it. File queries restrict discovery to that scope, and place filters apply before syntax is enumerated."
   },
   {
     "title": "CodeNode<T> · API field guide",
@@ -457,7 +492,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeCatch · API field guide",
     "url": "reference.html#api-codecatch",
-    "text": "ExceptionType; Catches<T>(); CatchesAnyException; HasFilter; Filter; Body; IsEmpty; Rethrows Written catch clauses, reported at the clause header."
+    "text": "new CodeCatch(source, clause); ExceptionType; Catches<T>(); CatchesAnyException; HasFilter; Filter; Body; IsEmpty; Rethrows Written catch clauses, reported at the clause header. The constructor views any written clause, such as one of a try statement's Catches."
   },
   {
     "title": "CodeVariableDeclaration · API field guide",
@@ -467,7 +502,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeComment / CodeBody · API field guide",
     "url": "reference.html#api-codecomment-codebody",
-    "text": "Text; Kind; ContainingDeclaration / Calls(); Calls(member); Nodes<T>(); ControlFlowNodes(kinds); NestedBodies(); IsEmpty Comments and executable bodies. Body queries: Body(), Conditions(), NullChecks()."
+    "text": "Text; Kind; ContainingDeclaration; element.ExplanatoryComment(); HasExplanatoryComment() / CodeBody.Of(source, node); Calls(); Calls(member); Nodes<T>(); ControlFlowNodes(kinds); NestedBodies(); Sections(); BlankLines; IsEmpty Comments and executable bodies. Body queries: Body(), Conditions(), NullChecks()."
   },
   {
     "title": "Types and members · API field guide",
@@ -477,7 +512,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeType · API field guide",
     "url": "reference.html#api-codetype",
-    "text": "Of<T>(); Named(name, assembly?); Framework(name); Member(name, parameters?); Constructor(parameters); References; Matches Metadata identity with open-generic slots, arrays and optional assembly constraints."
+    "text": "Of<T>(); Named(name, assembly?); Framework(name); FromSymbol(symbol); Member(name, parameters?); Constructor(parameters); References; Matches Metadata identity with open-generic slots, arrays and optional assembly constraints. FromSymbol captures a bound type with its exact constructed arguments; an original definition gives an open descriptor."
   },
   {
     "title": "CodeMember · API field guide",
@@ -492,12 +527,12 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "MemberReference / CodeTypeReference · API field guide",
     "url": "reference.html#api-memberreference-codetypereference",
-    "text": "ContainingType; MemberName; Symbol; Expression; Facts; AsArgument() / Type; RefersTo(type); Facts; OutsideNameOf() Written references to a member or type, with compiler binding."
+    "text": "ContainingType; MemberName; Symbol; Expression; Facts; AsArgument() / Type; RefersTo(type); Facts; OutsideNameOf(); MemberReferences.To(members) Written references to a member or type, with compiler binding."
   },
   {
     "title": "Symbols / CodeAttribute · API field guide",
     "url": "reference.html#api-symbols-codeattribute",
-    "text": "HasAttribute(symbol, type, includeDerived?); IsOrDerivesFrom; DerivesFrom; Implements; symbol.Attributes() / ConstructorValue<T>; NamedValue<T>; Matches Semantic predicates for raw compiler symbols and typed attribute values."
+    "text": "HasAttribute(symbol, type, includeDerived?); IsOrDerivesFrom; DerivesFrom; Implements; ImplementsOrOverrides; IsEventHandler; type.IsTask(); UnwrapTask(); method.AddingParameter(type, matchNames?); symbol.Attributes() / ConstructorValue<T>; NamedValue<T>; Matches Semantic predicates for raw compiler symbols and typed attribute values. IsTask recognizes the framework's Task and ValueTask types, with or without a result. AddingParameter finds overloads that add one parameter of a type and keep the others; it is candidate discovery, not proof that the overload behaves the same. Generic overloads compare with the call's type arguments."
   },
   {
     "title": "Calls, expressions and flow · API field guide",
@@ -507,7 +542,17 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeInvocation · API field guide",
     "url": "reference.html#api-codeinvocation",
-    "text": "Target; Receiver; Arguments; Argument(name); ArgumentsFor(name); Calls(member); IsDeclaredOn; TargetNameMatches; IsConditional; Expression Overload-aware calls in any spelling, with compiler-mapped arguments including defaults."
+    "text": "Target; Receiver; Arguments; Argument(name); ArgumentsFor(name); Calls(member); IsDeclaredOn; TargetNameMatches; IsConditional; Expression; Chain() Overload-aware calls in any spelling, with compiler-mapped arguments including defaults. They report at the method name."
+  },
+  {
+    "title": "ScopedValue · API field guide",
+    "url": "reference.html#api-scopedvalue",
+    "text": "element.ValuesInScope<T>(); ValuesInScope(type) / Symbol; Name; Kind; Type Locals, parameters, fields and properties of a type that code at an element can read by name, nearest first."
+  },
+  {
+    "title": "CodeCallChain · API field guide",
+    "url": "reference.html#api-codecallchain",
+    "text": "Calls; First; Last; Root; Local; Before(call); After(call); ThroughLocal() The fluent chain a call belongs to, optionally continued through the local it starts from."
   },
   {
     "title": "Call filters · API field guide",
@@ -525,9 +570,19 @@ window.DRILLPRESS_SEARCH = [
     "text": "Type; Constructor; Creates<T>(); Calls(constructor); Arguments; Argument(name); IsTargetTyped; Of<T>() new T(...) and target-typed new(...)."
   },
   {
+    "title": "CodeRoute · API field guide",
+    "url": "reference.html#api-coderoute",
+    "text": "Mapping; Path; Configuration; GroupConfiguration; HandlerExpression; Handler; IsConfiguredWith(member, includeGroups?) A minimal API route from Code.Routes or a group from Code.RouteGroups. Path includes the constant prefixes of its groups, followed through locals, and a local or call holding the application, such as builder.Build(), has none; what can't be read statically is null. Route metadata is not an authorization analysis."
+  },
+  {
     "title": "CodeExpression · API field guide",
     "url": "reference.html#api-codeexpression",
-    "text": "Type; TypeIs; ConvertedTypeIs; TypeIsOrDerivesFrom; TypeIsAssignableTo; Constant; Is(value); IsConstant; TextValue; Symbol; RefersTo(member); IsNameOf; FlowState; MayBeNull; Facts; AsInvocation(); AsBuiltString() A bound expression with type, constant, symbol and nullable facts."
+    "text": "Type; TypeIs; ConvertedTypeIs; TypeIsOrDerivesFrom; TypeIsAssignableTo; Constant; Is(value); IsConstant; TextValue; Symbol; RefersTo(member); IsNameOf; FlowState; MayBeNull; Facts; AsInvocation(); AwaitedCall(); AsBuiltString(); expressions.WithCollectionExpressionTarget() A bound expression with type, constant, symbol and nullable facts. AwaitedCall is the call an await awaits, through conversions and ConfigureAwait."
+  },
+  {
+    "title": "Culture and clock calls · API field guide",
+    "url": "reference.html#api-culture-and-clock-calls",
+    "text": "call.ComparesWithCulture(); call.FormatsWithCulture(); hole.FormatsWithCulture(); call.WaitsWithoutTimeProvider(); creation.TimesWithoutTimeProvider() Framework calls that depend on the current culture or run on the system clock. They classify common framework APIs; they never choose which culture or clock an application should use."
   },
   {
     "title": "CodeNullCheck / ConditionPattern · API field guide",
@@ -537,7 +592,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeOperation<T> / MethodFlow · API field guide",
     "url": "reference.html#api-codeoperation-t-methodflow",
-    "text": "Operation; ContainingSymbol / Graph; Data; NullState(expression) Typed compiler operations and lazy control-flow, data-flow and nullable analysis. Prefer method.Flow."
+    "text": "Operation; ContainingSymbol; operation.WithoutConversions(includeExplicit?) / Graph; Data; NullState(expression) Typed compiler operations and lazy control-flow, data-flow and nullable analysis. Prefer method.Flow."
   },
   {
     "title": "Coverage · API field guide",
@@ -547,7 +602,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "StandardLinq · API field guide",
     "url": "reference.html#api-standardlinq",
-    "text": "DrillPress.Presets in the optional DrillPress.Linq package: Inspect(call); Status; Category; SequenceInputs Maintained framework LINQ facts. See the LINQ catalogue."
+    "text": "DrillPress.Presets in the optional DrillPress.Linq package: Inspect(call); Status; Category; SequenceInputs Maintained framework LINQ facts. See the LINQ catalogue ."
   },
   {
     "title": "Projects and relationships · API field guide",
@@ -557,12 +612,12 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "AnalysisProject · API field guide",
     "url": "reference.html#api-analysisproject",
-    "text": "Name; ProjectPath; TargetFramework; IsTestProject; Packages; ReferencesPackage(id); Properties; SourceRoots; HasType(type); Sources; Compilation One evaluated compilation context. As a candidate it reports at its first ordinary source file."
+    "text": "Name; ProjectPath; TargetFramework; IsTestProject; Packages; ReferencesPackage(id); Properties; SourceRoots; HasType(type); Sources; Compilation; Solution One evaluated compilation context. As a candidate it reports at its first ordinary source file."
   },
   {
     "title": "AnalysisSolution / AnalysisSource · API field guide",
     "url": "reference.html#api-analysissolution-analysissource",
-    "text": "Projects; ProjectGraph; Relationships; Implementations; Options / Project; Document; Tree; Model; Locate(span) The shared cache lifetime and captured sources with semantic models."
+    "text": "Projects; ProjectGraph; Relationships; Implementations; Options / Project; Solution; Document; Tree; Model; Locate(span) The shared cache lifetime and captured sources with semantic models."
   },
   {
     "title": "ProjectGraph · API field guide",
@@ -622,17 +677,17 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Expression fixes · API field guide",
     "url": "reference.html#api-expression-fixes",
-    "text": "ReplaceWithLiteral(value); ReplaceWith(template, keep...); ReplaceWithEquality(left, right, absorbNegation?); ReplaceWith(syntax); MustPreserve(behavior); SafeWhen(change => ...) ExpressionChange exposes Before, After, Kept and Rewrite."
+    "text": "ReplaceWithLiteral(value); ReplaceWith(template, keep...); ReplaceWithEquality(left, right, absorbNegation?); ReplaceWithReference(symbol); ReplaceWith(syntax); MustPreserve(behavior); SafeWhen(change => ...) ExpressionChange exposes Before, After, Kept, Rewrite and Same(before, after)."
   },
   {
     "title": "Structural fixes · API field guide",
     "url": "reference.html#api-structural-fixes",
-    "text": "RemoveArgument(name) / Remove(); RemoveModifier(modifier); AddBraces(); Remove(); UseVar(); ToConstant(name); ToMethod(name, parameterName) Finish with Propose() where the library owns the proof, or SafeWhen(...)."
+    "text": "RemoveArgument(name) / Remove(); AddArgument(name, expression); RemoveModifier(modifier); AddModifier(modifier); Rename(newName); AddBraces(); Remove(); UseVar(); ToConstant(name); ToMethod(name, parameterName) Finish with Propose() where the library owns the proof, or SafeWhen(...)."
   },
   {
     "title": "SourceChanges / FixProposal / RewriteContext · API field guide",
     "url": "reference.html#api-sourcechanges-fixproposal-rewritecontext",
-    "text": "Replace(source, span, text); Propose(edits, proof) / Edits; IsSafeIn(project) / Original; Rewritten; Edits; Map(source, node) Custom edits with your own complete proof, validated against the whole batch."
+    "text": "Replace(source, span, text); Propose(edits, proof) / Edits; WithheldReason; IsSafeIn(project) / Original; Rewritten; Edits; Map(source, node); Same(before, after) Custom edits with your own complete proof, validated against the whole batch."
   },
   {
     "title": "Testing and hosting · API field guide",
@@ -642,12 +697,12 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "RuleTestWorkspace · API field guide",
     "url": "reference.html#api-ruletestworkspace",
-    "text": "constructor(references?); AddProject(name, sources, framework?, isTest?, dependencies?, symbols?, allowErrors?, references?, packages?); Analyze(); CheckAsync(rules); WithCoverage(configure) In-memory projects; CheckAsync runs the production evaluator and validator."
+    "text": "constructor(references?); AddProject(name, sources, framework?, isTest?, dependencies?, symbols?, allowErrors?, references?, packages?, nullable?, languageVersion?, implicitUsings?, outputKind?); Analyze(); CheckAsync(rules); WithCoverage(configure) In-memory projects; CheckAsync runs the production evaluator and validator, including // drillpress-allow allowances."
   },
   {
     "title": "RuleTestResult / TestFinding · API field guide",
     "url": "reference.html#api-ruletestresult-testfinding",
-    "text": "Output; Findings; FixedText(path) / Rule, Path, Line, Column, Text, HasFix Output is exactly what the CLI prints; FixedText applies validated fixes in memory."
+    "text": "Output; ExplainedOutput; Findings; FixedText(path) / Rule, Path, Line, Column, Text, HasFix Output is exactly what the CLI prints; FixedText applies validated fixes in memory."
   },
   {
     "title": "RuleApplication · API field guide",
@@ -657,6 +712,6 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "When you need the compiler directly · API field guide",
     "url": "reference.html#compiler",
-    "text": "Microsoft.CodeAnalysis contains symbols, operations, and compiler result types. Microsoft.CodeAnalysis.CSharp.Syntax contains C# syntax node types. Microsoft.CodeAnalysis.Operations contains typed operation interfaces; Microsoft.CodeAnalysis.Text.TextSpan describes a character range. Use the existing Source.Model, Source.Tree, and Project.Compilation rather than making a second compiler view of the same source. Compare symbols using compiler identity, not display strings. Keep unavailable or ambiguous facts distinct from a confirmed policy violation."
+    "text": ""
   }
 ];

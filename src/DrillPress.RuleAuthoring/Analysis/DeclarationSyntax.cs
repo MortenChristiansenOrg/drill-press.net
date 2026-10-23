@@ -35,6 +35,7 @@ internal static class DeclarationSyntax
             CodeField field => field.Declaration,
             CodeProperty property => property.Syntax,
             CodeParameter parameter => parameter.Syntax,
+            CodeEnumMember member => member.Syntax,
             CodeSymbol
             {
                 Syntax: VariableDeclaratorSyntax { Parent.Parent: BaseFieldDeclarationSyntax field }

@@ -116,28 +116,29 @@ internal static class ArgumentTransitionChecks
         ArgumentRemovalChange change,
         ExpressionSyntax before,
         ExpressionSyntax after
+    ) => SameInput(change.Rewrite, before, after);
+
+    internal static bool SameInput(
+        RewriteEvidence rewrite,
+        ExpressionSyntax before,
+        ExpressionSyntax after
     ) =>
         SyntaxFactory.AreEquivalent(before, after)
-        && RewriteChecks.SameTypes(
-            change.Rewrite.BeforeModel,
-            before,
-            change.Rewrite.AfterModel,
-            after
-        )
+        && RewriteChecks.SameTypes(rewrite.BeforeModel, before, rewrite.AfterModel, after)
         && before
             .DescendantNodesAndSelf()
             .OfType<ExpressionSyntax>()
             .Zip(after.DescendantNodesAndSelf().OfType<ExpressionSyntax>())
             .All(pair =>
                 RewriteSymbols.Same(
-                    change.Rewrite.BeforeModel.GetSymbolInfo(pair.First).Symbol,
-                    change.Rewrite.AfterModel.GetSymbolInfo(pair.Second).Symbol,
-                    change.Rewrite.Context
+                    rewrite.BeforeModel.GetSymbolInfo(pair.First).Symbol,
+                    rewrite.AfterModel.GetSymbolInfo(pair.Second).Symbol,
+                    rewrite.Context
                 )
                 && RewriteChecks.SameTypes(
-                    change.Rewrite.BeforeModel,
+                    rewrite.BeforeModel,
                     pair.First,
-                    change.Rewrite.AfterModel,
+                    rewrite.AfterModel,
                     pair.Second
                 )
             );

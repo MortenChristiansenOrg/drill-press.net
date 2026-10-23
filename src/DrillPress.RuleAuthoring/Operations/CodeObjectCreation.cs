@@ -8,15 +8,19 @@ namespace DrillPress;
 public sealed class CodeObjectCreation : ICodeElement
 {
     private readonly Lazy<IObjectCreationOperation?> _operation;
+    private readonly Lazy<CodeExpression> _expression;
 
     internal CodeObjectCreation(AnalysisSource source, BaseObjectCreationExpressionSyntax syntax)
     {
         Source = source;
         Syntax = syntax;
         _operation = new(() =>
-            source.Model.GetOperation(syntax, source.Project.CancellationToken)
-            as IObjectCreationOperation
-        );
+        {
+            using var scope = source.Project.MeasureShared("operations");
+            return source.Model.GetOperation(syntax, source.Project.CancellationToken)
+                as IObjectCreationOperation;
+        });
+        _expression = new(() => new(source, syntax));
     }
 
     /// <summary>The original document and compilation membership.</summary>
@@ -41,7 +45,7 @@ public sealed class CodeObjectCreation : ICodeElement
     public IMethodSymbol? Constructor => Operation?.Constructor;
 
     /// <summary>Matches the created type exactly; open generic descriptors match every construction.</summary>
-    public bool Creates(CodeType type) => IsResolved && Type is { } actual && type.Matches(actual);
+    public bool Creates(CodeType type) => Type is { } actual && type.Matches(actual) && IsResolved;
 
     /// <summary>Matches the created type, including constructed generic arguments.</summary>
     public bool Creates<T>() => Creates(CodeType.Of<T>());
@@ -51,7 +55,7 @@ public sealed class CodeObjectCreation : ICodeElement
         Constructor is { } selected && constructor.Matches(selected);
 
     /// <summary>The creation as an expression with type, constant and context helpers.</summary>
-    public CodeExpression Expression => new(Source, Syntax);
+    public CodeExpression Expression => _expression.Value;
 
     /// <summary>The written argument values in source order, excluding any object or collection initializer.</summary>
     public IReadOnlyList<CodeExpression> Arguments =>

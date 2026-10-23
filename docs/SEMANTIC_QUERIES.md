@@ -72,6 +72,14 @@ occurrences. `CodeNode.ContainingSymbol` exposes the actual executable owner.
 Control-flow categories are explicit flags, not an evolving test-style policy.
 Syntax selections include unreachable code; presence does not prove execution.
 
+`CodeBody.Of(source, node, nested)` scopes the same body queries to any original syntax
+node of that source, such as one statement or a loop body; a node from another tree is
+rejected. `body.Sections()` splits a block body into `CodeSection`s at whitespace-only
+lines between statements, as in a test's Arrange, Act and Assert. Comment lines do not
+split a section, and blank lines inside a statement, comment or disabled code do not
+count; an expression body has no sections. Sections keep the body's nested-function
+policy for their `Calls()` and `Nodes<T>()`.
+
 ```csharp
 var checks = tests.Body().NullChecks();
 var nonNullReferences = checks.Where(check =>
@@ -174,6 +182,43 @@ conditional-access envelopes, and non-call/invalid expressions return null.
 `calls.OutsideExpressionTrees()` is an explicit consumer filter. Ordinary call
 queries retain expression-tree occurrences. Built-in projections retain lazy
 query caching, occurrence identity and coverage collection dependencies.
+
+## Fluent call chains
+
+`call.Chain()` returns the `CodeCallChain` a call belongs to: the calls that each
+receive the previous call's result, in evaluation order. A call links to its instance
+receiver or an extension method's `this` argument (in both spellings) through implicit
+conversions, and to the receiver tested by an enclosing conditional access, so
+`a?.B()?.C()` is one chain starting from `a`. Any other expression ends the chain,
+including `await`, explicit casts and arguments. `Root` is the first call's
+`Receiver`, null for an ordinary static call; `Local` is the local it reads, if any.
+`Before(call)` and `After(call)` split the chain; calls compare equal by source
+membership and bound operation, so a call from `Code.Calls` is found in its chain.
+
+`ThroughLocal()` continues a chain whose root is a local across statements: it returns
+this chain, the chains whose results are assigned to the local (initializer and simple
+assignments) and the chains that start from the local, ordered by source position.
+This covers rebinding (`q = q.Where(...)`) and builders that change in place
+(`query.AndAlso().WhereGreaterThan(...)`). The search covers the whole executable
+body, including nested functions, and is flow-insensitive: statement order, branches
+and loops are ignored. It does not follow a second local, a field or a helper's
+result, and only `Local`'s type tells a rule whether the local holds a query or, for
+example, a session that starts unrelated queries.
+
+## Values in scope
+
+`element.ValuesInScope(type)` and `ValuesInScope<T>()` return the `ScopedValue`s code at
+the element's location can read by name whose declared type is the type, derives from
+it or implements it: locals whose declaration ends before the location (latest first,
+excluding a local inside its own initializer), parameters of the enclosing lambdas,
+local functions and member (innermost first), primary constructor parameters, and the
+fields and properties of the containing types, ordered by name. A static member, static
+lambda or static local function leaves out instance fields, properties and primary
+constructor parameters. A static lambda or static local function also leaves out the
+locals and parameters of the functions around it, and code in a nested type leaves out
+its outer type's instance fields, properties and primary constructor parameters. `Type`
+keeps nullable annotations so a policy can reject
+`TimeProvider?`; values only reachable through another value are not listed.
 
 ## Contextual project scopes
 
@@ -300,9 +345,131 @@ constructors and lambdas, with `Ordinal`, `ContainingSymbol`, `IsLambdaParameter
 `HasDefaultValue` and `DefaultValue`. All three report at their identifier and
 share the declaration filters.
 
+`Code.EnumMembers` selects written enum members, which `Code.Fields` leaves out, as
+`CodeEnumMember` declarations reported at their name. `Value` is the member's constant
+(written or implied by its position), `HasExplicitValue` tells whether it is written,
+and `ContainingType` is the enum; attributes and documentation filters work as for
+other declarations.
+
 `Code.Catches` selects written catch clauses. `ExceptionType` is null for
 `catch { }`; `Catches(type)` matches the declared type exactly and
 `CatchesAnyException` also covers `System.Exception` and `System.Object`.
 `HasFilter`, `Filter`, `Body`, `IsEmpty` and `Rethrows` (a `throw;` outside nested
 handlers and functions) describe the handler. Findings report at the clause
 header, from `catch` through its declaration and filter.
+
+## Enclosing code
+
+Every reportable element can ask where it runs. `element.IsInType(type)` tests the type
+whose code contains it and the types containing that one, by `CodeType` identity.
+`ContainingMethod()` is the method, constructor, accessor or operator whose body contains
+it, walking out of lambdas and local functions; it is null in field initializers. Code in
+a lambda or local function belongs to the type and method that declare it.
+
+Loops and exception handlers are read within the element's own function, because a
+lambda or local function runs at another time. `EnclosingLoop()` returns the nearest for,
+foreach, while or do statement as a `CodeNode<StatementSyntax>`, and `IsInLoop()` tests
+for one. `IsGuardedByCatchAll()` tells whether a try statement guards the element with a
+catch clause that catches any exception. `UnguardedHandler()` returns the `HandlerClause`
+(`None`, `Catch` or `Finally`) the element runs in, unless such a try statement inside the
+clause guards it; a failure there replaces the exception being handled. **Catch filters
+are not evaluated**: a clause catching `Exception` guards the code even when its filter
+could decline an exception. `new CodeCatch(source, clause)` gives the same view of any
+written catch clause, such as one of a try statement's `Catches`.
+
+`CodeFile.RelativePath` is the path below the project directory (null for a linked file
+outside it) and `HasTopLevelStatements` marks the program's entry point. On type
+definitions, `IsTopLevelProgram` recognizes the `Program` class generated for top-level
+statements, including a partial declaration of it, and `HasOnlyStaticMembers` tells
+whether every declared member is static, a constant or a nested type. `CodeBody.BlankLines`
+counts whitespace-only lines inside a block, such as between a test's Arrange, Act and
+Assert sections, and follows the body's nested-function policy.
+
+## Tasks, signatures and overloads
+
+`type.IsTask()` recognizes the framework's `Task`, `Task<T>`, `ValueTask` and
+`ValueTask<T>` by identity, never other awaitable types; `UnwrapTask()` returns the result
+of `Task<T>` or `ValueTask<T>`, or the type itself. `await.AwaitedCall()` on a
+`CodeExpression` is the call an await expression awaits, through conversions and a
+`ConfigureAwait` call, as in `await SaveAsync().ConfigureAwait(false)`.
+
+`method.ImplementsOrOverrides()` tells whether another declaration decides a method's
+signature and parameter names: it overrides a base member or implements an interface
+member, explicitly or implicitly. `IsEventHandler()` recognizes an `object` sender followed
+by `EventArgs` or a derived type.
+
+`method.AddingParameter(type, matchNames: true)` enumerates same-name, same-static-shape
+overloads that add one parameter of the type while keeping the others in order, with
+their names, ref kinds and generic arity. With `matchNames: false` only the retained types
+must match. Types compare by symbol identity, ignoring nullable annotations, and generic
+overloads compare with the call's type arguments (with `matchNames: false`, with the
+original method's type parameters). The consumer chooses visibility and ambiguity policy;
+this is candidate discovery, not proof that the overload behaves the same.
+
+`CodeType.FromSymbol(namedType)` captures a compiler-bound named type as a descriptor,
+including its nested metadata name, assembly name and constructed arguments from both the
+type and its containing types. Original definitions produce open descriptors, so
+`CodeType.FromSymbol(type.OriginalDefinition)` is a set key for a generic type and all its
+constructions. `operation.WithoutConversions(includeExplicit: false)` returns the operand
+inside conversion operations; casts remain unless requested.
+
+## Culture and clock calls
+
+These classify common framework APIs. They do not choose which culture or clock an
+application should use.
+
+- `call.ComparesWithCulture()` recognizes string and character comparisons, casing and
+  string sorting that pass no comparison, comparer or format provider.
+- `call.FormatsWithCulture()` recognizes number and date formatting and parsing, and
+  composite formatting, without a format provider. `hole.FormatsWithCulture()` on a
+  `CodeNode<InterpolationSyntax>` reads one interpolation hole: a fraction, a date or time
+  without an invariant format, or an integer with a format that groups digits. Integer
+  signs alone and invariant date formats (`O`, `R`, `s`, `u`, `c`) do not count; integer
+  parsing counts when its number styles aren't constant or allow group separators, a
+  decimal point or a currency symbol.
+- `call.WaitsWithoutTimeProvider()` recognizes `Task.Delay`, a timed `WaitAsync`,
+  `Thread.Sleep` and `CancelAfter` without a TimeProvider. `CancelAfter` on a local source
+  created with a TimeProvider uses that one.
+- `creation.TimesWithoutTimeProvider()` recognizes a `PeriodicTimer`, a threading or timers
+  `Timer`, or a `CancellationTokenSource` with a delay, without a TimeProvider.
+
+## Minimal API routes
+
+`Code.Routes` selects routes mapped with `MapGet`, `MapPost`, `MapPut`, `MapDelete`,
+`MapPatch`, `MapMethods`, `MapFallback` or `Map`, and `Code.RouteGroups` selects groups
+mapped with `MapGroup`. Apply project filters explicitly. A `CodeRoute` exposes:
+
+- `Mapping`, the mapping call, where findings report;
+- `Path`, the pattern after the constant prefixes of its groups, such as
+  `/api/orders/{id}`, or null when a prefix or the pattern isn't a constant;
+- `Configuration`, the calls chained onto the mapping, and `GroupConfiguration`, those
+  chained onto its groups;
+- `HandlerExpression`, the written lambda or method group, and `Handler`, its method,
+  including a lambda's own symbol; both are null for a group;
+- `IsConfiguredWith(member, includeGroups: false)`, whether a configuration call binds to
+  the member.
+
+Group builders are followed through local initializers, not assignments, up to ten local
+hops per group. A local or call holding the application rather than a group, such as
+`var app = builder.Build();` in top-level statements or `WebApplication.Create()`, is the
+application itself, so its routes have no prefix. Unknown patterns remain null; route
+metadata is not an authorization analysis and no framework code executes.
+
+## String templates and collection initialization
+
+`AsBuiltString(expandConstants: true, stringOperandsOnly: true)` rejects top-level
+concatenations whose operands are not both strings, without restricting interpolation
+holes; `AsBuiltString(expandConstants: false)` remains available. Both arguments are
+required when specifying `stringOperandsOnly`. `built.CoalesceLiterals()` merges
+adjacent literal parts and keeps the first part's location. `part.FormattingSyntax`
+preserves written alignment and format clauses, including punctuation, for exact
+string-template contracts.
+
+`expressions.WithCollectionExpressionTarget()` selects parameterless List, HashSet and
+Dictionary creation, rank-one arrays and `Array.Empty` calls in target-typed positions.
+Interface targets remain candidates, but their automatic fixes are withheld when the
+concrete type would change.
+
+Syntax roots and file-scoped `Nodes<T>()` apply place filters before enumerating
+documents. Each source caches its syntax inventory, including structured trivia; narrower
+queries cannot truncate later unrestricted or base-syntax-type queries.

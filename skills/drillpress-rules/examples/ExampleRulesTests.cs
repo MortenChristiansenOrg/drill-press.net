@@ -17,12 +17,41 @@ public sealed class ExampleRulesTests
             """
             TEAM001 Use the application logger instead of Console.WriteLine.
             App.cs
-              3:19
+              3:34
 
             """.ReplaceLineEndings("\n"),
             production.Output
         );
         Assert.Equal("", tests.Output);
+    }
+
+    [Fact]
+    public async Task An_allowance_accepts_only_the_explained_console_call()
+    {
+        var source = """
+            class Banner
+            {
+                void Show()
+                {
+                    // drillpress-allow TEAM001: the host writes its banner before logging starts
+                    System.Console.WriteLine("Shop");
+                    System.Console.WriteLine("ready");
+                }
+            }
+            """;
+
+        var result = await CheckAsync(source);
+
+        Assert.Equal(
+            """
+            TEAM001 Use the application logger instead of Console.WriteLine.
+            App.cs
+              7:24
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+        Assert.Equal(source, result.FixedText("App.cs"));
     }
 
     [Fact]

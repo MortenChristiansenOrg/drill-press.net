@@ -30,10 +30,7 @@ public sealed class TestBodyTests(SemanticRuleFixture fixture) : IClassFixture<S
 
         var findings = await fixture.Describe(project);
 
-        Assert.Equal(
-            [("DP1001", 12, "", (string?)null), ("DP1002", 9, "A.Equal(1, value)", null)],
-            findings
-        );
+        Assert.Equal([("DP1001", 12, "", (string?)null), ("DP1002", 9, "Equal", null)], findings);
     }
 
     [Theory]
@@ -104,7 +101,7 @@ public sealed class TestBodyTests(SemanticRuleFixture fixture) : IClassFixture<S
 
         var findings = await fixture.Describe(project);
 
-        Assert.Equal([("DP1002", 7, "Xunit.Assert.True(true)", (string?)null)], findings);
+        Assert.Equal([("DP1002", 7, "True", (string?)null)], findings);
     }
 
     [Fact]

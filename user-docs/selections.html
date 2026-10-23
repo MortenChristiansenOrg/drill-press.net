@@ -110,7 +110,7 @@ rules.Rule(&quot;TEAM003&quot;, &quot;Give asynchronous application methods an A
     .Require(method =&gt; method.NameEndsWith(&quot;Async&quot;));</code></pre></div>
 <p><code>And</code>, <code>Or</code>, <code>Not</code>, and condition-level <code>ExceptWhen</code> compose Boolean tests with short-circuit behavior. Query-level <code>ExceptWhen</code> excludes matches. Both <code>Where</code> and <code>Require</code> also accept ordinary lambdas.</p>
 <h2 id="report-at">Choose where the finding points</h2>
-<p>Each candidate reports at its natural location: a declaration at its identifier, a call at its expression, a catch clause at its header. <code>ReportAt</code> moves the finding to a more precise part, or anchors a computed value to source.</p>
+<p>Each candidate reports at its natural location: a declaration at its identifier, a call at its method name (<code>ThenBy</code> in <code>items.OrderBy(a).ThenBy(b)</code>), a catch clause at its header. <code>ReportAt</code> moves the finding to a more precise part, or anchors a computed value to source.</p>
 <div class="codeblock"><div class="codehead"><span>Report at a part of the candidate</span></div><pre tabindex="0" data-check="program" id="example-report-at"><code>using DrillPress;
 
 var rules = new RuleCatalog();
@@ -126,7 +126,7 @@ rules.Rule(&quot;PARAM001&quot;, &quot;Group long parameter lists into a request
         .Where(item =&gt; item.Count &gt; 5))
     .ReportAt(item =&gt; item.Method)
     .Forbid();</code></pre></div>
-<p><code>ReportAt</code> accepts another candidate, a syntax node, a token or a <code>SourceLocation</code>; returning null keeps the default. Tuples, projects and other computed values have no location of their own, so they need <code>ReportAt</code> before <code>Forbid</code> or <code>Require</code>.</p>
+<p><code>ReportAt</code> accepts another candidate, a syntax node, a token or a <code>SourceLocation</code>; returning null keeps the default. Tuples, projects and other computed values have no location of their own, so they need <code>ReportAt</code> before <code>Forbid</code> or <code>Require</code>. A tuple finds syntax, tokens and locations in the compilation of its first code element. A record that does not implement <code>ICodeElement</code> has no compilation, so registering it without <code>ReportAt(candidate =&gt; element)</code> fails immediately.</p>
 <h2 id="composition">Transform and connect selections</h2>
 <p><code>CodeQuery&lt;T&gt;</code> is the reusable selection type. It resembles LINQ, but it belongs to an analysis rather than an arbitrary list.</p>
 <div class="table-wrap"><table><thead><tr><th>Operation</th><th>Use it when</th></tr></thead><tbody>

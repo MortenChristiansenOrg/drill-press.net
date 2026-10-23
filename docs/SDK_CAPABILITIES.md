@@ -80,6 +80,8 @@ type information; `node.AsExpression()` turns an expression node into a
 `CodeType.Member(name)` creates a member on that declaring type. Its `References`
 query selects fields, properties or method references, including aliases and
 static imports, while retaining the engine's name-based discovery optimization.
+`Code.Calls.To(member)`, `ToMethodsNamed` and `ToMethodsMatching` likewise bind
+only documents that can contain a matching call.
 For example, `CodeType.Of<string>().Member(nameof(string.Empty)).References`
 is ready to pass to `For(...)`. `CodeType.References` selects every written
 reference to a type, with the same name-based optimization.
@@ -128,7 +130,11 @@ when sharing it across rules.
 `AnalysisFact<T>` caches a consumer value for the solution. `ProjectFact<T>`
 computes separately and lazily for each evaluated project. Facts can read
 queries and other facts; fact cycles fail through lazy initialization. Failed
-computations remain failed for that analysis. Values should be immutable. A
+computations remain failed for that analysis. Values should be immutable.
+`AnalysisProject.Solution` and `AnalysisSource.Solution` return the analysis that
+most recently included the project, so predicates, `ReportAt` selectors and fix
+factories can read facts from any candidate (`fact.In(call.Source.Solution)`).
+Coverage planning analyses do not take over the project. A
 new `AnalysisSolution` creates a fresh cache lifetime; no cache is persisted
 globally or across source changes. The production evaluator runs rules
 sequentially; arbitrary parallel access to all Roslyn wrappers and relationship
@@ -222,7 +228,7 @@ Assert.Equal(
     """
     TEAM001 Use the application logger instead of Console.WriteLine.
     Example.cs
-      3:26
+      3:41
 
     """,
     result.Output);
@@ -230,7 +236,9 @@ Assert.Equal(expectedSource, result.FixedText("Example.cs"));
 ```
 
 `Output` renders findings exactly as the CLI prints them, with `+` marking a
-validated fix; assert the complete value. `Findings` contains `TestFinding`
+validated fix; assert the complete value. `CheckAsync` applies
+[allowances](RULE_AUTHORING.md#allowing-individual-findings), so a test can show
+that a `// drillpress-allow` comment accepts a finding. `Findings` contains `TestFinding`
 records with rule ID, path, exact line/column/text, `HasFix`, readable
 `Evidence`, and typed `Coverage` facts. [Synthetic coverage fixtures](COVERAGE.md#synthetic-rule-policy-fixtures)
 support deterministic coverage-policy tests without a collector.
@@ -246,7 +254,13 @@ use separate symbols/reference sets to exercise alternate evaluations.
 `AddProject` accepts per-project `nullable` (`NullableContextOptions`) and
 `languageVersion` (`LanguageVersion`) options. Defaults remain nullable annotations
 and warnings enabled and C# 14. The fixture compilation and snapshot use the same
-values; `#nullable` source directives override the project setting. For example:
+values; `#nullable` source directives override the project setting. Pass
+`implicitUsings: true` to match SDK projects with `ImplicitUsings` enabled: the
+project gets the Microsoft.NET.Sdk default global usings (`System`,
+`System.Collections.Generic`, `System.IO`, `System.Linq`, `System.Net.Http`,
+`System.Threading` and `System.Threading.Tasks`) as a generated
+`{name}.GlobalUsings.g.cs` document, which never reports findings. Without it
+there are no implicit usings. For example:
 
 ```csharp
 var annotated = workspace.AddProject("Annotated", annotatedSources);

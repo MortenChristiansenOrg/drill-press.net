@@ -1,4 +1,3 @@
-using DrillPress;
 using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
@@ -80,8 +79,13 @@ public static class InvocationQueries
         string pattern
     )
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
-        return calls.Where(call => call.TargetNameMatches(pattern));
+        var matcher = new PathPattern(pattern);
+        return calls.Where(
+            new RuleCondition<CodeInvocation>(
+                call => matcher.Matches(call.Declaration.Name) && call.IsResolved,
+                NameFilter.Matching(matcher)
+            )
+        );
     }
 
     /// <summary>Selects calls by ordinal method name without assuming their declaring type.</summary>
@@ -93,7 +97,12 @@ public static class InvocationQueries
         foreach (var name in names)
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var selected = names.ToHashSet();
-        return calls.Where(call => call.IsResolved && selected.Contains(call.Target.Name));
+        return calls.Where(
+            new RuleCondition<CodeInvocation>(
+                call => selected.Contains(call.Target.Name) && call.IsResolved,
+                NameFilter.Exactly(selected)
+            )
+        );
     }
 
     /// <summary>Selects instance and normalized extension receivers of a configured type or derived class.</summary>
@@ -150,7 +159,7 @@ public static class InvocationQueries
         CodeMember member
     ) =>
         arguments.Where(argument =>
-            argument.Invocation.IsResolved && argument.Invocation.Calls(member)
+            argument.Invocation.Calls(member) && argument.Invocation.IsResolved
         );
 
     /// <summary>Selects arguments passed to any configured overload.</summary>
@@ -159,7 +168,7 @@ public static class InvocationQueries
         ApiSet members
     ) =>
         arguments.Where(argument =>
-            argument.Invocation.IsResolved && members.Contains(argument.Invocation.Target)
+            members.Contains(argument.Invocation.Target) && argument.Invocation.IsResolved
         );
 
     /// <summary>Projects reportable source values, excluding defaults. Opt into normalized extension receivers to include their original source once in either call spelling.</summary>
@@ -178,13 +187,25 @@ public static class InvocationQueries
     public static CodeQuery<CodeInvocation> To(
         this CodeQuery<CodeInvocation> calls,
         CodeMember member
-    ) => calls.Where(call => call.IsResolved && call.Calls(member));
+    ) =>
+        calls.Where(
+            new RuleCondition<CodeInvocation>(
+                call => call.Calls(member) && call.IsResolved,
+                NameFilter.Exactly([member.Name])
+            )
+        );
 
     /// <summary>Selects calls to any configured member family or overload.</summary>
     public static CodeQuery<CodeInvocation> To(
         this CodeQuery<CodeInvocation> calls,
         ApiSet members
-    ) => calls.Where(call => call.IsResolved && members.Contains(call.Target));
+    ) =>
+        calls.Where(
+            new RuleCondition<CodeInvocation>(
+                call => members.Contains(call.Target) && call.IsResolved,
+                NameFilter.Exactly(members.Names)
+            )
+        );
 
     /// <summary>Matches an instance or extension receiver; ordinary static calls do not match.</summary>
     public static CodeQuery<CodeInvocation> WhereReceiver(

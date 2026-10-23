@@ -173,7 +173,7 @@ Pass `--explain-coverage` to include context identity, typed explanations and
 matching ranges and verified call-block proofs, or set `AnalysisOptions.ExplainCoverage` for library/bundle use.
 Ordinary bundle output omits ranges and call proofs; typed state/reasons/counts remain available
 through diagnostics, validated findings and cross-context aggregation. Response
-protocol 9 requires matching CLI/SDK packages and rebuilt bundles. Collection,
+protocol 10 requires matching CLI/SDK packages and rebuilt bundles. Collection,
 build, tool and test failures still stop the check rather than becoming unknown
 findings.
 
@@ -243,7 +243,7 @@ Negated conditions retain ordinary Boolean semantics and default violation gatin
 `CoverageEvidence.ReviewReasons` carries the explicit policy independently of the
 measured state; `MinimumPercentage` carries a line requirement's threshold. Bundle
 validation checks eligible reasons, measured counts, thresholds, and review gating
-before accepting a successful exit. Response protocol 9 requires matching packages
+before accepting a successful exit. Response protocol 10 requires matching packages
 and rebuilt bundles.
 
 ## Enumeration advancement

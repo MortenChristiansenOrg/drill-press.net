@@ -28,12 +28,26 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
                 return 0;
             }
 
+            if (args is ["--queries", "--output", var queryOutput])
+            {
+                MeasureQueries(queryOutput);
+                Console.WriteLine($"Reports: {queryOutput}");
+                return 0;
+            }
+
+            if (args is ["--build-host", "--output", var buildHostOutput])
+            {
+                await MeasureBuildHostAsync(buildHostOutput);
+                Console.WriteLine($"Reports: {buildHostOutput}");
+                return 0;
+            }
+
             var output = args switch
             {
                 [] => null,
                 ["--output", var path] when !string.IsNullOrWhiteSpace(path) => path,
                 _ => throw new ArgumentException(
-                    "Usage: NativeBundles.cs [--output <new-directory>]"
+                    "Usage: NativeBundles.cs [--output <new-directory>] | --queries --output <new-directory> | --build-host --output <new-directory>"
                 ),
             };
             using var session = await VerificationSession.CreateAsync(fileSystem, output);
@@ -46,6 +60,88 @@ public sealed class BenchmarkApplication(IFileSystem fileSystem)
             Console.Error.WriteLine($"native-bundles: {error.Message}");
             return 1;
         }
+    }
+
+    // Query scaling runs in process; each iteration binds a fresh synthetic solution.
+    private void MeasureQueries(string output)
+    {
+        if (fileSystem.Directory.Exists(output) || fileSystem.File.Exists(output))
+            throw new ArgumentException("The query benchmark output must be a new directory.");
+        fileSystem.Directory.CreateDirectory(output);
+        var job = Job
+            .Default.WithId("Queries")
+            .WithStrategy(RunStrategy.Monitoring)
+            .WithLaunchCount(1)
+            .WithWarmupCount(1)
+            .WithIterationCount(5)
+            .WithInvocationCount(1)
+            .WithUnrollFactor(1);
+        var config = ManualConfig
+            .Create(DefaultConfig.Instance)
+            .AddJob(job)
+            .AddExporter(JsonExporter.Full)
+            .WithArtifactsPath(fileSystem.Path.GetFullPath(output));
+        var summary = BenchmarkRunner.Run<QueryBenchmarks>(config);
+        if (
+            summary.HasCriticalValidationErrors
+            || summary.Reports.Length != 6
+            || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)
+        )
+            throw new InvalidOperationException(
+                "BenchmarkDotNet did not complete all six query benchmarks."
+            );
+    }
+
+    // Measures the Release BuildHost of this checkout from the repository root on a restored workload.
+    private async Task MeasureBuildHostAsync(string output)
+    {
+        if (fileSystem.Directory.Exists(output) || fileSystem.File.Exists(output))
+            throw new ArgumentException("The BuildHost benchmark output must be a new directory.");
+        var buildHost = fileSystem.Path.GetFullPath(
+            "src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll"
+        );
+        if (!fileSystem.File.Exists(buildHost))
+            throw new FileNotFoundException(
+                "Build DrillPress.slnx in Release and run from the repository root first.",
+                buildHost
+            );
+        var solution = new BuildHostWorkload(fileSystem).Write(
+            fileSystem.Path.GetFullPath(fileSystem.Path.Combine(output, "workload"))
+        );
+        ProcessRunner.RequireSuccess(
+            await ProcessRunner.RunAsync(
+                "dotnet",
+                ["restore", solution],
+                fileSystem.Path.GetDirectoryName(solution)!,
+                timeout: TimeSpan.FromMinutes(10)
+            )
+        );
+        var job = Job
+            .Default.WithId("BuildHostProcess")
+            .WithStrategy(RunStrategy.Monitoring)
+            .WithLaunchCount(1)
+            .WithWarmupCount(1)
+            .WithIterationCount(5)
+            .WithInvocationCount(1)
+            .WithUnrollFactor(1)
+            .WithEnvironmentVariable(BuildHostBenchmarks.BuildHostEnvironmentVariable, buildHost)
+            .WithEnvironmentVariable(BuildHostBenchmarks.SolutionEnvironmentVariable, solution);
+        var config = ManualConfig
+            .Create(DefaultConfig.Instance)
+            .AddJob(job)
+            .AddExporter(JsonExporter.Full)
+            .WithArtifactsPath(
+                fileSystem.Path.GetFullPath(fileSystem.Path.Combine(output, "BenchmarkDotNet"))
+            );
+        var summary = BenchmarkRunner.Run<BuildHostBenchmarks>(config);
+        if (
+            summary.HasCriticalValidationErrors
+            || summary.Reports.Length != 1
+            || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)
+        )
+            throw new InvalidOperationException(
+                "BenchmarkDotNet did not complete the BuildHost benchmark."
+            );
     }
 
     private async Task MeasureAsync(VerificationSession session)

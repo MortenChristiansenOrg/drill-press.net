@@ -180,7 +180,7 @@ public sealed class CoverageCollectorTests : IntegrationTest
         Assert.Equivalent(first, second, strict: true);
         Assert.Equal(2, process.Collections);
         Assert.Equal(
-            ["Consume(Throwing())", "Throwing().ToString()", "Tick()"],
+            ["Consume", "ToString", "Tick"],
             first
                 .Where(diagnostic => diagnostic.Descriptor.Id == "COV001")
                 .Select(diagnostic =>

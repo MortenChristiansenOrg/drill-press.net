@@ -10,13 +10,16 @@ public sealed class RuleCondition<T>
     public RuleCondition(Func<T, bool> predicate)
         : this(predicate, null) { }
 
-    internal RuleCondition(Func<T, bool> predicate, IReadOnlySet<string>? memberNames)
+    internal RuleCondition(Func<T, bool> predicate, NameFilter? memberNames)
     {
         _predicate = predicate;
         MemberNames = memberNames;
     }
 
-    internal IReadOnlySet<string>? MemberNames { get; }
+    internal NameFilter? MemberNames { get; }
+
+    /// <summary>The documents whose candidates can satisfy this condition, such as those of test projects; null accepts every document.</summary>
+    internal Func<AnalysisSource, bool>? SourceFilter { get; init; }
     internal bool RequiresCoverage { get; init; }
     internal Func<T, string>? Detail { get; init; }
     internal Func<T, IReadOnlyList<CoverageEvidence>>? CoverageFacts { get; init; }
@@ -40,9 +43,13 @@ public sealed class RuleCondition<T>
             candidate => Evaluate(candidate) && other.Evaluate(candidate),
             MemberNames is null ? other.MemberNames
                 : other.MemberNames is null ? MemberNames
-                : MemberNames.Intersect(other.MemberNames).ToHashSet()
+                : MemberNames.And(other.MemberNames)
         )
         {
+            SourceFilter =
+                SourceFilter is not { } left ? other.SourceFilter
+                : other.SourceFilter is not { } right ? left
+                : source => left(source) && right(source),
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),
@@ -63,9 +70,13 @@ public sealed class RuleCondition<T>
             candidate => Evaluate(candidate) || other.Evaluate(candidate),
             MemberNames is null || other.MemberNames is null
                 ? null
-                : MemberNames.Union(other.MemberNames).ToHashSet()
+                : MemberNames.Or(other.MemberNames)
         )
         {
+            SourceFilter =
+                SourceFilter is { } left && other.SourceFilter is { } right
+                    ? source => left(source) || right(source)
+                    : null,
             RequiresCoverage = RequiresCoverage || other.RequiresCoverage,
             Detail = CombinedDetail(other),
             CoverageFacts = CombinedCoverage(other),

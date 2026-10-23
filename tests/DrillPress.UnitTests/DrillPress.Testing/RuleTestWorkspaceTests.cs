@@ -27,7 +27,7 @@ public sealed class RuleTestWorkspaceTests
         var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
 
         Assert.Equivalent(
-            new TestFinding("CALL", "Calls.cs", 2, 50, "Hit()", false)
+            new TestFinding("CALL", "Calls.cs", 2, 50, "Hit", false)
             {
                 Evidence = "coverage: uncovered",
                 Coverage =

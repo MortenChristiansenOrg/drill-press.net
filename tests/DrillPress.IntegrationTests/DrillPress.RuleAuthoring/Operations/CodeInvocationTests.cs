@@ -45,7 +45,67 @@ public sealed class CodeInvocationTests(SdkFixture fixture) : IClassFixture<SdkF
             union.Select(expression => expression.Location)
         );
         Assert.Equal(".M(null)", conditional.Expression!.Syntax.ToString());
-        Assert.Equal(conditional.Location, conditional.Expression.Location);
+        Assert.Equal(
+            conditional.Source.Locate(conditional.Operation.Syntax.Span),
+            conditional.Expression.Location
+        );
         Assert.Same(conditional.Source, conditional.Expression.AsInvocation()!.Source);
+    }
+
+    [Fact]
+    public void Calls_are_located_at_their_written_method_name()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Names",
+            [
+                new(
+                    "Names.cs",
+                    """
+                    using System;
+                    using System.Linq;
+                    class C {
+                        static T Make<T>() => default!;
+                        int[] M(int[] values, C? other, Func<int> next) {
+                            other?.M(values, null, next);
+                            Local();
+                            void Local() {}
+                            _ = next() + Make<int>();
+                            return values
+                                .OrderBy(value => value)
+                                .ThenBy(value => -value)
+                                .ToArray();
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var locations = Code
+            .Calls.In(solution)
+            .OrderBy(call => call.Location.Start)
+            .Select(call =>
+                (
+                    call.Source.Document.Text.Substring(call.Location.Start, call.Location.Length),
+                    call.Location.Line,
+                    call.Location.Column
+                )
+            )
+            .ToArray();
+
+        Assert.Equal(
+            [
+                ("M", 6, 16),
+                ("Local", 7, 9),
+                ("next", 9, 13),
+                ("Make<int>", 9, 22),
+                ("OrderBy", 11, 14),
+                ("ThenBy", 12, 14),
+                ("ToArray", 13, 14),
+            ],
+            locations
+        );
     }
 }

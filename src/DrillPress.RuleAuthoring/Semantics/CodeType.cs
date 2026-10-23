@@ -19,7 +19,7 @@ public readonly record struct CodeType(string MetadataName)
                 Code.TypeReferences.Where(
                     new RuleCondition<CodeTypeReference>(
                         reference => type.Matches(reference.Type),
-                        TypeReferenceIndex.NamesOf(type).ToHashSet()
+                        NameFilter.Exactly(TypeReferenceIndex.NamesOf(type))
                     )
                 )
         );
@@ -108,7 +108,7 @@ public readonly record struct CodeType(string MetadataName)
     public string TypeArguments { get; init; } = "";
 
     /// <summary>Captures a statically referenced type, including its constructed generic arguments.</summary>
-    public static CodeType Of<T>() => FromRuntime(typeof(T));
+    public static CodeType Of<T>() => RuntimeTypes<T>.Type;
 
     /// <summary>Names a member declared on this type. Omit parameter types for a member family; pass an empty list for a parameterless method.</summary>
     public CodeMember Member(string name, IReadOnlyList<CodeType>? parameters = null) =>
@@ -138,6 +138,12 @@ public readonly record struct CodeType(string MetadataName)
     public bool Matches(INamedTypeSymbol symbol)
     {
         if (symbol.TypeKind == TypeKind.Error)
+        {
+            return false;
+        }
+
+        // A full metadata name ends with the type's own, so most types are rejected without building theirs.
+        if (!MetadataName.EndsWith(symbol.MetadataName, StringComparison.Ordinal))
         {
             return false;
         }
@@ -174,7 +180,8 @@ public readonly record struct CodeType(string MetadataName)
         return false;
     }
 
-    internal static CodeType FromSymbol(INamedTypeSymbol symbol) =>
+    /// <summary>Captures a bound named type's metadata name, assembly name and exact constructed arguments, including containing generic types. An original definition produces an open descriptor.</summary>
+    public static CodeType FromSymbol(INamedTypeSymbol symbol) =>
         new(MetadataNameOf(symbol))
         {
             AssemblyName = symbol.ContainingAssembly.Identity.Name,
@@ -223,6 +230,12 @@ public readonly record struct CodeType(string MetadataName)
                 + "]",
             _ => symbol.ToDisplayString(),
         };
+
+    // Reading a runtime type's identity reflects over it, so each one is read once.
+    private static class RuntimeTypes<T>
+    {
+        internal static readonly CodeType Type = FromRuntime(typeof(T));
+    }
 
     private static CodeType FromRuntime(Type type) =>
         type.IsArray

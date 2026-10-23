@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
 namespace DrillPress;
 
 /// <summary>The source origin of a string-building segment.</summary>
@@ -24,4 +26,11 @@ public sealed record BuiltStringPart(
     SourceLocation Location,
     CodeExpression? Alignment = null,
     string? Format = null
-);
+)
+{
+    /// <summary>The original alignment and format clauses including punctuation, or an empty string for an unformatted hole/literal. Useful when exact formatting syntax is part of a template contract.</summary>
+    public string FormattingSyntax =>
+        Value?.Syntax.Parent is InterpolationSyntax hole
+            ? $"{hole.AlignmentClause}{hole.FormatClause}"
+            : "";
+}

@@ -41,7 +41,8 @@ or `.ReportOncePer(key)` → `.Forbid(fix?)` or `.Require(condition, fix?)`.
 
 - `Forbid()` reports every selected candidate; `Require(condition)` reports those
   failing it. Put the scope in the query and the obligation in `Require`.
-- IDs are unique, messages one line. A rule without `Forbid`/`Require` fails evaluation.
+- IDs are unique, IDs and messages are one line; the `drillpress-` ID prefix is
+  reserved (case-insensitively). A rule without `Forbid`/`Require` fails evaluation.
 - `Forbid`/`Require` return the rule, so another `.For(...)` adds a clause with the
   same ID, for example one for calls and one for loops.
 - Conditions are lambdas or reusable `RuleCondition<T>` values (`And`, `Or`, `Not`,
@@ -55,11 +56,12 @@ Start from the `Code` root that names what the convention is about:
 | --- | --- |
 | `Files`, `Projects` | `CodeFile`, `AnalysisProject` |
 | `Types`, `Interfaces`; `TypeDeclarations` (each partial part) | `CodeTypeDefinition`; `CodeTypeDeclaration` |
-| `Methods`, `Fields`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
+| `Methods`, `Fields`, `EnumMembers`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeEnumMember`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
 | `TestMethods`, `TestClasses` (xUnit, NUnit, MSTest) | `CodeMethod`, `CodeTypeDefinition` |
 | `Calls`, `ObjectCreations` | `CodeInvocation`, `CodeObjectCreation` |
+| `Routes`, `RouteGroups` (minimal APIs) | `CodeRoute` |
 | `MemberReferences`, `TypeReferences`, `ReferencesTo(symbol)` | `MemberReference`, `CodeTypeReference`, `CodeSymbol` |
-| `IfStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
+| `IfStatements`, `EmbeddedStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
 | `Nodes<TSyntax>()`, `Operations<TOperation>()` | any Roslyn syntax or operation |
 
 Narrow with composable filters:
@@ -71,9 +73,15 @@ Narrow with composable filters:
   tests `NameEndsWith`, `NameContainsWord`, `HasAttribute`, `HasDocumentationComment()`.
 - Calls: `To(member or apiSet)`, `ToMethodsNamed`, `ToMethodsMatching("*Async")`,
   `OnReceiverOfType<T>()`, `WhereReceiver`, `WhereArgument("name", a => ...)`,
-  `ArgumentsFor("name")` (argument candidates).
+  `ArgumentsFor("name")` (argument candidates). Include `To`, `ToMethodsNamed` or
+  `ToMethodsMatching` when the target is known: only documents that can contain
+  such a call are bound, while `Code.Calls.Where(...)` alone binds the whole solution.
+  Place filters (`InTestProjects()`, `InProject`, `InFolder`, `InFilesNamed`) also skip
+  other documents before binding; prefer them and `member.References`,
+  `MemberReferences.To(members)` or `ObjectCreations.Of(type)` over a custom `Where`.
 - Types and statements: `DerivedFrom`, `ImplementingInterface`, `ImplementationViews()`,
-  `Branches().WithoutBraces()`, `WithExplicitType()`.
+  `Branches().WithoutBraces()`, `Code.EmbeddedStatements.WithoutBraces()` (if/else and
+  loop, using, lock and fixed bodies), `WithExplicitType()`.
 - General: `Where`, `ExceptWhen`, `Select`, `SelectMany`, `Concat`, `Join`,
   `WithoutMatching` (owners missing a counterpart).
 
@@ -84,9 +92,9 @@ member is listed in [reference/queries.md](reference/queries.md).
 
 ## Report locations
 
-Declarations report at their identifier, calls at the call, arguments at the argument,
-catch clauses at their header, branches at the statement and projects at their first
-file. `ReportAt` points elsewhere and is required for tuples and computed values:
+Declarations report at their identifier, calls at the method name (`ThenBy` in
+`a.OrderBy(x).ThenBy(y)`), arguments at the argument, catch clauses at their header,
+branches at the statement and projects at their first file. `ReportAt` points elsewhere and is required for tuples and computed values:
 
 ```csharp
 using DrillPress;
@@ -107,7 +115,12 @@ rules.Rule("PARAM001", "Group long parameter lists into a request type.")
 ```
 
 `ReportAt` accepts a candidate part, syntax node, token (`type.ExplicitModifier(...)`)
-or `SourceLocation`. `ReportOncePer(key)` shows one finding per key.
+or `SourceLocation`; a tuple resolves syntax in the compilation of its first code
+element (searching nested tuples in order). Custom values should implement
+`ICodeElement` (`Source`, `Location`) or report at one. Registration rejects closed
+candidate types that cannot supply a location, and syntax/token/location selectors
+whose candidate type cannot supply a compilation. `ReportAt` returning null falls
+back to the candidate's location. `ReportOncePer(key)` shows one finding per key.
 
 ## Fixes
 
@@ -132,10 +145,11 @@ rules.Rule("TEAM006", "Add braces to if and else branches.")
     .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose());
 ```
 
-`Propose()` works for `AddBraces()`, `UseVar()`, comment `Remove()`, accessibility
-`RemoveModifier(...)` and constant extraction. Expression replacements, argument
-removal and other modifiers need `SafeWhen`. Builders already withhold fixes for
-generated or inactive code, interior comments, compiler errors and changed bindings.
+`Propose()` owns the proof for braces, var, comment removal, redundant accessibility,
+constant extraction and supported structural/framework edits. Adding `sealed` or
+`static` assumes every consumer of the class is loaded. Expression replacements and
+argument changes need `SafeWhen`. Builders check source eligibility, compilation and
+their documented binding invariants.
 Details: [reference/fixes.md](reference/fixes.md).
 
 ## Tests
@@ -162,7 +176,7 @@ public sealed class LoggingRuleTests
             """
             TEAM001 Use the application logger instead of Console.WriteLine.
             App.cs
-              1:30
+              1:45
 
             """.ReplaceLineEndings("\n"),
             result.Output);
@@ -170,10 +184,13 @@ public sealed class LoggingRuleTests
 }
 ```
 
-`Output` is exactly what the CLI prints: rule line, file, then `line:column`
-(column omitted when 1), with `+` marking a validated fix. `FixedText(path)` applies
-validated fixes in memory. `isTest: true`, `dependencies`, `allowErrors` and coverage
-fakes are in [reference/testing.md](reference/testing.md).
+`Output` is exactly what the CLI prints: rule line, file, then `  line:column`
+(two spaces; column omitted when 1). A validated fix is marked `  +5:32`, with `+`
+directly before the line number. `FixedText(path)` applies validated fixes in memory.
+Pass `implicitUsings: true` to `AddProject` when the target projects enable
+`ImplicitUsings`, so snippets need no `using System.Linq;`. `isTest: true`,
+`dependencies`, `allowErrors`, allowances and coverage fakes are in
+[reference/testing.md](reference/testing.md).
 
 ## Setup
 
@@ -215,7 +232,15 @@ dotnet tool run drillpress fix --rules MyRules/bin/Debug/net10.0/MyRules.dll pat
 Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
 `status` prints only violation counts per project and fix complexity; use it to pick
-the next project or `--fix-complexity` level to work on.
+the next project or `--fix-complexity` level to work on. `--explain-fixes` explains
+withheld proposals; CLI options, profiling and protocol compatibility are in
+[reference/testing.md](reference/testing.md#running-against-real-code).
+
+Where a finding is a justified exception, the code says so with
+`// drillpress-allow RULE-ID: reason`, after the code on its line or on its own line
+above the statement or declaration. Allowed findings are not reported, counted or
+fixed; unused or malformed allowances are reported as `drillpress-allow-unused` and
+`drillpress-allow-invalid`. Don't add custom comment detection to a rule for this.
 
 ## Pitfalls
 

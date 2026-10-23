@@ -76,12 +76,12 @@ public sealed class StandardLinqTests(SdkFixture fixture) : IClassFixture<SdkFix
 
         Assert.Equal(
             """
-            LINQ_FRAMEWORK|Use a supported framework.|Future/net11.0|Future.cs|items.Index()|0
-            LINQ_FRAMEWORK|Use a supported framework.|Future/net11.0|Future.cs|items.Count()|0
-            LINQ_FRAMEWORK|Use a supported framework.|Future/net11.0|Future.cs|items.Where(x => x > 0)|0
-            LINQ_OPERATION|Review this overload.|Older/net8.0|Older.cs|items.Index()|0
-            TERMINAL|Selected terminal.|Older/net8.0|Older.cs|items.Count()|0
-            TERMINAL|Selected terminal.|Supported/net10.0|Supported.cs|items.Count()|0
+            LINQ_FRAMEWORK|Use a supported framework.|Future/net11.0|Future.cs|Index|0
+            LINQ_FRAMEWORK|Use a supported framework.|Future/net11.0|Future.cs|Count|0
+            LINQ_FRAMEWORK|Use a supported framework.|Future/net11.0|Future.cs|Where|0
+            LINQ_OPERATION|Review this overload.|Older/net8.0|Older.cs|Index|0
+            TERMINAL|Selected terminal.|Older/net8.0|Older.cs|Count|0
+            TERMINAL|Selected terminal.|Supported/net10.0|Supported.cs|Count|0
             """.Replace("\r\n", "\n"),
             string.Join(
                 "\n",

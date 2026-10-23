@@ -12,13 +12,43 @@ public static class BuiltStringQueries
     public static BuiltString? AsBuiltString(
         this CodeExpression expression,
         bool expandConstants = false
+    ) => expression.AsBuiltString(expandConstants, stringOperandsOnly: false);
+
+    /// <summary>Flattens string source with explicit constant and concatenation policies. Set stringOperandsOnly to reject top-level concatenations that implicitly format non-string operands; interpolation holes are unaffected.</summary>
+    public static BuiltString? AsBuiltString(
+        this CodeExpression expression,
+        bool expandConstants,
+        bool stringOperandsOnly
     )
     {
         if (!expression.IsResolved || expression.Type?.SpecialType != SpecialType.System_String)
             return null;
+        if (stringOperandsOnly && HasNonStringConcatenation(expression))
+            return null;
         var parts = new List<BuiltStringPart>();
         Read(expression, expandConstants, parts);
         return new(parts.AsReadOnly());
+    }
+
+    // Interpolation holes are their own formatting boundary, so only inspect the top-level
+    // concatenation tree. A non-string concatenation operand can invoke implicit formatting.
+    private static bool HasNonStringConcatenation(CodeExpression expression)
+    {
+        if (expression.Constant is { HasValue: true, Value: string })
+            return false;
+        if (expression.Syntax is ParenthesizedExpressionSyntax parentheses)
+            return HasNonStringConcatenation(new(expression.Source, parentheses.Expression));
+        if (
+            expression.Syntax is not BinaryExpressionSyntax binary
+            || !binary.IsKind(SyntaxKind.AddExpression)
+        )
+            return false;
+        var left = new CodeExpression(expression.Source, binary.Left);
+        var right = new CodeExpression(expression.Source, binary.Right);
+        return left.Type?.SpecialType != SpecialType.System_String
+            || right.Type?.SpecialType != SpecialType.System_String
+            || HasNonStringConcatenation(left)
+            || HasNonStringConcatenation(right);
     }
 
     /// <summary>Projects the explicit source value passed to a bound constructor parameter, including target-typed new. Defaults or expanded multi-value params are not invented as single expressions.</summary>

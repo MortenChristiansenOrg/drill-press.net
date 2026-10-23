@@ -294,7 +294,11 @@ public sealed class AnalysisEngineTests
                     0,
                     0,
                     null
-                ),
+                )
+                {
+                    FixWithheld =
+                        "the fix edits a file outside the analysis target, or generated source",
+                },
             ],
             response.Contexts[1].Findings
         );

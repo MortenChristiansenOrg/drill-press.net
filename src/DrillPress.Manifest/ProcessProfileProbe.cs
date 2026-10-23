@@ -13,4 +13,11 @@ internal class ProcessProfileProbe
             process.PeakWorkingSet64
         );
     }
+
+    // Cheap enough to read around every piece of shared work, unlike the process snapshot above.
+    internal virtual ProcessProfileTime Now()
+    {
+        var cpu = Environment.CpuUsage;
+        return new(Stopwatch.GetTimestamp(), cpu.UserTime, cpu.PrivilegedTime);
+    }
 }

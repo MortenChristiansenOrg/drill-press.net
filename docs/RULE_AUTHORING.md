@@ -34,7 +34,8 @@ rules.Rule("TEAM001", "Use the application's current storage contract.")
 
 - `rules.Rule(id, message, fixComplexity?)` reserves a unique identity. IDs must
   be nonblank; IDs and messages must be single-line. Registration rejects invalid
-  descriptors and duplicate IDs, even with identical messages.
+  descriptors and duplicate IDs, even with identical messages. IDs starting with
+  `drillpress-` (in any case) are reserved for [built-in rules](#allowing-individual-findings).
 - `.For(query)` starts a clause over the selected candidates.
 - `.Forbid(fix?)` reports every candidate. `.Require(predicate, fix?)` reports
   candidates for which the predicate is false.
@@ -47,7 +48,7 @@ rules.Rule("TEAM001", "Use the application's current storage contract.")
 a forgotten obligation cannot silently disable a rule.
 
 `Code` is the single discovery root: `Code.Files`, `Code.Projects`, `Code.Types`,
-`Code.TypeDeclarations`, `Code.Methods`, `Code.Fields`, `Code.Properties`,
+`Code.TypeDeclarations`, `Code.Methods`, `Code.Fields`, `Code.EnumMembers`, `Code.Properties`,
 `Code.Parameters`, `Code.Calls`, `Code.ObjectCreations`, `Code.MemberReferences`,
 `Code.TypeReferences`, `Code.NullChecks`, `Code.Catches`, `Code.Comments`,
 `Code.TestMethods`, `Code.TestClasses`, and the statement roots. They share one
@@ -75,8 +76,8 @@ rules.Rule("TEAM001", "Use a descriptive method name.")
 
 ### Shared declaration filters
 
-Types, type parts, methods, fields, properties, parameters and declared symbols
-implement `ICodeDeclaration`. The same filters and predicates apply to each:
+Types, type parts, methods, fields, enum members, properties, parameters and declared
+symbols implement `ICodeDeclaration`. The same filters and predicates apply to each:
 
 | Filter on a query | Predicate on one declaration |
 | --- | --- |
@@ -97,7 +98,9 @@ modifiers and documentation of all parts.
 
 Every source element also accepts the same scope filters: `InProject(glob)`,
 `InTestProjects()`, `InNonTestProjects()`, `InProjectsWithType(type)`,
-`InFolder(folder)`, `InFilesNamed(glob)` and `InNamespace(pattern)`.
+`InFolder(folder)`, `InFilesNamed(glob)` and `InNamespace(pattern)`. `Code.Projects`
+accepts the project filters too: `InProject(glob)`, `InTestProjects()`,
+`InNonTestProjects()` and `InProjectsWithType(type)`.
 
 ### Typed clauses under one identity
 
@@ -134,8 +137,10 @@ validated batch. Display grouping never bypasses those checks.
 ### Reporting locations
 
 Without `ReportAt`, methods, types, fields, properties and parameters report at
-their identifier, references and calls at the complete expression, and catch
-clauses at their header. `ReportAt` accepts an element in the candidate's own
+their identifier, calls at the written method name (`ThenBy` in
+`items.OrderBy(a).ThenBy(b)`, so calls in one chain never share a location),
+references at the complete expression, and catch clauses at their header. Use
+`ReportAt(call => call.Operation.Syntax)` to report a call's complete expression. `ReportAt` accepts an element in the candidate's own
 compilation, an original syntax node or token, or a physical `SourceLocation`.
 Returning null keeps the candidate's own location. Candidates without a location,
 such as tuples from `Select` or `Join`, must report at an element:
@@ -149,7 +154,12 @@ rules.Rule("SDK2007", "Keep reader and writer format inventories in agreement.")
     .Forbid();
 ```
 
-Synthetic syntax and elements from another compilation are rejected.
+A tuple resolves syntax, tokens and `SourceLocation`s in the compilation of its first
+code element (searching nested tuples), so `.ReportAt(pair => pair.Reader.Syntax.Identifier)`
+also works. Other candidate types without a compilation, such as a record that does not
+implement `ICodeElement`, are rejected when the clause is registered: `ReportAt` with
+syntax, a token or a location throws, and so does `Forbid` or `Require` without
+`ReportAt`. Synthetic syntax and elements from another compilation are rejected.
 
 Use semantic identities instead of source spelling:
 
@@ -270,6 +280,80 @@ remove conflicts, or bypass cross-context agreement. Atomic batches shared with
 an excluded rule are withheld in full, so a selected finding can remain unfixed.
 This selection controls reporting and edits; all rules are still evaluated.
 
+## Allowing individual findings
+
+Where a convention does not fit, the code can accept a finding with an ordinary
+comment that names the rule and says why:
+
+```csharp
+var page = orders.Skip(offset); // drillpress-allow BR7-skip: the export pages a fixed snapshot
+
+// drillpress-allow BR7-skip, BO1-clock: the importer replays recorded batches
+public void Replay(IReadOnlyList<Batch> batches)
+{
+    // ...
+}
+```
+
+The comment is `// drillpress-allow`, one or more rule IDs separated by commas,
+a colon, and a non-empty reason. IDs are trimmed and compared ordinally, so an ID
+containing a comma or colon cannot be allowed. Documentation comments, `/* */`
+comments, strings and inactive `#if` code are never allowances, nor is a comment
+whose marker continues with other text, such as `// drillpress-allowed`.
+
+The scope depends on where the comment stands:
+
+- After code on the same line, it allows findings that start on that line, the
+  line printed in the output.
+- On its own line, it applies to the next code line. Only further non-blank
+  lines, such as other comments, may come between; a blank line, a
+  conditional-compilation directive such as `#if` or inactive code makes the
+  allowance invalid, because the next code line could differ between build
+  configurations. When the next code line starts a statement or a member or
+  type declaration, the allowance covers the whole outermost one starting there,
+  including its attributes, so it can allow a multi-line statement or a whole
+  test method. A comment between attributes and the declaration also covers the
+  declaration. Namespaces are never a scope. Otherwise it allows findings that
+  start on that code line, such as one operand of a multi-line expression.
+
+A finding is allowed when its reported location starts within the scope of a
+valid allowance that names its rule. When several allowances cover a finding,
+the one with the narrowest scope allows it. An allowed finding is removed before
+fixes are planned: it is not printed or counted by `status`, does not affect
+the exit code, and its fix is never applied. `AnalysisEngine`, the CLI and
+`RuleTestWorkspace.CheckAsync` apply allowances; `RuleCatalog.Evaluate` returns
+every diagnostic.
+
+Allowances are checked so they cannot rot. Two built-in rules report them:
+
+| Rule | Complexity | Reported when |
+| --- | --- | --- |
+| `drillpress-allow-unused` | `Trivial` | A named rule reports no finding in the allowance's scope in any evaluated context. The evidence lists those rules, and a fix removes them from the comment, or removes the comment (its whole line when it stands alone) when it names no other rule. When the scope contains `#if` directives or inactive code, the evidence adds `another build configuration may use it` and there is no fix. |
+| `drillpress-allow-invalid` | `Local` | The comment has no rule ID or reason, names a rule the bundle does not define, or has no code directly below it. The evidence says which; an invalid allowance allows nothing and has no fix. |
+
+```text
+drillpress-allow-unused Remove the listed rules from this allowance; they report nothing in its scope.
+src/Export.cs
+  +12:37 [BR7-skip]
+drillpress-allow-invalid Write allowances as // drillpress-allow RULE-ID[, RULE-ID]: reason, after or directly above the code.
+src/Import.cs
+  40:5 [unknown rule BR7-skp]
+```
+
+Use is decided across all contexts: an allowance in a linked file or a
+multi-targeted project is used when any context reports an allowed finding, as
+with code that only one target framework compiles. A build configuration that
+was not loaded can still use an allowance over conditional code, so such an
+unused allowance is reported for review but never removed by `fix`. Rules that a run does not
+evaluate never make an allowance unused: `--skip-coverage` skips coverage rules,
+and `--fix-complexity` only filters what is reported after every rule ran.
+Only analysis-target documents are read, so allowances in referenced projects
+outside the target and in generated files are ignored. Built-in rules cannot be
+allowed. Fix complexity selection applies to the built-in findings like any
+other rule's, and `fix` removes unused allowances that pass the usual comment
+removal checks; removing a whole line is withheld when it would change a later
+`CallerLineNumber` value.
+
 
 ## Fix contracts
 
@@ -279,11 +363,13 @@ proof or `SafeWhen(change => ...)` when you state why the edit preserves behavio
 
 | Starting point | Edits | Ending |
 | --- | --- | --- |
-| `Fix.For(expression / reference / creation)` | `ReplaceWith("{0} == {1}", left, right)`, `ReplaceWithLiteral(value)`, `ReplaceWithEquality(left, right)` | `SafeWhen` |
-| `Fix.For(call)` | the expression edits, `RemoveArgument(parameter)` | `SafeWhen` |
+| `Fix.For(expression / reference / creation)` | `ReplaceWith("{0} == {1}", left, right)`, `ReplaceWithLiteral(value)`, `ReplaceWithEquality(left, right)`, `ReplaceWithReference(symbol)` | `SafeWhen` |
+| `Fix.For(call)` | the expression edits, `RemoveArgument(parameter)`, `AddArgument(parameter, expression)` | `SafeWhen` |
 | `Fix.For(argument)` | `Remove()` | `SafeWhen` |
 | `Fix.For(declaration)` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility tokens that keep the declared accessibility, otherwise `SafeWhen` |
-| `Fix.For(branch)` | `AddBraces()` | `Propose()` |
+| `Fix.For(declaration)` | `AddModifier(Modifier.X)` | `Propose()` for `sealed` and `static` classes, otherwise `SafeWhen` |
+| `Fix.For(declaration)` | `Rename(newName)` | `Propose()` for locals, parameters of private methods and local functions, and private members, otherwise `SafeWhen` |
+| `Fix.For(branch)` (if/else branch or any `Code.EmbeddedStatements` body) | `AddBraces()` | `Propose()` |
 | `Fix.For(comment)` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `Fix.For(variable)` | `UseVar()` | `Propose()` |
 | `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameter)` | `Propose()` for constants, otherwise `SafeWhen` |
@@ -393,6 +479,13 @@ including its final line break, while retaining adjacent blank lines. Inline
 removal keeps a separator when needed. Token correspondence, compilation and
 compiler-supplied argument checks withhold changes that alter parsing or caller
 information, such as subsequent `CallerLineNumber` values.
+
+`element.ExplanatoryComment()` (or `source.ExplanatoryComment(position)` for a token
+inside the element) finds the ordinary comment that explains a line: a `//` or `/* */`
+comment on it, on the comment line directly above it, or directly above the statement
+or member that contains it. Documentation comments and `drillpress-allow` comments do
+not count, and a blank line separates a comment from the code below it.
+`HasExplanatoryComment()` tests for one, for rules such as "say why this `!` is safe".
 
 Use `Remove(preserveLines: true)` to retain every original line break while
 deleting the comment text, including multiline comments. Standalone comment lines

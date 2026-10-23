@@ -9,7 +9,7 @@ internal sealed class BlockLayout(string newLine, string indent, string unit)
     internal string Indent { get; } = indent;
     internal string Unit { get; } = unit;
 
-    internal static BlockLayout Read(SourceText text, IfStatementSyntax owner)
+    internal static BlockLayout Read(SourceText text, StatementSyntax owner)
     {
         var line = text.Lines.GetLineFromPosition(owner.SpanStart);
         var prefix = text.ToString(TextSpan.FromBounds(line.Start, owner.SpanStart));

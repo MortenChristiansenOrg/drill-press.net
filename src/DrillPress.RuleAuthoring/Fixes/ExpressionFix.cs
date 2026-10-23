@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
@@ -5,6 +7,17 @@ namespace DrillPress;
 /// <summary>A selected expression ready for replacement. Replacements always need a behavior proof with <see cref="ExpressionReplacement.SafeWhen"/>.</summary>
 public class ExpressionFix
 {
+    /// <summary>Converts supported standard collection initialization, preserving its concrete type and element evaluations.</summary>
+    public CollectionExpressionConversion UseCollectionExpression() =>
+        new(new CodeExpression(Source, Target));
+
+    /// <summary>Uses a caller-selected TimeProvider expression for supported framework clock reads, measurements and waits.</summary>
+    public TimeProviderReplacement UseTimeProvider(string clock) => new(Source, Target, clock);
+
+    /// <summary>Adds a simple field or property assignment to an object initializer, refusing to overwrite an existing assignment.</summary>
+    public InitializerAssignment AddInitializer(string member, string value) =>
+        new(Source, Target, member, value);
+
     internal ExpressionFix(AnalysisSource source, ExpressionSyntax target)
     {
         Source = source;
@@ -39,6 +52,39 @@ public class ExpressionFix
         CodeExpression right,
         bool absorbNegation = false
     ) => ExpressionReplacement.Equality(Source, Target, left, right, absorbNegation);
+
+    /// <summary>Replaces the expression with a reference to a field, property, enum member, constant, local, parameter or type, written in the shortest form that binds to it here: <c>Size</c> inside its type, <c>Defaults.Size</c> where its namespace is imported, otherwise qualified up to <c>global::</c>.</summary>
+    /// <param name="symbol">The referenced symbol from the original compilation.</param>
+    /// <remarks>The library checks that the rewritten reference binds to the same symbol in every affected compilation; the proof still states why the value is right.</remarks>
+    public ExpressionReplacement ReplaceWithReference(ISymbol symbol)
+    {
+        if (symbol is IMethodSymbol or IAliasSymbol or IPreprocessingSymbol)
+            throw new ArgumentException(
+                "Reference a value or type; use ReplaceWith for calls.",
+                nameof(symbol)
+            );
+        var text = ReferenceSyntax.Shortest(Source, Target.SpanStart, symbol);
+        if (text is null)
+            return new(Source, Target, null, [], []);
+        return new(
+            Source,
+            Target,
+            SyntaxFactory.ParseExpression(text),
+            [],
+            [
+                (
+                    "reference binding",
+                    change =>
+                        change.Context.Same(
+                            symbol.OriginalDefinition,
+                            change.AfterModel.GetSymbolInfo(change.After).Symbol?.OriginalDefinition
+                        )
+                            ? ProofResult.Proven
+                            : ProofResult.Disproven
+                ),
+            ]
+        );
+    }
 
     /// <summary>Replaces the expression with hand-built syntax. Prefer the template overload, which keeps original operands verifiable.</summary>
     public ExpressionReplacement ReplaceWith(ExpressionSyntax replacement) =>

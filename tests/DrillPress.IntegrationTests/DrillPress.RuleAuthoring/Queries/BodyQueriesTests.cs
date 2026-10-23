@@ -130,4 +130,137 @@ public sealed class BodyQueriesTests(SdkFixture fixture) : IClassFixture<SdkFixt
 
         Assert.Equal(["if (true) {}"], actual);
     }
+
+    [Fact]
+    public void Any_syntax_node_can_scope_a_body()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Bodies",
+            [
+                new(
+                    "Bodies.cs",
+                    """
+                    class C {
+                        static void Send(int value) {}
+                        void M() {
+                            Send(1);
+                            foreach (var item in new[] { 2 }) { Send(item); System.Action later = () => Send(3); }
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        workspace.AddProject("Other", [new("Other.cs", "class D { }")]);
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var loop = Code.Nodes<ForEachStatementSyntax>().In(solution).Single();
+        var other = solution.Projects[1].Sources[0];
+
+        var excluded = CodeBody.Of(loop.Source, loop.Syntax.Statement).Calls();
+        var included = CodeBody
+            .Of(loop.Source, loop.Syntax.Statement, NestedFunctions.Include)
+            .Calls();
+
+        Assert.Equal(["Send(item)"], excluded.Select(call => call.Operation.Syntax.ToString()));
+        Assert.Equal(
+            ["Send(item)", "Send(3)"],
+            included.Select(call => call.Operation.Syntax.ToString())
+        );
+        Assert.Throws<ArgumentException>(() => CodeBody.Of(other, loop.Syntax));
+    }
+
+    [Fact]
+    public void Sections_are_statements_separated_by_blank_lines()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Bodies",
+            [
+                new(
+                    "Bodies.cs",
+                    """
+                    class C {
+                        static int Act(int a, int b) => a + b;
+                        static void Check(int value) {}
+                        void Test() {
+                            var a = 1;
+                            // a comment line does not separate
+                            var b = 2;
+
+                            var sum = Act(a,
+
+                                b);
+
+                            Check(sum);
+                            /* a blank line
+
+                               in a comment does not separate */
+                            Check(a);
+                        }
+                        int Arrow() => 1;
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var methods = Code.Methods.In(solution);
+
+        var sections = methods.Single(method => method.Name == "Test").Body()!.Sections();
+        var arrow = methods.Single(method => method.Name == "Arrow").Body()!.Sections();
+
+        Assert.Equal(
+            [
+                ["var a = 1;", "var b = 2;"],
+                ["var sum = Act(a,\n\n            b);"],
+                ["Check(sum);", "Check(a);"],
+            ],
+            sections.Select(section =>
+                section.Statements.Select(statement =>
+                    statement.ToString().ReplaceLineEndings("\n")
+                )
+            )
+        );
+        Assert.Equal([0, 1, 2], sections.Select(section => section.Index));
+        Assert.Equal(["Check", "Check"], sections[2].Calls().Select(call => call.Target.Name));
+        Assert.Equal(5, sections[0].Location.Line);
+        Assert.Empty(arrow);
+    }
+
+    [Fact]
+    public void Blank_lines_leave_out_string_tokens_and_nested_functions_unless_included()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """"
+                    class A {
+                        void M() {
+                            var value = """
+
+                                text
+                                """;
+
+                            void Local() {
+
+                            }
+
+                            System.Console.WriteLine(value);
+                        }
+                    }
+                    """"
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var method = Code.Methods.Named("M").In(solution).Single();
+
+        var counts = (method.Body()!.BlankLines, method.Body(NestedFunctions.Include)!.BlankLines);
+
+        Assert.Equal((2, 3), counts);
+    }
 }

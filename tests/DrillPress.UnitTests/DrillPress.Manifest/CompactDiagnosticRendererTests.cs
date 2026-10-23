@@ -169,6 +169,37 @@ public sealed class CompactDiagnosticRendererTests
     }
 
     [Fact]
+    public void Withheld_fix_reasons_appear_only_when_explained()
+    {
+        var files = new MockFileSystem();
+        var finding = new AggregatedFinding(
+            "BLOCK",
+            "Add braces.",
+            "file",
+            files.Path.GetFullPath("A.cs"),
+            0,
+            1,
+            3,
+            9,
+            null
+        )
+        {
+            FixWithheld = "the original compilation has errors",
+        };
+        var result = new ValidatedResult([finding], [], []);
+        var renderer = new CompactDiagnosticRenderer(files);
+
+        var standard = renderer.Render(result);
+        var explained = renderer.Render(result, explainFixes: true);
+
+        Assert.Equal("BLOCK Add braces.\nA.cs\n  3:9\n", standard);
+        Assert.Equal(
+            "BLOCK Add braces.\nA.cs\n  3:9\n    fix withheld: the original compilation has errors\n",
+            explained
+        );
+    }
+
+    [Fact]
     public void Clean_public_golden_is_empty()
     {
         var result = new ValidatedResult([], [], []);

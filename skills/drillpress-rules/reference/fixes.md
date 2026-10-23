@@ -1,26 +1,41 @@
 # Fixes
 
 A fix factory receives the violating candidate and returns `FixProposal?`. Null keeps
-the finding without a fix. Every chain starts at `Fix.For(candidate)` (or
-`Fix.Extract(group)`) and ends in `Propose()` or `SafeWhen(proof)`.
+the finding without a fix; `FixProposal.Withheld("reason")` does too and records why.
+Builders may return null or a withheld proposal for unsupported source shapes.
+`drillpress check --explain-fixes` (or `result.ExplainedOutput` in tests) prints the
+recorded reason, or the check that rejected the fix during validation, under the finding.
+A null proposal has no explanation; `Withheld` requires a nonblank, single-line reason without control characters such as tabs.
+Start at `Fix.For(candidate)` (or `Fix.Extract(group)`) and finish with
+`Propose()` or `SafeWhen(proof)`, except `AddArgumentOfType`, which finishes directly.
 
 ## Builders
 
 | `Fix.For(...)` of | Edit | Finish |
 | --- | --- | --- |
-| `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWith(syntax)` | `SafeWhen` |
+| `CodeExpression`, `MemberReference`, `CodeObjectCreation`, `CodeInvocation` | `ReplaceWithLiteral(value)`, `ReplaceWith("{0} == {1}", a, b)`, `ReplaceWithEquality(a, b, absorbNegation: true)`, `ReplaceWithReference(symbol)` (shortest spelling that binds), `ReplaceWith(syntax)` | `SafeWhen` |
 | `CodeInvocation` / `CodeArgument` | `RemoveArgument("name")` / `Remove()` | `SafeWhen` |
+| `CodeInvocation` | `AddArgument("name", "expression")` → `ArgumentAddition`, optionally `.ExpectOverloadChange(from, to)` or `.ExpectTransition(transition)` | `SafeWhen` |
 | any `ICodeDeclaration` | `RemoveModifier(Modifier.X)` | `Propose()` for accessibility that stays the same, else `SafeWhen` |
-| `CodeBranch` | `AddBraces()` | `Propose()` |
+| any `ICodeDeclaration` | `AddModifier(Modifier.X)` → `ModifierAddition` | `Propose()` for `sealed`/`static` classes (checks the whole loaded solution), else `SafeWhen` |
+| any `ICodeDeclaration` (`Code.Declarations` includes locals) | `Rename("newName")` → `SymbolRename`: declaration, references, named arguments, `nameof`, `param`/`paramref` | `Propose()` for locals, local functions, their parameters, private-method parameters and private members, else `SafeWhen(change => ...)`; withheld across project references, when rebinding detects capture/shadowing or a string equals the old name |
+| expression candidates | `UseCollectionExpression()` → `CollectionExpressionConversion`; `UseTimeProvider(clock)` → `TimeProviderReplacement` | `Propose()` |
+| expression candidates (object creation) | `AddInitializer(member, value)` → `InitializerAssignment` | `SafeWhen(value => ...)` |
+| declarations (automatic property) | `UseInitOnly()` → `InitOnlyConversion` | `SafeWhen(propertySymbol => ...)` |
+| `CodeNode<NamespaceDeclarationSyntax>` (`NamespaceFix`) | `UseFileScopedNamespace()` → `FileScopedNamespaceConversion` | `Propose()` |
+| `CodeNode<TStatementSyntax>` (`StatementSyntax` subtype; `StatementFix`) | `UseAssertAll()` → `AssertionLoopConversion` | `Propose()` |
+| `CodeInvocation` | `AddArgumentOfType(type, expression, proof)` | returns a proposal directly |
+| `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
 | `ExpressionGroup` via `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameterName)` | `Propose()` (constants), `SafeWhen` (templates) |
 
-Every builder already withholds the fix for generated, inactive or non-editable source,
-`nameof` and expression trees, interior comments or directives, compiler errors after
-the edit, and changed bindings of the surrounding code, kept operands and
-compiler-supplied arguments (caller info). It validates the whole batch in every
-affected compilation, including linked files and other target frameworks.
+All proposals check editable ordinary source, inactive text and compilation. Each
+builder adds its own trivia and binding gates: expression replacement, for example,
+rejects `nameof`, expression trees and interior comments, and preserves surrounding
+bindings, kept operands and caller info. These checks do not prove arbitrary behavior
+unchanged. The engine validates the whole batch in every affected compilation,
+including linked files and other target frameworks.
 
 ## Expression replacement
 
@@ -48,9 +63,23 @@ rules.Rule("TEAM030", "Use == for ordinal string equality.")
 - The proof receives `ExpressionChange`: `Before` and `After` are `CodeExpression`s
   bound to the original and rewritten compilations; `Kept` lists each kept operand with
   its uses after the edit; `Rewrite` exposes raw syntax and semantic models.
+- Compare symbols from `Before` and `After` with `change.Same(before, after)`.
+  `SymbolEqualityComparer` does not equate source declarations across compilations.
+  `RewriteContext.Same` is also available in custom proofs, and
+  `ArgumentAdditionChange.Same` in argument additions. Namespace symbols compare by
+  qualified identity; source declarations must map to their rewritten counterparts.
 - `MustPreserve(ExpressionBehavior.EvaluationCounts)` requires each kept operand to run
   exactly once; `EvaluationOrder` keeps straight-line order; `NullReceiverBehavior`
   requires a receiver whose null check would move to be intrinsically non-null.
+- The replacement keeps the converted type of the replaced expression. Target-typed
+  replacements such as `default` → `CancellationToken.None` or `new List<string>()`
+  → `[]` work when the original already has the destination's type; a discarded
+  statement value (`x?.Log();` → `Track(x);`) may change type. Inferred tuple element
+  names may change only when the tuple converts to the same named tuple type.
+- `ReplaceWithReference(symbol)` accepts an original field, property, enum member,
+  constant, local, parameter or type. It tries bare and increasingly qualified names
+  through `global::`, and checks binding again in every context. Methods, aliases
+  and preprocessing symbols throw; an unbindable reference withholds the fix.
 - Prove the policy fact only you know (that the methods are equivalent). Compiler
   success alone is not proof.
 
@@ -90,6 +119,39 @@ static bool ComparesStrings(ArgumentRemovalChange change) =>
   caller-info arguments.
 - Omitted values, receivers and `params` arguments are not removable.
 
+`AddArgument("token", "TestContext.Current.CancellationToken")` supplies an omitted
+optional parameter of the same overload; add `.ExpectOverloadChange(from, to)` when the
+call moves to another overload (`StartsWith(x)` → `StartsWith(x, StringComparison.Ordinal)`).
+The proof over `ArgumentAdditionChange` states why the value is right
+(`change.AddedValue.RefersTo(ordinal)`); an intended behavior change, such as invariant
+culture, is stated there too. `ArgumentAdditionChange` exposes `Before`, `After`,
+`AddedValue`, `Rewrite`, `Expected` (null without an overload transition) and `Same`.
+An existing explicit value or expanded `params` withholds the addition. The inserted
+argument is positional when it follows the written parameters, otherwise named.
+Each addition proves its own changed default in an atomic batch; other defaults and
+caller-info arguments remain protected.
+
+```csharp
+using DrillPress;
+
+var rules = new RuleCatalog();
+var startsWith = CodeType.Of<string>().Member(nameof(string.StartsWith));
+var original = startsWith.WithParameters(CodeType.Of<string>());
+var explicitComparison = startsWith.WithParameters(
+    CodeType.Of<string>(), CodeType.Of<StringComparison>());
+var ordinal = CodeType.Of<StringComparison>().Member(nameof(StringComparison.Ordinal));
+
+rules.Rule("TEAM036", "Use ordinal prefix comparisons for application keys.")
+    .For(Code.Calls.To(original).InNamespace("Shop.Keys.**"))
+    .Forbid(fix: call => Fix.For(call)
+        .AddArgument("comparisonType", "global::System.StringComparison.Ordinal")
+        .ExpectOverloadChange(original, explicitComparison)
+        .SafeWhen(change => change.AddedValue.RefersTo(ordinal)));
+```
+
+The rule owns the policy that keys compare ordinally; the builder proves the
+declared overload transition and preservation of retained inputs.
+
 ## Modifiers, braces, comments and var
 
 Comment removal deletes standalone lines by default. Use `Remove(preserveLines: true)`
@@ -120,6 +182,27 @@ rules.Rule("TEAM034", "Use var when the type is apparent.")
 keeps declared accessibility, identity and contract. For other modifiers, add
 `MustPreserve(DeclarationBehavior.Identity | DeclarationBehavior.Contract)` and a
 `SafeWhen(change => ...)` proof over `ModifierChange` (`Symbols` maps before/after).
+
+`AddModifier(...).Propose()` proves only `sealed` and `static` classes: `sealed`
+requires no loaded derived type and a nonabstract, nonstatic class; `static` requires
+only static members, no written constructor, object as the base, no interfaces or
+loaded derived types, and no loaded type use beyond member access, `nameof` or
+`using static`. Both assume the loaded solution contains every consumer, including
+reflection, dependency injection and mocking proxies. Other additions need
+`MustPreserve(DeclarationBehavior...)` as appropriate and `SafeWhen`.
+`ModifierChange` exposes `Added`, `AddedModifier`, `Removed`, `RemovedModifier`,
+`Symbols` and `Rewrite`; `static` replaces a written `sealed` token.
+
+`Rename(newName)` also updates named arguments, `nameof` and documentation
+`param`/`paramref`, escaping keywords with `@`. Virtual, abstract, overriding,
+interface-implementing, extern, partial and entry-point methods, lambda parameters
+and record parameters are withheld. Wider renames need `SafeWhen(RenameChange)`,
+whose `Context`, `Before`, `After` and `References` (count) let the consumer approve
+reflection, serialization, model binding and unloaded consumers. Generated or
+non-editable references, cross-project references, capture/shadowing (including in the
+other files of a partial type), string literals of any kind equal to the old name,
+inactive `#if` code naming either name or changed caller info withhold even an approved
+wider rename.
 
 ## Extraction of repeated expressions
 
@@ -170,10 +253,76 @@ static FixProposal ReplaceSpan(AnalysisSource source, TextSpan span, string text
 
 The proof receives `RewriteContext` (`Original`, `Rewritten` compilation with the whole
 batch applied, `Edits`, `Map(source, originalNode)`); inspect it rather than re-parsing.
-Custom edits do not get the builders' trivia and binding checks.
+`RewriteChecks.SameEnclosingBindings` enforces the converted-root, discarded-value
+and tuple-name rules described above. `RewriteChecks.SameSourceBindings` checks only
+edited member bodies when declarations and body boundaries stay unchanged, otherwise
+the compilation. Expressions changed
+by another proposal in the batch remain that proposal's responsibility.
+Custom edits do not get the builders' trivia and binding checks. Edits must not
+overlap; two replacements may share a boundary, but an insertion (empty span) may not
+touch another edit, so fold it into the adjacent replacement. The same rule applies
+within a proposal and across batches. A raw `new FixProposal(edits, validate,
+validateCombined: ...)` must provide the combined validator to coexist with other
+edits in that compilation; without it only its exact own batch is accepted.
+`Edits` is empty and `IsSafeIn` false for a withheld proposal; `WithheldReason`
+records a factory's reason before validation.
 
 ## Testing fixes
 
-Assert `result.Output` (validated fixes show `+` before the line) and the complete
+Assert `result.Output` (a validated fix shows as `  +5:32`, `+` directly before the
+line number) and the complete
 `result.FixedText(path)`. Add a case where the proof fails and assert the finding has
 no `+` and `FixedText` returns the original text.
+
+## Reusable structural and framework edits
+
+- `Fix.For(expression).UseCollectionExpression().Propose()` converts supported standard
+  collections/arrays with a written target type, preserving the concrete type and each
+  element's evaluation count and order. Nonempty dictionary initializers, capacity
+  constructors and interface targets changing concrete type are withheld.
+- `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
+  block namespace and removes one four-space indentation level. Nested namespaces,
+  directives, multiline text and ambiguous layouts are withheld, and so is a conversion
+  that would change a string's value or a compiler-supplied argument such as a caller
+  line number. A consumer must exclude
+  source exported or concatenated into a different compilation.
+- `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
+  adding that type and uses the argument-addition validator. Existing parameter names,
+  types, ref kinds and generic arity must match, comparing generic overloads with the call's
+  type arguments; the supplied proof explains the new value.
+- `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports `DateTime.UtcNow`,
+  `DateTimeOffset.UtcNow`/`Now`, paired Stopwatch timestamp measurements, Task delays/
+  timed waits and explicit `new PeriodicTimer(TimeSpan)` or
+  `new CancellationTokenSource(TimeSpan)` constructors. The consumer chooses the
+  application's clock; the library requires a TimeProvider local, parameter or
+  instance member. `DateTime.Now`/`Today`, ambiguous timestamp uses and unsupported
+  argument shapes are withheld. Waits need
+  an explicit TimeSpan and optional explicit CancellationToken; named/default shapes
+  outside the proof are withheld. Either end of a Stopwatch measurement yields one fix
+  that rewrites the timestamp and every elapsed-time use together, so selecting one end
+  is enough. Timer creations with an object initializer are withheld.
+- `Fix.For(property).UseInitOnly().SafeWhen(symbol => ...)` converts an unrestricted
+  automatic setter to init, proves symbol correspondence and compilation, and asks the
+  consumer to approve its construction/serialization contract. Implemented or restricted
+  setters are withheld.
+- `Fix.For(creation).AddInitializer(member, expression).SafeWhen(value => ...)` adds a
+  previously unassigned simple member, proves unchanged constructed type, enclosing
+  bindings, compiler-supplied arguments such as `CallerArgumentExpression` and binding to
+  that member, and asks the consumer to prove the new value. Existing assignments remain.
+
+Adding `static` to a sealed class replaces the written `sealed` token; `ModifierChange`
+reports both the removed and added tokens. Rename permits a destination name in an
+unrelated scope, but rebinds references spelled like either name to reject capture or
+shadowing. Independent argument additions validate their own changed defaults in an
+atomic batch; caller-info changes around other edits remain unsafe. Evaluation-count
+checks with no registered inputs succeed only when both bounded evaluation traces have
+no child evaluations, so empty collections need no special-case bypass.
+
+`Fix.For(statementNode).UseAssertAll().Propose()` converts a synchronous `foreach (var ...)`
+containing one xUnit assertion to `Assert.All`. The collection must implement
+`IEnumerable<T>` of the exact loop element type; the inner assertion must keep its binding.
+Await/ref expressions, pattern-only enumerators and a public `GetEnumerator` that is not
+the interface's (outside arrays and the common `System.Collections.Generic` collections)
+are withheld. Choosing this builder
+explicitly accepts xUnit's aggregated failure reporting instead of stopping at the first
+failing item. It does not decide which test loops should use collection assertions.

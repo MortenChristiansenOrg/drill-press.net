@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -48,7 +49,7 @@ internal static class ReportingLocation
     internal static ReportTarget Physical<T>(T candidate, SourceLocation location)
     {
         var project = Owner(candidate);
-        var owner = (candidate as ICodeElement)?.Source;
+        var owner = Element(candidate)?.Source;
         var source =
             owner?.Document.Path == location.FilePath
                 ? owner
@@ -66,15 +67,52 @@ internal static class ReportingLocation
     }
 
     private static AnalysisProject Owner<T>(T candidate) =>
+        Element(candidate)?.Source.Project
+        ?? Project(candidate)
+        ?? throw new ArgumentException(
+            $"Candidate type '{typeof(T)}' has no compilation; report at an ICodeElement instead.",
+            nameof(candidate)
+        );
+
+    // A tuple belongs to the compilation of its first code element, searching nested tuples in order.
+    private static ICodeElement? Element(object? candidate) =>
         candidate switch
         {
-            ICodeElement element => element.Source.Project,
-            AnalysisProject project => project,
-            _ => throw new ArgumentException(
-                $"Candidate type '{typeof(T)}' has no compilation; report at an ICodeElement instead.",
-                nameof(candidate)
-            ),
+            ICodeElement element => element,
+            ITuple tuple => Enumerable
+                .Range(0, tuple.Length)
+                .Select(index => Element(tuple[index]))
+                .FirstOrDefault(element => element is not null),
+            _ => null,
         };
+
+    private static AnalysisProject? Project(object? candidate) =>
+        candidate switch
+        {
+            AnalysisProject project => project,
+            ITuple tuple => Enumerable
+                .Range(0, tuple.Length)
+                .Select(index => Project(tuple[index]))
+                .FirstOrDefault(project => project is not null),
+            _ => null,
+        };
+
+    /// <summary>Whether values of a type can have a compilation: code elements, projects, tuples that can hold one, and open types such as interfaces.</summary>
+    internal static bool CanHaveCompilation(Type type) =>
+        typeof(ICodeElement).IsAssignableFrom(type)
+        || type == typeof(AnalysisProject)
+        || (
+            typeof(ITuple).IsAssignableFrom(type)
+                ? !type.IsGenericType || type.GetGenericArguments().Any(CanHaveCompilation)
+                : !type.IsValueType && !type.IsSealed
+        );
+
+    /// <summary>Whether values of a type can have their own location: code elements, projects, and open types such as interfaces.</summary>
+    internal static bool CanHaveLocation(Type type) =>
+        typeof(ICodeElement).IsAssignableFrom(type)
+        || type == typeof(AnalysisProject)
+        || typeof(ITuple).IsAssignableFrom(type)
+        || !type.IsValueType && !type.IsSealed;
 
     private static SourceLocation Validate(AnalysisProject project, SourceLocation location)
     {

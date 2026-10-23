@@ -126,11 +126,19 @@ src/App/App.csproj 42
   unspecified 3
 ```
 
+To accept a single finding where a convention does not fit, add a comment naming
+the rule and the reason: `// drillpress-allow BR7-skip: the export pages a fixed snapshot`.
+After code it allows findings on its line; on its own line it allows the statement or
+declaration below it. Allowed findings are not printed, counted or fixed. Allowances
+that allow nothing, or that lack a reason or name an unknown rule, are reported as
+`drillpress-allow-unused` (with a fix that removes them) and `drillpress-allow-invalid`.
+See [allowing individual findings](docs/RULE_AUTHORING.md#allowing-individual-findings).
+
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle package versions. Snapshot format 5 records analysis
-scope and build overrides; response protocol 9 carries per-occurrence evidence, optional rule fix complexity, and skipped coverage rules.
+scope and build overrides; response protocol 10 carries per-occurrence evidence, optional rule fix complexity, skipped coverage rules, and why proposed fixes were withheld.
 The contracts bind responses to a unique request and preserve compilation and
 document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the
@@ -138,8 +146,9 @@ child and fails the check before rendering diagnostics.
 
 Public output is UTF-8 without a BOM, uses LF, and groups ordinally by rule and
 relative file path, then source span. Each rule's remediation appears once. A
-location is `line` or `line:column` (one-based physical UTF-16 coordinates); `+`
-before the line marks an agreed safe correction. Paths containing controls,
+location is `line` or `line:column` (one-based physical UTF-16 coordinates),
+indented two spaces; `+` directly before the line number, as in `  +5:32`, marks an
+agreed safe correction. Paths containing controls,
 quotes, or surrounding whitespace use JSON escaping. Runs with no findings emit nothing.
 
 Rules can optionally estimate agent fix effort as `Trivial`, `Local`, `Complex`,
@@ -201,8 +210,10 @@ applies the project's analyzer `DiagnosticSuppressor`s first, so errors that
 packages suppress (such as EF Core's CS8618 on `DbSet` properties) do not fail it.
 Like the target's own compiler, both modes skip analyzers and generators that reference a
 newer compiler than the target SDK runs; validation reports that as CS9057 with the
-project's configured severity. Generator exceptions,
-missing inputs, incomplete project graphs, and load failures fail both modes.
+project's configured severity. Generators receive additional files in MSBuild item order,
+as in a real build. Generator exceptions,
+missing inputs, incomplete project graphs, and load failures fail both modes; with
+several failed contexts, the first in snapshot order is reported.
 Semantic selections do not guess unresolved symbols; syntax queries retain erroneous code.
 Source project references remain compilation
 references, so an erroneous dependency need not emit an assembly. Generated

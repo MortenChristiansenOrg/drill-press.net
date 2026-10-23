@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO.Abstractions;
 using System.Reflection;
+using System.Text.Json;
+using DrillPress.Manifest;
 
 namespace DrillPress.IntegrationTests.TestInfrastructure;
 
@@ -59,6 +61,17 @@ public abstract class IntegrationTest : IDisposable
         _temporaryDirectories.Add(directory);
         return directory;
     }
+
+    protected static ProfileEvent[] ParseProfileEvents(string output) =>
+        output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line =>
+                JsonSerializer.Deserialize(
+                    line["drillpress-profile ".Length..],
+                    CompilationSnapshotJsonContext.Default.ProfileEvent
+                )!
+            )
+            .ToArray();
 
     protected static string RepositoryPath(params string[] segments) =>
         FileSystem.Path.Combine(RepositoryRoot, FileSystem.Path.Combine(segments));
