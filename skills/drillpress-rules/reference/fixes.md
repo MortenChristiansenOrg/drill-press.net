@@ -199,8 +199,10 @@ interface-implementing, extern, partial and entry-point methods, lambda paramete
 and record parameters are withheld. Wider renames need `SafeWhen(RenameChange)`,
 whose `Context`, `Before`, `After` and `References` (count) let the consumer approve
 reflection, serialization, model binding and unloaded consumers. Generated or
-non-editable references, cross-project references, capture/shadowing, string literals equal
-to the old name or changed caller info withhold even an approved wider rename.
+non-editable references, cross-project references, capture/shadowing (including in the
+other files of a partial type), string literals of any kind equal to the old name,
+inactive `#if` code naming either name or changed caller info withhold even an approved
+wider rename.
 
 ## Extraction of repeated expressions
 
@@ -280,13 +282,14 @@ no `+` and `FixedText` returns the original text.
   constructors and interface targets changing concrete type are withheld.
 - `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
   block namespace and removes one four-space indentation level. Nested namespaces,
-  directives, multiline text and ambiguous layouts are withheld. A consumer must exclude
+  directives, multiline text and ambiguous layouts are withheld, and so is a conversion
+  that would change a string's value or a compiler-supplied argument such as a caller
+  line number. A consumer must exclude
   source exported or concatenated into a different compilation.
 - `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
   adding that type and uses the argument-addition validator. Existing parameter names,
-  types, ref kinds and generic arity must match; the supplied proof explains the new value.
-  It uses the default `AddingParameter` policy, which can miss generic overloads; use
-  `AddArgument` with an explicit transition when you know the overload pair.
+  types, ref kinds and generic arity must match, comparing generic overloads with the call's
+  type arguments; the supplied proof explains the new value.
 - `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports `DateTime.UtcNow`,
   `DateTimeOffset.UtcNow`/`Now`, paired Stopwatch timestamp measurements, Task delays/
   timed waits and explicit `new PeriodicTimer(TimeSpan)` or
@@ -295,14 +298,16 @@ no `+` and `FixedText` returns the original text.
   instance member. `DateTime.Now`/`Today`, ambiguous timestamp uses and unsupported
   argument shapes are withheld. Waits need
   an explicit TimeSpan and optional explicit CancellationToken; named/default shapes
-  outside the proof are withheld. Select both Stopwatch timestamp and elapsed-time
-  uses so the combined batch uses the same clock.
+  outside the proof are withheld. Either end of a Stopwatch measurement yields one fix
+  that rewrites the timestamp and every elapsed-time use together, so selecting one end
+  is enough. Timer creations with an object initializer are withheld.
 - `Fix.For(property).UseInitOnly().SafeWhen(symbol => ...)` converts an unrestricted
   automatic setter to init, proves symbol correspondence and compilation, and asks the
   consumer to approve its construction/serialization contract. Implemented or restricted
   setters are withheld.
 - `Fix.For(creation).AddInitializer(member, expression).SafeWhen(value => ...)` adds a
-  previously unassigned simple member, proves unchanged constructed type and binding to
+  previously unassigned simple member, proves unchanged constructed type, enclosing
+  bindings, compiler-supplied arguments such as `CallerArgumentExpression` and binding to
   that member, and asks the consumer to prove the new value. Existing assignments remain.
 
 Adding `static` to a sealed class replaces the written `sealed` token; `ModifierChange`
@@ -316,6 +321,8 @@ no child evaluations, so empty collections need no special-case bypass.
 `Fix.For(statementNode).UseAssertAll().Propose()` converts a synchronous `foreach (var ...)`
 containing one xUnit assertion to `Assert.All`. The collection must implement
 `IEnumerable<T>` of the exact loop element type; the inner assertion must keep its binding.
-Await/ref expressions and pattern-only enumerators are withheld. Choosing this builder
+Await/ref expressions, pattern-only enumerators and a public `GetEnumerator` that is not
+the interface's (outside arrays and the common `System.Collections.Generic` collections)
+are withheld. Choosing this builder
 explicitly accepts xUnit's aggregated failure reporting instead of stopping at the first
 failing item. It does not decide which test loops should use collection assertions.

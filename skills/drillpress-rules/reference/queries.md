@@ -176,9 +176,8 @@ parameters, enum members, symbols):
   of the type and keeping the others (names, ref kinds and arity too unless `matchNames:
   false`). Types compare by identity, ignoring nullable annotations. Candidate discovery,
   not proof that the overload behaves the same. No candidate is returned if the
-  original already takes that type. Generic type-parameter normalization is available
-  with `matchNames: false`; the default can miss generic overloads with retained type
-  parameters.
+  original already takes that type. Generic overloads compare with the call's type
+  arguments.
 
 ## Calls, arguments and expressions
 
@@ -218,18 +217,22 @@ parameters, enum members, symbols):
   common framework APIs, never which culture or clock to use. Culture classification
   concerns calls missing a comparison/comparer/provider; interpolation classifies
   fractions, non-invariant date/time formats and integer digit grouping, not integer
-  signs alone. Clock queries cover Task.Delay, timed WaitAsync, Thread.Sleep,
-  CancelAfter and timer/delayed CancellationTokenSource creations; a local source
+  signs alone; integer parsing counts with non-constant number styles or styles allowing
+  thousands, a decimal point or currency. Clock queries cover Task.Delay, timed
+  WaitAsync, Thread.Sleep, CancelAfter and timer/delayed CancellationTokenSource creations; a local source
   initialized with a TimeProvider is excluded from CancelAfter results.
 - `CodeRoute`: `Mapping` (reports here), `Path` (with constant group prefixes; null when
   not constant), `Configuration`, `GroupConfiguration`, `HandlerExpression`, `Handler`,
   `IsConfiguredWith(member, includeGroups: false)`. Groups have no handler. Group
   prefixes follow local initializers (not assignments), at most ten local hops per
-  group. Apply project filters explicitly; not an authorization analysis.
+  group; a local or call holding the application, such as `builder.Build()`, has no
+  prefix. Apply project filters explicitly; not an authorization analysis.
 - `element.ValuesInScope<T>()` / `ValuesInScope(type)`: `ScopedValue` (`Symbol`, `Name`,
   `Kind` (`ScopedValueKind`): `Local`/`Parameter`/`Field`/`Property`, `Type` with nullable annotation) for each
   value of the type (or a derived/implementing type) readable by name at the element,
-  nearest first; instance state is left out in static contexts. Use it to find the
+  nearest first; instance state is left out in static contexts, the locals and
+  parameters around a static lambda or local function are left out inside it, and an
+  outer type's instance state is left out in a nested type. Use it to find the
   `CancellationToken` or `TimeProvider` to pass on. Locals come latest-first, then
   enclosing/primary-constructor parameters, then fields/properties by name. A local
   in its own initializer, later locals and values reached through another value

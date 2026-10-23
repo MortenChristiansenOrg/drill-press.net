@@ -214,7 +214,10 @@ excluding a local inside its own initializer), parameters of the enclosing lambd
 local functions and member (innermost first), primary constructor parameters, and the
 fields and properties of the containing types, ordered by name. A static member, static
 lambda or static local function leaves out instance fields, properties and primary
-constructor parameters. `Type` keeps nullable annotations so a policy can reject
+constructor parameters. A static lambda or static local function also leaves out the
+locals and parameters of the functions around it, and code in a nested type leaves out
+its outer type's instance fields, properties and primary constructor parameters. `Type`
+keeps nullable annotations so a policy can reject
 `TimeProvider?`; values only reachable through another value are not listed.
 
 ## Contextual project scopes
@@ -398,10 +401,9 @@ by `EventArgs` or a derived type.
 `method.AddingParameter(type, matchNames: true)` enumerates same-name, same-static-shape
 overloads that add one parameter of the type while keeping the others in order, with
 their names, ref kinds and generic arity. With `matchNames: false` only the retained types
-must match. Types compare by symbol identity, ignoring nullable annotations. With
-`matchNames: false`, generic overloads compare through the original method's type
-parameters; the default currently misses overloads whose retained generic parameter
-types need that normalization. The consumer chooses visibility and ambiguity policy;
+must match. Types compare by symbol identity, ignoring nullable annotations, and generic
+overloads compare with the call's type arguments (with `matchNames: false`, with the
+original method's type parameters). The consumer chooses visibility and ambiguity policy;
 this is candidate discovery, not proof that the overload behaves the same.
 
 `CodeType.FromSymbol(namedType)` captures a compiler-bound named type as a descriptor,
@@ -422,7 +424,9 @@ application should use.
   composite formatting, without a format provider. `hole.FormatsWithCulture()` on a
   `CodeNode<InterpolationSyntax>` reads one interpolation hole: a fraction, a date or time
   without an invariant format, or an integer with a format that groups digits. Integer
-  signs alone and invariant date formats (`O`, `R`, `s`, `u`, `c`) do not count.
+  signs alone and invariant date formats (`O`, `R`, `s`, `u`, `c`) do not count; integer
+  parsing counts when its number styles aren't constant or allow group separators, a
+  decimal point or a currency symbol.
 - `call.WaitsWithoutTimeProvider()` recognizes `Task.Delay`, a timed `WaitAsync`,
   `Thread.Sleep` and `CancelAfter` without a TimeProvider. `CancelAfter` on a local source
   created with a TimeProvider uses that one.
@@ -446,8 +450,10 @@ mapped with `MapGroup`. Apply project filters explicitly. A `CodeRoute` exposes:
   the member.
 
 Group builders are followed through local initializers, not assignments, up to ten local
-hops per group. Unknown patterns remain null; route metadata is not an authorization
-analysis and no framework code executes.
+hops per group. A local or call holding the application rather than a group, such as
+`var app = builder.Build();` in top-level statements or `WebApplication.Create()`, is the
+application itself, so its routes have no prefix. Unknown patterns remain null; route
+metadata is not an authorization analysis and no framework code executes.
 
 ## String templates and collection initialization
 

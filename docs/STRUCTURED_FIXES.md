@@ -200,12 +200,16 @@ Either way, the fix is withheld when:
 - a reference is in another project than the declaration, because each compilation is
   validated against its project references as they were;
 - rebinding shows that an existing name would be captured or shadowed;
-- a string literal in the searched source equals the old name, because it may name the
-  symbol through reflection or an attribute such as `NotNullIfNotNull`.
+- a string literal of any kind (regular, verbatim, raw, UTF-8 or interpolated text) in the
+  searched source equals the old name, because it may name the symbol through reflection
+  or an attribute such as `NotNullIfNotNull`;
+- inactive `#if` code in the searched source names the old or new name, because it is
+  neither renamed nor rebound.
 
 In every affected compilation, each renamed reference must bind to the renamed symbol,
-and every other identifier spelled like either the old or new name, with its enclosing
-expressions, must keep its symbol, type and conversion. An unrelated destination name
+and every other simple or generic name spelled like either the old or new name, with its
+enclosing expressions and including those in the other files of a partial type, must keep
+its symbol, type and conversion. An unrelated destination name
 in another scope does not prevent a rename. `nameof` results follow
 the new name, as a rename intends, but a compiler-supplied argument such as
 `CallerArgumentExpression` that would change withholds the fix.
@@ -218,24 +222,30 @@ the new name, as a rename intends, but a compiler-supplied argument such as
   constructors and interface targets changing concrete type are withheld.
 - `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
   block namespace and removes one four-space indentation level. Nested namespaces,
-  directives, multiline text and ambiguous layouts are withheld. A consumer must exclude
+  directives, multiline text and ambiguous layouts are withheld, and so is a conversion
+  that would change a string's value or a compiler-supplied argument such as a caller
+  line number. A consumer must exclude
   source exported or concatenated into a different compilation.
 - `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
   adding that type and uses the argument-addition validator. Existing parameter names,
-  types, ref kinds and generic arity must match; the supplied proof explains the new value.
+  types, ref kinds and generic arity must match, comparing generic overloads with the call's
+  type arguments; the supplied proof explains the new value.
 - `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports `DateTime.UtcNow`,
   `DateTimeOffset.UtcNow`/`Now`, paired Stopwatch timestamp measurements, Task delays/
   timed waits and explicit `new PeriodicTimer(TimeSpan)` or
   `new CancellationTokenSource(TimeSpan)` constructors. The consumer chooses the
   application's clock; the library requires a TimeProvider local, parameter or
-  instance member. Local DateTime
-  kinds, ambiguous timestamp uses and unsupported argument shapes are withheld.
+  instance member. Either end of a Stopwatch measurement yields one fix that rewrites the
+  timestamp and every elapsed-time use together. Local DateTime kinds, ambiguous timestamp
+  uses, timer creations with an object initializer and unsupported argument shapes are
+  withheld.
 - `Fix.For(property).UseInitOnly().SafeWhen(symbol => ...)` converts an unrestricted
   automatic setter to init, proves symbol correspondence and compilation, and asks the
   consumer to approve its construction/serialization contract. Implemented or restricted
   setters are withheld.
 - `Fix.For(creation).AddInitializer(member, expression).SafeWhen(value => ...)` adds a
-  previously unassigned simple member, proves unchanged constructed type and binding to
+  previously unassigned simple member, proves unchanged constructed type, enclosing
+  bindings, compiler-supplied arguments such as `CallerArgumentExpression` and binding to
   that member, and asks the consumer to prove the new value. Existing assignments remain.
 
 Adding `static` to a sealed class replaces the written `sealed` token; `ModifierChange`
@@ -249,6 +259,8 @@ no child evaluations, so empty collections need no special-case bypass.
 `Fix.For(statementNode).UseAssertAll().Propose()` converts a synchronous `foreach (var ...)`
 containing one xUnit assertion to `Assert.All`. The collection must implement
 `IEnumerable<T>` of the exact loop element type; the inner assertion must keep its binding.
-Await/ref expressions and pattern-only enumerators are withheld. Choosing this builder
+Await/ref expressions, pattern-only enumerators and a public `GetEnumerator` that is not
+the interface's (outside arrays and the common `System.Collections.Generic` collections)
+are withheld. Choosing this builder
 explicitly accepts xUnit's aggregated failure reporting instead of stopping at the first
 failing item. It does not decide which test loops should use collection assertions.
