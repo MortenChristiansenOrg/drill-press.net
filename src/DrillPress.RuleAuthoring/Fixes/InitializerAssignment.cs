@@ -35,7 +35,7 @@ public sealed class InitializerAssignment
         _value = value;
     }
 
-    /// <summary>Proposes the assignment when the original creation keeps its type and the new value binds to the selected member. Existing assignments are never overwritten. The caller proves the new value's meaning.</summary>
+    /// <summary>Proposes the assignment when the original creation keeps its type, enclosing expressions keep their bindings, compiler-supplied arguments such as caller argument expressions are unchanged, and the new value binds to the selected member. Existing assignments are never overwritten. The caller proves the new value's meaning.</summary>
     public FixProposal? SafeWhen(Func<CodeExpression, bool> proof)
     {
         if (_syntax is not BaseObjectCreationExpressionSyntax creation)
@@ -61,30 +61,46 @@ public sealed class InitializerAssignment
                 initializer.Expressions.Count == 0 ? " " + text + " " : " " + text + ","
             );
         var before = _source.Model.GetTypeInfo(creation).Type;
-        return SourceChanges.Propose(
+        return SourceChanges.ProposeExplained(
             [edit],
             context =>
             {
                 if (
-                    context.Map(_source, creation)
+                    context.Evidence(_source, creation, [edit]) is not { } evidence
+                    || context.Map(_source, creation)
                         is not {
                             After: BaseObjectCreationExpressionSyntax { Initializer: { } after }
                         } mapped
                     || !context.Same(before, mapped.Model.GetTypeInfo(mapped.After).Type)
                     || context.RewrittenSource(_source) is not { } rewritten
                 )
-                    return false;
+                    return "the creation does not keep its type after the edit";
+                if (RewriteChecks.EnclosingBindings(evidence) is { Holds: false } enclosing)
+                    return enclosing.Reason;
+                if (
+                    RewriteChecks.CompilerSuppliedArguments(evidence, null) is
+                    { Holds: false } supplied
+                )
+                    return supplied.Reason;
                 var assigned = after
                     .Expressions.OfType<AssignmentExpressionSyntax>()
                     .FirstOrDefault(assignment =>
                         assignment.Left is IdentifierNameSyntax name
                         && name.Identifier.ValueText == _member
                     );
-                return assigned is not null
-                    && mapped.Model.GetOperation(assigned) is ISimpleAssignmentOperation assignment
-                    && assignment.Target is IMemberReferenceOperation member
-                    && member.Member.Name == _member
-                    && proof(new CodeExpression(rewritten, assigned.Right));
+                if (
+                    assigned is null
+                    || mapped.Model.GetOperation(assigned)
+                        is not ISimpleAssignmentOperation
+                        {
+                            Target: IMemberReferenceOperation member
+                        }
+                    || member.Member.Name != _member
+                )
+                    return "the new assignment does not bind to the member";
+                return proof(new CodeExpression(rewritten, assigned.Right))
+                    ? null
+                    : "the rule's SafeWhen proof returned false";
             }
         );
     }
