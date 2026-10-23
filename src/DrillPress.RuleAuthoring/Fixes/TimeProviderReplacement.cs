@@ -6,7 +6,7 @@ using static DrillPress.TimeProviderQueries;
 namespace DrillPress;
 
 /// <summary>Replaces supported framework clock reads, elapsed-time measurements and timed waits with a caller-selected TimeProvider in scope.</summary>
-/// <remarks>Local date kinds are not changed. Stopwatch measurements require a timestamp local used only by GetElapsedTime in the same function. Named/default timed-wait shapes not supported by the proof are withheld.</remarks>
+/// <remarks>Local date kinds are not changed. Stopwatch measurements require a timestamp local used only by GetElapsedTime in the same function, and either end yields one fix that rewrites the timestamp and every elapsed-time use together. Named/default timed-wait shapes not supported by the proof, and timer creations with an object initializer, are withheld.</remarks>
 public sealed class TimeProviderReplacement
 {
     private static readonly CodeType _stopwatch = CodeType.Framework(
@@ -94,38 +94,65 @@ public sealed class TimeProviderReplacement
     }
 
     // Stopwatch.GetTimestamp() and Stopwatch.GetElapsedTime(started) are rewritten together: only a timestamp stored in a
-    // local that is read solely by GetElapsedTime in the same function, so both sides always use the same clock.
+    // local that is read solely by GetElapsedTime in the same function, and always as one proposal, so both ends of a
+    // measurement use the same clock whichever end the rule selected.
     private static FixProposal? MeasureWithClock(CodeInvocation call, string clock)
     {
         var model = call.Source.Model;
         var syntax = call.Operation.Syntax;
-        if (call.Target.Name == "GetTimestamp" && call.Arguments.Count == 0)
+        var measured = call.Target.Name switch
         {
-            if (
-                syntax.Parent
-                    is not EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax declarator }
-                || model.GetDeclaredSymbol(declarator) is not ILocalSymbol local
-                || !IsOnlyMeasured(local, model)
-            )
-            {
-                return null;
-            }
-            return Fix.For(call)
+            "GetTimestamp" when call.Arguments.Count == 0 => syntax.Parent
+                is EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax declarator }
+                ? model.GetDeclaredSymbol(declarator) as ILocalSymbol
+                : null,
+            "GetElapsedTime" when call.Arguments is [{ Value: { } started }] => started.Symbol
+                as ILocalSymbol,
+            _ => null,
+        };
+        if (measured is null || Measurement(measured, model) is not var (timestamp, uses))
+            return null;
+        var parts = new List<FixProposal?>
+        {
+            Fix.For(new CodeInvocation(call.Source, timestamp))
                 .ReplaceWith($"{clock}.GetTimestamp()")
-                .SafeWhen(change => CallsClock(change.After.Operation, "GetTimestamp"));
-        }
+                .SafeWhen(change => CallsClock(change.After.Operation, "GetTimestamp")),
+        };
+        foreach (var use in uses.Select(use => new CodeInvocation(call.Source, use)))
+            parts.Add(
+                Fix.For(use)
+                    .ReplaceWith($"{clock}.GetElapsedTime({{0}})", use.Arguments[0].Value!)
+                    .SafeWhen(change => CallsClock(change.After.Operation, "GetElapsedTime"))
+            );
+        return parts.Any(part => part is null)
+            ? FixProposal.Withheld("a part of the measurement cannot use the clock")
+            : FixProposal.All(parts!);
+    }
+
+    // The timestamp initializer and every GetElapsedTime call reading the local, when those are its only reads.
+    private static (IInvocationOperation Timestamp, IInvocationOperation[] Uses)? Measurement(
+        ILocalSymbol local,
+        SemanticModel model
+    )
+    {
         if (
-            call.Target.Name == "GetElapsedTime"
-            && call.Arguments is [{ Value: { } started }]
-            && started.Symbol is ILocalSymbol measured
-            && IsOnlyMeasured(measured, model)
+            !IsOnlyMeasured(local, model)
+            || local.DeclaringSyntaxReferences[0].GetSyntax()
+                is not VariableDeclaratorSyntax { Initializer.Value: var initializer } declarator
+            || model.GetOperation(initializer) is not IInvocationOperation timestamp
+            || declarator.Ancestors().FirstOrDefault(ElementSyntax.IsFunction) is not { } function
         )
-        {
-            return Fix.For(call)
-                .ReplaceWith($"{clock}.GetElapsedTime({{0}})", started)
-                .SafeWhen(change => CallsClock(change.After.Operation, "GetElapsedTime"));
-        }
-        return null;
+            return null;
+        var uses = function
+            .DescendantNodes()
+            .OfType<IdentifierNameSyntax>()
+            .Where(name =>
+                SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(name).Symbol, local)
+            )
+            .Select(name => model.GetOperation(name.Parent!.Parent!.Parent!))
+            .OfType<IInvocationOperation>()
+            .ToArray();
+        return (timestamp, uses);
     }
 
     private static bool IsOnlyMeasured(ILocalSymbol local, SemanticModel model)
@@ -209,6 +236,10 @@ public sealed class TimeProviderReplacement
         {
             return null;
         }
+        if (creation.Syntax is ObjectCreationExpressionSyntax { Initializer: not null })
+            return FixProposal.Withheld(
+                "the creation has an object initializer, which the replacement would drop"
+            );
         return Fix.For(creation)
             .ReplaceWith($"new {type}({{0}}, {clock})", period)
             .SafeWhen(change => KeepsCallWithClock(change));

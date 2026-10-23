@@ -70,6 +70,19 @@ public sealed class FixProposal
         return new(reason);
     }
 
+    // One atomic proposal from parts that are only safe together, such as both ends of a measurement. Each part's
+    // proof runs against the complete batch, and a withheld part withholds the whole.
+    internal static FixProposal All(IReadOnlyList<FixProposal> parts) =>
+        parts.FirstOrDefault(part => part.Edits.Count == 0) is { } withheld
+            ? withheld
+            : new(
+                parts.SelectMany(part => part.Edits).Distinct().ToArray(),
+                (project, combined) =>
+                    parts
+                        .Select(part => part.Check(project, combined))
+                        .FirstOrDefault(reason => reason is not null)
+            );
+
     /// <summary>The original-text and byte-identity-anchored replacements; empty when the proposal was withheld.</summary>
     public IReadOnlyList<SourceEdit> Edits { get; }
 

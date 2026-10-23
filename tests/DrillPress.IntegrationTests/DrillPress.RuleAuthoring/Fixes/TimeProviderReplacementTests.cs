@@ -74,6 +74,87 @@ public sealed class TimeProviderReplacementTests(SdkFixture fixture) : IClassFix
         Assert.Equal([true, true], result.Findings.Select(finding => finding.HasFix).ToArray());
     }
 
+    [Theory]
+    [InlineData("GetTimestamp")]
+    [InlineData("GetElapsedTime")]
+    public async Task Either_end_of_a_measurement_rewrites_both_ends(string selected)
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """
+                    using System;
+                    using System.Diagnostics;
+                    class A(TimeProvider clock) {
+                        TimeSpan M() {
+                            var started = Stopwatch.GetTimestamp();
+                            return Stopwatch.GetElapsedTime(started) + Stopwatch.GetElapsedTime(started);
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("CLOCK", "Use the clock.")
+            .For(Code.Calls.ToMethodsNamed(selected))
+            .Forbid(fix: call => Fix.For(call).UseTimeProvider("clock").Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.All(result.Findings, finding => Assert.True(finding.HasFix));
+        Assert.Equal(
+            """
+            using System;
+            using System.Diagnostics;
+            class A(TimeProvider clock) {
+                TimeSpan M() {
+                    var started = clock.GetTimestamp();
+                    return clock.GetElapsedTime(started) + clock.GetElapsedTime(started);
+                }
+            }
+            """,
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
+    public async Task A_timer_with_an_object_initializer_is_not_rewritten()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            using System;
+            using System.Threading;
+            class A(TimeProvider clock) {
+                PeriodicTimer M(TimeSpan configured) => new PeriodicTimer(TimeSpan.FromSeconds(1)) { Period = configured };
+            }
+            """;
+        workspace.AddProject("A", [new("A.cs", source)]);
+        var rules = new RuleCatalog();
+        rules
+            .Rule("TIMER", "Use the clock.")
+            .For(Code.ObjectCreations.Of(CodeType.Of<System.Threading.PeriodicTimer>()))
+            .Forbid(fix: creation => Fix.For(creation).UseTimeProvider("clock").Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            TIMER Use the clock.
+            A.cs
+              4:45
+                fix withheld: the creation has an object initializer, which the replacement would drop
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
     [Fact]
     public async Task A_local_DateTime_kind_is_not_changed_by_clock_replacement()
     {
