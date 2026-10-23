@@ -61,12 +61,15 @@ public sealed class FixProposal
     }
 
     /// <summary>Records that a factory offers no correction and why, such as <c>FixProposal.Withheld("no TimeProvider is in scope")</c>. The finding keeps no fix; <c>drillpress check --explain-fixes</c> and <c>RuleTestResult.ExplainedOutput</c> show the reason.</summary>
-    /// <param name="reason">A short single-line explanation.</param>
+    /// <param name="reason">A short single-line explanation without control characters such as tabs.</param>
     public static FixProposal Withheld(string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        if (reason.Any(character => character is '\r' or '\n'))
-            throw new ArgumentException("The reason must be a single line.", nameof(reason));
+        if (reason.Any(character => char.IsControl(character) || character is '\u2028' or '\u2029'))
+            throw new ArgumentException(
+                "The reason must be a single line without control characters.",
+                nameof(reason)
+            );
         return new(reason);
     }
 

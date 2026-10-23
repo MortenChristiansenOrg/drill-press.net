@@ -5,7 +5,7 @@ the finding without a fix; `FixProposal.Withheld("reason")` does too and records
 Builders may return null or a withheld proposal for unsupported source shapes.
 `drillpress check --explain-fixes` (or `result.ExplainedOutput` in tests) prints the
 recorded reason, or the check that rejected the fix during validation, under the finding.
-A null proposal has no explanation; `Withheld` requires a nonblank, single-line reason.
+A null proposal has no explanation; `Withheld` requires a nonblank, single-line reason without control characters such as tabs.
 Start at `Fix.For(candidate)` (or `Fix.Extract(group)`) and finish with
 `Propose()` or `SafeWhen(proof)`, except `AddArgumentOfType`, which finishes directly.
 
