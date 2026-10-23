@@ -209,7 +209,7 @@ public sealed class AnalysisSolution
                 filter.Names is not { } names
                 || !Options.EnableOptimizations
                 || CreatedTypeName(creation.Syntax) is not { } name
-                || names.Accepts(name)
+                || TypeReferenceIndex.Keys(name).Any(names.Accepts)
                 || Aliases.Contains(name)
             );
 
@@ -221,7 +221,8 @@ public sealed class AnalysisSolution
             .Select(file => file.Source)
             .Where(source => !Options.EnableOptimizations || filter.Includes(source));
 
-    // The rightmost identifier of a written type, which is the created type's name unless it is an alias.
+    // The rightmost identifier of a written type, which is the created type's name unless it is an alias or a
+    // native-integer keyword.
     private static string? CreatedTypeName(BaseObjectCreationExpressionSyntax creation) =>
         (creation as ObjectCreationExpressionSyntax)?.Type switch
         {

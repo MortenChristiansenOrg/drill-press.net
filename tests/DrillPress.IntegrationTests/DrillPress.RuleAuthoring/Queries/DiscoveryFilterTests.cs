@@ -118,6 +118,31 @@ public sealed class DiscoveryFilterTests(SemanticRuleFixture fixture)
     }
 
     [Fact]
+    public void Creations_of_native_integer_types_include_their_keywords()
+    {
+        var project = fixture.Project(
+            """
+            class C
+            {
+                object[] M() => [new nint(), new System.IntPtr(), new nuint(), new System.UIntPtr()];
+            }
+            """
+        );
+        var signed = Code.ObjectCreations.Of(CodeType.Of<nint>());
+        var unsigned = Code.ObjectCreations.Of(CodeType.Of<nuint>());
+
+        var found = signed
+            .Concat(unsigned)
+            .In(new AnalysisSolution([project]))
+            .Select(creation => creation.Syntax.ToString());
+
+        Assert.Equal(
+            ["new nint()", "new System.IntPtr()", "new nuint()", "new System.UIntPtr()"],
+            found
+        );
+    }
+
+    [Fact]
     public void References_to_several_members_select_each_configured_member()
     {
         var project = fixture.Project(

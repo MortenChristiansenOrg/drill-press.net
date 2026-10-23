@@ -128,7 +128,7 @@ internal sealed class TypeReferenceIndex
     }
 
     // Native-integer keywords are identifiers that bind to IntPtr and UIntPtr; keep the written name for same-named types.
-    private static string[] Keys(string identifier) =>
+    internal static string[] Keys(string identifier) =>
         identifier switch
         {
             "nint" => [identifier, "IntPtr"],
