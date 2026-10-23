@@ -350,6 +350,8 @@ public static class RewriteChecks
 
     // Caller line numbers change only after an edit and caller argument expressions only around one, so calls
     // ending before a proposal's first edit in a file keep their values; other proposals check their own edits.
+    // An attribute of a declaration that contains an edit precedes the declared name, which supplies its
+    // caller member name.
     internal static CheckOutcome CompilerSuppliedArguments(
         RewriteEvidence change,
         SyntaxNode? approvedTransition
@@ -366,14 +368,14 @@ public static class RewriteChecks
             foreach (
                 var syntax in source
                     .Tree.GetRoot(source.Project.CancellationToken)
-                    .DescendantNodes(node => node.Span.End > first)
+                    .DescendantNodes(node => node.Span.End > first || node is AttributeListSyntax)
                     .Where(node =>
                         node.Span.End > first
-                        && node
-                            is InvocationExpressionSyntax
-                                or BaseObjectCreationExpressionSyntax
-                                or ElementAccessExpressionSyntax
-                                or AttributeSyntax
+                            && node
+                                is InvocationExpressionSyntax
+                                    or BaseObjectCreationExpressionSyntax
+                                    or ElementAccessExpressionSyntax
+                        || node is AttributeSyntax
                     )
             )
             {

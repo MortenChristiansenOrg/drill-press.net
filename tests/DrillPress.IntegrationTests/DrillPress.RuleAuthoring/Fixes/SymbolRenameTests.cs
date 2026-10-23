@@ -209,6 +209,11 @@ public sealed class SymbolRenameTests(SdkFixture fixture) : IClassFixture<SdkFix
         "1:51",
         "the member is virtual, abstract, overriding or extern"
     )]
+    [InlineData(
+        "class WhereAttribute([System.Runtime.CompilerServices.CallerMemberName] string member = \"\") : System.Attribute { } class A { [Where] private int Count() => 1; }",
+        "1:146",
+        "`Where` at 1:127 receives different compiler-supplied arguments, such as a caller line number"
+    )]
     public async Task Renames_that_could_change_meaning_are_withheld(
         string source,
         string location,

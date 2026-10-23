@@ -55,7 +55,7 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
     public async Task A_caller_line_number_and_file_path_on_an_attribute_that_moves_do_not_withhold_the_conversion()
     {
         var workspace = fixture.Workspace();
-        const string source = """
+        var source = """
             using System;
             using System.Runtime.CompilerServices;
             namespace N {
@@ -71,7 +71,7 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
                 class A { }
             }
 
-            """;
+            """.ReplaceLineEndings("\n");
         workspace.AddProject("A", [new("A.cs", source)]);
 
         var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
