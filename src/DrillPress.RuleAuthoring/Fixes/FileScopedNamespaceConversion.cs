@@ -18,7 +18,7 @@ public sealed class FileScopedNamespaceConversion
         _declaration = declaration.Syntax;
     }
 
-    /// <summary>Proposes a file-scoped namespace, retaining declared type names. Nested namespaces, directives, multiline text and ambiguous indentation withhold the fix.</summary>
+    /// <summary>Proposes a file-scoped namespace, retaining declared type names, string values and compiler-supplied arguments such as caller line numbers. Nested namespaces, directives, multiline text and ambiguous indentation withhold the fix.</summary>
     public FixProposal? Propose() => Convert(_source, _declaration);
 
     private static FixProposal? Convert(
@@ -98,20 +98,60 @@ public sealed class FileScopedNamespaceConversion
         }
         edits.Add(SourceChanges.Replace(source, closeLine.SpanIncludingLineBreak, ""));
         var declared = DeclaredTypeNames(source.Model, declaration);
-        return SourceChanges.Propose(
+        var strings = StringValues(declaration);
+        return SourceChanges.ProposeExplained(
             edits,
-            context =>
-                context.TreeFor(source) is { } tree
-                && tree.GetRoot()
-                    .DescendantNodes()
-                    .OfType<FileScopedNamespaceDeclarationSyntax>()
-                    .SingleOrDefault()
-                    is { } after
-                && after.Name.ToString() == declaration.Name.ToString()
-                && DeclaredTypeNames(context.Rewritten.GetSemanticModel(tree), after)
-                    .SequenceEqual(declared)
+            context => Validate(context, source, declaration, declared, strings, edits)
         );
     }
+
+    // The same namespace declaring the same types, every string keeping its value, and every compiler-supplied
+    // argument, such as a caller line number, unchanged.
+    private static string? Validate(
+        RewriteContext context,
+        AnalysisSource source,
+        NamespaceDeclarationSyntax declaration,
+        List<string> declared,
+        List<string> strings,
+        IReadOnlyList<SourceEdit> edits
+    )
+    {
+        if (
+            context.TreeFor(source) is not { } tree
+            || tree.GetRoot()
+                .DescendantNodes()
+                .OfType<FileScopedNamespaceDeclarationSyntax>()
+                .SingleOrDefault()
+                is not { } after
+            || after.Name.ToString() != declaration.Name.ToString()
+        )
+            return "the edit does not produce the same file-scoped namespace";
+        var model = context.Rewritten.GetSemanticModel(tree);
+        if (!DeclaredTypeNames(model, after).SequenceEqual(declared))
+            return "the file-scoped namespace does not declare the same types";
+        if (!StringValues(after).SequenceEqual(strings))
+            return "a string's value changes with the indentation";
+        var evidence = new RewriteEvidence(
+            context,
+            new(source, source.Tree.GetRoot(), tree.GetRoot(), model),
+            [],
+            edits
+        );
+        return RewriteChecks.CompilerSuppliedArguments(evidence, null).Reason;
+    }
+
+    private static List<string> StringValues(SyntaxNode root) =>
+        root.DescendantTokens().Where(IsStringText).Select(token => token.ValueText).ToList();
+
+    private static bool IsStringText(SyntaxToken token) =>
+        token.Kind()
+            is SyntaxKind.StringLiteralToken
+                or SyntaxKind.Utf8StringLiteralToken
+                or SyntaxKind.SingleLineRawStringLiteralToken
+                or SyntaxKind.Utf8SingleLineRawStringLiteralToken
+                or SyntaxKind.MultiLineRawStringLiteralToken
+                or SyntaxKind.Utf8MultiLineRawStringLiteralToken
+                or SyntaxKind.InterpolatedStringTextToken;
 
     private static List<string> DeclaredTypeNames(SemanticModel model, SyntaxNode root) =>
         root.DescendantNodes()
@@ -141,10 +181,6 @@ public sealed class FileScopedNamespaceConversion
     }
 
     private static bool IsMultiLineText(SyntaxToken token) =>
-        token.Kind()
-            is SyntaxKind.StringLiteralToken
-                or SyntaxKind.InterpolatedStringTextToken
-                or SyntaxKind.MultiLineRawStringLiteralToken
-                or SyntaxKind.InterpolatedMultiLineRawStringStartToken
+        (IsStringText(token) || token.IsKind(SyntaxKind.InterpolatedMultiLineRawStringStartToken))
         && token.Text.Contains('\n');
 }
