@@ -46,6 +46,46 @@ public sealed class MethodOverloadsTests(SdkFixture fixture) : IClassFixture<Sdk
     }
 
     [Fact]
+    public void Matching_names_compares_generic_overloads_with_the_calls_type_arguments()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """
+                    using System.Threading;
+                    class A {
+                        static T Run<T>(T value) => value;
+                        static T Run<T>(T value, CancellationToken token) => value;
+                        static T Other<T>(T value) => value;
+                        static T Other<T>(T renamed, CancellationToken token) => renamed;
+                        void M() { Run(1); Other("a"); }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var matches = Code
+            .Calls.In(solution)
+            .Select(call =>
+                call.Target.Name
+                + ":"
+                + string.Join(
+                    ",",
+                    call.Target.AddingParameter(CodeType.Of<CancellationToken>())
+                        .Select(method => method.ToDisplayString())
+                )
+            )
+            .ToArray();
+
+        Assert.Equal(["Run:A.Run<T>(T, System.Threading.CancellationToken)", "Other:"], matches);
+    }
+
+    [Fact]
     public void Generic_overloads_match_through_the_methods_own_type_parameters_ignoring_nullability()
     {
         var workspace = fixture.Workspace();

@@ -121,4 +121,53 @@ public sealed class ReusableFixTests(SdkFixture fixture) : IClassFixture<SdkFixt
             result.FixedText("A.cs")
         );
     }
+
+    [Fact]
+    public async Task A_typed_argument_is_added_to_a_generic_overload()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """
+                    using System.Threading;
+                    class A {
+                        static T Run<T>(T value) => value;
+                        static T Run<T>(T value, CancellationToken token) => value;
+                        int M() => Run(1);
+                    }
+                    """
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("TOKEN", "Pass a token.")
+            .For(Code.Calls.ToMethodsNamed("Run"))
+            .Forbid(fix: call =>
+                Fix.For(call)
+                    .AddArgumentOfType(
+                        CodeType.Of<CancellationToken>(),
+                        "CancellationToken.None",
+                        _ => true
+                    )
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal("TOKEN Pass a token.\nA.cs\n  +5:16\n", result.Output);
+        Assert.Equal(
+            """
+            using System.Threading;
+            class A {
+                static T Run<T>(T value) => value;
+                static T Run<T>(T value, CancellationToken token) => value;
+                int M() => Run(1, CancellationToken.None);
+            }
+            """,
+            result.FixedText("A.cs")
+        );
+    }
 }

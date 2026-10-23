@@ -5,7 +5,7 @@ namespace DrillPress;
 /// <summary>Candidate overloads that add a typed parameter. Selection is evidence, never proof that changing an overload preserves behavior.</summary>
 public static class MethodOverloads
 {
-    /// <summary>Enumerates same-name, same-static-shape overloads adding exactly one parameter of the requested type and retaining the other parameter types in order. Types compare by symbol identity, ignoring nullable annotations, and generic overloads compare with the method's own type parameters in place of theirs. By default, existing parameter names, ref kinds and generic arity must also match.</summary>
+    /// <summary>Enumerates same-name, same-static-shape overloads adding exactly one parameter of the requested type and retaining the other parameter types in order. Types compare by symbol identity, ignoring nullable annotations, and generic overloads compare with the method's own type arguments in place of their type parameters. By default, existing parameter names, ref kinds and generic arity must also match.</summary>
     /// <param name="method">The original bound method (extension methods are normalized).</param>
     /// <param name="parameterType">The single new parameter's type.</param>
     /// <param name="matchNames">Whether retained names, ref kinds and arity must match, suitable for named-argument transitions.</param>
@@ -30,14 +30,15 @@ public static class MethodOverloads
                     matchNames
                         ? candidate.Arity == target.Arity
                             && target.Parameters.All(parameter =>
-                                candidate.Parameters.Any(other =>
-                                    other.Name == parameter.Name
-                                    && other.RefKind == parameter.RefKind
-                                    && SymbolEqualityComparer.Default.Equals(
-                                        other.Type,
-                                        parameter.Type
+                                Constructed(candidate, target)
+                                    .Parameters.Any(other =>
+                                        other.Name == parameter.Name
+                                        && other.RefKind == parameter.RefKind
+                                        && SymbolEqualityComparer.Default.Equals(
+                                            other.Type,
+                                            parameter.Type
+                                        )
                                     )
-                                )
                             )
                         : RetainedTypes(candidate, target.OriginalDefinition)
                             .Where(type => !parameterType.Matches(type))
@@ -50,6 +51,13 @@ public static class MethodOverloads
                 )
             );
     }
+
+    // The candidate with the bound method's type arguments in place of its own type parameters, such as
+    // Run<int>(int, CancellationToken) for Run<T>(T, CancellationToken) when the call binds Run<int>(int).
+    private static IMethodSymbol Constructed(IMethodSymbol candidate, IMethodSymbol target) =>
+        candidate.Arity > 0 && candidate.Arity == target.Arity
+            ? candidate.Construct([.. target.TypeArguments])
+            : candidate;
 
     // The candidate's parameter types, with its own type parameters replaced by the original method's, so generic
     // overloads compare by identity.

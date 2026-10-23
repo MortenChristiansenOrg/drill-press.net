@@ -22,10 +22,15 @@ public sealed class InvocationFix : ExpressionFix
             return FixProposal.Withheld("the call does not resolve");
         var before = new CodeInvocation(Source, operation).Declaration;
         var overloads = before.AddingParameter(type).ToList();
-        if (overloads is not [var after])
+        if (overloads is not [var candidate])
             return FixProposal.Withheld(
                 "no unique overload adds only the required comparison or provider"
             );
+        // The transition expects the overload constructed like the call, such as Run<int> for Run<T>.
+        var after =
+            candidate.Arity > 0 && candidate.Arity == before.Arity
+                ? candidate.Construct([.. before.TypeArguments])
+                : candidate;
         return AddArgument(
                 after.Parameters.Single(parameter => type.Matches(parameter.Type)).Name,
                 expression
