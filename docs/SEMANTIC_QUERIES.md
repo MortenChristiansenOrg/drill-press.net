@@ -398,10 +398,11 @@ by `EventArgs` or a derived type.
 `method.AddingParameter(type, matchNames: true)` enumerates same-name, same-static-shape
 overloads that add one parameter of the type while keeping the others in order, with
 their names, ref kinds and generic arity. With `matchNames: false` only the retained types
-must match. Types compare by symbol identity, ignoring nullable annotations, and a generic
-overload compares with the method's own type parameters in place of its own. The consumer
-chooses visibility and ambiguity policy; this is candidate discovery, not proof that the
-overload behaves the same.
+must match. Types compare by symbol identity, ignoring nullable annotations. With
+`matchNames: false`, generic overloads compare through the original method's type
+parameters; the default currently misses overloads whose retained generic parameter
+types need that normalization. The consumer chooses visibility and ambiguity policy;
+this is candidate discovery, not proof that the overload behaves the same.
 
 `CodeType.FromSymbol(namedType)` captures a compiler-bound named type as a descriptor,
 including its nested metadata name, assembly name and constructed arguments from both the
@@ -452,7 +453,8 @@ analysis and no framework code executes.
 
 `AsBuiltString(expandConstants: true, stringOperandsOnly: true)` rejects top-level
 concatenations whose operands are not both strings, without restricting interpolation
-holes; the original two-parameter overload remains. `built.CoalesceLiterals()` merges
+holes; `AsBuiltString(expandConstants: false)` remains available. Both arguments are
+required when specifying `stringOperandsOnly`. `built.CoalesceLiterals()` merges
 adjacent literal parts and keeps the first part's location. `part.FormattingSyntax`
 preserves written alignment and format clauses, including punctuation, for exact
 string-template contracts.

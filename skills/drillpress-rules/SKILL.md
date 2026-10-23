@@ -41,7 +41,8 @@ or `.ReportOncePer(key)` → `.Forbid(fix?)` or `.Require(condition, fix?)`.
 
 - `Forbid()` reports every selected candidate; `Require(condition)` reports those
   failing it. Put the scope in the query and the obligation in `Require`.
-- IDs are unique, messages one line. A rule without `Forbid`/`Require` fails evaluation.
+- IDs are unique, IDs and messages are one line; the `drillpress-` ID prefix is
+  reserved (case-insensitively). A rule without `Forbid`/`Require` fails evaluation.
 - `Forbid`/`Require` return the rule, so another `.For(...)` adds a clause with the
   same ID, for example one for calls and one for loops.
 - Conditions are lambdas or reusable `RuleCondition<T>` values (`And`, `Or`, `Not`,
@@ -58,6 +59,7 @@ Start from the `Code` root that names what the convention is about:
 | `Methods`, `Fields`, `EnumMembers`, `Properties`, `Parameters`; `Declarations` (all other symbols) | `CodeMethod`, `CodeField`, `CodeEnumMember`, `CodeProperty`, `CodeParameter`; `CodeSymbol` |
 | `TestMethods`, `TestClasses` (xUnit, NUnit, MSTest) | `CodeMethod`, `CodeTypeDefinition` |
 | `Calls`, `ObjectCreations` | `CodeInvocation`, `CodeObjectCreation` |
+| `Routes`, `RouteGroups` (minimal APIs) | `CodeRoute` |
 | `MemberReferences`, `TypeReferences`, `ReferencesTo(symbol)` | `MemberReference`, `CodeTypeReference`, `CodeSymbol` |
 | `IfStatements`, `EmbeddedStatements`, `Catches`, `LocalVariables`, `ForEachLoops`, `OutVariables`, `Enumerations`, `NullChecks`, `Comments` | statement and comment shapes |
 | `Nodes<TSyntax>()`, `Operations<TOperation>()` | any Roslyn syntax or operation |
@@ -114,8 +116,11 @@ rules.Rule("PARAM001", "Group long parameter lists into a request type.")
 
 `ReportAt` accepts a candidate part, syntax node, token (`type.ExplicitModifier(...)`)
 or `SourceLocation`; a tuple resolves syntax in the compilation of its first code
-element. A custom record must implement `ICodeElement` (`Source`, `Location`) or report
-at an element, otherwise registration throws. `ReportOncePer(key)` shows one finding per key.
+element (searching nested tuples in order). Custom values should implement
+`ICodeElement` (`Source`, `Location`) or report at one. Registration rejects closed
+candidate types that cannot supply a location, and syntax/token/location selectors
+whose candidate type cannot supply a compilation. `ReportAt` returning null falls
+back to the candidate's location. `ReportOncePer(key)` shows one finding per key.
 
 ## Fixes
 
@@ -140,10 +145,11 @@ rules.Rule("TEAM006", "Add braces to if and else branches.")
     .Forbid(fix: branch => Fix.For(branch).AddBraces().Propose());
 ```
 
-`Propose()` works for `AddBraces()`, `UseVar()`, comment `Remove()`, accessibility
-`RemoveModifier(...)` and constant extraction. Expression replacements, argument
-removal and other modifiers need `SafeWhen`. Builders already withhold fixes for
-generated or inactive code, interior comments, compiler errors and changed bindings.
+`Propose()` owns the proof for braces, var, comment removal, redundant accessibility,
+constant extraction and supported structural/framework edits. Adding `sealed` or
+`static` assumes every consumer of the class is loaded. Expression replacements and
+argument changes need `SafeWhen`. Builders check source eligibility, compilation and
+their documented binding invariants.
 Details: [reference/fixes.md](reference/fixes.md).
 
 ## Tests
@@ -226,7 +232,9 @@ dotnet tool run drillpress fix --rules MyRules/bin/Debug/net10.0/MyRules.dll pat
 Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
 `status` prints only violation counts per project and fix complexity; use it to pick
-the next project or `--fix-complexity` level to work on.
+the next project or `--fix-complexity` level to work on. `--explain-fixes` explains
+withheld proposals; CLI options, profiling and protocol compatibility are in
+[reference/testing.md](reference/testing.md#running-against-real-code).
 
 Where a finding is a justified exception, the code says so with
 `// drillpress-allow RULE-ID: reason`, after the code on its line or on its own line

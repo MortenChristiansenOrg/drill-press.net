@@ -8,7 +8,7 @@ DrillPress rules in your repository without fetching online documentation. It ho
 | `SKILL.md` | Workflow, rule shape, candidate selection, report locations, fixes, tests, project setup, running and pitfalls |
 | `reference/queries.md` | Every `Code` root, filter, query operator and candidate member |
 | `reference/fixes.md` | Fix builders, what each proof must establish, and custom edits |
-| `reference/testing.md` | `RuleTestWorkspace` options, output assertions and coverage fakes |
+| `reference/testing.md` | Workspace options, assertions, allowances, coverage fakes, CLI options, profiles and bundle compatibility |
 | `examples/ExampleRules.cs`, `examples/ExampleRulesTests.cs` | Eight working rules with their tests |
 | `examples/TemplateExtractionRules.cs`, `examples/TemplateExtractionRulesTests.cs` | A bounded template-extraction proof and tests for accepted and unsupported cases |
 

@@ -3,8 +3,9 @@
 All operations start from `Fix.For(...)`, use original snapshots, reject compiler
 errors/generated/inactive source, and run in every affected loaded context.
 Unknown evidence retains the finding without a fix. The engine validates combined
-edits and exports their proven union atomically. Every chain ends with
-`Propose()`, where the library owns the proof, or `SafeWhen(...)`.
+edits and exports their proven union atomically. Finish with `Propose()`, where
+the library owns the proof, or `SafeWhen(...)`; `AddArgumentOfType` instead takes
+the proof and returns a proposal directly.
 
 ## Exact argument removal
 
@@ -65,7 +66,8 @@ otherwise. The library checks that the new argument binds to the named parameter
 retained arguments and the receiver keep their order, parameters, conversions and
 bindings, enclosing expressions bind as before, and no other compiler-supplied
 value changes; expanded `params` calls are withheld. `ArgumentAdditionChange`
-exposes both calls, the bound `AddedValue` and the resolved pair.
+exposes both calls, the bound `AddedValue`, `Rewrite`, `Same(before, after)` and
+`Expected` (null without an overload change).
 
 What the added value means is always the rule's proof. Some additions change
 behavior on purpose, such as passing `CultureInfo.InvariantCulture` where the
@@ -221,10 +223,12 @@ the new name, as a rename intends, but a compiler-supplied argument such as
 - `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
   adding that type and uses the argument-addition validator. Existing parameter names,
   types, ref kinds and generic arity must match; the supplied proof explains the new value.
-- `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports UTC clock reads,
-  paired Stopwatch timestamp measurements, Task delays/timed waits and supported timer/
-  cancellation-source constructors. The consumer chooses the application's clock; the
-  library requires a TimeProvider local, parameter or instance member. Local DateTime
+- `Fix.For(expression).UseTimeProvider(clockExpression).Propose()` supports `DateTime.UtcNow`,
+  `DateTimeOffset.UtcNow`/`Now`, paired Stopwatch timestamp measurements, Task delays/
+  timed waits and explicit `new PeriodicTimer(TimeSpan)` or
+  `new CancellationTokenSource(TimeSpan)` constructors. The consumer chooses the
+  application's clock; the library requires a TimeProvider local, parameter or
+  instance member. Local DateTime
   kinds, ambiguous timestamp uses and unsupported argument shapes are withheld.
 - `Fix.For(property).UseInitOnly().SafeWhen(symbol => ...)` converts an unrestricted
   automatic setter to init, proves symbol correspondence and compilation, and asks the

@@ -38,8 +38,8 @@ references are the test process's own assemblies, so snippets can use the BCL an
 packages the test project references, such as test-framework attributes for rules
 about `Code.TestMethods`. A project named like a loaded assembly, such as `Shop.Core`,
 keeps that assembly, so its snippets can use the real `Shop.Core` types; projects that
-depend on it see the workspace project instead of the assembly. Use the same path and text in two projects to model a
-linked file.
+depend on it see the workspace project instead of the assembly. Use the same path
+and text in two projects to model a linked file.
 
 ## Assertions
 
@@ -52,7 +52,8 @@ linked file.
   `[coverage: state]`.
 - `result.FixedText(path)` applies validated fixes in memory; assert the complete text.
 - `result.ExplainedOutput` is `Output` plus a `    fix withheld: <reason>` line under each
-  finding whose proposed fix was withheld, naming the check that rejected it. Use it to
+  finding with a recorded rejection, naming the check that rejected it. A factory
+  returning null supplies no explanation. Use it to
   debug a missing `+`, and to assert why a fix is withheld.
 - `result.Findings` gives `TestFinding(Rule, Path, Line, Column, Text, HasFix)` when the
   highlighted text matters.
@@ -64,12 +65,15 @@ configured exceptions) and, for fixes, a case where the proof fails.
 
 ## Allowances
 
-Code accepts a single finding with `// drillpress-allow RULE-ID[, RULE-ID]: reason`.
+Code accepts findings in a bounded source scope with
+`// drillpress-allow RULE-ID[, RULE-ID]: reason`.
 After code it allows findings that start on its line; on its own line it allows the
 whole statement or member/type declaration starting on the next code line (only
 comment lines may come between), or just that line when no statement or declaration
-starts there. `CheckAsync` applies allowances like the CLI, so a test can show that
-a rule's legitimate exceptions are expressible:
+starts there. IDs match the catalog exactly; only ordinary single-line comments count,
+and matching uses the finding's reported start (including `ReportAt`). `CheckAsync`
+applies allowances like the CLI, so a test can show that a rule's legitimate
+exceptions are expressible:
 
 ```csharp
 using DrillPress;
@@ -113,7 +117,11 @@ public sealed class LoggingAllowanceTests
 Allowances that allow nothing are reported as `drillpress-allow-unused` (the evidence
 lists the unused rule IDs; the fix removes them or the comment), and allowances without
 a rule ID or reason, naming an unknown rule or followed by a blank line as
-`drillpress-allow-invalid`. Rule IDs starting with `drillpress-` are reserved.
+`drillpress-allow-invalid`. Invalid allowances suppress nothing. Overlapping allowances
+use the smallest scope; a wider unused allowance is still reported. For linked files
+and target frameworks, a rule ID is used when any context uses that physical comment;
+skipped coverage rules are neither used nor unused. Rule IDs starting with
+`drillpress-` (case-insensitively) are reserved and cannot themselves be allowed.
 
 ## Coverage requirements
 
@@ -162,14 +170,70 @@ evidence, `ForEnumeration(loop).Started()` loop advancement, and
 
 ## Running against real code
 
-Build the bundle and run the installed tool:
+Build the rule bundle before running `drillpress check`, `fix` or `status` with
+`--rules path/to/Rules.dll target`. Targets are solutions, projects, directories or
+loose `.cs` files. The CLI loads the target with its SDK; the bundle consumes the
+captured compilation. Source generators receive additional files in build order,
+and referenced contexts generate before their dependents. Independent contexts can
+load in parallel; failures are reported in snapshot order.
 
-```sh
-dotnet build MyRules
-dotnet tool run drillpress check --rules MyRules/bin/Debug/net10.0/MyRules.dll App.sln
-```
+### Options and output
 
-`--include-referenced-projects` also lints dependencies of a project target,
-`--explain-coverage` shows coverage reasons, `--skip-coverage` skips coverage rules and
-their slow test runs (the output lists the skipped rules), `--show-fix-complexity` prints
-each rule's fix-effort estimate. A rule exception or an unfinished rule fails the run with exit code 2.
+| Option | Effect |
+| --- | --- |
+| `--explain-fixes` | Under a finding with a recorded rejection, prints `    fix withheld: <reason>` (four spaces). No extra text for a fix factory returning null. |
+| `--profile` | Emits JSON timing/counter events on stderr; compact diagnostic stdout is unchanged. |
+| `--no-optimization` | Uses exhaustive discovery for comparisons; findings should agree. |
+| `--include-referenced-projects` | Also lints dependencies of a project target. |
+| `--property Name=Value` | Overrides an evaluated build property; repeat for several. |
+| `--validate-compilation` | Validates the captured target compilation. |
+| `--show-fix-complexity` | Adds assigned complexity to each rule header. |
+| `--fix-complexity trivial,local,complex,architectural,unspecified` | Selects levels after full validation; a batch shared with an excluded rule is withheld. |
+| `--explain-coverage` | Prints coverage contexts, reasons and source ranges. |
+| `--refresh-coverage` / `--skip-coverage` | Refreshes cached evidence / skips coverage rules and lists them; mutually exclusive. |
+| `--build-host path` | Selects an explicit BuildHost rather than the installed one. |
+
+Findings use physical line/column coordinates. Calls report at their method name,
+including the final method in a fluent chain; `ReportAt` can choose another span.
+A validated fix is marked `  +5:32`, and column 1 is omitted (`  +5`). `fix`
+applies only validated batches and reports remaining findings. `status` shows
+project violation counts by fix complexity. Exit codes are 0 clean, 1 violations,
+2 failure, including a rule exception or unfinished rule. Allowances suppress
+findings before counting and fix planning; see [allowances](#allowances).
+
+Withheld explanations can identify source-shape gates, compiler errors, failed
+proofs, disagreements between contexts, conflicts or a complexity selection.
+`RuleTestResult.ExplainedOutput` uses the same format. Library callers can use
+`CompactDiagnosticRenderer.Render(result, explainFixes: true)` in `DrillPress.Manifest`.
+Explanations diagnose a proposal; they do not grant permission to bypass its proof.
+
+### Profiles
+
+Each stderr line starts with `drillpress-profile ` followed by one JSON event with
+the process role, PID, phase, wall/user/kernel CPU milliseconds and peak working set.
+Counter events have a non-null `count` and zero durations. The CLI forwards profiling
+to BuildHost and the bundle; their direct commands also accept `--profile`.
+
+`rule.<id>` includes candidate selection and proposal construction, including shared
+work the first rule triggered. `rule.<id>.own` excludes shared work. After evaluation,
+`shared.<kind>` totals appear in name order for kinds that ran: `operations`,
+`member-references`, `type-references`, `declarations`, `relationships`, `facts`,
+`flow`, `errors`. Totals include coverage planning. Only outermost shared work in a
+flow counts; materializing an individual query remains the rule's own work.
+
+Use `member.symbol.bindings`, `type.symbol.bindings` and `operation.bound.documents`
+to check discovery filters. Measurements are inclusive, process-local scopes, not
+an additive breakdown; process CPU can exceed wall time with parallel work. Peak
+working set is a process lifetime high-water mark. Profiling is best effort and
+does not affect diagnostics; a failed probe/output sink disables further events.
+
+### Bundle compatibility
+
+Pin the tool and every SDK package to the same exact product version, and rebuild
+the bundle after upgrading. The internal bundle response protocol is version **10**
+(`BundleResponseProtocol.CurrentVersion`); an incompatible response is rejected.
+`Finding.FixWithheld` transports a nullable rejection reason;
+`AggregatedFinding.FixWithheld` exposes the aggregated reason. JSON omits null values.
+The reason is absent for accepted fixes and when no proposal or reason was supplied.
+Direct bundle JSON is an internal exchange format; consume the CLI's compact findings
+when checking code.
