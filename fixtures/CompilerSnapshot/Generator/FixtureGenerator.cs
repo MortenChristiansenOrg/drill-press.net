@@ -34,5 +34,25 @@ public sealed class FixtureGenerator : IIncrementalGenerator
                 production.AddSource($"{name}.fixture.g.cs", $"// {name}");
             }
         );
+        // The compiler gives generators referenced projects as assemblies, without source declarations.
+        context.RegisterSourceOutput(
+            context.CompilationProvider,
+            (production, compilation) =>
+            {
+                if (
+                    compilation
+                        .GetTypeByMetadataName("Clock")
+                        ?.GetMembers("Now")
+                        .SingleOrDefault() is
+                    { } now
+                )
+                {
+                    production.AddSource(
+                        "Clock.g.cs",
+                        $"// Clock.Now has {now.DeclaringSyntaxReferences.Length} source declarations"
+                    );
+                }
+            }
+        );
     }
 }

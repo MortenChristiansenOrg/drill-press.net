@@ -294,6 +294,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
 
     // ASP.NET's validation generator treats any Map call as an endpoint and resolves a readonly field
     // passed last through the field's declaration, which only the field's own compilation can bind.
+    // The fixture generator reports the declarations it sees, so the test holds if ASP.NET changes.
     [Fact]
     public async Task Generators_see_referenced_projects_as_assemblies_like_the_compiler()
     {
@@ -320,13 +321,14 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
         await FileSystem.File.WriteAllTextAsync(
             consumer,
-            """
+            $"""
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
                 <TargetFramework>net10.0</TargetFramework>
               </PropertyGroup>
               <ItemGroup>
                 <FrameworkReference Include="Microsoft.AspNetCore.App" />
+                <Analyzer Include="{GeneratorPath}" />
                 <ProjectReference Include="../Dependency/Dependency.csproj" />
               </ItemGroup>
             </Project>
@@ -336,6 +338,11 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         await FileSystem.File.WriteAllTextAsync(
             FileSystem.Path.Combine(root, "Consumer", "Mapper.cs"),
             """
+            namespace Fixture
+            {
+                public interface IContract { string Value { get; } }
+            }
+
             public static class Mapper
             {
                 public static System.DateTime Map(System.DateTime value) => value;
@@ -348,8 +355,19 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         await RestoreAsync(consumer);
 
         var result = await ValidateAsync(consumer);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            FileSystem.Path.Combine(root, "Consumer", "snapshot.json"),
+            TestContext.Current.CancellationToken
+        );
 
         Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            "// Clock.Now has 0 source declarations",
+            snapshot
+                .Projects.Single(project => project.Name == "Consumer")
+                .Documents.Single(document => document.Path.EndsWith("Clock.g.cs"))
+                .Text
+        );
     }
 
     [Fact]
