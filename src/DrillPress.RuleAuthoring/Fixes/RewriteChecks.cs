@@ -343,7 +343,7 @@ public static class RewriteChecks
             _ => null,
         };
 
-    /// <summary>Compares compiler-supplied argument constants on retained calls and attributes, including caller-line and caller-argument-expression values outside the edited expression.</summary>
+    /// <summary>Compares compiler-supplied argument constants on retained calls and attributes outside the edited expression: caller-argument-expression and caller member name values, and the caller line numbers and file paths of calls.</summary>
     /// <remarks>An attribute's caller line number and file path are not compared: they say where the code is, and only reflection reads them. Already enforced by expression replacement through <see cref="ExpressionReplacement.SafeWhen"/>; add only transformation-specific obligations there.</remarks>
     public static ProofResult SameCompilerSuppliedArguments(RewriteEvidence change) =>
         CompilerSuppliedArguments(change, null).Result;
