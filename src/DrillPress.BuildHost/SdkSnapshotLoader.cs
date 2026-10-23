@@ -9,6 +9,7 @@ using DrillPress.Manifest;
 using Microsoft.Build.Evaluation;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.MSBuild;
 using Project = Microsoft.CodeAnalysis.Project;
 
@@ -257,6 +258,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 $"Could not load C# compilation '{project.Name}'."
             );
         var edges = new List<CompilationReferenceSnapshot>();
+        var sources = new List<SourceReference>();
         foreach (var reference in project.ProjectReferences)
         {
             if (dependencies[reference.ProjectId] is not { } pending)
@@ -275,13 +277,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 ?? throw new InvalidDataException(
                     $"Missing source compilation edge for '{project.Name}'."
                 );
-            compilation = compilation.ReplaceReference(
-                oldReference,
-                dependency.Compilation.ToMetadataReference(
-                    reference.Aliases,
-                    reference.EmbedInteropTypes
-                )
+            var newReference = dependency.Compilation.ToMetadataReference(
+                reference.Aliases,
+                reference.EmbedInteropTypes
             );
+            compilation = compilation.ReplaceReference(oldReference, newReference);
+            sources.Add(new SourceReference(newReference, dependency.Assembly));
             edges.Add(
                 new CompilationReferenceSnapshot(
                     ContextId(reference.ProjectId),
@@ -296,13 +297,22 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             liveProject.AnalyzerReferences,
             metadata.CompilerAssemblyPath
         );
-        var generated = RunGenerators(liveProject, analyzers, compilation, cancellationToken);
+        var generated = RunGenerators(
+            liveProject,
+            analyzers,
+            compilation,
+            sources,
+            cancellationToken
+        );
         return new GeneratedProject(
             metadata,
             generated.Compilation,
             generated.Trees,
             edges.ToArray(),
-            analyzers
+            analyzers,
+            new Lazy<MetadataReference?>(() =>
+                EmitReferenceAssembly(generated.Compilation, cancellationToken)
+            )
         );
     }
 
@@ -357,6 +367,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         Project project,
         ProjectAnalyzers analyzers,
         CSharpCompilation compilation,
+        List<SourceReference> sources,
         CancellationToken cancellationToken
     )
     {
@@ -372,8 +383,23 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             (CSharpParseOptions)project.ParseOptions!,
             project.AnalyzerOptions.AnalyzerConfigOptionsProvider
         );
+        // The compiler gives generators each referenced project as an assembly, whose symbols have no
+        // source declarations. A generator that follows a symbol to its declaration, as ASP.NET's
+        // validation generator does with a readonly field passed to any Map call, may otherwise reach a
+        // syntax tree of another compilation.
+        var replaced = new List<(MetadataReference Source, MetadataReference Assembly)>();
+        var input = compilation;
+        foreach (var source in sources)
+        {
+            if (source.Assembly.Value?.WithProperties(source.Reference.Properties) is { } assembly)
+            {
+                input = input.ReplaceReference(source.Reference, assembly);
+                replaced.Add((source.Reference, assembly));
+            }
+        }
+
         driver = driver.RunGeneratorsAndUpdateCompilation(
-            compilation,
+            input,
             out var generatedCompilation,
             out var diagnostics,
             cancellationToken
@@ -390,10 +416,29 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             );
         }
 
-        return new GeneratedCompilation(
-            (CSharpCompilation)generatedCompilation,
-            results.GeneratedTrees.ToHashSet()
+        var output = (CSharpCompilation)generatedCompilation;
+        foreach (var (source, assembly) in replaced)
+        {
+            output = output.ReplaceReference(assembly, source);
+        }
+
+        return new GeneratedCompilation(output, results.GeneratedTrees.ToHashSet());
+    }
+
+    // Emits what a reference assembly contains. A project whose declarations do not compile has none,
+    // and its dependents' generators see its source instead.
+    private static MetadataReference? EmitReferenceAssembly(
+        CSharpCompilation compilation,
+        CancellationToken cancellationToken
+    )
+    {
+        using var image = new MemoryStream();
+        var result = compilation.Emit(
+            image,
+            options: new EmitOptions(metadataOnly: true, includePrivateMembers: false),
+            cancellationToken: cancellationToken
         );
+        return result.Success ? MetadataReference.CreateFromImage(image.ToArray()) : null;
     }
 
     // The workspace lists additional files by random document ID; the compiler receives them in
@@ -456,7 +501,13 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         CSharpCompilation Compilation,
         HashSet<SyntaxTree> Trees,
         CompilationReferenceSnapshot[] Edges,
-        ProjectAnalyzers Analyzers
+        ProjectAnalyzers Analyzers,
+        Lazy<MetadataReference?> Assembly
+    );
+
+    private sealed record SourceReference(
+        MetadataReference Reference,
+        Lazy<MetadataReference?> Assembly
     );
 
     private sealed record GeneratedCompilation(

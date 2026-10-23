@@ -292,6 +292,66 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    // ASP.NET's validation generator treats any Map call as an endpoint and resolves a readonly field
+    // passed last through the field's declaration, which only the field's own compilation can bind.
+    [Fact]
+    public async Task Generators_see_referenced_projects_as_assemblies_like_the_compiler()
+    {
+        var root = CreateTemporaryDirectory("drillpress-generator-references-").FullName;
+        var dependency = FileSystem.Path.Combine(root, "Dependency", "Dependency.csproj");
+        var consumer = FileSystem.Path.Combine(root, "Consumer", "Consumer.csproj");
+        FileSystem.Directory.CreateDirectory(FileSystem.Path.GetDirectoryName(dependency)!);
+        FileSystem.Directory.CreateDirectory(FileSystem.Path.GetDirectoryName(consumer)!);
+        await FileSystem.File.WriteAllTextAsync(
+            dependency,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+              </PropertyGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(root, "Dependency", "Clock.cs"),
+            "public static class Clock { public static readonly System.DateTime Now = default; }",
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            consumer,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+              </PropertyGroup>
+              <ItemGroup>
+                <FrameworkReference Include="Microsoft.AspNetCore.App" />
+                <ProjectReference Include="../Dependency/Dependency.csproj" />
+              </ItemGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(root, "Consumer", "Mapper.cs"),
+            """
+            public static class Mapper
+            {
+                public static System.DateTime Map(System.DateTime value) => value;
+
+                public static System.DateTime Today() => Mapper.Map(Clock.Now);
+            }
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await RestoreAsync(consumer);
+
+        var result = await ValidateAsync(consumer);
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+    }
+
     [Fact]
     public async Task Validation_applies_analyzer_suppressors_and_honors_warning_exemptions()
     {
