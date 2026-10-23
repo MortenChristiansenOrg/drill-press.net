@@ -95,11 +95,6 @@ static FixProposal ProposeReplacement(
 <p>A multi-file proposal is validated as a unit, but physical application is atomic <em>per file</em>, not a filesystem-wide transaction. If later application fails, the CLI retains recovery information. There is no file-creation/deletion, project-wide rename, or general refactoring engine in this API. See the <a href="../docs/FIXING.md">application and recovery contract</a> for operational details.</p>
 <h2 id="test-fixes">Test the fixes you withhold</h2>
 <p>Check both <code>HasFix</code> and the complete <code>FixedText(path)</code> result. Include linked files, multiple frameworks, conflicting proposals, comments, invalid code, and different overload contexts. “Finding exists” does not prove “fix is safe.” The <a href="testing.html#first-test">next chapter</a> uses the production validator in memory.</p>
-<nav class="page-links" aria-label="Previous and next chapters">
-<a href="facts.html"><small>← PREVIOUS</small>Facts, comparisons, and baselines</a>
-<a href="testing.html"><small>NEXT →</small>Test and run your rules</a>
-</nav>
-<footer class="footer">Drill Press · Custom rule authoring</footer>
 <h2 id="reusable-edits">Reusable structural and framework edits</h2>
 <ul>
 <li><code>Fix.For(expression).UseCollectionExpression().Propose()</code> converts supported standard collections/arrays with a written target type, preserving the concrete type and each element&#x27;s evaluation count and order. Nonempty dictionary initializers, capacity constructors and interface targets changing concrete type are withheld.</li>
@@ -111,6 +106,11 @@ static FixProposal ProposeReplacement(
 </ul>
 <p>Adding <code>static</code> to a sealed class replaces the written <code>sealed</code> token; <code>ModifierChange</code> reports both the removed and added tokens. Rename permits a destination name in an unrelated scope, but rebinds references spelled like either name to reject capture or shadowing. Independent argument additions validate their own changed defaults in an atomic batch; caller-info changes around other edits remain unsafe. Evaluation-count checks with no registered inputs succeed only when both bounded evaluation traces have no child evaluations, so empty collections need no special-case bypass.</p>
 <p><code>Fix.For(statementNode).UseAssertAll().Propose()</code> converts a synchronous var foreach with one xUnit assertion to <code>Assert.All</code>, preserving element type and assertion binding. Choosing it explicitly accepts aggregated failure reporting. Await/ref expressions and pattern-only enumerators are withheld.</p>
+<nav class="page-links" aria-label="Previous and next chapters">
+<a href="facts.html"><small>← PREVIOUS</small>Facts, comparisons, and baselines</a>
+<a href="testing.html"><small>NEXT →</small>Test and run your rules</a>
+</nav>
+<footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
 <nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#builders">Start from what you selected</a><a href="#existing">Keep correction policy in your bundle</a><a href="#proposal">Build a custom edit</a><a href="#binding">Check binding without overstating it</a><a href="#agreement">Validation and application are separate</a><a href="#test-fixes">Test the fixes you withhold</a><a href="#reusable-edits">Reusable edits</a></nav>
 </main>

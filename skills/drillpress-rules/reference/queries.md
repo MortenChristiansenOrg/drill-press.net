@@ -7,7 +7,7 @@ cached per analysis; materialize one with `query.In(solution)` in tests.
 
 | Root | Yields | Notes |
 | --- | --- | --- |
-| `Files`, `FilesIncludingGenerated` | `CodeFile` | `Path`, `Name`, `Folder`; reports at 1:1 |
+| `Files`, `FilesIncludingGenerated` | `CodeFile` | `Path`, `Name`, `Folder`, `RelativePath` (null outside the project directory), `HasTopLevelStatements`; reports at 1:1 |
 | `Projects` | `AnalysisProject` | one per evaluated context (per target framework) |
 | `Types`, `Interfaces` | `CodeTypeDefinition` | partial types once per context |
 | `TypeDeclarations` | `CodeTypeDeclaration` | every written part; `TopLevel()` |
@@ -18,6 +18,7 @@ cached per analysis; materialize one with `query.In(solution)` in tests.
 | `TestMethods`, `TestClasses`, `AbstractTestClasses` | `CodeMethod`, `CodeTypeDefinition` | xUnit, NUnit, MSTest markers incl. derived attributes |
 | `Calls` | `CodeInvocation` | every bound call in bodies, initializers, attributes, top-level code |
 | `ObjectCreations` | `CodeObjectCreation` | `new T(...)`, target-typed `new(...)` |
+| `Routes`, `RouteGroups` | `CodeRoute` | minimal API `MapGet`/`MapPost`/... routes and `MapGroup` groups |
 | `MemberReferences` | `MemberReference` | named references to fields, properties, methods (method groups, `nameof`) |
 | `TypeReferences` | `CodeTypeReference` | every written use of a type; aliases resolved; `var` excluded |
 | `ReferencesTo(symbol)` | `CodeSymbol` | references across compilations by identity |
@@ -54,6 +55,11 @@ Every query of `ICodeElement` (anything reportable):
 - `InNamespace("A.B")`, `"A.*"` (one segment), `"A.**"` (A and descendants)
 - `InFolder("Domain")` (whole segments at any depth), `InFilesNamed("*Tests.cs")`
 - predicates: `element.IsInProject(glob)`, `IsInNamespace(pattern)`, `IsInFolder(folder)`
+- enclosing code: `element.IsInType(type)` (and its containing types), `ContainingMethod()`
+  (walks out of lambdas and local functions), `EnclosingLoop()`, `IsInLoop()`,
+  `IsGuardedByCatchAll()`, `UnguardedHandler()` (`HandlerClause.None`, `Catch` or `Finally`).
+  Loops and try statements count only in the element's own function; catch filters are
+  not evaluated.
 
 Every query of `ICodeDeclaration` (types, type parts, methods, fields, properties,
 parameters, symbols):
@@ -73,7 +79,8 @@ parameters, symbols):
 ## Declarations
 
 - `CodeTypeDefinition`: `Namespace`, `IsClass`, `IsInterface`, `IsStruct`, `IsEnum`,
-  `IsRecord`, `IsAbstract`, `IsStatic`, `IsNested`, `Implements(type)`, `DerivesFrom(type)`,
+  `IsRecord`, `IsAbstract`, `IsStatic`, `IsNested`, `HasOnlyStaticMembers`,
+  `IsTopLevelProgram` (the generated `Program`), `Implements(type)`, `DerivesFrom(type)`,
   `IsOrDerivesFrom(type)`, `Symbol` (non-null), `Syntax`, `Solution`.
   Queries: `DerivedFrom(types)`, `ImplementingInterface(type)`, `ImplementationViews()`.
 - `CodeTypeDeclaration`: `IsTopLevel`, `Syntax`, `Symbol`; attributes are those written on this part.
@@ -94,7 +101,8 @@ parameters, symbols):
 
 - `CodeIfStatement`: `Then`, `Else`, `Branches`, `InconsistentlyBracedBranch` (unbraced side
   when only one side of an if/else has braces). `CodeBranch`: `HasBraces`, `IsElseIf`.
-- `CodeCatch`: `ExceptionType` (null for `catch { }`), `Catches<T>()`, `CatchesAnyException`,
+- `CodeCatch` (`new CodeCatch(source, clause)` for a try statement's `Catches`): `ExceptionType`
+  (null for `catch { }`), `Catches<T>()`, `CatchesAnyException`,
   `HasFilter`, `Filter`, `Body`, `IsEmpty`, `Rethrows`.
 - `CodeVariableDeclaration`: `TypeName` (reportable), `HasExplicitType`, `HasInitializer`,
   `CanUseVar`, `Variables`; queries `WithExplicitType()`, `WithInitializer()`, `WhereVarPreservesType()`.
@@ -102,7 +110,7 @@ parameters, symbols):
   (`HasValue` first), `AsExpression()`; query `Duplicates(minimumTokens)` (repeated token shapes).
 - `CodeBody` (`method.Body()`, `methods.Body()`, `CodeBody.Of(source, node)` for any syntax
   node): `Calls()`, `Calls(member)`, `Nodes<T>()`, `ControlFlowNodes(kinds)`, `NestedBodies()`,
-  `IsEmpty`, `Sections()` (`CodeSection`: statements between blank lines, as in Arrange/Act/
+  `IsEmpty`, `BlankLines`, `Sections()` (`CodeSection`: statements between blank lines, as in Arrange/Act/
   Assert, with `Statements`, `Index`, `Calls()`, `Nodes<T>()`); `bodies.Conditions().Checks(pattern)`
   with `ConditionPattern.Null`, `EmptyString`, `NullOrEmptyString`, `NullOrWhiteSpaceString`,
   `ForCall(...)`; `bodies.NullChecks()`.
@@ -111,7 +119,9 @@ parameters, symbols):
 
 - `CodeType.Of<T>()`, `CodeType.Named("Ns.Outer+Inner")`, `Named("Ns.Map<,>")` (open
   generic), `Named(name, assemblyName)`, `CodeType.Framework("System.Linq.Enumerable")`
-  (framework assembly only). `type.References` selects its `CodeTypeReference`s.
+  (framework assembly only), `CodeType.FromSymbol(namedType)` (exact constructed arguments;
+  an original definition gives an open descriptor). `type.References` selects its
+  `CodeTypeReference`s.
 - `type.Member("Name")` (all overloads, fields, properties), `.WithParameters(types)`
   (one overload; none = parameterless), `type.Constructor(types)`.
 - `member.References` (`MemberReference`: `Symbol`, `Expression`, `Facts`, `AsArgument()`);
@@ -121,6 +131,13 @@ parameters, symbols):
 - Raw symbols: `symbol.Attributes()` → `CodeAttribute` (`ConstructorValue<T>(name)`,
   `NamedValue<T>(name)`, `Matches(type)`); `Symbols.HasAttribute`, `IsOrDerivesFrom`,
   `DerivesFrom`, `Implements`; `symbol.NameMatches`, `IsInNamespace`.
+- Signatures: `method.ImplementsOrOverrides()` (another declaration decides its signature),
+  `IsEventHandler()` (object sender, EventArgs); `type.IsTask()` (framework Task/ValueTask,
+  with or without a result), `UnwrapTask()`.
+- `method.AddingParameter(type, matchNames: true)`: same-name overloads adding one parameter
+  of the type and keeping the others (names, ref kinds and arity too unless `matchNames:
+  false`). Types compare by identity, ignoring nullable annotations. Candidate discovery,
+  not proof that the overload behaves the same.
 
 ## Calls, arguments and expressions
 
@@ -147,7 +164,16 @@ parameters, symbols):
   `TypeIsAssignableTo`, `Constant`, `Is(value)`, `IsConstant(type, value)`, `TextValue`,
   `Symbol`, `RefersTo(member)`, `IsNameOf(symbol)`, `FlowState`, `MayBeNull`,
   `DeclaredNullability`, `Facts` (`IsInsideNameOf`, `IsInsideExpressionTree`, comments),
-  `AsInvocation()`, `AsBuiltString()`.
+  `AsInvocation()`, `AwaitedCall()` (the call an await awaits, through conversions and
+  `ConfigureAwait`), `AsBuiltString()` (`stringOperandsOnly: true` rejects implicitly
+  formatted concatenation operands); `expressions.WithCollectionExpressionTarget()`.
+- Culture and clock: `call.ComparesWithCulture()`, `call.FormatsWithCulture()`,
+  `hole.FormatsWithCulture()` (a `CodeNode<InterpolationSyntax>`),
+  `call.WaitsWithoutTimeProvider()`, `creation.TimesWithoutTimeProvider()`. They classify
+  common framework APIs, never which culture or clock to use.
+- `CodeRoute`: `Mapping` (reports here), `Path` (with constant group prefixes; null when
+  not constant), `Configuration`, `GroupConfiguration`, `HandlerExpression`, `Handler`,
+  `IsConfiguredWith(member, includeGroups: false)`. Not an authorization analysis.
 - `element.ValuesInScope<T>()` / `ValuesInScope(type)`: `ScopedValue` (`Symbol`, `Name`,
   `Kind`: `Local`/`Parameter`/`Field`/`Property`, `Type` with nullable annotation) for each
   value of the type (or a derived/implementing type) readable by name at the element,
@@ -157,6 +183,7 @@ parameters, symbols):
   the ordinary comment on the line, on the line above, or above the statement or member;
   documentation and `drillpress-allow` comments do not count. Use for "explain this `!`".
 - `CodeNullCheck`: `CheckedValue`, `Polarity`, `Domain`, `Form`, `IsKnownNotNullBeforeCheck`.
+- `operation.WithoutConversions(includeExplicit: false)`: the operand inside conversions.
 - `method.Flow` (`MethodFlow`): `Graph`, `Data` (check `Succeeded`), `NullState(expression)`.
 
 ## Projects and relationships
@@ -203,96 +230,3 @@ rules.Rule("TEAM021", "Give public types unique names across namespaces.")
     .Forbid();
 ```
 
-## Reusable framework and source facts
-
-These APIs expose bounded evidence. They do not choose a repository's clocks, cancellation
-policy, query provider, test naming style or HTTP authorization policy.
-
-- `AsyncFacts.IsTask(type)` recognizes Task/ValueTask and their generic forms;
-  `IsAsyncReturnType` also includes IAsyncEnumerable. `IsDictatedBySignatureElsewhere`
-  recognizes overrides and explicit/implicit interface implementations. `IsEventHandler`
-  recognizes the two-parameter object/EventArgs signature; `IsEventSubscription` is the
-  written `+=` shape. `ForgottenTask(statement, model)` returns an unawaited task expression
-  or a true discard's right side, never a task stored in a variable.
-- `AsyncFacts.UnguardedHandler(await, model)` returns the nearest catch/finally unless a
-  catch-all try block or function boundary intervenes. `IsGuardedInFunction`, `CatchesAll`,
-  `IsGuardedBy`, `IsInLoop`, `IsFunctionBoundary` and `HasTopLevelStatements` expose the
-  individual decisions. **Catch-all classification intentionally ignores filters**; it
-  describes the caught type, not a guarantee that the filter accepts every exception.
-  `AwaitedCall` looks through conversions and a single instance ConfigureAwait call.
-  `IsType(type, namespace, name)` and `IsInNamespace` compare declaration spellings, not
-  assembly-qualified identity; use CodeType when assembly identity is required.
-- `CultureSensitivity.ComparesWithCulture(call or method)` recognizes framework string/char
-  comparisons, casing and string sorting without a comparison/provider parameter.
-  `FormatsWithCulture(call)` recognizes numeric/date and composite formatting and parsing;
-  `FormatsWithCulture(interpolation, type)` reads a hole's format. Integer signs alone do
-  not count; invariant date formats are excluded. `IsIntegral`, `IsFractional`, `IsTemporal`,
-  `IsFormattedWithCulture`, `IsInvariantDateFormat`, `HasProviderParameter`,
-  `HasComparisonParameter` and `HasProviderOverload` expose this bounded classification.
-  `MetadataName` returns a namespace-qualified metadata name without generic arguments.
-- `TimeProviderFacts.WaitsWithoutClock(call)` and `TimesWithoutClock(creation)` classify
-  supported framework delays, timeouts and timers, recognizing a local cancellation source
-  initialized with a TimeProvider. `IsTimeProvider`, `IsInjectedClock(operation)` and
-  `CallsClock(operation, method)` distinguish locals, parameters and instance members from
-  a static system clock. They do not select which clock an application should use.
-- `methodSymbol.AddingParameter(type, matchNames: true)` enumerates same-name overloads
-  adding one parameter while retaining names, types, ref kinds and generic arity. With
-  `matchNames: false`, it compares original parameter type spellings in order and static
-  shape only; the consumer chooses visibility and ambiguity policy. This is candidate
-  discovery, not proof that the overload is equivalent.
-- `call.ContainingMethod(skipNested: true)` walks from lambdas/local functions to the
-  enclosing method; false keeps the actual executable owner.
-- `EndpointRoutes.All`, `.Groups` and `.For(call)` expose `CodeEndpointRoute`: `Mapping`,
-  constant `Path`, `Chain`, `GroupChain`, `HandlerArgument` and `Handler`. Apply project
-  filters explicitly. `route.Calls(member)` and `CallsOnRouteOrGroup(member)` inspect bound
-  configuration calls. Group paths follow local initializers, not assignments, up to ten
-  local hops per group. Unknown patterns remain null; route-group metadata is not an
-  authorization analysis and no framework constructors execute.
-- `QueryKeys.SelectedMemberName(call)` reads a constant string or simple lambda property/
-  field selector. `ComparedMembers(call)` reads nonconstant range comparisons in arguments,
-  including Compare/CompareTo against zero, and returns `(Field, After)` pairs. It is
-  syntactic evidence; select the intended query operators/provider first.
-- `operation.WithoutConversions(includeExplicit: false)`, `callOperation.ReceiverValue()`,
-  `operation.RootOperation()` and `ReferencedVariable()` provide explicit operation views.
-  `symbol.Initializer(source)` reads a single local/field initializer in that source tree,
-  never a later assignment. RootOperation includes enclosing anonymous/local functions.
-- `SyntaxScopes` contains syntax-only boundaries: `ContainingMember`, `OwnNodes`,
-  `EnclosingLoop`, `IsLoop`, `LoopCondition`, `BlankLines(CodeBody)` and
-  `IsInsideExpressionTree(model, node)`. Blank-line counting excludes token interiors and
-  nested functions. `ChainAfter(syntax, out top)` reads written fluent names (including
-  unresolved ones); use `call.Chain()` for bound chains. `EnclosingType`, `IsInType`,
-  `TypeName`, `IsType`, `TypeDerivesFrom`, `IsCatchAll`, `ConstantText` and `IsBuiltString`
-  expose compiler-backed facts; TypeName strips nullable annotation and constructed type
-  arguments. IsCatchAll requires no filter, unlike AsyncFacts.CatchesAll.
-- `DeclarationFacts.TopLevelTypes`, `IsDataClass`, `HasOnlyStaticMembers`, `IsTopLevelProgram`,
-  `RelativePath` and `NamespaceFromFolders` expose declaration shape and physical layout.
-  `UsesOf(solution, type)`, `IsUsedOutside` and `IsTypeArgument` prefilter written names,
-  then bind them. They compare original declaration display names (`Key`), not assembly
-  identity, and do not discover differently named aliases. IsTypeArgument follows
-  qualified/nullable/array syntax up to the containing generic argument.
-- `expressions.WithCollectionExpressionTarget()` selects supported List/HashSet/Dictionary
-  and rank-one array initialization in target-typed positions. Interface targets remain
-  findings but a fix is withheld when the concrete type would change.
-
-Syntax roots and file-scoped `Nodes<T>()` apply place filters before enumerating documents.
-Each source caches its syntax inventory, including structured trivia; narrower queries
-cannot truncate later unrestricted or base-syntax-type queries.
-
-`AsBuiltString(expandConstants: true, stringOperandsOnly: true)` rejects top-level
-concatenations whose operands are not both strings, without restricting interpolation
-holes. `built.CoalesceLiterals()` merges adjacent literal parts and keeps the first
-part's location. `part.FormattingSyntax` preserves written alignment/format clauses,
-including punctuation, for exact string-template contracts.
-
-`AsyncFacts.UnwrapTask(type)` returns the result of framework `Task<T>` / `ValueTask<T>`
-or the original type. `SyntaxScopes.EnclosingMethod(source, node, skipNested: false)`
-retains lambda/local-function ownership; the default walks to the containing member.
-`IsInType` accepts either a display name or `CodeType`. `IsNestedFunction` and
-`OwnNodes(root, includeSelf: true)` expose the same nested-body boundary for syntax rules.
-The original two-parameter `AsBuiltString` overload remains available; the overload with
-`stringOperandsOnly` requires both policy arguments.
-
-`CodeType.FromSymbol(namedType)` captures a compiler-bound named type as a descriptor,
-including its nested metadata name, assembly name and constructed arguments from both
-the type and its containing types. Original definitions produce open descriptors.
-Use `.MetadataName` when the metadata spelling alone is needed.
