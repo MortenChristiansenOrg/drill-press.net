@@ -62,4 +62,51 @@ public sealed class CodeRouteTests(SdkFixture fixture) : IClassFixture<SdkFixtur
         );
         Assert.Equal(["/api::True"], groups);
     }
+
+    [Fact]
+    public void Routes_mapped_on_the_built_application_in_top_level_statements_have_paths()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "Program.cs",
+                    """
+                    using System;
+                    using Microsoft.AspNetCore.Builder;
+                    var builder = WebApplication.CreateBuilder(args);
+                    var app = builder.Build();
+                    app.MapGet("/orders", () => 1);
+                    var api = app.MapGroup("/api");
+                    api.MapGet("/items", () => 2);
+                    Groups.Versioned(app).MapGet("/unknown", () => 3);
+                    namespace Microsoft.AspNetCore.Builder {
+                        public interface IEndpointRouteBuilder {}
+                        public sealed class WebApplicationBuilder { public WebApplication Build() => new(); }
+                        public sealed class WebApplication : IEndpointRouteBuilder {
+                            public static WebApplicationBuilder CreateBuilder(string[] args) => new();
+                        }
+                        public static class EndpointRouteBuilderExtensions {
+                            public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapGroup(this IEndpointRouteBuilder builder, string prefix) => new();
+                            public static IEndpointRouteBuilder MapGet(this IEndpointRouteBuilder builder, string pattern, Func<int> handler) => builder;
+                        }
+                        public static class Groups {
+                            public static Microsoft.AspNetCore.Routing.RouteGroupBuilder Versioned(IEndpointRouteBuilder app) => app.MapGroup("/v1");
+                        }
+                    }
+                    namespace Microsoft.AspNetCore.Routing {
+                        public sealed class RouteGroupBuilder : Microsoft.AspNetCore.Builder.IEndpointRouteBuilder {}
+                    }
+                    """
+                ),
+            ],
+            outputKind: Microsoft.CodeAnalysis.OutputKind.ConsoleApplication
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var routes = Code.Routes.In(solution).Select(route => route.Path ?? "unknown").ToArray();
+
+        Assert.Equal(["/orders", "/api/items", "unknown"], routes);
+    }
 }

@@ -24,6 +24,10 @@ internal static class RouteMappings
 
     private static readonly CodeMember _mapGroup = _routeBuilderExtensions.Member("MapGroup");
 
+    private static readonly CodeType _routeGroupBuilder = CodeType.Named(
+        "Microsoft.AspNetCore.Routing.RouteGroupBuilder"
+    );
+
     // Group builders are followed through this many local initializers.
     private const int MaxLocalHops = 10;
 
@@ -88,21 +92,30 @@ internal static class RouteMappings
             builder = Unwrap(builder);
             if (builder is ILocalReferenceOperation local)
             {
-                builder = Initializer(local.Local, model);
+                if (Initializer(local.Local, model) is not { } initializer)
+                    return MayBeGroup(local.Local.Type) ? null : "";
+                builder = initializer;
                 continue;
             }
-            // A chained call on a group, such as MapGroup(...).RequireAuthorization(...), is still that group.
-            while (
-                builder is IInvocationOperation call
-                && !_mapGroup.Matches(call.TargetMethod)
-                && Receiver(call) is { } inner
-            )
-                builder = inner;
             if (builder is IInvocationOperation group && _mapGroup.Matches(group.TargetMethod))
             {
                 groupChain.AddRange(ChainedOnto(group));
                 var outer = GroupPrefix(Receiver(group), model, groupChain);
                 return outer is null || PatternOf(group) is not { } prefix ? null : outer + prefix;
+            }
+            if (builder is IInvocationOperation call)
+            {
+                // A chained call returning its own builder, such as MapGroup(...).RequireAuthorization(...), is still that builder.
+                if (
+                    Receiver(call) is { } inner
+                    && SymbolEqualityComparer.Default.Equals(call.Type, inner.Type)
+                )
+                {
+                    builder = inner;
+                    continue;
+                }
+                // Any other call that can't return a group, such as builder.Build() or WebApplication.Create(), returns the application.
+                return MayBeGroup(call.Type) ? null : "";
             }
             return builder is IParameterReferenceOperation or IInstanceReferenceOperation
                 ? ""
@@ -110,6 +123,12 @@ internal static class RouteMappings
         }
         return null;
     }
+
+    // A route group, or an interface or type parameter that can hold one.
+    private static bool MayBeGroup(ITypeSymbol? type) =>
+        type is null or ITypeParameterSymbol
+        || type.TypeKind is TypeKind.Interface or TypeKind.Error
+        || _routeGroupBuilder.Matches(type);
 
     private static IOperation? Initializer(ILocalSymbol local, SemanticModel model) =>
         local.DeclaringSyntaxReferences is [var reference]
