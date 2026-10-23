@@ -45,4 +45,51 @@ public sealed class AssertionLoopConversionTests(SdkFixture fixture) : IClassFix
         Assert.Equal([hasFix], result.Findings.Select(finding => finding.HasFix).ToArray());
         Assert.Equal(source.Replace("BODY", expected), result.FixedText("A.cs"));
     }
+
+    [Theory]
+    [InlineData("List<int>", "Assert.All(items, item => Assert.True(item > 0));", true)]
+    [InlineData("IReadOnlyList<int>", "Assert.All(items, item => Assert.True(item > 0));", true)]
+    [InlineData("Items", "foreach (var item in items) Assert.True(item > 0);", false)]
+    public async Task Assertion_loops_require_foreach_to_use_the_interface_enumerator(
+        string collection,
+        string expected,
+        bool hasFix
+    )
+    {
+        var workspace = fixture.Workspace();
+        var source = """
+            using System.Collections;
+            using System.Collections.Generic;
+            using Xunit;
+            class Items : IEnumerable<int> {
+                public IEnumerator<int> GetEnumerator() => new List<int> { 1 }.GetEnumerator();
+                IEnumerator<int> IEnumerable<int>.GetEnumerator() => new List<int> { 2 }.GetEnumerator();
+                IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            }
+            class A { void Check(COLLECTION items) { BODY } }
+            namespace Xunit { static class Assert {
+                public static void True(bool value) {}
+                public static void All<T>(IEnumerable<T> items, System.Action<T> assertion) {}
+            } }
+            """.Replace("COLLECTION", collection);
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    source.Replace("BODY", "foreach (var item in items) Assert.True(item > 0);")
+                ),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("ALL", "Assert every item.")
+            .For(Code.Nodes<ForEachStatementSyntax>())
+            .Forbid(fix: loop => Fix.For(loop).UseAssertAll().Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal([hasFix], result.Findings.Select(finding => finding.HasFix).ToArray());
+        Assert.Equal(source.Replace("BODY", expected), result.FixedText("A.cs"));
+    }
 }

@@ -13,7 +13,7 @@ public sealed class AssertionLoopConversion
     internal AssertionLoopConversion(AnalysisSource source, StatementSyntax statement) =>
         _loop = new(source, statement);
 
-    /// <summary>Proposes Assert.All for a var foreach over IEnumerable of its exact element type, retaining assertion binding. Awaits, ref expressions and pattern-only enumerators are withheld.</summary>
+    /// <summary>Proposes Assert.All for a var foreach over IEnumerable of its exact element type, retaining assertion binding. Awaits, ref expressions, pattern-only enumerators and a public GetEnumerator that is not the interface's (outside arrays and the common framework collections) are withheld.</summary>
     public FixProposal? Propose() => Convert(_loop);
 
     // `foreach (var item in items) Assert.X(...);` becomes `Assert.All(items, item => Assert.X(...));`. Assert.All checks
@@ -33,9 +33,10 @@ public sealed class AssertionLoopConversion
                     Expression: InvocationExpressionSyntax assertion
                 }
             || loop.Source.Model.GetForEachStatementInfo(statement)
-                is not { ElementType: { } element }
+                is not { ElementType: { } element } info
             || loop.Source.Model.GetTypeInfo(statement.Expression).Type is not { } collection
             || !ImplementsEnumerableOf(collection, element)
+            || !EnumeratesLikeTheInterface(collection, info.GetEnumeratorMethod)
             || loop.Source.Model.GetSymbolInfo(assertion).Symbol is not IMethodSymbol asserted
             || !_assert.Matches(asserted.ContainingType)
             || CodeBody
@@ -77,6 +78,36 @@ public sealed class AssertionLoopConversion
 
     private static StatementSyntax SingleStatement(StatementSyntax statement) =>
         statement is BlockSyntax { Statements: [var only] } ? only : statement;
+
+    // Assert.All enumerates through IEnumerable<T>.GetEnumerator, while foreach prefers a public GetEnumerator that
+    // may enumerate differently. Arrays, the interface method itself and framework collections whose public
+    // enumerator is the one their interface implementation returns enumerate the same items.
+    private static bool EnumeratesLikeTheInterface(ITypeSymbol collection, IMethodSymbol? method) =>
+        collection is IArrayTypeSymbol
+        || method is not null
+            && (
+                method.ContainingType.OriginalDefinition.SpecialType
+                    == SpecialType.System_Collections_Generic_IEnumerable_T
+                || method.Locations.All(location => location.IsInMetadata)
+                    && _sameEnumerator.Contains(
+                        method.ContainingType.OriginalDefinition.ToDisplayString()
+                    )
+            );
+
+    private static readonly HashSet<string> _sameEnumerator =
+    [
+        "System.Collections.Generic.List<T>",
+        "System.Collections.Generic.HashSet<T>",
+        "System.Collections.Generic.SortedSet<T>",
+        "System.Collections.Generic.LinkedList<T>",
+        "System.Collections.Generic.Queue<T>",
+        "System.Collections.Generic.Stack<T>",
+        "System.Collections.Generic.Dictionary<TKey, TValue>",
+        "System.Collections.Generic.Dictionary<TKey, TValue>.KeyCollection",
+        "System.Collections.Generic.Dictionary<TKey, TValue>.ValueCollection",
+        "System.Collections.Generic.SortedDictionary<TKey, TValue>",
+        "System.Collections.Generic.SortedList<TKey, TValue>",
+    ];
 
     private static bool ImplementsEnumerableOf(ITypeSymbol collection, ITypeSymbol element) =>
         collection is IArrayTypeSymbol array
