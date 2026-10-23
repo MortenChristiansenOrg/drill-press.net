@@ -45,7 +45,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               8:9
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
     }
@@ -101,7 +101,7 @@ public sealed class RuleAllowancesTests
               13:9
               32:15
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
     }
@@ -131,7 +131,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               8:12
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
     }
@@ -173,7 +173,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               +9:9
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal(
@@ -223,7 +223,7 @@ public sealed class RuleAllowancesTests
               +8:9 [HIT]
               +10:18 [HIT]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal(
@@ -271,7 +271,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               5:5 [HIT; another build configuration may use it]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal(source, result.FixedText("Calls.cs"));
@@ -302,7 +302,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               +7:16 [RUN, BOTH]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal(
@@ -347,7 +347,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               +5:5 [HIT]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
     }
@@ -396,7 +396,7 @@ public sealed class RuleAllowancesTests
               10:16 [missing rule ID]
               12:9 [no code directly below]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
     }
@@ -443,7 +443,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               7:9 [no code directly below]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
     }
@@ -484,7 +484,7 @@ public sealed class RuleAllowancesTests
             Calls.cs
               5:7 [unknown rule drillpress-allow-unused]
 
-            """,
+            """.ReplaceLineEndings("\n"),
             output
         );
     }
