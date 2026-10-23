@@ -101,7 +101,7 @@ public sealed class LinqCatalogueCase(
             Supported Enumerable Scalar NeverEnumerates: source:items
             Supported Enumerable Scalar NeverEnumerates: source:items
             Supported Enumerable Scalar MayEnumerate: source:items
-            Shared rule: LINQ:items.SequenceEqual(query):Execution=Unknown,LINQ:Enumerable.ToList(query):Execution=Unknown,LINQ:query.Count():Execution=Unknown,LINQ:items.Count():Execution=Unknown,LINQ:items:Enumeration=Unknown
+            Shared rule: LINQ:items.SequenceEqual(query):Execution=Unknown,LINQ:Enumerable.ToList(query):Execution=Unknown,LINQ:Count:Execution=Unknown,LINQ:items.Count():Execution=Unknown,LINQ:items:Enumeration=Unknown
             """;
         foreach (var mode in Enum.GetValues<BundleMode>())
         {
