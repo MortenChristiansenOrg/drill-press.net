@@ -126,7 +126,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
 
     // Each context generates as soon as the contexts it references have generated, so independent
     // contexts evaluate, compile and run generators in parallel. Dependents do not wait for a
-    // reference's validation or capture. The first failure cancels the remaining work.
+    // reference's validation or capture.
     private async Task<CompilationContext[]> CaptureProjectsAsync(
         Solution original,
         Solution solution,
@@ -141,9 +141,8 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             .GetTopologicallySortedProjects(cancellationToken)
             .Select(id => solution.GetProject(id)!)
             .ToArray();
-        using var failed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         await using var evaluator = new ProjectEvaluator(_fileSystem, options.Properties);
-        var evaluations = evaluator.Start(order, failed.Token);
+        var evaluations = evaluator.Start(order, cancellationToken);
         var capture = new CompilerCapture(_fileSystem);
         var generations = new Dictionary<ProjectId, Task<GeneratedProject>>();
         var contexts = new Dictionary<ProjectId, Task<CompilationContext>>();
@@ -163,25 +162,22 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                         solution,
                         evaluation,
                         dependencies,
-                        failed.Token
+                        cancellationToken
                     ),
                 CancellationToken.None
             );
             generations.Add(project.Id, generation);
             contexts.Add(
                 project.Id,
-                CancelOnFaultAsync(
-                    CaptureProjectAsync(
-                        project,
-                        liveProject,
-                        generation,
-                        capture,
-                        options,
-                        sdkVersion,
-                        failures,
-                        failed.Token
-                    ),
-                    failed
+                CaptureProjectAsync(
+                    project,
+                    liveProject,
+                    generation,
+                    capture,
+                    options,
+                    sdkVersion,
+                    failures,
+                    cancellationToken
                 )
             );
         }
@@ -199,26 +195,8 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         return order.Select(project => contexts[project.Id].Result).ToArray();
     }
 
-    private static async Task<CompilationContext> CancelOnFaultAsync(
-        Task<CompilationContext> context,
-        CancellationTokenSource failed
-    )
-    {
-        try
-        {
-            return await context;
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            await failed.CancelAsync();
-            throw;
-        }
-    }
-
-    // Reports the failure of the first context in snapshot order whose references did not fail; a context
-    // whose reference failed only repeats that failure, and one cancelled by another's failure has no cause
-    // of its own. With one failing context the choice is independent of timing; when several fail
-    // independently, the first may cancel the others before they report their own failure.
+    // Reports the failure of the first context in snapshot order whose references were captured;
+    // a context whose reference failed only repeats that failure. The choice is independent of timing.
     private static void ThrowFirstFailure(
         Project[] order,
         Dictionary<ProjectId, Task<CompilationContext>> contexts,
@@ -226,26 +204,22 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var faulted = order
-            .Where(project =>
-                contexts[project.Id].Exception?.InnerException
-                    is not (null or OperationCanceledException)
-            )
+        var failed = order
+            .Where(project => !contexts[project.Id].IsCompletedSuccessfully)
             .Select(project => project.Id)
             .ToHashSet();
         var first = order
             .Where(project =>
-                faulted.Contains(project.Id)
-                && !project.ProjectReferences.Any(reference =>
-                    faulted.Contains(reference.ProjectId)
-                )
+                failed.Contains(project.Id)
+                && !project.ProjectReferences.Any(reference => failed.Contains(reference.ProjectId))
             )
             .OrderBy(project => project.FilePath, StringComparer.Ordinal)
             .ThenBy(project => project.Name, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (first is not null)
+            .First();
+        var exception = contexts[first.Id].Exception?.InnerException;
+        if (exception is not null)
         {
-            ExceptionDispatchInfo.Throw(contexts[first.Id].Exception!.InnerException!);
+            ExceptionDispatchInfo.Throw(exception);
         }
     }
 
