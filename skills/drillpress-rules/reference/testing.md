@@ -69,7 +69,7 @@ Code accepts findings in a bounded source scope with
 `// drillpress-allow RULE-ID[, RULE-ID]: reason`.
 After code it allows findings that start on its line; on its own line it allows the
 whole statement or member/type declaration starting on the next code line (only
-comment lines may come between), or just that line when no statement or declaration
+comment lines may come between, not blank lines, `#if` directives or inactive code), or just that line when no statement or declaration
 starts there. IDs match the catalog exactly; only ordinary single-line comments count,
 and matching uses the finding's reported start (including `ReportAt`). `CheckAsync`
 applies allowances like the CLI, so a test can show that a rule's legitimate
@@ -115,8 +115,10 @@ public sealed class LoggingAllowanceTests
 ```
 
 Allowances that allow nothing are reported as `drillpress-allow-unused` (the evidence
-lists the unused rule IDs; the fix removes them or the comment), and allowances without
-a rule ID or reason, naming an unknown rule or followed by a blank line as
+lists the unused rule IDs; the fix removes them or the comment, except over `#if`
+directives or inactive code, where the evidence adds `another build configuration may
+use it` and there is no fix), and allowances without a rule ID or reason, naming an
+unknown rule or separated from their code by a blank line, directive or inactive code as
 `drillpress-allow-invalid`. Invalid allowances suppress nothing. Overlapping allowances
 use the smallest scope; a wider unused allowance is still reported. For linked files
 and target frameworks, a rule ID is used when any context uses that physical comment;

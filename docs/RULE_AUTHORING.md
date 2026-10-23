@@ -306,8 +306,10 @@ The scope depends on where the comment stands:
 - After code on the same line, it allows findings that start on that line, the
   line printed in the output.
 - On its own line, it applies to the next code line. Only further non-blank
-  lines, such as other comments, may come between; a blank line makes the
-  allowance invalid. When the next code line starts a statement or a member or
+  lines, such as other comments, may come between; a blank line, a
+  conditional-compilation directive such as `#if` or inactive code makes the
+  allowance invalid, because the next code line could differ between build
+  configurations. When the next code line starts a statement or a member or
   type declaration, the allowance covers the whole outermost one starting there,
   including its attributes, so it can allow a multi-line statement or a whole
   test method. A comment between attributes and the declaration also covers the
@@ -326,7 +328,7 @@ Allowances are checked so they cannot rot. Two built-in rules report them:
 
 | Rule | Complexity | Reported when |
 | --- | --- | --- |
-| `drillpress-allow-unused` | `Trivial` | A named rule reports no finding in the allowance's scope in any evaluated context. The evidence lists those rules, and a fix removes them from the comment, or removes the comment (its whole line when it stands alone) when it names no other rule. |
+| `drillpress-allow-unused` | `Trivial` | A named rule reports no finding in the allowance's scope in any evaluated context. The evidence lists those rules, and a fix removes them from the comment, or removes the comment (its whole line when it stands alone) when it names no other rule. When the scope contains `#if` directives or inactive code, the evidence adds `another build configuration may use it` and there is no fix. |
 | `drillpress-allow-invalid` | `Local` | The comment has no rule ID or reason, names a rule the bundle does not define, or has no code directly below it. The evidence says which; an invalid allowance allows nothing and has no fix. |
 
 ```text
@@ -340,7 +342,9 @@ src/Import.cs
 
 Use is decided across all contexts: an allowance in a linked file or a
 multi-targeted project is used when any context reports an allowed finding, as
-with code that only one target framework compiles. Rules that a run does not
+with code that only one target framework compiles. A build configuration that
+was not loaded can still use an allowance over conditional code, so such an
+unused allowance is reported for review but never removed by `fix`. Rules that a run does not
 evaluate never make an allowance unused: `--skip-coverage` skips coverage rules,
 and `--fix-complexity` only filters what is reported after every rule ran.
 Only analysis-target documents are read, so allowances in referenced projects

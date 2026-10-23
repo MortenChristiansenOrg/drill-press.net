@@ -97,7 +97,7 @@ workspace.AddProject(&quot;Product.Tests&quot;, [
 <p>To test such rules, add the real test-framework assemblies to the workspace with <code>references</code>, and mark the project with <code>isTest: true</code>. The project flag alone does not make a method a test.</p>
 <p>When a fixture's exact formatting is the subject of the rule, protect just that fixture with an explained CSharpier ignore comment. Code embedded in string literals normally needs no ignore.</p>
 <h2 id="allowances">Show that exceptions can be allowed</h2>
-<p>Teams that run rules as hard errors still need a way to accept a justified exception. Instead of teaching each rule to look for comments, the code names the rule and the reason in an ordinary comment: <code>// drillpress-allow RULE-ID: reason</code>, with several IDs separated by commas. After code, it allows findings that start on that line. On its own line, it allows the whole statement or member or type declaration that starts on the next code line, such as a multi-line statement or a complete test method; only comment lines may come between.</p>
+<p>Teams that run rules as hard errors still need a way to accept a justified exception. Instead of teaching each rule to look for comments, the code names the rule and the reason in an ordinary comment: <code>// drillpress-allow RULE-ID: reason</code>, with several IDs separated by commas. After code, it allows findings that start on that line. On its own line, it allows the whole statement or member or type declaration that starts on the next code line, such as a multi-line statement or a complete test method; only comment lines may come between, not blank lines, <code>#if</code> directives or inactive code.</p>
 <div class="codeblock"><div class="codehead"><span>An allowance accepts one finding</span></div><pre tabindex="0" data-check="library" id="example-33"><code>using DrillPress;
 using DrillPress.Testing;
 using Xunit;
@@ -132,7 +132,7 @@ public class ClockRuleTests
             result.Output);
     }
 }</code></pre></div>
-<p>Allowed findings are not printed, counted or fixed. Allowances are checked too: one that allows nothing is reported as <code>drillpress-allow-unused</code>, with a fix that removes it, and one without a rule ID or reason, naming an unknown rule, or separated from its code by a blank line is reported as <code>drillpress-allow-invalid</code>. Rule IDs starting with <code>drillpress-</code> are reserved for these built-in rules. The <a href="../docs/RULE_AUTHORING.md">rule authoring reference</a> defines the exact scope.</p>
+<p>Allowed findings are not printed, counted or fixed. Allowances are checked too: one that allows nothing is reported as <code>drillpress-allow-unused</code>, with a fix that removes it unless it covers <code>#if</code> directives or inactive code that another build configuration may compile, and one without a rule ID or reason, naming an unknown rule, or separated from its code by a blank line, directive or inactive code is reported as <code>drillpress-allow-invalid</code>. Rule IDs starting with <code>drillpress-</code> are reserved for these built-in rules. The <a href="../docs/RULE_AUTHORING.md">rule authoring reference</a> defines the exact scope.</p>
 <h2 id="baselines">Test an accepted baseline</h2>
 <div class="codeblock"><div class="codehead"><span>Compare two in-memory versions</span></div><pre tabindex="0" data-check="program" id="example-34"><code>using DrillPress;
 using DrillPress.Testing;

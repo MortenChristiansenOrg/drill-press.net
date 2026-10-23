@@ -245,6 +245,39 @@ public sealed class RuleAllowancesTests
     }
 
     [Fact]
+    public async Task Unused_allowances_over_conditional_code_are_reported_without_a_fix()
+    {
+        const string source = """
+            class C
+            {
+                static void Hit() { }
+
+                // drillpress-allow HIT: the release build replays the legacy order
+                void M()
+                {
+            #if RELEASE
+                    Hit();
+            #endif
+                }
+            }
+            """;
+        var workspace = Workspace(source);
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            drillpress-allow-unused Remove the listed rules from this allowance; they report nothing in its scope.
+            Calls.cs
+              5:5 [HIT; another build configuration may use it]
+
+            """,
+            result.Output
+        );
+        Assert.Equal(source, result.FixedText("Calls.cs"));
+    }
+
+    [Fact]
     public async Task Rules_that_an_allowance_names_without_need_are_removed_from_it()
     {
         var workspace = Workspace(
@@ -362,6 +395,53 @@ public sealed class RuleAllowancesTests
               9:16 [missing rule ID]
               10:16 [missing rule ID]
               12:9 [no code directly below]
+
+            """,
+            result.Output
+        );
+    }
+
+    [Fact]
+    public async Task A_conditional_directive_between_an_allowance_and_code_makes_the_allowance_invalid()
+    {
+        var source = new TestSource(
+            "Calls.cs",
+            """
+            class C
+            {
+                static void Hit() { }
+
+                void M()
+                {
+                    // drillpress-allow HIT: only the trace build calls it
+            #if TRACE_ON
+                    Hit();
+            #endif
+                    Hit();
+                }
+            }
+            """
+        );
+        var workspace = new RuleTestWorkspace([]);
+        workspace.AddProject(
+            "Product",
+            [new("System.cs", Prelude), source],
+            framework: "net9.0",
+            symbols: ["TRACE_ON"]
+        );
+        workspace.AddProject("Product", [new("System.cs", Prelude), source], framework: "net10.0");
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            HIT Do not call Hit.
+            Calls.cs
+              9:9
+              11:9
+            drillpress-allow-invalid Write allowances as // drillpress-allow RULE-ID[, RULE-ID]: reason, after or directly above the code.
+            Calls.cs
+              7:9 [no code directly below]
 
             """,
             result.Output

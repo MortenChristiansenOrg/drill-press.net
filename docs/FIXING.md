@@ -28,7 +28,8 @@ remain for manual correction. The CLI never invents edits.
 
 Findings allowed by a `// drillpress-allow` comment have no fix, so `fix` leaves
 them unchanged. Unused allowances are findings with their own fix, which removes
-the unused rule IDs or the whole comment; see
+the unused rule IDs or the whole comment, unless the allowance covers `#if`
+directives or inactive code that another build configuration may compile; see
 [allowing individual findings](RULE_AUTHORING.md#allowing-individual-findings).
 
 Before changing any original, the CLI validates every edit and original byte

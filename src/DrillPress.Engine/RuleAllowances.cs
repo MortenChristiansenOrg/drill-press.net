@@ -9,7 +9,7 @@ internal static class RuleAllowances
     public const string UnusedRuleId = RuleCatalog.BuiltInPrefix + "allow-unused";
     public const string InvalidRuleId = RuleCatalog.BuiltInPrefix + "allow-invalid";
 
-    private static readonly RuleDescriptor Unused = new(
+    private static readonly RuleDescriptor _unused = new(
         UnusedRuleId,
         "Remove the listed rules from this allowance; they report nothing in its scope."
     )
@@ -17,7 +17,7 @@ internal static class RuleAllowances
         FixComplexity = RuleFixComplexity.Trivial,
     };
 
-    private static readonly RuleDescriptor Invalid = new(
+    private static readonly RuleDescriptor _invalid = new(
         InvalidRuleId,
         "Write allowances as // drillpress-allow RULE-ID[, RULE-ID]: reason, after or directly above the code."
     )
@@ -69,7 +69,7 @@ internal static class RuleAllowances
         {
             if (allowance.Problem is { } problem)
             {
-                retained.Add(Report(Invalid, allowance, problem));
+                retained.Add(Report(_invalid, allowance, problem));
                 continue;
             }
 
@@ -77,13 +77,23 @@ internal static class RuleAllowances
                 .RuleIds.Distinct()
                 .Where(id => !skippedRules.Contains(id) && !used.Contains((allowance.Identity, id)))
                 .ToArray();
-            if (unused.Length > 0)
-                retained.Add(
-                    Report(Unused, allowance, string.Join(", ", unused)) with
+            if (unused.Length == 0)
+                continue;
+            // Build configurations that were not loaded may report findings in conditional code, so
+            // the allowance is reported for review but never removed automatically.
+            var evidence = string.Join(", ", unused);
+            retained.Add(
+                allowance.IsConditional
+                    ? Report(
+                        _unused,
+                        allowance,
+                        evidence + "; another build configuration may use it"
+                    )
+                    : Report(_unused, allowance, evidence) with
                     {
                         Fix = allowance.Without(unused),
                     }
-                );
+            );
         }
 
         return retained

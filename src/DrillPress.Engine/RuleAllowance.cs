@@ -18,6 +18,7 @@ internal sealed class RuleAllowance
         TextSpan ruleIdSpan,
         TextSpan scope,
         bool isTrailing,
+        bool isConditional,
         string? problem
     )
     {
@@ -26,6 +27,7 @@ internal sealed class RuleAllowance
         _ruleIdSpan = ruleIdSpan;
         Scope = scope;
         IsTrailing = isTrailing;
+        IsConditional = isConditional;
         Problem = problem;
     }
 
@@ -39,6 +41,10 @@ internal sealed class RuleAllowance
 
     /// <summary>Whether the comment follows code on its line rather than standing alone.</summary>
     public bool IsTrailing { get; }
+
+    /// <summary>Whether the scope contains conditional-compilation directives or inactive code, so build configurations
+    /// that were not loaded may report findings in it.</summary>
+    public bool IsConditional { get; }
 
     /// <summary>Why the allowance is malformed, as single-line evidence; null when it is valid.</summary>
     public string? Problem { get; }
@@ -88,6 +94,7 @@ internal sealed class RuleAllowance
             new(listStart + list.Length - list.TrimStart().Length, list.Trim().Length),
             scope ?? default,
             isTrailing,
+            scope is { } span && IsConditionalIn(comment.Source, span),
             problems.Count == 0 ? null : string.Join("; ", problems)
         );
     }
@@ -119,7 +126,8 @@ internal sealed class RuleAllowance
 
     // A trailing comment covers its own line. A standalone comment covers the outermost statement or
     // non-namespace declaration starting at the next code token, otherwise that token's line; only
-    // further non-blank lines, such as other comments, may separate them.
+    // further non-blank lines, such as other comments, may separate them. A directive or inactive code
+    // in between detaches the comment, because the next active token differs between build configurations.
     private static TextSpan? FindScope(CodeComment comment, out bool isTrailing)
     {
         var text = comment.Source.Tree.GetText(comment.Source.Project.CancellationToken);
@@ -130,6 +138,12 @@ internal sealed class RuleAllowance
 
         var token = comment.Trivia.Token;
         if (token.IsKind(SyntaxKind.EndOfFileToken) || token.SpanStart < comment.Span.End)
+            return null;
+        if (
+            token.LeadingTrivia.Any(trivia =>
+                trivia.SpanStart > comment.Span.Start && IsConditionalTrivia(trivia)
+            )
+        )
             return null;
         var codeLine = text.Lines.GetLineFromPosition(token.SpanStart);
         for (var number = line.LineNumber + 1; number < codeLine.LineNumber; number++)
@@ -144,6 +158,19 @@ internal sealed class RuleAllowance
                 ?.Span
             ?? TextSpan.FromBounds(codeLine.Start, codeLine.EndIncludingLineBreak);
     }
+
+    private static bool IsConditionalIn(AnalysisSource source, TextSpan scope) =>
+        source
+            .Tree.GetRoot(source.Project.CancellationToken)
+            .DescendantTrivia(scope)
+            .Any(trivia => scope.Contains(trivia.Span) && IsConditionalTrivia(trivia));
+
+    private static bool IsConditionalTrivia(SyntaxTrivia trivia) =>
+        trivia.IsKind(SyntaxKind.IfDirectiveTrivia)
+        || trivia.IsKind(SyntaxKind.ElifDirectiveTrivia)
+        || trivia.IsKind(SyntaxKind.ElseDirectiveTrivia)
+        || trivia.IsKind(SyntaxKind.EndIfDirectiveTrivia)
+        || trivia.IsKind(SyntaxKind.DisabledTextTrivia);
 
     private static bool IsScope(SyntaxNode node) =>
         node
