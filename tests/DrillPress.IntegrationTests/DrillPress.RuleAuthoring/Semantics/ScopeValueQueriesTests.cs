@@ -63,4 +63,53 @@ public sealed class ScopeValueQueriesTests(SdkFixture fixture) : IClassFixture<S
         Assert.Equal("FakeClock", clocks[0].Type.Name);
         Assert.Equal(["Shared"], staticClocks.Select(value => value.Name));
     }
+
+    [Fact]
+    public void Values_outside_a_static_function_or_in_an_outer_type_are_not_in_scope()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Scopes",
+            [
+                new(
+                    "Scopes.cs",
+                    """
+                    using System;
+                    using System.Threading;
+                    class Outer(CancellationToken primary)
+                    {
+                        private readonly CancellationToken _outer = default;
+                        private static CancellationToken Shared = default;
+                        void Run(CancellationToken method)
+                        {
+                            var local = method;
+                            Action<CancellationToken> work = static inner =>
+                            {
+                                var own = inner;
+                                Use(1);
+                            };
+                            Count(method);
+                            static void Count(CancellationToken counted) => Use(2);
+                        }
+                        class Inner
+                        {
+                            private readonly CancellationToken _inner = default;
+                            void Run() => Use(3);
+                        }
+                        static void Use(object value) { }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var uses = Code.Calls.ToMethodsNamed("Use").In(solution);
+
+        var names = uses.Select(use =>
+                string.Join(",", use.ValuesInScope<CancellationToken>().Select(value => value.Name))
+            )
+            .ToArray();
+
+        Assert.Equal(["own,inner,Shared", "counted,Shared", "Shared,_inner"], names);
+    }
 }
