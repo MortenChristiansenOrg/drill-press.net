@@ -123,12 +123,7 @@ internal sealed class RuleCoverageCase(IFileSystem fileSystem, string root, stri
                 0,
                 null
             ),
-            Find(
-                "DP1002",
-                "Move assertions after the final empty line.",
-                "Assert.NotNull(values)",
-                document
-            ),
+            Find("DP1002", "Move assertions after the final empty line.", "NotNull", document),
             Find(
                 "DP1003",
                 "Remove interfaces with exactly one concrete non-test implementation.",

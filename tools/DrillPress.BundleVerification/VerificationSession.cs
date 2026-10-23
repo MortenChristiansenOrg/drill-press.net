@@ -348,6 +348,8 @@ public sealed class VerificationSession : IDisposable
             )
             {
                 FixComplexity = RuleFixComplexity.Trivial,
+                // Both contexts share one non-editable document, so the proposed fix is withheld.
+                FixWithheld = "the expression is in generated or non-editable source",
             };
             var response = new BundleResponse(
                 BundleResponseProtocol.CurrentVersion,
