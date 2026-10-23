@@ -180,6 +180,21 @@ public sealed class SymbolRenameTests(SdkFixture fixture) : IClassFixture<SdkFix
         "the string \"count\" at 1:46 may refer to the symbol by name"
     )]
     [InlineData(
+        "class A { string M() { var count = 1; return \"\"\"count\"\"\" + count; } }",
+        "1:28",
+        "the string \"count\" at 1:46 may refer to the symbol by name"
+    )]
+    [InlineData(
+        "class A { int M() { var count = 1;\n#if NEVER\n    count++;\n#endif\n    return count; } }",
+        "1:25",
+        "inactive code at 3:5 names \"count\", which the rename can neither update nor check"
+    )]
+    [InlineData(
+        "class B { protected int total<T>(object v) => 1; } class A : B { private int Count<T>(T v) => 2; int M() => total<int>(0); }",
+        "1:78",
+        "`total<int>` at 1:109 binds differently after the rename"
+    )]
+    [InlineData(
         "class A { public int Count() => 1; }",
         "1:22",
         "the name is visible outside its type, where reflection, serialization or unloaded code can depend on it; use SafeWhen"
@@ -210,6 +225,38 @@ public sealed class SymbolRenameTests(SdkFixture fixture) : IClassFixture<SdkFix
 
         Assert.Equal(
             $"RENAME Rename the declaration.\nA.cs\n  {location}\n    fix withheld: {reason}\n",
+            result.ExplainedOutput
+        );
+    }
+
+    [Fact]
+    public async Task Private_members_of_a_partial_type_are_checked_in_its_other_files()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new("A.cs", "partial class C : B { private int Load() => 2; }"),
+                new("B.cs", "partial class C { int M() => Fetch(); }"),
+                new("C.cs", "class B { protected int Fetch() => 1; }"),
+            ]
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("RENAME", "Rename the method.")
+            .For(Code.Methods.Named("Load"))
+            .Forbid(fix: method => Fix.For(method).Rename("Fetch").Propose());
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            RENAME Rename the method.
+            A.cs
+              1:35
+                fix withheld: `Fetch` at 1:30 binds differently after the rename
+
+            """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
     }

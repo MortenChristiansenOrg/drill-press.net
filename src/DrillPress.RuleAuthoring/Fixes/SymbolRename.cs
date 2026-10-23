@@ -7,7 +7,7 @@ namespace DrillPress;
 
 /// <summary>An immutable rename of one symbol and all of its references.</summary>
 /// <remarks>
-/// Gates: a supported symbol (not virtual, abstract, overriding, implementing an interface, extern, partial or an entry point) whose declarations and references are all in editable ordinary source; no string spelled like the old name in the searched scope; and, in every affected compilation, every renamed token bound to the renamed symbol, every other expression in the scope binding as before, and unchanged compiler-supplied arguments.
+/// Gates: a supported symbol (not virtual, abstract, overriding, implementing an interface, extern, partial or an entry point) whose declarations and references are all in editable ordinary source; no string spelled like the old name, and no inactive <c>#if</c> code naming the old or new name, in the searched scope; and, in every affected compilation, every renamed token bound to the renamed symbol, every other expression in the scope (including the other files of a partial type) binding as before, and unchanged compiler-supplied arguments.
 /// The scope is the containing member for locals and local-function parameters, the containing type for private members and parameters of private methods, and every loaded project otherwise.
 /// </remarks>
 public sealed class SymbolRename
@@ -206,9 +206,7 @@ public sealed class SymbolRename
                     ? [member.Parent!]
                     : [member]
                 : null;
-        var type = symbol.ContainingType;
-        while (type?.ContainingType is { } outer)
-            type = outer;
+        var type = OutermostType(symbol);
         // Parts of a partial type in several files fall back to searching every loaded source.
         return
             type is not null
@@ -221,23 +219,57 @@ public sealed class SymbolRename
             : null;
     }
 
+    private static INamedTypeSymbol? OutermostType(ISymbol symbol)
+    {
+        var type = symbol.ContainingType;
+        while (type?.ContainingType is { } outer)
+            type = outer;
+        return type;
+    }
+
     // A string spelled like the old name may refer to it by reflection or in an attribute such as NotNullIfNotNull.
-    // Existing destination names are checked by rebinding, since names in unrelated scopes do not collide.
+    // Existing destination names are checked by rebinding, since names in unrelated scopes do not collide, but code
+    // in an inactive #if block is neither renamed nor rebound, so either name there withholds the rename.
     private string? Obstacle(AnalysisSource source, SyntaxNode node)
     {
         foreach (var token in node.DescendantTokens(descendIntoTrivia: true))
         {
-            if (token.IsKind(SyntaxKind.StringLiteralToken) && token.ValueText == _symbol!.Name)
+            if (IsStringText(token) && token.ValueText == _symbol!.Name)
                 return $"the string \"{_symbol.Name}\" at {FixReasons.Position(source, token.SpanStart)} may refer to the symbol by name";
+        }
+        foreach (
+            var trivia in node.DescendantTrivia(descendIntoTrivia: true)
+                .Where(trivia => trivia.IsKind(SyntaxKind.DisabledTextTrivia))
+        )
+        {
+            var named = SyntaxFactory
+                .ParseTokens(trivia.ToFullString(), initialTokenPosition: trivia.FullSpan.Start)
+                .FirstOrDefault(token =>
+                    token.IsKind(SyntaxKind.IdentifierToken)
+                    && (token.ValueText == _symbol!.Name || token.ValueText == _name)
+                );
+            if (named.RawKind != 0)
+                return $"inactive code at {FixReasons.Position(source, named.SpanStart)} names \"{named.ValueText}\", which the rename can neither update nor check";
         }
         return null;
     }
+
+    // Every kind of string literal text: regular, verbatim, raw, UTF-8 and interpolated.
+    private static bool IsStringText(SyntaxToken token) =>
+        token.Kind()
+            is SyntaxKind.StringLiteralToken
+                or SyntaxKind.SingleLineRawStringLiteralToken
+                or SyntaxKind.MultiLineRawStringLiteralToken
+                or SyntaxKind.Utf8StringLiteralToken
+                or SyntaxKind.Utf8SingleLineRawStringLiteralToken
+                or SyntaxKind.Utf8MultiLineRawStringLiteralToken
+                or SyntaxKind.InterpolatedStringTextToken;
 
     private IEnumerable<SyntaxToken> References(AnalysisSource source, SyntaxNode node)
     {
         var identity = RewriteSymbols.Identity(_symbol!.OriginalDefinition);
         foreach (
-            var name in node.DescendantNodes(descendIntoTrivia: true).OfType<IdentifierNameSyntax>()
+            var name in node.DescendantNodes(descendIntoTrivia: true).OfType<SimpleNameSyntax>()
         )
         {
             if (name.Identifier.ValueText != _symbol.Name)
@@ -361,23 +393,30 @@ public sealed class SymbolRename
             if (Unchanged(context, source, scope, before, after) is { } changed)
                 return changed;
         }
-        if (local is false)
-            foreach (
-                var other in context.Original.Sources.Where(source =>
-                    !own.Contains(source.Document.FileIdentity)
-                )
+        // A private member's name is also visible in the other files of a partial type, which the rename may not edit.
+        var parts = local
+            ? OutermostType(before)
+                ?.DeclaringSyntaxReferences.Select(reference => reference.SyntaxTree.FilePath)
+                .ToHashSet(StringComparer.Ordinal)
+                ?? []
+            : null;
+        foreach (
+            var other in context.Original.Sources.Where(source =>
+                !own.Contains(source.Document.FileIdentity)
+                && (parts is null || parts.Contains(source.Tree.FilePath))
             )
-                if (
-                    Unchanged(
-                        context,
-                        other,
-                        [other.Tree.GetRoot(context.Original.CancellationToken)],
-                        before,
-                        after
-                    ) is
-                    { } changed
-                )
-                    return changed;
+        )
+            if (
+                Unchanged(
+                    context,
+                    other,
+                    [other.Tree.GetRoot(context.Original.CancellationToken)],
+                    before,
+                    after
+                ) is
+                { } changed
+            )
+                return changed;
         var evidence = new RewriteEvidence(
             context,
             new(
@@ -407,15 +446,12 @@ public sealed class SymbolRename
         foreach (var edit in edits.Where(edit => edit.FileIdentity == source.Document.FileIdentity))
         {
             var token = root.FindToken(edit.Start);
-            if (
-                token.Parent is not IdentifierNameSyntax name
-                || name.Parent is XmlNameAttributeSyntax
-            )
+            if (token.Parent is not SimpleNameSyntax name || name.Parent is XmlNameAttributeSyntax)
                 continue;
             var mapped = context.Map(source, name);
             yield return (
                 Resolve(source.Model, name),
-                mapped is { After: IdentifierNameSyntax renamed }
+                mapped is { After: SimpleNameSyntax renamed }
                     ? Resolve(mapped.Model, renamed)
                     : null
             );
@@ -435,7 +471,7 @@ public sealed class SymbolRename
     {
         var expressions = scope
             .SelectMany(node =>
-                node.DescendantNodesAndSelf(descendIntoTrivia: true).OfType<IdentifierNameSyntax>()
+                node.DescendantNodesAndSelf(descendIntoTrivia: true).OfType<SimpleNameSyntax>()
             )
             .Where(name =>
                 name.Identifier.ValueText == before.Name || name.Identifier.ValueText == after.Name
