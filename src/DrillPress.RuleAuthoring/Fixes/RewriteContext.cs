@@ -96,7 +96,7 @@ public sealed class RewriteContext(
             : null;
     }
 
-    /// <summary>Maps an original node through the whole batch. Replaced descendants without explicit correspondence and ambiguous spans return null.</summary>
+    /// <summary>Maps an original node through the whole batch to the node of its kind at the mapped span, or the innermost node there when none has its kind. Replaced descendants without explicit correspondence and ambiguous spans return null.</summary>
     public NodeRewrite? Map(AnalysisSource source, SyntaxNode before)
     {
         Original.CancellationToken.ThrowIfCancellationRequested();
@@ -110,12 +110,41 @@ public sealed class RewriteContext(
         var span = MapSpan(source, before.Span);
         if (tree is null || span is not { } mapped || mapped.End > tree.Length)
             return null;
-        var root = tree.GetRoot(Original.CancellationToken);
-        var after = root.FindNode(mapped, getInnermostNodeForTie: true);
-        if (after.Span != mapped)
+        var after = before.Span.IsEmpty
+            ? MapEmpty(source, before, mapped)
+            : SameKind(
+                before,
+                tree.GetRoot(Original.CancellationToken)
+                    .FindNode(mapped, getInnermostNodeForTie: true)
+            );
+        if (after is null || after.Span != mapped)
             return null;
         var model = _models.GetOrAdd(tree, candidate => Rewritten.GetSemanticModel(candidate));
         return new(source, before, after, model);
+    }
+
+    // Nodes sharing a span, such as an attribute and its name or an implicit element access and its
+    // brackets, map to the one of the original's kind; otherwise to the innermost.
+    private static SyntaxNode SameKind(SyntaxNode before, SyntaxNode innermost) =>
+        innermost
+            .AncestorsAndSelf()
+            .TakeWhile(node => node.Span == innermost.Span)
+            .FirstOrDefault(node => node.RawKind == before.RawKind)
+        ?? innermost;
+
+    // A node without text, such as the omitted size in new int[] { 1 }, has no span to find: it is the
+    // child at the same position of its mapped parent.
+    private SyntaxNode? MapEmpty(AnalysisSource source, SyntaxNode before, TextSpan mapped)
+    {
+        if (before.Parent is not { } parent || Map(source, parent) is not { } owner)
+            return null;
+        var index = parent.ChildNodes().TakeWhile(child => child != before).Count();
+        return
+            owner.After.ChildNodes().ElementAtOrDefault(index) is { } after
+            && after.RawKind == before.RawKind
+            && after.Span == mapped
+            ? after
+            : null;
     }
 
     /// <summary>Finds the corresponding rewritten tree by original compilation membership, not an ambiguous filename lookup.</summary>

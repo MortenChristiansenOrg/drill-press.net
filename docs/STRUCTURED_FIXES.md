@@ -223,8 +223,8 @@ the new name, as a rename intends, but a compiler-supplied argument such as
 - `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
   block namespace and removes one four-space indentation level. Nested namespaces,
   directives, multiline text and ambiguous layouts are withheld, and so is a conversion
-  that would change a string's value or a compiler-supplied argument such as a caller
-  line number. A consumer must exclude
+  that would change a string's value or a compiler-supplied argument such as a call's
+  caller line number. A consumer must exclude
   source exported or concatenated into a different compilation.
 - `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
   adding that type and uses the argument-addition validator. Existing parameter names,

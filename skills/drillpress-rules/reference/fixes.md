@@ -156,8 +156,10 @@ declared overload transition and preservation of retained inputs.
 
 Comment removal deletes standalone lines by default. Use `Remove(preserveLines: true)`
 to keep every line break, including those inside multiline comments, when caller
-line numbers matter. Parsing and compiler-supplied arguments must still be unchanged
-in every affected loaded context; caller argument text can still prevent a fix.
+line numbers of calls matter. Parsing and compiler-supplied arguments must still be unchanged
+in every affected loaded context; caller argument text can still prevent a fix. An
+attribute's caller line number and file path, such as those of xUnit's `[Fact]`, are
+not compared, so edits above test methods stay fixable.
 
 ```csharp
 using DrillPress;
@@ -283,8 +285,8 @@ no `+` and `FixedText` returns the original text.
 - `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
   block namespace and removes one four-space indentation level. Nested namespaces,
   directives, multiline text and ambiguous layouts are withheld, and so is a conversion
-  that would change a string's value or a compiler-supplied argument such as a caller
-  line number. A consumer must exclude
+  that would change a string's value or a compiler-supplied argument such as a call's
+  caller line number. A consumer must exclude
   source exported or concatenated into a different compilation.
 - `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
   adding that type and uses the argument-addition validator. Existing parameter names,

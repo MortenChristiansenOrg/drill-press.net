@@ -146,6 +146,107 @@ public sealed class CommentFixTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         Assert.Equal(source, result.FixedText("A.cs"));
     }
 
+    [Fact]
+    public async Task Removal_above_an_attribute_ignores_its_caller_line_and_file_path()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            using System;
+            using System.Runtime.CompilerServices;
+            sealed class FactAttribute(
+                [CallerFilePath] string path = "",
+                [CallerLineNumber] int line = 0
+            ) : Attribute
+            {
+                public string Location { get; } = path + ":" + line;
+            }
+            class A
+            {
+                void M()
+                {
+                    // Arrange
+                    int value = 1;
+                }
+
+                [Fact]
+                void N() {}
+            }
+            """;
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = CommentRules(preserveLines: false);
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            COMMENT Remove comment.
+            A.cs
+              +14:9
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(
+            """
+            using System;
+            using System.Runtime.CompilerServices;
+            sealed class FactAttribute(
+                [CallerFilePath] string path = "",
+                [CallerLineNumber] int line = 0
+            ) : Attribute
+            {
+                public string Location { get; } = path + ":" + line;
+            }
+            class A
+            {
+                void M()
+                {
+                    int value = 1;
+                }
+
+                [Fact]
+                void N() {}
+            }
+            """,
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
+    public async Task Line_preserving_removal_withholds_changed_caller_argument_text_of_an_attribute()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            using System;
+            using System.Runtime.CompilerServices;
+            sealed class CheckAttribute(
+                int value,
+                [CallerArgumentExpression("value")] string expression = ""
+            ) : Attribute
+            {
+                public string Expression { get; } = expression;
+            }
+            [Check(1 /* label */ + 2)]
+            class A { }
+            """;
+        workspace.AddProject("Library", [new("A.cs", source)]);
+        var rules = CommentRules(preserveLines: true);
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            COMMENT Remove comment.
+            A.cs
+              10:10
+                fix withheld: the proof rejected the edited compilation
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
     [Theory]
     [InlineData("\n")]
     [InlineData("\r\n")]
