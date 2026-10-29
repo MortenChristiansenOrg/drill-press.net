@@ -86,7 +86,9 @@ Every query of `ICodeElement` (anything reportable):
 Every query of `ICodeDeclaration` (types, type parts, methods, fields, properties,
 parameters, enum members, symbols):
 
-- `Named("A", "B")`, `NameMatching("*Async")`, `WithNameContainingAnyWord(["Temp"])`
+- `Named("A", "B")`, `NameMatching("*Async")`, `NameMatching(regex)` (a match anywhere in
+  the name), `WithNameContainingAnyWord(["Temp"])`. Prefer these to `Where` on `Name`: they
+  skip declarations by their written name before binding symbols.
 - `WithAttribute(type, ...)` (derived attribute classes match), `WithAccessibility(Accessibility.Public)`
   (effective, including defaults), `WithExplicitModifier(Modifier.Static)` (written tokens)
 - members: `Name`, `NameWords`, `Symbol` (nullable), `Accessibility`, `HasExplicitModifier(m)`

@@ -193,10 +193,10 @@ analysis separately; it was not used for the acceptance results.
 
 Validation completed:
 
-- **552 unit tests** pass after captured-input reuse.
-- The full integration suite passes **818 tests**, with one Windows ACL skip;
-  the real generated-dependency integration passes again after the final change.
-- **91 Joblet rule tests** pass against the local source SDK.
+- **545 unit tests** pass on the final branch.
+- The full integration suite passes **815 tests**, with one Windows ACL skip.
+- **91 Joblet rule tests** pass against the local source SDK and against locally
+  packed 0.0.3-preview.24 packages.
 - Complete managed/native parity passes main cases, target forms, complexity
   selection, both safe fixes and recheck, LINQ, occurrence coverage and typed evidence.
 - After the final capture change, the native generated snapshot matches ordinary,
