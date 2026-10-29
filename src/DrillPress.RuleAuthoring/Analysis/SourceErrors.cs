@@ -5,15 +5,31 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
-/// <summary>Answers whether compiler errors fall in a span, compiling each enclosing member once instead of once per question.</summary>
-/// <remarks>The errors reported for a span are a subset of those reported for any span containing it, so an error-free member
-/// proves every span inside it error-free. A member with errors falls back to the exact span query.</remarks>
-internal sealed class SourceErrors(AnalysisSource source)
+/// <summary>Checks a document once before querying individual spans in documents that contain errors.</summary>
+internal sealed class SourceErrors
 {
+    private readonly AnalysisSource _source;
+    private readonly Lazy<bool> _hasErrors;
     private readonly ConcurrentDictionary<TextSpan, bool> _members = new();
+
+    internal SourceErrors(AnalysisSource source)
+    {
+        _source = source;
+        _hasErrors = new(() =>
+        {
+            using var scope = source.Project.MeasureShared("errors");
+            return source.Project.Errors.InDocument(source);
+        });
+    }
 
     internal bool In(TextSpan span)
     {
+        _source.Project.CancellationToken.ThrowIfCancellationRequested();
+        if (
+            _source.Project.SolutionOrNull?.Options.EnableOptimizations != false
+            && !_hasErrors.Value
+        )
+            return false;
         if (Member(span) is { } member && !_members.GetOrAdd(member, MemberHasErrors))
             return false;
         return Exactly(span);
@@ -21,18 +37,18 @@ internal sealed class SourceErrors(AnalysisSource source)
 
     private bool MemberHasErrors(TextSpan member)
     {
-        using var scope = source.Project.MeasureShared("errors");
+        using var scope = _source.Project.MeasureShared("errors");
         return Exactly(member);
     }
 
     private bool Exactly(TextSpan span) =>
-        source
-            .Model.GetDiagnostics(span, source.Project.CancellationToken)
+        _source
+            .Model.GetDiagnostics(span, _source.Project.CancellationToken)
             .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
     private TextSpan? Member(TextSpan span)
     {
-        var root = source.Tree.GetRoot(source.Project.CancellationToken);
+        var root = _source.Tree.GetRoot(_source.Project.CancellationToken);
         if (!root.FullSpan.Contains(span))
             return null;
         for (

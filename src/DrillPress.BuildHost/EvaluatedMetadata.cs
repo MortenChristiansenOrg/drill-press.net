@@ -10,5 +10,7 @@ internal sealed record EvaluatedMetadata(
     string AssetsPath,
     PackageReferenceSnapshot[] Packages,
     string[] SourceRoots,
-    string? CompilerAssemblyPath
+    string? CompilerAssemblyPath,
+    string[] InputPaths,
+    string[] InputDirectories
 );

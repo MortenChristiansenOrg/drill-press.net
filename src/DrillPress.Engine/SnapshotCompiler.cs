@@ -8,13 +8,28 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress.Engine;
 
-internal sealed class SnapshotCompiler(IFileSystem fileSystem)
+internal sealed class SnapshotCompiler(IFileSystem fileSystem, bool revalidateReferences = true)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
     private readonly Dictionary<
         string,
         (PortableExecutableReference Metadata, string Fingerprint)
     > _references = [];
+    private readonly HashSet<string> _verifiedPaths = [];
+    private string? _cachedFingerprint;
+    private CompilationContext[]? _cachedContexts;
+    private readonly Dictionary<
+        string,
+        (string Fingerprint, CompilationContext Context)
+    > _projects = [];
+
+    internal void Reset()
+    {
+        _cachedFingerprint = null;
+        _cachedContexts = null;
+        _projects.Clear();
+        _verifiedPaths.Clear();
+    }
 
     public CompilationContext[] Reconstruct(
         CompilationSnapshot snapshot,
@@ -22,7 +37,32 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem)
     )
     {
         SnapshotValidation.Validate(snapshot);
+        if (revalidateReferences)
+            _verifiedPaths.Clear();
+        foreach (var project in snapshot.Projects)
+        {
+            foreach (var reference in project.ExternalReferences)
+                _ = ReadReference(reference);
+            foreach (var path in project.MetadataReferences)
+                _ = ReadReference(new MetadataReferenceSnapshot(path, "", [], false, 0));
+        }
+        var fingerprint = Fingerprint(snapshot);
+        if (_cachedFingerprint == fingerprint && _cachedContexts is not null)
+            return _cachedContexts;
         var projects = snapshot.Projects.ToDictionary(project => project.ContextId);
+        var signatures = ProjectFingerprints(projects, cancellationToken);
+        var parsed = PrepareTrees(
+            snapshot with
+            {
+                Projects = snapshot
+                    .Projects.Where(project =>
+                        !_projects.TryGetValue(project.ContextId, out var previous)
+                        || previous.Fingerprint != signatures[project.ContextId]
+                    )
+                    .ToArray(),
+            },
+            cancellationToken
+        );
         var completed = new Dictionary<string, CompilationContext>();
         var visiting = new HashSet<string>();
         foreach (var project in snapshot.Projects)
@@ -30,7 +70,16 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem)
             Visit(project);
         }
 
-        return snapshot.Projects.Select(project => completed[project.ContextId]).ToArray();
+        var contexts = snapshot.Projects.Select(project => completed[project.ContextId]).ToArray();
+        _projects.Clear();
+        foreach (var context in contexts)
+            _projects.Add(
+                context.Snapshot.ContextId,
+                (signatures[context.Snapshot.ContextId], context)
+            );
+        _cachedFingerprint = fingerprint;
+        _cachedContexts = contexts;
+        return contexts;
 
         CompilationContext Visit(ProjectSnapshot project)
         {
@@ -38,6 +87,14 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem)
             if (completed.TryGetValue(project.ContextId, out var existing))
             {
                 return existing;
+            }
+            if (
+                _projects.TryGetValue(project.ContextId, out var previous)
+                && previous.Fingerprint == signatures[project.ContextId]
+            )
+            {
+                completed.Add(project.ContextId, previous.Context);
+                return previous.Context;
             }
 
             if (!visiting.Add(project.ContextId))
@@ -77,9 +134,7 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem)
                     )
                 )
             );
-            var trees = project
-                .Documents.Select(document => CreateTree(project, document, cancellationToken))
-                .ToArray();
+            var trees = parsed[project.ContextId].Select(tree => tree.Value).ToArray();
             var options = CreateOptions(project)
                 .WithSyntaxTreeOptionsProvider(
                     new SnapshotTreeOptions(trees.Zip(project.Documents).ToDictionary())
@@ -97,12 +152,102 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem)
         }
     }
 
+    private Dictionary<string, string> ProjectFingerprints(
+        IReadOnlyDictionary<string, ProjectSnapshot> projects,
+        CancellationToken cancellationToken
+    )
+    {
+        var completed = new Dictionary<string, string>();
+        var visiting = new HashSet<string>();
+        foreach (var project in projects.Values)
+            Visit(project);
+        return completed;
+
+        string Visit(ProjectSnapshot project)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (completed.TryGetValue(project.ContextId, out var fingerprint))
+                return fingerprint;
+            if (!visiting.Add(project.ContextId))
+                throw new InvalidDataException("The source compilation graph contains a cycle.");
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            hash.AppendData(
+                System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                    project,
+                    CompilationSnapshotJsonContext.Default.ProjectSnapshot
+                )
+            );
+            foreach (var reference in project.CompilationReferences)
+                hash.AppendData(
+                    System.Text.Encoding.UTF8.GetBytes(Visit(projects[reference.ContextId]))
+                );
+            foreach (var path in project.MetadataReferences)
+                hash.AppendData(System.Text.Encoding.UTF8.GetBytes(_references[path].Fingerprint));
+            visiting.Remove(project.ContextId);
+            fingerprint = Convert.ToHexString(hash.GetHashAndReset());
+            completed.Add(project.ContextId, fingerprint);
+            return fingerprint;
+        }
+    }
+
+    private string Fingerprint(CompilationSnapshot snapshot)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                snapshot with
+                {
+                    RequestId = "",
+                },
+                CompilationSnapshotJsonContext.Default.CompilationSnapshot
+            )
+        );
+        foreach (var path in _verifiedPaths.Order(StringComparer.Ordinal))
+            hash.AppendData(
+                System.Text.Encoding.UTF8.GetBytes(path + "\n" + _references[path].Fingerprint)
+            );
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static Dictionary<string, Lazy<SyntaxTree>[]> PrepareTrees(
+        CompilationSnapshot snapshot,
+        CancellationToken cancellationToken
+    )
+    {
+        var parsed = snapshot.Projects.ToDictionary(
+            project => project.ContextId,
+            project =>
+                project
+                    .Documents.Select(document => new Lazy<SyntaxTree>(() =>
+                        CreateTree(project, document, cancellationToken)
+                    ))
+                    .ToArray()
+        );
+        Parallel.ForEach(
+            parsed.Values.SelectMany(trees => trees),
+            new ParallelOptions { CancellationToken = cancellationToken },
+            tree =>
+            {
+                try
+                {
+                    _ = tree.Value;
+                }
+                catch (Exception)
+                {
+                    // The ordered reader observes the cached failure in snapshot order.
+                }
+            }
+        );
+        return parsed;
+    }
+
     private PortableExecutableReference ReadReference(MetadataReferenceSnapshot reference)
     {
-        if (!_references.TryGetValue(reference.Path, out var captured))
+        _references.TryGetValue(reference.Path, out var captured);
+        if (_verifiedPaths.Add(reference.Path))
         {
-            var bytes = _fileSystem.File.ReadAllBytes(reference.Path);
-            var fingerprint = Convert.ToHexString(SHA256.HashData(bytes));
+            using var input = _fileSystem.File.OpenRead(reference.Path);
+            var fingerprint = Convert.ToHexString(SHA256.HashData(input));
             if (reference.Fingerprint.Length > 0 && reference.Fingerprint != fingerprint)
             {
                 throw new InvalidDataException(
@@ -110,11 +255,17 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem)
                 );
             }
 
-            captured = (
-                MetadataReference.CreateFromImage(bytes, filePath: reference.Path),
-                fingerprint
-            );
-            _references.Add(reference.Path, captured);
+            if (captured.Metadata is null || captured.Fingerprint != fingerprint)
+            {
+                captured = (
+                    MetadataReference.CreateFromImage(
+                        _fileSystem.File.ReadAllBytes(reference.Path),
+                        filePath: reference.Path
+                    ),
+                    fingerprint
+                );
+                _references[reference.Path] = captured;
+            }
         }
 
         if (reference.Fingerprint.Length > 0 && captured.Fingerprint != reference.Fingerprint)

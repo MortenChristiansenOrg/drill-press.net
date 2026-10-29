@@ -3,6 +3,12 @@ namespace DrillPress.BuildHost;
 /// <summary>Controls SDK evaluation and optional compiler-error validation.</summary>
 public sealed record SnapshotLoadOptions
 {
+    internal bool ReuseInputs { get; init; }
+
+    internal string? GenerationPlanDirectory { get; init; }
+
+    internal string? GeneratorCatalogPath { get; init; }
+
     /// <summary>Global MSBuild properties; later command-line assignments replace earlier ones.</summary>
     public Dictionary<string, string> Properties { get; init; } =
         new(StringComparer.OrdinalIgnoreCase);

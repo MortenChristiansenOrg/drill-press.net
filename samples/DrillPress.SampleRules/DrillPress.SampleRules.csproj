@@ -6,7 +6,7 @@
     <IlcTreatWarningsAsErrors>true</IlcTreatWarningsAsErrors>
     <!-- These upstream diagnostics remain visible and are checked by exact origin
          in the native verification script; no warning category is suppressed. -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2091;IL3000</WarningsNotAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2050;IL2072;IL2091;IL3000</WarningsNotAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/DrillPress.Engine/DrillPress.Engine.csproj" />

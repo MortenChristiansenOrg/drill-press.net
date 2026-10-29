@@ -93,7 +93,7 @@ public class ChildProcessRunner
         );
     }
 
-    private static ProcessStartInfo CreateStartInfo(
+    internal static ProcessStartInfo CreateStartInfo(
         string executable,
         IReadOnlyList<string> arguments
     )

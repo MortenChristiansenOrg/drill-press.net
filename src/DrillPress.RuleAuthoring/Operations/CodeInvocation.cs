@@ -20,14 +20,14 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
 
     /// <summary>Matches the normalized declaration owner, independently of the receiver's type.</summary>
     public bool IsDeclaredOn(CodeType type) =>
-        IsResolved && type.Matches(Declaration.ContainingType);
+        type.Matches(Declaration.ContainingType) && IsResolved;
 
     /// <summary>Matches a declaration owner or its nominal base classes; does not imply override equivalence.</summary>
     public bool IsDeclaredOnOrDerivedFrom(CodeType type) =>
-        IsResolved && Symbols.IsOrDerivesFrom(Declaration.ContainingType, type);
+        Symbols.IsOrDerivesFrom(Declaration.ContainingType, type) && IsResolved;
 
     /// <summary>Matches a bound target's unqualified name using the SDK's case-sensitive glob semantics.</summary>
-    public bool TargetNameMatches(string pattern) => IsResolved && Declaration.NameMatches(pattern);
+    public bool TargetNameMatches(string pattern) => Declaration.NameMatches(pattern) && IsResolved;
 
     /// <summary>The call's original source context.</summary>
     public AnalysisSource Source { get; } = source;
@@ -112,12 +112,18 @@ public sealed class CodeInvocation(AnalysisSource source, IInvocationOperation o
 
     /// <summary>Parameter-associated values in source evaluation order. Defaults follow explicit values and have no source index.</summary>
     public IReadOnlyList<CodeArgument> Arguments =>
-        _arguments ??= Array.AsReadOnly(
-            ReadArguments()
-                .OrderBy(a =>
-                    a.IsReceiver && a.SourceIndex is null ? -1 : a.SourceIndex ?? int.MaxValue
+        LazyInitializer.EnsureInitialized(
+            ref _arguments,
+            () =>
+                Array.AsReadOnly(
+                    ReadArguments()
+                        .OrderBy(a =>
+                            a.IsReceiver && a.SourceIndex is null
+                                ? -1
+                                : a.SourceIndex ?? int.MaxValue
+                        )
+                        .ToArray()
                 )
-                .ToArray()
         );
 
     /// <summary>All supplied values for a declaration parameter, including expanded params elements and implicit defaults.</summary>

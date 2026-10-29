@@ -40,11 +40,7 @@ internal sealed class LocalAssignments(AnalysisSource source)
     private LocalAssignmentEvidence FindWrites(SyntaxNode scope)
     {
         var writes = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-        if (
-            source
-                .Model.GetDiagnostics(scope.Span, source.Project.CancellationToken)
-                .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-        )
+        if (source.Errors.In(scope.Span))
             return new(false, writes);
         foreach (var identifier in scope.DescendantNodes().OfType<IdentifierNameSyntax>())
         {

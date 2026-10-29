@@ -24,12 +24,17 @@ public sealed class AnalysisSource
     private readonly Lazy<LocalAssignments> _localAssignments;
     private readonly Lazy<IReadOnlyList<CodeObjectCreation>> _objectCreations;
 
-    internal AnalysisSource(AnalysisProject project, DocumentSnapshot document, SyntaxTree tree)
+    internal AnalysisSource(
+        AnalysisProject project,
+        DocumentSnapshot document,
+        SyntaxTree tree,
+        Func<SyntaxTree, SemanticModel>? models = null
+    )
     {
         Project = project;
         Document = document;
         Tree = tree;
-        _model = new(() => project.Compilation.GetSemanticModel(tree));
+        _model = new(() => models?.Invoke(tree) ?? project.Compilation.GetSemanticModel(tree));
         _syntaxNodes = new(() =>
             tree.GetRoot(project.CancellationToken)
                 .DescendantNodesAndSelf(descendIntoTrivia: true)

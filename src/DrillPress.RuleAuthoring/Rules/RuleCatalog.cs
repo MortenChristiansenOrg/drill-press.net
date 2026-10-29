@@ -80,6 +80,34 @@ public sealed class RuleCatalog
                 $"Rule '{empty.Descriptor.Id}' has no clause; end each For(...) with Forbid(...) or Require(...)."
             );
         var diagnostics = new List<RuleDiagnostic>();
+        ArgumentOutOfRangeException.ThrowIfLessThan(
+            solution.Options.QueryPreparationConcurrency,
+            1
+        );
+        if (solution.Options.QueryPreparationConcurrency > 1)
+        {
+            using var preparation = solution.Options.Profile.Measure("queries.preparation");
+            Parallel.ForEach(
+                _rules.Where(rule => !(solution.Options.SkipCoverage && rule.RequiresCoverage)),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = solution.Options.QueryPreparationConcurrency,
+                    CancellationToken = solution.CancellationToken,
+                },
+                rule =>
+                {
+                    using var measurement = solution.Options.Profile.Measure("query." + rule.Id);
+                    try
+                    {
+                        rule.Prepare(solution);
+                    }
+                    catch (Exception)
+                    {
+                        // Lazy query failures surface again during ordered rule evaluation.
+                    }
+                }
+            );
+        }
         foreach (
             var rule in _rules.Where(rule =>
                 !(solution.Options.SkipCoverage && rule.RequiresCoverage)

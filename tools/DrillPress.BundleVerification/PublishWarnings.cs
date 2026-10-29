@@ -8,9 +8,20 @@ public static partial class PublishWarnings
     // use supplied factories. The import-tracking constructor is exercised by
     // the alias golden. No whole-assembly roots or category-wide suppressions.
     // Revisit these exact upstream origins when Roslyn or engine paths change.
+    // The general emitter also retains Windows PDB COM branches. Generator
+    // references emit metadata only, explicitly selecting PortablePdb and no
+    // PDB stream; those platform-specific branches are never requested.
     private static readonly HashSet<(string Code, string Origin)> _known =
     [
         ("IL3000", "Microsoft.CodeAnalysis.CommonCompiler.GetAssemblyLocation(Type)"),
+        (
+            "IL2050",
+            "Microsoft.DiaSymReader.SymUnmanagedFactory.CreateObject(Boolean,Boolean,Boolean,String&,Exception&)"
+        ),
+        (
+            "IL2072",
+            "Microsoft.DiaSymReader.SymUnmanagedFactory.CreateObject(Boolean,Boolean,Boolean,String&,Exception&)"
+        ),
         (
             "IL2091",
             "Microsoft.CodeAnalysis.PooledObjects.PooledDelegates.GetPooledCreateValueCallback<TKey,TArg,TValue>(Func`3<TKey,TArg,TValue>,TArg,ConditionalWeakTable`2.CreateValueCallback<!!0,!!2>&)"

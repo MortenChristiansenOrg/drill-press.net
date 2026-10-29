@@ -6,6 +6,76 @@ namespace DrillPress.UnitTests.RuleAuthoring.Rules;
 public sealed class RuleCatalogTests
 {
     [Fact]
+    public void Parallel_preparation_shares_queries_and_keeps_fix_factories_in_registration_order()
+    {
+        var initial = RuleTestData.Solution(("A.cs", ["First"]));
+        var solution = new AnalysisSolution(
+            initial.Projects,
+            new AnalysisOptions { QueryPreparationConcurrency = 4 }
+        );
+        var selections = 0;
+        var reports = new List<string>();
+        var query = CodeQuery<MemberReference>.Create(solution =>
+        {
+            Interlocked.Increment(ref selections);
+            return Code.MemberReferences.In(solution);
+        });
+        var rules = new RuleCatalog();
+        rules
+            .Rule("Z002", "Registered first.")
+            .For(query)
+            .Forbid(fix: reference =>
+            {
+                reports.Add("Z002");
+                return null;
+            });
+        rules
+            .Rule("A001", "Registered second.")
+            .For(query)
+            .Forbid(fix: reference =>
+            {
+                reports.Add("A001");
+                return null;
+            });
+
+        var diagnostics = rules.Evaluate(solution);
+
+        Assert.Equal(1, selections);
+        Assert.Equal(["Z002", "A001"], reports);
+        Assert.Equal(
+            [("A001", "A.cs", "Sample.Target.First"), ("Z002", "A.cs", "Sample.Target.First")],
+            diagnostics.Select(RuleTestData.Describe)
+        );
+    }
+
+    [Fact]
+    public void Parallel_preparation_defers_later_query_failures_until_ordered_evaluation()
+    {
+        var initial = RuleTestData.Solution(("A.cs", ["First"]));
+        var solution = new AnalysisSolution(
+            initial.Projects,
+            new AnalysisOptions { QueryPreparationConcurrency = 4 }
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("FIRST", "First.")
+            .For(Code.MemberReferences)
+            .Forbid(fix: reference => throw new InvalidOperationException("First factory failed."));
+        rules
+            .Rule("LATER", "Later.")
+            .For(
+                CodeQuery<MemberReference>.Create(_ =>
+                    throw new InvalidOperationException("Later selector failed.")
+                )
+            )
+            .Forbid();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => rules.Evaluate(solution));
+
+        Assert.Equal("First factory failed.", exception.Message);
+    }
+
+    [Fact]
     public void Evaluate_orders_diagnostics_by_rule_path_and_source_position()
     {
         var rules = new RuleCatalog();

@@ -23,7 +23,11 @@
       LogicalName="skill/%(RecursiveDir)%(Filename)%(Extension)"
     />
   </ItemGroup>
-  <Target Name="IncludePackagedBuildHost" AfterTargets="ComputeFilesToPublish">
+  <Target
+    Name="IncludePackagedBuildHost"
+    AfterTargets="ComputeFilesToPublish"
+    Condition="'$(DrillPressExternalBuildHost)' != 'true'"
+  >
     <PropertyGroup>
       <_BuildHostPublishDirectory>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)buildhost-publish'))/</_BuildHostPublishDirectory>
     </PropertyGroup>

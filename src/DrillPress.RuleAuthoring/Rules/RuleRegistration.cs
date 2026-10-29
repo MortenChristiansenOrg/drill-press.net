@@ -19,6 +19,12 @@ internal sealed class RuleRegistration(RuleDescriptor descriptor) : CompiledRule
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution) =>
         _clauses.SelectMany(clause => clause.Evaluate(solution));
 
+    public override void Prepare(AnalysisSolution solution)
+    {
+        foreach (var clause in _clauses)
+            clause.Prepare(solution);
+    }
+
     public override IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning) =>
         _clauses.SelectMany(clause => clause.CoverageContexts(planning));
 }

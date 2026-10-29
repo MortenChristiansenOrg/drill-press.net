@@ -9,7 +9,10 @@ internal sealed class TypeReferenceIndex
     private readonly TypeSyntaxCandidate[] _candidates;
     private readonly HashSet<string> _aliases = [];
     private readonly Lazy<Dictionary<string, int[]>> _positions;
-    private readonly Dictionary<TypeSyntaxCandidate, CodeTypeReference?> _bindings = [];
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        TypeSyntaxCandidate,
+        Lazy<CodeTypeReference?>
+    > _bindings = [];
     private readonly CancellationToken _cancellationToken;
 
     internal TypeReferenceIndex(
@@ -40,11 +43,9 @@ internal sealed class TypeReferenceIndex
                 || !sources(candidate.Source)
             )
                 continue;
-            if (!_bindings.TryGetValue(candidate, out var reference))
-            {
-                reference = Bind(candidate);
-                _bindings.Add(candidate, reference);
-            }
+            var reference = _bindings
+                .GetOrAdd(candidate, candidate => new(() => Bind(candidate)))
+                .Value;
             if (reference is not null)
                 yield return reference;
         }

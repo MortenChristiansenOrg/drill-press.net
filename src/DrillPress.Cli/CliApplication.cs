@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--native-generators] [--worker] [--no-worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck;
@@ -20,6 +20,11 @@ public sealed class CliApplication
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
+        --parallel-queries  Prepare pure, thread-safe queries concurrently; reporting and fixes remain ordered.
+        --native-generators  Stream source generation through a bundle with a compiled generator catalogue.
+        --worker  Reuse private compiler workers; inputs are revalidated and all rules run on each check.
+        --no-worker  Start fresh processes. Workers expire after five idle minutes.
+        drillpress stop-workers --rules <path> <target>  Stop this target's current workers.
         --explain-coverage  Show typed reasons, context identity and matching source ranges.
         --explain-fixes  Show why each proposed fix without '+' was withheld.
         --refresh-coverage  Rerun tests even when cached coverage inputs match.
@@ -42,7 +47,10 @@ public sealed class CliApplication
 
     /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
     public CliApplication()
-        : this(new FileSystem(), new ChildProcessRunner()) { }
+        : this(new FileSystem()) { }
+
+    private CliApplication(IFileSystem fileSystem)
+        : this(fileSystem, new WorkerProcessRunner(fileSystem)) { }
 
     internal CliApplication(
         IFileSystem fileSystem,
@@ -78,7 +86,7 @@ public sealed class CliApplication
             );
             return CliExitCode.Clean;
         }
-        if (args is ["--help"] or [("check" or "fix" or "status"), "--help"])
+        if (args is ["--help"] or [("check" or "fix" or "status" or "stop-workers"), "--help"])
         {
             await standardOutput.WriteAsync(Help.ReplaceLineEndings("\n") + "\n");
             return CliExitCode.Clean;
@@ -104,6 +112,20 @@ public sealed class CliApplication
         try
         {
             options = options with { BuildHost = ResolveBuildHost(options.BuildHost) };
+            if (options.Command == CliCommand.StopWorkers)
+            {
+                await _processRunner.CaptureAsync(
+                    options.BuildHost!,
+                    [CommandWorker.StopCommand, WorkerProcessRunner.Prefix + options.Target],
+                    cancellationToken
+                );
+                await _processRunner.CaptureAsync(
+                    options.Rules,
+                    [CommandWorker.StopCommand, WorkerProcessRunner.Prefix + options.Target],
+                    cancellationToken
+                );
+                return CliExitCode.Clean;
+            }
             var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
@@ -206,12 +228,39 @@ public sealed class CliApplication
         CancellationToken cancellationToken
     )
     {
+        if (
+            options.NativeGenerators
+            && !options.UseWorker
+            && !options.ExportArguments.Contains("--validate-compilation")
+        )
+        {
+            using var generation = profile.Measure("generation.pipeline");
+            var pipeline = await new GeneratorProcessPipeline(
+                _fileSystem,
+                _processRunner
+            ).CaptureAsync(options, snapshotPath, RuleFlags(options), cancellationToken);
+            await error.WriteAsync(pipeline.Export.StandardError);
+            await error.WriteAsync(pipeline.Rules.StandardError);
+            var generated = await new CompilationSnapshotFile(_fileSystem).ReadAsync(
+                pipeline.SnapshotPath,
+                cancellationToken
+            );
+            return ReadEvaluation(options, generated, pipeline.Rules);
+        }
         ChildProcessResult export;
         using (profile.Measure("build-host"))
         {
             export = await _processRunner.CaptureAsync(
                 options.BuildHost!,
-                ["export", options.Target, snapshotPath, .. options.ExportArguments],
+                [
+                    "export",
+                    options.Target,
+                    snapshotPath,
+                    .. options.ExportArguments,
+                    .. options.UseWorker
+                        ? new[] { WorkerProcessRunner.Prefix + options.Target }
+                        : [],
+                ],
                 cancellationToken
             );
         }
@@ -231,16 +280,7 @@ public sealed class CliApplication
         }
 
         var ruleArguments = new List<string> { "check", snapshotPath };
-        if (options.Profile)
-            ruleArguments.Add("--profile");
-        if (!options.EnableOptimizations)
-            ruleArguments.Add("--no-optimization");
-        if (options.ExplainCoverage)
-            ruleArguments.Add("--explain-coverage");
-        if (options.RefreshCoverage)
-            ruleArguments.Add("--refresh-coverage");
-        if (options.SkipCoverage)
-            ruleArguments.Add("--skip-coverage");
+        ruleArguments.AddRange(RuleFlags(options));
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {
@@ -251,11 +291,37 @@ public sealed class CliApplication
             );
         }
         await error.WriteAsync(check.StandardError);
-        if (check.ExitCode is not (0 or 1))
-        {
-            throw new IOException($"Rule bundle exited {check.ExitCode}.");
-        }
+        return ReadEvaluation(options, snapshot, check);
+    }
 
+    private static string[] RuleFlags(CliOptions options)
+    {
+        var flags = new List<string>();
+        if (options.UseWorker)
+            flags.Add(WorkerProcessRunner.Prefix + options.Target);
+        if (options.Profile)
+            flags.Add("--profile");
+        if (options.ParallelQueries)
+            flags.Add("--parallel-queries");
+        if (!options.EnableOptimizations)
+            flags.Add("--no-optimization");
+        if (options.ExplainCoverage)
+            flags.Add("--explain-coverage");
+        if (options.RefreshCoverage)
+            flags.Add("--refresh-coverage");
+        if (options.SkipCoverage)
+            flags.Add("--skip-coverage");
+        return flags.ToArray();
+    }
+
+    private static RuleEvaluation ReadEvaluation(
+        CliOptions options,
+        CompilationSnapshot snapshot,
+        ChildProcessResult check
+    )
+    {
+        if (check.ExitCode is not (0 or 1))
+            throw new IOException($"Rule bundle exited {check.ExitCode}.");
         var result = BundleResponseProtocol.Read(
             check.StandardOutput,
             snapshot,

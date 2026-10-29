@@ -12,6 +12,8 @@ internal sealed class CandidateRule<T>(
     CodeQuery<AnalysisProject>? coverageScope
 ) : CompiledRule(descriptor.Id)
 {
+    public override void Prepare(AnalysisSolution solution) => _ = query.In(solution);
+
     public override IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning)
     {
         if (coverageScope is not null)

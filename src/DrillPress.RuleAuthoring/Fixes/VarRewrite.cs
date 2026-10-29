@@ -176,9 +176,7 @@ internal static class VarRewrite
             before.AncestorsAndSelf().FirstOrDefault(node => node is MemberDeclarationSyntax)
             ?? before;
         return context.Map(source, scope) is { } changedScope
-            && !source
-                .Model.GetDiagnostics(scope.Span, source.Project.CancellationToken)
-                .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            && !source.Errors.In(scope.Span)
             && !mapped
                 .Model.GetDiagnostics(changedScope.After.Span, source.Project.CancellationToken)
                 .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);

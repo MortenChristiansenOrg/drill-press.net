@@ -6,6 +6,9 @@ public sealed record AnalysisOptions
     /// <summary>Uses shared candidate constraints and indexes; disable to compare with exhaustive evaluation.</summary>
     public bool EnableOptimizations { get; init; } = true;
 
+    /// <summary>Maximum number of queries to prepare concurrently before ordered reporting and fix construction. Values above one require selectors and predicates that are deterministic and safe for concurrent calls.</summary>
+    public int QueryPreparationConcurrency { get; init; } = 1;
+
     /// <summary>Recollects tests even when source, build, test inputs and environment match cached evidence; use for mutable external test dependencies.</summary>
     public bool RefreshCoverage { get; init; }
 

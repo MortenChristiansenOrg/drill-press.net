@@ -6,7 +6,10 @@ namespace DrillPress;
 internal sealed class MemberCandidateIndex
 {
     private readonly MemberSyntaxCandidate[] _candidates;
-    private readonly Dictionary<MemberSyntaxCandidate, MemberReference?> _bindings = [];
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        MemberSyntaxCandidate,
+        Lazy<MemberReference?>
+    > _bindings = [];
     private readonly CancellationToken _cancellationToken;
 
     internal MemberCandidateIndex(
@@ -36,11 +39,9 @@ internal sealed class MemberCandidateIndex
                 continue;
             }
 
-            if (!_bindings.TryGetValue(candidate, out var reference))
-            {
-                reference = Bind(candidate);
-                _bindings.Add(candidate, reference);
-            }
+            var reference = _bindings
+                .GetOrAdd(candidate, candidate => new(() => Bind(candidate)))
+                .Value;
 
             if (reference is not null)
             {
