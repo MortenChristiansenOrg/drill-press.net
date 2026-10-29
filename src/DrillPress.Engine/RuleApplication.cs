@@ -141,9 +141,7 @@ public sealed class RuleApplication
                         .GetEntryAssembly()
                         ?.GetCustomAttribute<SourceGeneratorCatalogAttribute>()
                         ?.Create()
-                    ?? throw new InvalidOperationException(
-                        "The rule bundle has no compiled source generator catalogue."
-                    );
+                    ?? SourceGeneratorCatalog.Empty;
                 var result = await new SourceGenerationSession(
                     _fileSystem,
                     _coverageProcess,

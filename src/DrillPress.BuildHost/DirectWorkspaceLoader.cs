@@ -37,15 +37,24 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
             ["ShouldUnsetParentConfigurationAndPlatform"] = "false",
         };
         var collection = _collection = new ProjectCollection(globals);
-        var graph = new BuildGraph(
-            [new ProjectGraphEntryPoint(target, globals)],
-            collection,
-            (path, globalProperties, projectCollection) =>
-            {
-                return new ProjectInstance(path, globalProperties, null, projectCollection);
-            },
-            cancellationToken
-        );
+        BuildGraph graph;
+        try
+        {
+            graph = new BuildGraph(
+                [new ProjectGraphEntryPoint(target, globals)],
+                collection,
+                (path, globalProperties, projectCollection) =>
+                {
+                    return new ProjectInstance(path, globalProperties, null, projectCollection);
+                },
+                cancellationToken
+            );
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Projects the graph cannot evaluate, such as those needing an absent SDK, keep MSBuildWorkspace's handling.
+            return null;
+        }
         var nodes = graph.ProjectNodesTopologicallySorted.ToArray();
         if (
             nodes.Length == 0

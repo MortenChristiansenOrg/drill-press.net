@@ -65,11 +65,12 @@ reject incomplete profiles rather than treating missing phases as zero cost.
 
 ## Sharing generation and analysis
 
-`--native-generators` starts the rule bundle alongside compiler capture. Projects
-stream to the bundle as their design-time builds finish. The bundle runs its linked
-generators and prepares semantic models once for subsequent rules. The option also
-works with a managed bundle; ahead-of-time publication removes the remaining JIT
-startup cost. Ordinary rule registration and the program entry point stay unchanged.
+`--stream-compilation` starts the rule bundle alongside compiler capture. Projects
+stream to the bundle as their design-time builds finish. The bundle compiles them,
+runs the generators it links and prepares semantic models once for subsequent rules.
+Any bundle supports the option: without a catalogue, BuildHost runs every generator.
+Ahead-of-time publication with a catalogue removes the remaining JIT and generator
+round trips. Ordinary rule registration and the program entry point stay unchanged.
 
 A bundle declares linked implementations through `SourceGeneratorCatalog` and an
 assembly-level `SourceGeneratorCatalogAttribute`. Each `CompiledSourceGenerator`
@@ -124,7 +125,7 @@ unchanged compilations, semantic models, and pure query results. Coverage rules
 receive a new query evaluation so refreshed evidence cannot reuse old conditions.
 
 Workers assume deterministic generators and declared build inputs. Custom targets
-or generators that read undeclared external state need `--no-worker`. A changed
+or generators that read undeclared external state need fresh processes: omit `--worker`. A changed
 component or process environment selects a new worker; request-specific Codex
 tool-call identifiers do not affect worker identity. Cancellation disconnects the
 request and retires its worker rather than preserving interrupted analysis.
@@ -134,7 +135,7 @@ generated compilations, and reconstruction invalidates a changed context and its
 transitive dependents. Solution-wide query materializations are rebuilt after a
 graph change; unchanged projects can retain their semantic models. A repeated profile reports work done in that
 request; candidate counters and peak working set describe retained worker state.
-Use `--no-worker` for a fresh-process comparison, and keep source/rule builds
+Omit `--worker` for a fresh-process comparison, and keep source/rule builds
 outside analysis-only measurements. Ordinary checks remain fresh by default.
 
 ## BuildHost loading

@@ -19,22 +19,34 @@ internal sealed class SnapshotInputCache(IFileSystem fileSystem)
             _key != key
             || _export is null
             || _fingerprint is null
-            || _fingerprint != Fingerprint(_export, cancellationToken)
+            || _fingerprint != Fingerprint(_export, null, cancellationToken)
         )
             return null;
         var snapshot = _export.Snapshot with { RequestId = Guid.NewGuid().ToString("N") };
         return _export with { Snapshot = snapshot };
     }
 
-    internal void Store(string key, SnapshotExport export, CancellationToken cancellationToken)
+    /// <summary>Keeps a capture for reuse unless an input changed after the capture started.</summary>
+    /// <remarks>A file edited during capture would otherwise pair its old captured text with its new fingerprint.
+    /// Timestamps only decide against caching; reuse still requires matching content.</remarks>
+    internal void Store(
+        string key,
+        SnapshotExport export,
+        DateTime captureStarted,
+        CancellationToken cancellationToken
+    )
     {
-        var fingerprint = Fingerprint(export, cancellationToken);
+        var fingerprint = Fingerprint(export, captureStarted, cancellationToken);
         _key = key;
         _export = export;
         _fingerprint = fingerprint;
     }
 
-    private string? Fingerprint(SnapshotExport export, CancellationToken cancellationToken)
+    private string? Fingerprint(
+        SnapshotExport export,
+        DateTime? changedSince,
+        CancellationToken cancellationToken
+    )
     {
         var paths = export
             .InputPaths.Concat(
@@ -56,6 +68,8 @@ internal sealed class SnapshotInputCache(IFileSystem fileSystem)
         foreach (var path in paths)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (ChangedSince(path, changedSince))
+                return null;
             Append(hash, path);
             Append(hash, inputs.Read(path));
         }
@@ -69,7 +83,7 @@ internal sealed class SnapshotInputCache(IFileSystem fileSystem)
                 .Distinct()
                 .Order(StringComparer.Ordinal)
         )
-            if (!Inventory(directory, hash, visited, cancellationToken))
+            if (!Inventory(directory, hash, visited, changedSince, cancellationToken))
                 return null;
         return Convert.ToHexString(hash.GetHashAndReset());
     }
@@ -78,6 +92,7 @@ internal sealed class SnapshotInputCache(IFileSystem fileSystem)
         string directory,
         IncrementalHash hash,
         HashSet<string> visited,
+        DateTime? changedSince,
         CancellationToken cancellationToken
     )
     {
@@ -87,7 +102,10 @@ internal sealed class SnapshotInputCache(IFileSystem fileSystem)
         Append(hash, directory);
         if (!_fileSystem.Directory.Exists(directory))
             return true;
-        if (_fileSystem.DirectoryInfo.New(directory).LinkTarget is not null)
+        if (
+            _fileSystem.DirectoryInfo.New(directory).LinkTarget is not null
+            || ChangedSince(directory, changedSince)
+        )
             return false;
         foreach (
             var entry in _fileSystem
@@ -98,12 +116,20 @@ internal sealed class SnapshotInputCache(IFileSystem fileSystem)
             Append(hash, entry);
             if (
                 _fileSystem.Directory.Exists(entry)
-                && !Inventory(entry, hash, visited, cancellationToken)
+                && !Inventory(entry, hash, visited, changedSince, cancellationToken)
             )
                 return false;
         }
         return true;
     }
+
+    private bool ChangedSince(string path, DateTime? time) =>
+        time is { } since
+        && (
+            _fileSystem.File.Exists(path) ? _fileSystem.File.GetLastWriteTimeUtc(path)
+            : _fileSystem.Directory.Exists(path) ? _fileSystem.Directory.GetLastWriteTimeUtc(path)
+            : DateTime.MinValue
+        ) >= since;
 
     private static void Append(IncrementalHash hash, string value)
     {

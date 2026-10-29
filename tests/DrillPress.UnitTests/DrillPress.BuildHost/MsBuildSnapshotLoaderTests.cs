@@ -65,6 +65,32 @@ public sealed class MsBuildSnapshotLoaderTests
     }
 
     [Fact]
+    public async Task Captures_again_after_a_source_changed_during_the_previous_capture()
+    {
+        var files = Files();
+        var loader = new FakeCaptureSnapshotLoader(files)
+        {
+            DuringCapture = () => files.File.WriteAllText("/repo/Source.cs", "class D {}"),
+        };
+        var options = new SnapshotLoadOptions { ReuseInputs = true };
+        await loader.LoadCompilationsAsync(
+            "/repo/Target.csproj",
+            options,
+            TestContext.Current.CancellationToken
+        );
+        loader.DuringCapture = null;
+
+        var repeated = await loader.LoadCompilationsAsync(
+            "/repo/Target.csproj",
+            options,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(2, loader.Captures);
+        Assert.Equal("class D {}", repeated.Snapshot.Projects[0].Documents[0].Text);
+    }
+
+    [Fact]
     public async Task Invalidates_deleted_inputs_and_changed_build_options()
     {
         var files = Files();

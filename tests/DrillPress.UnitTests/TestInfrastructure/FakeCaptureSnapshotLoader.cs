@@ -13,6 +13,8 @@ internal sealed class FakeCaptureSnapshotLoader(IFileSystem fileSystem)
 
     internal int Captures { get; private set; }
 
+    internal Action? DuringCapture { get; set; }
+
     internal override Task<SnapshotExport> CaptureAsync(
         string target,
         SnapshotLoadOptions options,
@@ -28,6 +30,7 @@ internal sealed class FakeCaptureSnapshotLoader(IFileSystem fileSystem)
         {
             ProjectPath = target,
         };
+        DuringCapture?.Invoke();
         var compilation = CSharpCompilation.Create(
             "Target",
             [CSharpSyntaxTree.ParseText(source.Documents[0].Text, path: source.Documents[0].Path)]

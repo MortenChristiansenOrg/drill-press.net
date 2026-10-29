@@ -15,8 +15,13 @@ public abstract class SourceGeneratorCatalog
         _generators = generators.ToDictionary(item => item.Description, item => item.Generator);
     }
 
+    /// <summary>A catalogue without linked generators, so capture runs every generator.</summary>
+    internal static SourceGeneratorCatalog Empty { get; } = new EmptyCatalog();
+
     internal GeneratorDescription[] Descriptions => _generators.Keys.ToArray();
 
     internal ISourceGenerator? Find(GeneratorDescription description) =>
         _generators.GetValueOrDefault(description);
+
+    private sealed class EmptyCatalog() : SourceGeneratorCatalog([]);
 }

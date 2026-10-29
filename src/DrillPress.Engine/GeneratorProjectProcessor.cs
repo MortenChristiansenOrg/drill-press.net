@@ -38,10 +38,13 @@ internal sealed class GeneratorProjectProcessor(
         );
         var input = CreateGeneratorInput(live, completed, out var replaced);
 
-        var selections = plan
-            .Inputs.Generators.Select(
-                (description, index) => (Generator: catalog.Find(description), Index: index)
-            )
+        // Generators see each other's post-initialization sources only within one driver, so one
+        // generator BuildHost must run takes the project's other generators with it.
+        var linked = plan.Inputs.Generators.Select(catalog.Find).ToArray();
+        if (linked.Contains(null))
+            linked = new ISourceGenerator?[linked.Length];
+        var selections = linked
+            .Select((generator, index) => (Generator: generator, Index: index))
             .ToArray();
         Task<GeneratorFallbackResponse>? fallback = null;
         if (selections.Any(selection => selection.Generator is null))

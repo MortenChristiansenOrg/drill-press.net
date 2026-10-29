@@ -65,7 +65,7 @@ public sealed class CliWorkerTests : IntegrationTest
         );
         var fresh = await RunProcessAsync(
             "dotnet",
-            [.. arguments, "--no-worker"],
+            arguments.Where(argument => argument != "--worker").ToArray(),
             root,
             TestContext.Current.CancellationToken
         );
@@ -91,6 +91,90 @@ public sealed class CliWorkerTests : IntegrationTest
 
             """.ReplaceLineEndings("\n"),
             edited.StandardOutput
+        );
+        Assert.Equal(
+            (0, "", ""),
+            (stopped.ExitCode, stopped.StandardOutput, stopped.StandardError)
+        );
+    }
+
+    [Fact]
+    public async Task Workers_apply_a_directory_build_file_created_above_the_project()
+    {
+        var directory = CreateTemporaryDirectory("drillpress-worker-import-");
+        var project = FileSystem.Path.Combine(directory.FullName, "src", "Target.csproj");
+        FileSystem.Directory.CreateDirectory(FileSystem.Path.GetDirectoryName(project)!);
+        await FileSystem.File.WriteAllTextAsync(
+            project,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+            </Project>
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(directory.FullName, "src", "A.cs"),
+            """
+            public static class C
+            {
+            #if FLAG
+                public static string Value => string.Empty;
+            #endif
+            }
+            """,
+            TestContext.Current.CancellationToken
+        );
+        await RestoreAsync(project);
+        string[] arguments =
+        [
+            GetOutputPath("DrillPress.Cli"),
+            "check",
+            "--worker",
+            "--build-host",
+            GetOutputPath("DrillPress.BuildHost"),
+            "--rules",
+            GetOutputPath("DrillPress.SampleRules", "samples"),
+            project,
+        ];
+        var first = await RunProcessAsync(
+            "dotnet",
+            arguments,
+            directory.FullName,
+            TestContext.Current.CancellationToken
+        );
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(directory.FullName, "Directory.Build.props"),
+            "<Project><PropertyGroup><DefineConstants>$(DefineConstants);FLAG</DefineConstants></PropertyGroup></Project>",
+            TestContext.Current.CancellationToken
+        );
+
+        var imported = await RunProcessAsync(
+            "dotnet",
+            arguments,
+            directory.FullName,
+            TestContext.Current.CancellationToken
+        );
+        var stopped = await RunProcessAsync(
+            "dotnet",
+            [arguments[0], "stop-workers", .. arguments[2..]],
+            directory.FullName,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal((0, "", ""), (first.ExitCode, first.StandardOutput, first.StandardError));
+        Assert.Equal(
+            (
+                1,
+                """
+                DP1004 Use the empty string literal "" instead of string.Empty.
+                src/A.cs
+                  +4:35
+
+                """.ReplaceLineEndings("\n"),
+                ""
+            ),
+            (imported.ExitCode, imported.StandardOutput, imported.StandardError)
         );
         Assert.Equal(
             (0, "", ""),
@@ -199,7 +283,7 @@ public sealed class CliWorkerTests : IntegrationTest
         );
         var fresh = await RunProcessAsync(
             "dotnet",
-            [.. arguments, "--no-worker"],
+            arguments.Where(argument => argument != "--worker").ToArray(),
             directory.FullName,
             TestContext.Current.CancellationToken
         );

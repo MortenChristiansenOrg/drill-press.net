@@ -84,9 +84,10 @@ public class MsBuildSnapshotLoader
             );
         if (reuseInputs && _cache.Find(cacheKey, cancellationToken) is { } cached)
             return Restrict(cached, cancellationToken);
+        var started = DateTime.UtcNow;
         var export = await CaptureAsync(target, options, profile, cancellationToken);
         if (reuseInputs)
-            _cache.Store(cacheKey, export, cancellationToken);
+            _cache.Store(cacheKey, export, started, cancellationToken);
         return Restrict(export, cancellationToken);
     }
 

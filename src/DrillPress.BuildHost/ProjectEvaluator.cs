@@ -1,5 +1,6 @@
 using System.IO.Abstractions;
 using DrillPress.Manifest;
+using Microsoft.Build.Construction;
 using Microsoft.Build.Evaluation;
 using Project = Microsoft.CodeAnalysis.Project;
 using ProjectId = Microsoft.CodeAnalysis.ProjectId;
@@ -231,6 +232,7 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
                         .AnalyzerReferences.Select(reference => reference.FullPath)
                         .OfType<string>()
                 )
+                .Concat(AbsentImports(evaluated))
                 .Where(path => path.Length > 0 && !_fileSystem.Directory.Exists(path))
                 .Select(path => _fileSystem.Path.GetFullPath(path))
                 .Distinct()
@@ -240,15 +242,57 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
         );
     }
 
+    // Conditional imports of files that don't exist yet, including the Directory.Build and central
+    // package files MSBuild looks for in every ancestor directory, change the build once created.
+    private IEnumerable<string> AbsentImports(Microsoft.Build.Evaluation.Project project)
+    {
+        var searched = new[]
+        {
+            "_DirectoryBuildPropsFile",
+            "_DirectoryBuildTargetsFile",
+            "_DirectoryPackagesPropsFile",
+        }
+            .Select(project.GetPropertyValue)
+            .Where(name => name.Length > 0)
+            .ToArray();
+        var ancestors = new List<string>();
+        for (
+            var directory = project.DirectoryPath;
+            directory is not null;
+            directory = _fileSystem.Path.GetDirectoryName(directory)
+        )
+            ancestors.Add(directory);
+        return Imports(project)
+            .Where(import => import.Sdk.Length == 0)
+            .Select(import =>
+                (
+                    Path: project.ExpandString(import.Project),
+                    Directory: import.ContainingProject.DirectoryPath
+                )
+            )
+            .Where(import => import.Path.Length > 0 && import.Path.IndexOfAny(['*', '?', ';']) < 0)
+            .Select(import => _fileSystem.Path.GetFullPath(import.Path, import.Directory))
+            .Concat(
+                ancestors.SelectMany(directory =>
+                    searched.Select(name => _fileSystem.Path.Combine(directory, name))
+                )
+            )
+            .Where(path => !_fileSystem.File.Exists(path));
+    }
+
+    private static IEnumerable<ProjectImportElement> Imports(
+        Microsoft.Build.Evaluation.Project project
+    ) =>
+        project.Xml.Imports.Concat(
+            project.Imports.SelectMany(import => import.ImportedProject.Imports)
+        );
+
     private string[] InputDirectories(Microsoft.Build.Evaluation.Project project)
     {
         var patterns = project
             .AllEvaluatedItems.Select(item => (item.UnevaluatedInclude, project.DirectoryPath))
             .Concat(
-                project
-                    .Xml.Imports.Concat(
-                        project.Imports.SelectMany(import => import.ImportedProject.Imports)
-                    )
+                Imports(project)
                     .Select(import => (import.Project, import.ContainingProject.DirectoryPath))
             );
         return patterns

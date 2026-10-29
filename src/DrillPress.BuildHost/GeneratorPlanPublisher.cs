@@ -77,18 +77,16 @@ internal sealed class GeneratorPlanPublisher(
             cancellationToken
         );
 
-        var unknown = descriptions
-            .Select((description, index) => (Description: description, Index: index))
-            .Where(item => !_supported.Contains(item.Description))
-            .ToArray();
-        if (unknown.Length == 0)
+        // Generators share post-initialization sources within one driver, so a project with one
+        // generator the bundle lacks runs all of its generators here.
+        if (descriptions.All(_supported.Contains))
             return;
         var request = await transport.ReadRequestAsync(snapshot.ContextId, cancellationToken);
         var input = Rebind(compilation, snapshot, request, cancellationToken);
         var driver = GeneratorExecution.Run(
             snapshot.Name,
             CSharpGeneratorDriver.Create(
-                unknown.Select(item => generators[item.Index]),
+                generators,
                 additionalFiles,
                 (CSharpParseOptions)project.ParseOptions!,
                 project.AnalyzerOptions.AnalyzerConfigOptionsProvider
@@ -101,7 +99,7 @@ internal sealed class GeneratorPlanPublisher(
             .SelectMany(
                 (result, index) =>
                     result.GeneratedSources.Select(source => new GeneratedSourceData(
-                        unknown[index].Index,
+                        index,
                         source.HintName,
                         source.SyntaxTree.FilePath,
                         source.SourceText.ToString(),

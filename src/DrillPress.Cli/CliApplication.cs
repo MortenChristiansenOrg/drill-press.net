@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--native-generators] [--worker] [--no-worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck;
@@ -21,9 +21,8 @@ public sealed class CliApplication
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --parallel-queries  Prepare pure, thread-safe queries concurrently; reporting and fixes remain ordered.
-        --native-generators  Stream source generation through a bundle with a compiled generator catalogue.
-        --worker  Reuse private compiler workers; inputs are revalidated and all rules run on each check.
-        --no-worker  Start fresh processes. Workers expire after five idle minutes.
+        --stream-compilation  Compile each project in the rule bundle as soon as capture finishes it.
+        --worker  Reuse private compiler workers for five idle minutes; inputs are revalidated and all rules run.
         drillpress stop-workers --rules <path> <target>  Stop this target's current workers.
         --explain-coverage  Show typed reasons, context identity and matching source ranges.
         --explain-fixes  Show why each proposed fix without '+' was withheld.
@@ -229,7 +228,7 @@ public sealed class CliApplication
     )
     {
         if (
-            options.NativeGenerators
+            options.StreamCompilation
             && !options.UseWorker
             && !options.ExportArguments.Contains("--validate-compilation")
         )

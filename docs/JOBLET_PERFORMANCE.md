@@ -1,18 +1,42 @@
 # Joblet full-check performance
 
 Measured on 28–29 October 2026 on Ubuntu under WSL, with .NET SDK 10.0.113,
-runtime 10.0.13, 16 logical processors and 19 GiB RAM. Both repositories were
-fetched again: Joblet `aefe5e22` and DrillPress `f091234` still match `origin/main`.
-The changes described here are local and uncommitted.
+runtime 10.0.13, 16 logical processors and 19 GiB RAM, against Joblet `aefe5e22`
+and Drill Press `f091234` plus the changes released in 0.0.3-preview.24.
 
-## Result
+## Result with the published packages
 
-**The full default command now takes less than 10 seconds from fresh processes.**
-Three final default invocations take **9.80, 9.41 and 9.42 s**, exit zero and emit
-no findings or stderr. Builds remain enabled:
+This is what Joblet's check script, pre-push checks and CI get. The table times
+`drillpress check` on the whole solution with fresh processes and no findings;
+rule builds are excluded. "Two cores" pins the check to two CPUs to stand in for
+Joblet's 2-vCPU CI runners. Another project's test suite loaded the host
+throughout, so the runs are interleaved and each variant runs twice.
+
+| Workflow | All cores | Two cores |
+| --- | ---: | ---: |
+| 0.0.3-preview.23 (Debug rules locally, Release on two cores, as in CI) | 84.5 / 76.1 s | 98.2 / 99.4 s |
+| 0.0.3-preview.24, rules with tiered compilation off and server GC | 42.1 / 39.3 s | 61.2 / 58.0 s |
+| + `--parallel-queries` | 30.2 / 29.4 s | 55.6 / 52.6 s |
+| + `--stream-compilation`, as Joblet's script now runs it | **24.6 / 24.5 s** | **48.5 / 46.5 s** |
+| Same, tiered compilation re-enabled in the rule bundle | — | 81.6 / 68.7 s |
+| Same, workstation GC in every process | — | 51.9 / 48.8 s |
+
+On two cores the check takes about half as long as before. The largest
+single process grows from 0.90 GB to 1.06–1.21 GB at peak. CI runs this check
+after its build and tests, so the saving there is about 50 seconds per run.
+
+Without a source generator catalogue, `--stream-compilation` runs every generator
+in BuildHost and still overlaps capture with compilation in the rule bundle.
+
+## Result with a Drill Press source checkout
+
+**With native bundles built from a source checkout, the full default command takes
+less than 10 seconds from fresh processes.** Three final default invocations took
+**9.80, 9.41 and 9.42 s**, exit zero and emit no findings or stderr. Builds remain
+enabled:
 
 ```sh
-cd /home/morten/code/joblet
+cd joblet
 sh scripts/check-code-rules.sh
 ```
 

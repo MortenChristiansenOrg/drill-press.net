@@ -29,8 +29,13 @@ internal sealed class SourceGenerationFixture
         Transport = new GeneratorTransport(FileSystem, "/project/generation");
     }
 
-    internal async Task ArrangeAsync(
+    internal Task ArrangeAsync(
         CompiledSourceGenerator generator,
+        ProjectSnapshot? project = null
+    ) => ArrangeAsync([generator], project);
+
+    internal async Task ArrangeAsync(
+        CompiledSourceGenerator[] generators,
         ProjectSnapshot? project = null
     )
     {
@@ -38,7 +43,12 @@ internal sealed class SourceGenerationFixture
         await Transport.WritePlanAsync(
             new GeneratorProjectPlan(
                 selected,
-                new GeneratorInputs([generator.Description], [], [], [])
+                new GeneratorInputs(
+                    generators.Select(generator => generator.Description).ToArray(),
+                    [],
+                    [],
+                    []
+                )
             ),
             TestContext.Current.CancellationToken
         );
@@ -52,7 +62,7 @@ internal sealed class SourceGenerationFixture
         );
     }
 
-    internal async Task<RuleExitCode> RunAsync(SourceGeneratorCatalog catalog)
+    internal async Task<RuleExitCode> RunAsync(SourceGeneratorCatalog? catalog)
     {
         var rules = new RuleCatalog();
         rules

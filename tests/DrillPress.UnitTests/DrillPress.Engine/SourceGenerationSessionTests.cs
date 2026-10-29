@@ -108,6 +108,64 @@ public sealed class SourceGenerationSessionTests
     }
 
     [Fact]
+    public async Task A_linked_generator_runs_in_capture_beside_one_the_bundle_lacks()
+    {
+        var fixture = new SourceGenerationFixture();
+        var linked = new CompiledSourceGenerator(
+            new ConstantSourceGenerator().AsSourceGenerator(),
+            SourceGenerationFixture.Fingerprint
+        );
+        var missing = new CompiledSourceGenerator(
+            new ConstantSourceGenerator().AsSourceGenerator(),
+            new string('B', 64)
+        );
+        await fixture.ArrangeAsync([linked, missing]);
+        var fallback = fixture.RespondAsync();
+
+        var result = await fixture.RunAsync(new TestSourceGeneratorCatalog(linked));
+
+        Assert.Equal(RuleExitCode.Findings, result);
+        Assert.Equal("", fixture.Error.ToString());
+        Assert.Empty((await fallback).References);
+        Assert.Equal(
+            """
+            GEN001 Generated type is available.
+            Use.cs
+              1:14
+
+            """.ReplaceLineEndings("\n"),
+            await fixture.RenderAsync()
+        );
+    }
+
+    [Fact]
+    public async Task A_bundle_without_a_catalogue_runs_every_generator_in_capture()
+    {
+        var fixture = new SourceGenerationFixture();
+        var generator = new CompiledSourceGenerator(
+            new ConstantSourceGenerator().AsSourceGenerator(),
+            SourceGenerationFixture.Fingerprint
+        );
+        await fixture.ArrangeAsync(generator);
+        var fallback = fixture.RespondAsync();
+
+        var result = await fixture.RunAsync(null);
+
+        Assert.Equal(RuleExitCode.Findings, result);
+        Assert.Equal("", fixture.Error.ToString());
+        Assert.Empty((await fallback).References);
+        Assert.Equal(
+            """
+            GEN001 Generated type is available.
+            Use.cs
+              1:14
+
+            """.ReplaceLineEndings("\n"),
+            await fixture.RenderAsync()
+        );
+    }
+
+    [Fact]
     public async Task User_diagnostic_suppression_cannot_disable_internal_model_preparation()
     {
         var fixture = new SourceGenerationFixture();

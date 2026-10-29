@@ -157,11 +157,10 @@ public sealed class SourceGenerationTests : IntegrationTest
         );
         var generated = await RunProcessAsync(
             "dotnet",
-            [.. command, "--native-generators", "--parallel-queries"],
+            [.. command, "--stream-compilation", "--parallel-queries"],
             directory.FullName,
             TestContext.Current.CancellationToken
         );
-        TestContext.Current.TestOutputHelper!.WriteLine(generated.StandardError);
 
         Assert.Equal(
             (
