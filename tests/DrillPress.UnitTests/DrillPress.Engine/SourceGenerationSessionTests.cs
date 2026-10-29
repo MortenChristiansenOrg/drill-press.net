@@ -19,16 +19,16 @@ public sealed class SourceGenerationSessionTests
         var original = fixture.Snapshot.Projects.Single();
         var document = SourceIdentity.Capture(
             original.Documents.Single(),
-            fixture.FileSystem.File.ReadAllBytes("/project/Use.cs"),
+            fixture.FileSystem.File.ReadAllBytes(fixture.SourcePath),
             "utf-8",
             false
         );
         await fixture.ArrangeAsync(generator, original with { Documents = [document] });
-        fixture.FileSystem.File.WriteAllText("/project/Use.cs", "public class Changed { }");
+        fixture.FileSystem.File.WriteAllText(fixture.SourcePath, "public class Changed { }");
 
         var result = await fixture.RunAsync(new TestSourceGeneratorCatalog(generator));
         var snapshot = await new CompilationSnapshotFile(fixture.FileSystem).ReadAsync(
-            "/project/effective.json",
+            fixture.EffectivePath,
             TestContext.Current.CancellationToken
         );
 
@@ -37,7 +37,7 @@ public sealed class SourceGenerationSessionTests
         Assert.Equal(document.Fingerprint, snapshot.Projects.Single().Documents[0].Fingerprint);
         Assert.Equal(
             "public class Changed { }",
-            fixture.FileSystem.File.ReadAllText("/project/Use.cs")
+            fixture.FileSystem.File.ReadAllText(fixture.SourcePath)
         );
         Assert.Equal(
             """

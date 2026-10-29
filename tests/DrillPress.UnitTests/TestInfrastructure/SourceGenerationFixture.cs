@@ -14,19 +14,28 @@ internal sealed class SourceGenerationFixture
     internal CompilationSnapshot Snapshot { get; }
     internal StringWriter Output { get; } = new();
     internal StringWriter Error { get; } = new();
+    internal string SourcePath { get; }
+    internal string EffectivePath { get; }
+    private readonly string _generationDirectory;
+    private readonly string _rawPath;
 
     internal SourceGenerationFixture()
     {
-        FileSystem.Directory.CreateDirectory("/project/generation");
-        FileSystem.Directory.SetCurrentDirectory("/project");
-        FileSystem.AddFile("/project/Use.cs", "public class Use : Generated { }");
+        var directory = FileSystem.Path.GetFullPath("/project");
+        SourcePath = FileSystem.Path.Combine(directory, "Use.cs");
+        EffectivePath = FileSystem.Path.Combine(directory, "effective.json");
+        _generationDirectory = FileSystem.Path.Combine(directory, "generation");
+        _rawPath = FileSystem.Path.Combine(directory, "raw.json");
+        FileSystem.Directory.CreateDirectory(_generationDirectory);
+        FileSystem.Directory.SetCurrentDirectory(directory);
+        FileSystem.AddFile(SourcePath, "public class Use : Generated { }");
         Snapshot = CompilationSnapshot.Create(
-            TestSnapshots.CreateProject("/project/Use.cs", "public class Use : Generated { }") with
+            TestSnapshots.CreateProject(SourcePath, "public class Use : Generated { }") with
             {
                 ContextId = "source",
             }
         );
-        Transport = new GeneratorTransport(FileSystem, "/project/generation");
+        Transport = new GeneratorTransport(FileSystem, _generationDirectory);
     }
 
     internal Task ArrangeAsync(
@@ -53,7 +62,7 @@ internal sealed class SourceGenerationFixture
             TestContext.Current.CancellationToken
         );
         await new CompilationSnapshotFile(FileSystem).WriteAsync(
-            "/project/raw.json",
+            _rawPath,
             Snapshot with
             {
                 Projects = [selected],
@@ -82,9 +91,9 @@ internal sealed class SourceGenerationFixture
             rules,
             [
                 "check-generated",
-                "/project/generation",
-                "/project/raw.json",
-                "/project/effective.json",
+                _generationDirectory,
+                _rawPath,
+                EffectivePath,
                 "--parallel-queries",
             ],
             Output,
@@ -96,7 +105,7 @@ internal sealed class SourceGenerationFixture
     internal async Task<string> RenderAsync()
     {
         var snapshot = await new CompilationSnapshotFile(FileSystem).ReadAsync(
-            "/project/effective.json",
+            EffectivePath,
             TestContext.Current.CancellationToken
         );
         return new CompactDiagnosticRenderer(FileSystem).Render(
