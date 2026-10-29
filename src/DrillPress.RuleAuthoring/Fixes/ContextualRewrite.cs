@@ -77,9 +77,7 @@ internal static class ContextualRewrite
                 .FirstOrDefault(node => node is StatementSyntax or MemberDeclarationSyntax)
             ?? replaced;
         if (
-            source
-                .Model.GetDiagnostics(scope.Span, source.Project.CancellationToken)
-                .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            source.Errors.In(scope.Span)
             || changedModel
                 .GetDiagnostics(
                     new TextSpan(scope.SpanStart, scope.Span.Length + delta),

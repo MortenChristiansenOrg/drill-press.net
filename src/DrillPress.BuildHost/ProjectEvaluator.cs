@@ -35,37 +35,45 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
         CancellationToken cancellationToken
     )
     {
-        var results = projects.ToDictionary(
+        return projects.ToDictionary(
             project => project.Id,
-            _ => new TaskCompletionSource<EvaluatedMetadata>(
-                TaskCreationOptions.RunContinuationsAsynchronously
-            )
+            project => Start(project, cancellationToken)
         );
-        _evaluation = Task.Run(
-            () =>
-            {
-                foreach (var project in projects)
-                {
-                    var result = results[project.Id];
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        result.SetCanceled(cancellationToken);
-                        continue;
-                    }
+    }
 
-                    try
-                    {
-                        result.SetResult(Evaluate(project));
-                    }
-                    catch (Exception exception)
-                    {
-                        result.SetException(exception);
-                    }
-                }
-            },
-            CancellationToken.None
+    internal Task<EvaluatedMetadata> Start(Project project, CancellationToken cancellationToken)
+    {
+        var result = new TaskCompletionSource<EvaluatedMetadata>(
+            TaskCreationOptions.RunContinuationsAsynchronously
         );
-        return results.ToDictionary(pair => pair.Key, pair => pair.Value.Task);
+        _evaluation = _evaluation.ContinueWith(
+            _ => Complete(project, result, cancellationToken),
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default
+        );
+        return result.Task;
+    }
+
+    private void Complete(
+        Project project,
+        TaskCompletionSource<EvaluatedMetadata> result,
+        CancellationToken cancellationToken
+    )
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            result.SetCanceled(cancellationToken);
+            return;
+        }
+        try
+        {
+            result.SetResult(Evaluate(project));
+        }
+        catch (Exception exception)
+        {
+            result.SetException(exception);
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -76,10 +84,6 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
 
     private EvaluatedMetadata Evaluate(Project project)
     {
-        var properties = new Dictionary<string, string>(
-            _properties,
-            StringComparer.OrdinalIgnoreCase
-        );
         var global = project.AnalyzerOptions.AnalyzerConfigOptionsProvider.GlobalOptions;
         global.TryGetValue("build_property.TargetFramework", out var framework);
         if (
@@ -103,7 +107,16 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
         // One evaluation with the framework as a global property equals evaluating the outer
         // project and then setting that global property.
         var evaluated = Load(project, string.IsNullOrEmpty(framework) ? null : framework);
-        framework = evaluated.GetPropertyValue("TargetFramework");
+        return Capture(project, evaluated);
+    }
+
+    private EvaluatedMetadata Capture(Project project, Microsoft.Build.Evaluation.Project evaluated)
+    {
+        var properties = new Dictionary<string, string>(
+            _properties,
+            StringComparer.OrdinalIgnoreCase
+        );
+        var framework = evaluated.GetPropertyValue("TargetFramework");
         var test = evaluated.GetProperty("IsTestProject");
         var isTest =
             test is not null && test.EvaluatedValue.Length > 0

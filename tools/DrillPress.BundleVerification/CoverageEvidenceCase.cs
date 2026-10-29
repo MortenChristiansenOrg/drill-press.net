@@ -44,7 +44,10 @@ internal sealed class CoverageEvidenceCase(
                 new XElement("PublishAot", "true"),
                 new XElement("TrimmerSingleWarn", "false"),
                 new XElement("IlcTreatWarningsAsErrors", "true"),
-                new XElement("WarningsNotAsErrors", "$(WarningsNotAsErrors);IL2091;IL3000")
+                new XElement(
+                    "WarningsNotAsErrors",
+                    "$(WarningsNotAsErrors);IL2050;IL2072;IL2091;IL3000"
+                )
             ),
             new XElement(
                 "ItemGroup",

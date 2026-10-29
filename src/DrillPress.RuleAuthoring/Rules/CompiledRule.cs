@@ -6,5 +6,7 @@ internal abstract class CompiledRule(string id)
 
     public abstract IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution);
 
+    public abstract void Prepare(AnalysisSolution solution);
+
     public virtual IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning) => [];
 }

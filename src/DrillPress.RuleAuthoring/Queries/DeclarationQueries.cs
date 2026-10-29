@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -78,7 +79,12 @@ public static class DeclarationQueries
         foreach (var name in names)
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var selected = names.ToHashSet();
-        return declarations.Where(declaration => selected.Contains(declaration.Name));
+        return declarations.Where(
+            new RuleCondition<T>(
+                declaration => selected.Contains(declaration.Name),
+                NameFilter.Exactly(selected)
+            )
+        );
     }
 
     /// <summary>Selects declarations whose complete name matches a case-sensitive glob such as <c>*Async</c>.</summary>
@@ -86,8 +92,23 @@ public static class DeclarationQueries
         where T : ICodeDeclaration
     {
         var match = new PathPattern(pattern);
-        return declarations.Where(declaration => match.Matches(declaration.Name));
+        return declarations.Where(
+            new RuleCondition<T>(
+                declaration => match.Matches(declaration.Name),
+                NameFilter.Matching(match)
+            )
+        );
     }
+
+    /// <summary>Selects declarations whose complete symbol name contains a match for the supplied regular expression. Declaration roots can reject written names before requesting compiler symbols.</summary>
+    public static CodeQuery<T> NameMatching<T>(this CodeQuery<T> declarations, Regex pattern)
+        where T : ICodeDeclaration =>
+        declarations.Where(
+            new RuleCondition<T>(
+                declaration => pattern.IsMatch(declaration.Name),
+                NameFilter.Matching(pattern)
+            )
+        );
 
     /// <summary>Selects declarations whose name contains any complete configured word; comparison defaults to ordinal.</summary>
     public static CodeQuery<T> WithNameContainingAnyWord<T>(

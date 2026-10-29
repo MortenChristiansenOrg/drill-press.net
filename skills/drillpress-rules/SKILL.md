@@ -68,7 +68,7 @@ Narrow with composable filters:
 
 - Place: `InProject("Shop.*")`, `InTestProjects()`, `InNonTestProjects()`,
   `InNamespace("Shop.Domain.**")`, `InFolder("Domain")`, `InFilesNamed("*Tests.cs")`.
-- Declarations: `Named(...)`, `NameMatching("*Service")`, `WithAttribute(type)`,
+- Declarations: `Named(...)`, `NameMatching("*Service")` or `NameMatching(regex)`, `WithAttribute(type)`,
   `WithAccessibility(Accessibility.Public)`, `WithExplicitModifier(Modifier.Internal)`;
   tests `NameEndsWith`, `NameContainsWord`, `HasAttribute`, `HasDocumentationComment()`.
 - Calls: `To(member or apiSet)`, `ToMethodsNamed`, `ToMethodsMatching("*Async")`,

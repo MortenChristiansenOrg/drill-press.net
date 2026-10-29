@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace DrillPress;
 
 /// <summary>The member or type names a condition can accept, letting query roots skip syntax whose names cannot match before binding it.</summary>
@@ -20,6 +22,8 @@ internal sealed class NameFilter
     }
 
     internal static NameFilter Matching(PathPattern pattern) => new(null, pattern.Matches);
+
+    internal static NameFilter Matching(Regex pattern) => new(null, pattern.IsMatch);
 
     /// <summary>The exact names the filter accepts; null for a predicate such as a glob.</summary>
     internal IReadOnlySet<string>? Names => _names;

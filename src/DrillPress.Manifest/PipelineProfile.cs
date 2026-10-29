@@ -157,16 +157,17 @@ public sealed class PipelineProfile
             return;
         try
         {
-            _output.WriteLine(
-                "drillpress-profile "
-                    + JsonSerializer.Serialize(
-                        measurement with
-                        {
-                            Component = _component,
-                        },
-                        CompilationSnapshotJsonContext.Default.ProfileEvent
-                    )
-            );
+            lock (_output)
+                _output.WriteLine(
+                    "drillpress-profile "
+                        + JsonSerializer.Serialize(
+                            measurement with
+                            {
+                                Component = _component,
+                            },
+                            CompilationSnapshotJsonContext.Default.ProfileEvent
+                        )
+                );
         }
         catch (Exception exception)
         {

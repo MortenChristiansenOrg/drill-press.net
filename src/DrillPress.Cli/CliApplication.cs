@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck;
@@ -20,6 +20,8 @@ public sealed class CliApplication
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
+        --parallel-queries  Prepare pure, thread-safe queries concurrently; reporting and fixes remain ordered.
+        --stream-compilation  Compile each project in the rule bundle as soon as capture finishes it.
         --explain-coverage  Show typed reasons, context identity and matching source ranges.
         --explain-fixes  Show why each proposed fix without '+' was withheld.
         --refresh-coverage  Rerun tests even when cached coverage inputs match.
@@ -206,6 +208,23 @@ public sealed class CliApplication
         CancellationToken cancellationToken
     )
     {
+        if (
+            options.StreamCompilation && !options.ExportArguments.Contains("--validate-compilation")
+        )
+        {
+            using var generation = profile.Measure("generation.pipeline");
+            var pipeline = await new GeneratorProcessPipeline(
+                _fileSystem,
+                _processRunner
+            ).CaptureAsync(options, snapshotPath, RuleFlags(options), cancellationToken);
+            await error.WriteAsync(pipeline.Export.StandardError);
+            await error.WriteAsync(pipeline.Rules.StandardError);
+            var generated = await new CompilationSnapshotFile(_fileSystem).ReadAsync(
+                pipeline.SnapshotPath,
+                cancellationToken
+            );
+            return ReadEvaluation(options, generated, pipeline.Rules);
+        }
         ChildProcessResult export;
         using (profile.Measure("build-host"))
         {
@@ -231,16 +250,7 @@ public sealed class CliApplication
         }
 
         var ruleArguments = new List<string> { "check", snapshotPath };
-        if (options.Profile)
-            ruleArguments.Add("--profile");
-        if (!options.EnableOptimizations)
-            ruleArguments.Add("--no-optimization");
-        if (options.ExplainCoverage)
-            ruleArguments.Add("--explain-coverage");
-        if (options.RefreshCoverage)
-            ruleArguments.Add("--refresh-coverage");
-        if (options.SkipCoverage)
-            ruleArguments.Add("--skip-coverage");
+        ruleArguments.AddRange(RuleFlags(options));
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {
@@ -251,11 +261,35 @@ public sealed class CliApplication
             );
         }
         await error.WriteAsync(check.StandardError);
-        if (check.ExitCode is not (0 or 1))
-        {
-            throw new IOException($"Rule bundle exited {check.ExitCode}.");
-        }
+        return ReadEvaluation(options, snapshot, check);
+    }
 
+    private static string[] RuleFlags(CliOptions options)
+    {
+        var flags = new List<string>();
+        if (options.Profile)
+            flags.Add("--profile");
+        if (options.ParallelQueries)
+            flags.Add("--parallel-queries");
+        if (!options.EnableOptimizations)
+            flags.Add("--no-optimization");
+        if (options.ExplainCoverage)
+            flags.Add("--explain-coverage");
+        if (options.RefreshCoverage)
+            flags.Add("--refresh-coverage");
+        if (options.SkipCoverage)
+            flags.Add("--skip-coverage");
+        return flags.ToArray();
+    }
+
+    private static RuleEvaluation ReadEvaluation(
+        CliOptions options,
+        CompilationSnapshot snapshot,
+        ChildProcessResult check
+    )
+    {
+        if (check.ExitCode is not (0 or 1))
+            throw new IOException($"Rule bundle exited {check.ExitCode}.");
         var result = BundleResponseProtocol.Read(
             check.StandardOutput,
             snapshot,

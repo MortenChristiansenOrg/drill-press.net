@@ -1,0 +1,192 @@
+<Project>
+  <!-- Source-check bootstrap. Consumers provide DrillPressSource, DrillPressConsumerDirectory,
+       DrillPressRulesProject, DrillPressRuleTestsProject and DrillPressAnalysisTarget. -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <DrillPressSourceCommand>DRILLPRESS_SOURCE=$(DrillPressSource)</DrillPressSourceCommand>
+    <_Rules>$(DrillPressRulesProject)</_Rules>
+    <_RuleTests>$(DrillPressRuleTestsProject)</_RuleTests>
+    <_Cli>$(DrillPressSource)/src/DrillPress.Cli/DrillPress.Cli.csproj</_Cli>
+    <_Testing>$(DrillPressSource)/src/DrillPress.Testing/DrillPress.Testing.csproj</_Testing>
+    <_RulesDirectory>$([System.IO.Path]::GetDirectoryName('$(_Rules)'))</_RulesDirectory>
+    <_RuleTestsDirectory>$([System.IO.Path]::GetDirectoryName('$(_RuleTests)'))</_RuleTestsDirectory>
+    <_RulesAssembly Condition="'$(DrillPressRulesAssemblyName)' == ''"
+      >$([System.IO.Path]::GetFileNameWithoutExtension('$(_Rules)'))</_RulesAssembly>
+    <_RulesAssembly Condition="'$(DrillPressRulesAssemblyName)' != ''"
+      >$(DrillPressRulesAssemblyName)</_RulesAssembly>
+    <_NativeDirectory>$(DrillPressConsumerDirectory)/.scratch/code-rules/native/$(Configuration)</_NativeDirectory>
+    <_CatalogDirectory>$(DrillPressConsumerDirectory)/.scratch/code-rules/catalog</_CatalogDirectory>
+    <_NativeHostDirectory>$(DrillPressSource)/artifacts/local-buildhost/$(Configuration)</_NativeHostDirectory>
+    <_NativeCliDirectory>$(DrillPressSource)/artifacts/local-cli/$(Configuration)</_NativeCliDirectory>
+    <_NativeExtension Condition="'$(OS)' == 'Windows_NT'">.exe</_NativeExtension>
+    <_NativeRule>$(_NativeDirectory)/$(_RulesAssembly)$(_NativeExtension)</_NativeRule>
+    <_NativeHost>$(_NativeHostDirectory)/DrillPress.BuildHost$(_NativeExtension)</_NativeHost>
+    <_NativeCli>$(_NativeCliDirectory)/DrillPress.Cli$(_NativeExtension)</_NativeCli>
+    <_RulesOutput>$(_RulesDirectory)/bin/$(Configuration)/net10.0</_RulesOutput>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DrillPressSource)' != ''">
+    <_SourceBuildInputs
+      Include="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(DrillPressSource)/src/**/*;$(DrillPressSource)/tools/DrillPress.CoverageReader/**/*;$(DrillPressSource)/tools/DrillPress.BundleVerification/**/*;$(DrillPressSource)/scripts/PrepareNativeCatalog.cs;$(DrillPressSource)/scripts/SourceCheck.targets;$(DrillPressSource)/skills/drillpress-rules/**/*;$(DrillPressSource)/Directory.*.props;$(DrillPressSource)/Directory.*.targets;$(DrillPressSource)/global.json;$(DrillPressSource)/.editorconfig*;$(DrillPressSource)/*.globalconfig;$(DrillPressSource)/*NuGet*.Config"
+      Exclude="$(DrillPressSource)/**/obj/**/*;$(DrillPressSource)/**/bin/**/*"
+    />
+    <_SourceBuildOutputs Include="$(DrillPressSource)/src/DrillPress.Cli/bin/$(Configuration)/net10.0/DrillPress.Cli.dll;$(DrillPressSource)/src/DrillPress.Cli/bin/$(Configuration)/net10.0/DrillPress.Cli.deps.json;$(DrillPressSource)/src/DrillPress.Cli/bin/$(Configuration)/net10.0/DrillPress.Cli.runtimeconfig.json;$(DrillPressSource)/src/DrillPress.BuildHost/bin/$(Configuration)/net10.0/DrillPress.BuildHost.dll;$(DrillPressSource)/src/DrillPress.BuildHost/bin/$(Configuration)/net10.0/DrillPress.BuildHost.deps.json;$(DrillPressSource)/src/DrillPress.BuildHost/bin/$(Configuration)/net10.0/DrillPress.BuildHost.runtimeconfig.json;$(DrillPressSource)/artifacts/local-sdk/DrillPress.Engine.dll;$(DrillPressSource)/artifacts/local-sdk/DrillPress.Manifest.dll;$(DrillPressSource)/artifacts/local-sdk/DrillPress.RuleAuthoring.dll;$(DrillPressSource)/artifacts/local-sdk/DrillPress.Testing.dll" />
+    <_NativeBuildInputs Include="$(DrillPressConsumerDirectory)/src/*/*.csproj;$(DrillPressConsumerDirectory)/tests/*/*.csproj;$(DrillPressAnalysisTarget)" />
+    <_NativeBuildOutputs Include="$(_NativeRule);$(_NativeCli);$(_NativeHost);$(_NativeHostDirectory)/DrillPress.BuildHost.dll;$(_NativeHostDirectory)/DrillPress.BuildHost.deps.json;$(_NativeHostDirectory)/DrillPress.BuildHost.runtimeconfig.json;$(_CatalogDirectory)/SourceGenerators.props;$(_CatalogDirectory)/SourceGenerators.g.cs;$(_CatalogDirectory)/assembly-inputs.txt;$(_CatalogDirectory)/runtime-identifier.txt;$(_CatalogDirectory)/heap-count.txt;$(_CatalogDirectory)/platform-target.txt" />
+    <_SourceRestoreInputs Include="$(DrillPressSource)/Directory.*.props;$(DrillPressSource)/Directory.*.targets;$(DrillPressSource)/global.json;$(DrillPressSource)/*NuGet*.Config;$(DrillPressSource)/src/Directory.Build.*;$(DrillPressSource)/src/*/*.csproj;$(DrillPressSource)/tools/DrillPress.CoverageReader/*.csproj" />
+    <_SourceRestoreOutputs Include="$(DrillPressSource)/src/DrillPress.Cli/obj/project.assets.json;$(DrillPressSource)/src/DrillPress.BuildHost/obj/project.assets.json;$(DrillPressSource)/src/DrillPress.Engine/obj/project.assets.json;$(DrillPressSource)/src/DrillPress.Manifest/obj/project.assets.json;$(DrillPressSource)/src/DrillPress.RuleAuthoring/obj/project.assets.json;$(DrillPressSource)/src/DrillPress.Testing/obj/project.assets.json;$(DrillPressSource)/tools/DrillPress.CoverageReader/obj/project.assets.json" />
+    <_LocalSdkFiles Include="$(DrillPressSource)/artifacts/local-sdk/*.dll" />
+    <_SourceBuildOutputs Include="$(DrillPressSource)/artifacts/local-sdk/Microsoft.CodeAnalysis.dll;$(DrillPressSource)/artifacts/local-sdk/Microsoft.CodeAnalysis.CSharp.dll;$(DrillPressSource)/artifacts/local-sdk/TestableIO.System.IO.Abstractions.Wrappers.dll;$(DrillPressSource)/artifacts/local-sdk/Testably.Abstractions.FileSystem.Interface.dll" />
+    <_RulesBuildInputs
+      Include="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(_RulesDirectory)/**/*;$(DrillPressConsumerDirectory)/Directory.*.props;$(DrillPressConsumerDirectory)/Directory.*.targets;$(DrillPressConsumerDirectory)/global.json;$(DrillPressConsumerDirectory)/.editorconfig*;$(DrillPressConsumerDirectory)/*.globalconfig;$(DrillPressConsumerDirectory)/*NuGet*.Config;$(DrillPressConsumerDirectory)/.config/drillpress-source*.props;@(_LocalSdkFiles)"
+      Exclude="$(_RulesDirectory)/bin/**/*;$(_RulesDirectory)/obj/**/*"
+    />
+    <_RulesBuildOutputs Include="$(_RulesOutput)/$(_RulesAssembly).dll;$(_RulesOutput)/$(_RulesAssembly).deps.json;$(_RulesOutput)/$(_RulesAssembly).runtimeconfig.json;@(_LocalSdkFiles->'$(_RulesOutput)/%(Filename)%(Extension)')" />
+  </ItemGroup>
+  <ItemGroup>
+    <_RulesRestoreInputs Include="$(_Rules);$(_RuleTests);$(DrillPressConsumerDirectory)/Directory.*.props;$(DrillPressConsumerDirectory)/Directory.*.targets;$(DrillPressConsumerDirectory)/global.json;$(DrillPressConsumerDirectory)/.config/drillpress-source*.props" />
+    <_RulesRestoreOutputs Include="$(_RulesDirectory)/obj/project.assets.json;$(_RuleTestsDirectory)/obj/project.assets.json" />
+  </ItemGroup>
+  <Target
+    Name="RestoreSource"
+    Condition="'$(DrillPressSource)' != ''"
+    Inputs="@(_SourceRestoreInputs)"
+    Outputs="@(_SourceRestoreOutputs)"
+  >
+    <!-- Restore in distinct evaluations so newly generated NuGet imports reach the builds. -->
+    <MSBuild
+      Projects="$(_Cli);$(_Testing)"
+      Targets="Restore"
+      BuildInParallel="true"
+      Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true;DrillPressRestore=true"
+    />
+    <Touch Files="@(_SourceRestoreOutputs)" />
+  </Target>
+  <Target Name="SourceBuildInventory" Condition="'$(DrillPressSource)' != ''">
+    <MakeDir Directories="$(DrillPressSource)/artifacts/local-sdk" />
+    <WriteLinesToFile
+      File="$(DrillPressSource)/artifacts/local-sdk/build-inputs.txt"
+      Lines="$(Configuration);@(_SourceBuildInputs)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+  </Target>
+  <Target
+    Name="BuildSource"
+    DependsOnTargets="RestoreSource;SourceBuildInventory"
+    Condition="'$(DrillPressSource)' != ''"
+    Inputs="@(_SourceBuildInputs);$(DrillPressSource)/artifacts/local-sdk/build-inputs.txt"
+    Outputs="@(_SourceBuildOutputs)"
+  >
+    <MSBuild
+      Projects="$(_Cli)"
+      Targets="Build"
+      Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true;PublishDir=$(DrillPressSource)/artifacts/local-sdk/"
+    />
+    <MSBuild
+      Projects="$(_Testing)"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true;PublishDir=$(DrillPressSource)/artifacts/local-sdk/"
+    />
+    <Touch Files="@(_SourceBuildOutputs)" AlwaysCreate="false" />
+  </Target>
+  <Target Name="RulesRestoreInventory">
+    <MakeDir Directories="$(DrillPressConsumerDirectory)/.scratch/code-rules" />
+    <WriteLinesToFile
+      File="$(DrillPressConsumerDirectory)/.scratch/code-rules/restore-inputs.txt"
+      Lines="$(Configuration);$(DrillPressSource);@(_RulesRestoreInputs)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+  </Target>
+  <Target
+    Name="RestoreRules"
+    DependsOnTargets="RulesRestoreInventory"
+    Inputs="@(_RulesRestoreInputs);$(DrillPressConsumerDirectory)/.scratch/code-rules/restore-inputs.txt"
+    Outputs="@(_RulesRestoreOutputs)"
+  >
+    <MSBuild
+      Projects="$(_Rules);$(_RuleTests)"
+      Targets="Restore"
+      Properties="Configuration=$(Configuration);DrillPressRestore=true"
+    />
+    <Touch Files="@(_RulesRestoreOutputs)" />
+  </Target>
+  <Target Name="RulesBuildInventory" Condition="'$(DrillPressSource)' != ''">
+    <MakeDir Directories="$(DrillPressConsumerDirectory)/.scratch/code-rules" />
+    <WriteLinesToFile
+      File="$(DrillPressConsumerDirectory)/.scratch/code-rules/build-inputs.txt"
+      Lines="$(Configuration);$(DrillPressSource);@(_RulesBuildInputs);@(_RulesBuildOutputs)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+  </Target>
+  <Target
+    Name="BuildLocalRules"
+    DependsOnTargets="RulesBuildInventory"
+    Condition="'$(DrillPressSource)' != ''"
+    Inputs="@(_RulesBuildInputs);$(DrillPressConsumerDirectory)/.scratch/code-rules/build-inputs.txt"
+    Outputs="@(_RulesBuildOutputs)"
+  >
+    <MSBuild Projects="$(_Rules)" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <Touch Files="@(_RulesBuildOutputs)" AlwaysCreate="false" />
+  </Target>
+  <Target Name="NativeBuildInventory" Condition="'$(DrillPressSource)' != ''">
+    <ReadLinesFromFile
+      File="$(_CatalogDirectory)/assembly-inputs.txt"
+      Condition="Exists('$(_CatalogDirectory)/assembly-inputs.txt')"
+    >
+      <Output TaskParameter="Lines" ItemName="_NativeAssemblyInputs" />
+    </ReadLinesFromFile>
+    <WriteLinesToFile
+      File="$(DrillPressConsumerDirectory)/.scratch/code-rules/native-inputs.txt"
+      Lines="$(Configuration);@(_RulesBuildInputs);@(_NativeBuildInputs);@(_NativeAssemblyInputs)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+  </Target>
+  <Target
+    Name="BuildNativeRules"
+    DependsOnTargets="NativeBuildInventory"
+    Condition="'$(DrillPressSource)' != '' and '$(Configuration)' == 'Release'"
+    Inputs="@(_RulesBuildInputs);@(_NativeBuildInputs);@(_NativeAssemblyInputs);$(DrillPressConsumerDirectory)/.scratch/code-rules/native-inputs.txt"
+    Outputs="@(_NativeBuildOutputs)"
+  >
+    <MakeDir Directories="$(_CatalogDirectory);$(_NativeDirectory);$(_NativeHostDirectory);$(_NativeCliDirectory)" />
+    <Exec Command="dotnet &quot;$(DrillPressSource)/src/DrillPress.BuildHost/bin/$(Configuration)/net10.0/DrillPress.BuildHost.dll&quot; export &quot;$(DrillPressAnalysisTarget)&quot; &quot;$(_CatalogDirectory)/capture.json&quot; --generator-catalog &quot;$(_CatalogDirectory)/generators.json&quot;" />
+    <Exec Command="dotnet run --no-cache --file &quot;$(DrillPressSource)/scripts/PrepareNativeCatalog.cs&quot; -c Release -- &quot;$(_CatalogDirectory)/generators.json&quot; &quot;$(_CatalogDirectory)&quot;" />
+    <ReadLinesFromFile File="$(_CatalogDirectory)/runtime-identifier.txt">
+      <Output TaskParameter="Lines" PropertyName="_NativeRuntimeIdentifier" />
+    </ReadLinesFromFile>
+    <ReadLinesFromFile File="$(_CatalogDirectory)/heap-count.txt">
+      <Output TaskParameter="Lines" PropertyName="_NativeHeapCount" />
+    </ReadLinesFromFile>
+    <ReadLinesFromFile File="$(_CatalogDirectory)/platform-target.txt">
+      <Output TaskParameter="Lines" PropertyName="_NativePlatformTarget" />
+    </ReadLinesFromFile>
+    <!-- Native restores change RID-specific assets. A fresh SDK invocation avoids reusing the ordinary build's lock-file cache. -->
+    <Exec Command="dotnet publish &quot;$(_Cli)&quot; -c &quot;$(Configuration)&quot; -r &quot;$(_NativeRuntimeIdentifier)&quot; -p:PublishAot=true -p:BuildProjectReferences=false -p:DrillPressExternalBuildHost=true -o &quot;$(_NativeCliDirectory)&quot; --nologo -v:minimal" />
+    <Exec Command="dotnet publish &quot;$(DrillPressSource)/src/DrillPress.BuildHost/DrillPress.BuildHost.csproj&quot; -c &quot;$(Configuration)&quot; -r &quot;$(_NativeRuntimeIdentifier)&quot; --self-contained true -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:CopyLocalLockFileAssemblies=true -p:DrillPressParallelCapture=true -p:DrillPressCaptureHeapCount=$(_NativeHeapCount) -o &quot;$(_NativeHostDirectory)&quot; --nologo -v:minimal" />
+    <Exec Command="dotnet publish &quot;$(_Rules)&quot; -c &quot;$(Configuration)&quot; -r &quot;$(_NativeRuntimeIdentifier)&quot; -p:PublishAot=true -p:PlatformTarget=$(_NativePlatformTarget) -p:DrillPressNativeCatalog=&quot;$(_CatalogDirectory)/SourceGenerators.props&quot; -p:DrillPressCaptureHeapCount=$(_NativeHeapCount) -o &quot;$(_NativeDirectory)&quot; --nologo -v:minimal" />
+    <ItemGroup>
+      <_NativeAssemblyInputs Remove="@(_NativeAssemblyInputs)" />
+    </ItemGroup>
+    <ReadLinesFromFile File="$(_CatalogDirectory)/assembly-inputs.txt">
+      <Output TaskParameter="Lines" ItemName="_NativeAssemblyInputs" />
+    </ReadLinesFromFile>
+    <WriteLinesToFile
+      File="$(DrillPressConsumerDirectory)/.scratch/code-rules/native-inputs.txt"
+      Lines="$(Configuration);@(_RulesBuildInputs);@(_NativeBuildInputs);@(_NativeAssemblyInputs)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+    <Touch Files="@(_NativeBuildOutputs)" AlwaysCreate="false" />
+  </Target>
+  <Target Name="Build" DependsOnTargets="BuildSource;RestoreRules;BuildLocalRules;BuildNativeRules">
+    <MSBuild
+      Projects="$(_Rules)"
+      Targets="Build"
+      Properties="Configuration=$(Configuration)"
+      Condition="'$(DrillPressSource)' == ''"
+    />
+  </Target>
+</Project>

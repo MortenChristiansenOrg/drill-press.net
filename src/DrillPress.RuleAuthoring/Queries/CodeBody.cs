@@ -11,7 +11,7 @@ public sealed class CodeBody
 {
     /// <summary>Tests for a resolved call in this body's configured nested-function scope.</summary>
     public bool Calls(CodeMember member, Func<CodeInvocation, bool>? where = null) =>
-        Calls().Any(call => call.IsResolved && call.Calls(member) && (where?.Invoke(call) ?? true));
+        Calls().Any(call => call.Calls(member) && call.IsResolved && (where?.Invoke(call) ?? true));
 
     /// <summary>Tests whether this scope passes a typed compiler constant to the specified method parameter.</summary>
     public bool Calls<T>(CodeMember member, string withArgument, T equalTo) =>

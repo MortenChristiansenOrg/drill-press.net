@@ -115,16 +115,13 @@ public static class RelationshipQueries
     )
     {
         if (
-            method
-                .Source.Model.GetDiagnostics(
-                    TextSpan.FromBounds(
-                        method.Syntax.SpanStart,
-                        method.Syntax.ConstraintClauses.LastOrDefault()?.Span.End
-                            ?? method.Syntax.ParameterList.Span.End
-                    ),
-                    method.Source.Project.CancellationToken
+            method.Source.Errors.In(
+                TextSpan.FromBounds(
+                    method.Syntax.SpanStart,
+                    method.Syntax.ConstraintClauses.LastOrDefault()?.Span.End
+                        ?? method.Syntax.ParameterList.Span.End
                 )
-                .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            )
         )
             yield break;
         var distance = 0;

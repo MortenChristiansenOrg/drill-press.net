@@ -247,6 +247,8 @@ public sealed class AnalysisSolution
             new ParallelOptions { CancellationToken = CancellationToken },
             source => source.Operations.Prepare()
         );
+        foreach (var project in sources.Select(source => source.Project).Distinct())
+            project.Errors.ConsiderWholeProject();
     }
 
     /// <summary>Type references in analysis-target documents, binding only names and documents the filter can accept.</summary>
@@ -369,7 +371,7 @@ public sealed class AnalysisSolution
                 continue;
             }
 
-            _memberBindings++;
+            Interlocked.Increment(ref _memberBindings);
             if (
                 source.Model.GetSymbolInfo(expression, source.Project.CancellationToken).Symbol
                 is (IFieldSymbol or IPropertySymbol or IMethodSymbol)

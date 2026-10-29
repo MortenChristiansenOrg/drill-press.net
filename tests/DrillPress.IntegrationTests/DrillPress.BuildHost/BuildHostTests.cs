@@ -8,8 +8,32 @@ namespace DrillPress.IntegrationTests.DrillPress.BuildHost;
 
 public sealed class BuildHostTests : IntegrationTest
 {
-    [Fact]
-    public async Task Preserves_member_binding_from_an_unbuilt_project_reference()
+    public static TheoryData<string, string[][]> ProjectReferences =>
+        new()
+        {
+            {
+                "",
+                [
+                    [],
+                ]
+            },
+            {
+                """
+                    <ItemGroup><ProjectReference Include="../Dependency/Dependency.csproj" Aliases="other" /></ItemGroup>
+                    """,
+                [
+                    [],
+                    ["other"],
+                ]
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(ProjectReferences))]
+    public async Task Preserves_member_binding_from_an_unbuilt_project_reference(
+        string additionalReference,
+        string[][] expectedAliases
+    )
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var directory = CreateTemporaryDirectory("drillpress-project-reference-");
@@ -36,10 +60,11 @@ public sealed class BuildHostTests : IntegrationTest
         var projectPath = FileSystem.Path.Combine(consumer.FullName, "Consumer.csproj");
         await FileSystem.File.WriteAllTextAsync(
             projectPath,
-            """
+            $$"""
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
               <ItemGroup><ProjectReference Include="../Dependency/Dependency.csproj" /></ItemGroup>
+              {{additionalReference}}
             </Project>
             """,
             cancellationToken
@@ -81,6 +106,12 @@ public sealed class BuildHostTests : IntegrationTest
         Assert.Equal(sourcePath, diagnostic.Location.FilePath);
         Assert.Equal(1, diagnostic.Location.Line);
         Assert.Equal(60, diagnostic.Location.Column);
+        Assert.Equal(
+            expectedAliases,
+            snapshot
+                .Projects.Single(project => project.Name == "Consumer")
+                .CompilationReferences.Select(reference => reference.Aliases)
+        );
         Assert.Empty(
             FileSystem.Directory.EnumerateFiles(
                 dependency.FullName,
@@ -178,6 +209,8 @@ public sealed class BuildHostTests : IntegrationTest
         Assert.Equal(
             [
                 "loading.workspace",
+                "loading.generators.WidgetLibrary",
+                "loading.capture.WidgetLibrary",
                 "loading.contexts",
                 "loading",
                 "snapshot.serialization",

@@ -80,26 +80,15 @@ internal sealed class SourceOperations
     private IReadOnlyList<IOperation> Discover()
     {
         var token = _source.Project.CancellationToken;
-        var seen = new HashSet<IOperation>(ReferenceEqualityComparer.Instance);
+        var roots = new HashSet<IOperation>(ReferenceEqualityComparer.Instance);
+        var bound = new HashSet<SyntaxNode>(ReferenceEqualityComparer.Instance);
         var result = new List<IOperation>();
-        foreach (
-            var syntax in _source
-                .Tree.GetRoot(token)
-                .DescendantNodesAndSelf()
-                .Where(node =>
-                    node
-                        is CompilationUnitSyntax { Members: [GlobalStatementSyntax, ..] }
-                            or BaseMethodDeclarationSyntax
-                            or AccessorDeclarationSyntax
-                            or EqualsValueClauseSyntax
-                            or GlobalStatementSyntax
-                            or ArrowExpressionClauseSyntax
-                            or AttributeSyntax
-                            or ConstructorInitializerSyntax
-                )
-        )
+        var pending = new Stack<IOperation>();
+        foreach (var syntax in _source.Nodes<SyntaxNode>().Where(IsExecutableRoot))
         {
             token.ThrowIfCancellationRequested();
+            if (bound.Contains(syntax))
+                continue;
             var operation = _source.Model.GetOperation(syntax, token);
             if (operation is null)
             {
@@ -111,17 +100,15 @@ internal sealed class SourceOperations
                 operation = parent;
             }
 
-            var pending = new Stack<IOperation>();
+            if (!roots.Add(operation))
+                continue;
             pending.Push(operation);
             while (pending.TryPop(out var current))
             {
                 token.ThrowIfCancellationRequested();
-                if (!seen.Add(current))
-                {
-                    continue;
-                }
-
                 result.Add(current);
+                if (IsExecutableRoot(current.Syntax))
+                    bound.Add(current.Syntax);
                 foreach (var child in current.ChildOperations.Reverse())
                 {
                     pending.Push(child);
@@ -131,6 +118,17 @@ internal sealed class SourceOperations
 
         return result.AsReadOnly();
     }
+
+    private static bool IsExecutableRoot(SyntaxNode node) =>
+        node
+            is CompilationUnitSyntax { Members: [GlobalStatementSyntax, ..] }
+                or BaseMethodDeclarationSyntax
+                or AccessorDeclarationSyntax
+                or EqualsValueClauseSyntax
+                or GlobalStatementSyntax
+                or ArrowExpressionClauseSyntax
+                or AttributeSyntax
+                or ConstructorInitializerSyntax;
 
     private IReadOnlySet<string> ReadInvocationNames()
     {

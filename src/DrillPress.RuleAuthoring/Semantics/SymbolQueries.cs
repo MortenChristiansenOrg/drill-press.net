@@ -8,17 +8,28 @@ internal static class SymbolQueries
     internal static CodeQuery<CodeSymbol> Declarations { get; } = DeclarationsIn(Sources.Files);
 
     internal static CodeQuery<CodeSymbol> DeclarationsIn(CodeQuery<CodeFile> files) =>
-        files
-            .SelectMany(file => file.Nodes<SyntaxNode>())
-            .SelectMany(node =>
-                node.Source.Model.GetDeclaredSymbol(
-                    node.Syntax,
-                    node.Source.Project.CancellationToken
-                )
-                    is { } symbol
-                    ? new[] { new CodeSymbol(node.Source, node.Syntax, symbol) }
-                    : []
-            );
+        new(
+            (solution, filter) =>
+                files
+                    .In(solution)
+                    .Where(file =>
+                        !solution.Options.EnableOptimizations || filter.Includes(file.Source)
+                    )
+                    .SelectMany(file => file.Nodes<SyntaxNode>())
+                    .Where(node =>
+                        !solution.Options.EnableOptimizations
+                        || DeclarationCandidates.Includes(node.Syntax, filter.Names)
+                    )
+                    .SelectMany(node =>
+                        node.Source.Model.GetDeclaredSymbol(
+                            node.Syntax,
+                            node.Source.Project.CancellationToken
+                        )
+                            is { } symbol
+                            ? new[] { new CodeSymbol(node.Source, node.Syntax, symbol) }
+                            : []
+                    )
+        );
 
     private static CodeQuery<CodeSymbol> References { get; } =
         Sources

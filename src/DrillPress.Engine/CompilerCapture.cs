@@ -5,7 +5,7 @@ using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace DrillPress.BuildHost;
+namespace DrillPress.Engine;
 
 // One instance captures every context of an export, so shared references are fingerprinted once.
 internal sealed class CompilerCapture(IFileSystem fileSystem)
@@ -20,7 +20,8 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
         CSharpCompilation compilation,
         HashSet<SyntaxTree> generated,
         IEnumerable<string> diagnosticIds,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        ProjectSnapshot? baseline = null
     )
     {
         var parse = (CSharpParseOptions)(
@@ -45,7 +46,8 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
                             generated.Contains(tree),
                             options.SyntaxTreeOptionsProvider,
                             diagnosticIds,
-                            cancellationToken
+                            cancellationToken,
+                            baseline?.Documents.ElementAtOrDefault(index)
                         )
                 )
                 .ToArray(),
@@ -53,10 +55,12 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
         )
         {
             ContextId = contextId,
-            ExternalReferences = compilation
-                .References.OfType<PortableExecutableReference>()
-                .Select(CaptureReference)
-                .ToArray(),
+            ExternalReferences = baseline is { ExternalReferences.Length: > 0 }
+                ? baseline.ExternalReferences
+                : compilation
+                    .References.OfType<PortableExecutableReference>()
+                    .Select(CaptureReference)
+                    .ToArray(),
             CompilerOptions = new CompilerOptionsSnapshot
             {
                 MetadataImportOptions = (int)options.MetadataImportOptions,
@@ -113,7 +117,8 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
         bool generated,
         SyntaxTreeOptionsProvider? provider,
         IEnumerable<string> diagnosticIds,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        DocumentSnapshot? baseline
     )
     {
         var text = tree.GetText(cancellationToken);
@@ -152,6 +157,7 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
 
         var document = new DocumentSnapshot(path, text.ToString(), generated)
         {
+            DocumentId = $"{contextId}:{index:D6}",
             FileIdentity = path,
             Options = new SourceOptionsSnapshot
             {
@@ -163,6 +169,16 @@ internal sealed class CompilerCapture(IFileSystem fileSystem)
                 DiagnosticOptions = diagnostics,
             },
         };
+        // The collector already verified this immutable input. Reopening it here would
+        // duplicate capture and could associate newer bytes with the older compilation.
+        if (
+            baseline is not null
+            && baseline.Path == document.Path
+            && baseline.Text == document.Text
+            && baseline.IsGenerated == generated
+            && (generated || baseline.Fingerprint.Length > 0)
+        )
+            return baseline with { Options = document.Options };
         if (!generated)
         {
             var bytes = _fileSystem.File.ReadAllBytes(path);

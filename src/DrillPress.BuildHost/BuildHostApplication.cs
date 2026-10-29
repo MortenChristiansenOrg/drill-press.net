@@ -147,9 +147,21 @@ public sealed class BuildHostApplication
     {
         var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var validate = false;
+        string? generationDirectory = null;
+        string? generatorCatalog = null;
         var includeReferencedProjects = false;
         for (var index = 0; index < args.Length; index++)
         {
+            if (args[index] == "--generator-catalog" && index + 1 < args.Length)
+            {
+                generatorCatalog = args[++index];
+                continue;
+            }
+            if (args[index] == "--generation-plan" && index + 1 < args.Length)
+            {
+                generationDirectory = args[++index];
+                continue;
+            }
             if (args[index] == "--validate-compilation")
             {
                 validate = true;
@@ -182,6 +194,8 @@ public sealed class BuildHostApplication
         {
             Properties = properties,
             ValidateCompilation = validate,
+            GenerationPlanDirectory = generationDirectory,
+            GeneratorCatalogPath = generatorCatalog,
             IncludeReferencedProjects = includeReferencedProjects,
         };
     }

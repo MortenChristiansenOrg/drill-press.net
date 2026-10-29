@@ -34,6 +34,12 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
     /// <remarks>Consumers choose project scope, concrete-type filters and cardinality. Alternate frameworks are kept separate; generated implementations participate. Only loaded source definitions are returned, not external metadata consumers.</remarks>
     public IReadOnlyList<InterfaceImplementationView> In(CodeTypeDefinition declaration)
     {
+        lock (_matches)
+            return Find(declaration);
+    }
+
+    private IReadOnlyList<InterfaceImplementationView> Find(CodeTypeDefinition declaration)
+    {
         solution.CancellationToken.ThrowIfCancellationRequested();
         if (!_matches.TryGetValue(declaration, out var matches))
         {

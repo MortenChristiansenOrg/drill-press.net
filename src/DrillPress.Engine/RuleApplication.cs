@@ -1,4 +1,5 @@
 using System.IO.Abstractions;
+using System.Reflection;
 using DrillPress.Manifest;
 
 namespace DrillPress.Engine;
@@ -8,6 +9,8 @@ public sealed class RuleApplication
 {
     private readonly IFileSystem _fileSystem;
     private readonly CoverageProcess _coverageProcess;
+    private readonly SourceFilePolicy _sourceFiles;
+    private readonly SourceGeneratorCatalog? _generators;
 
     /// <summary>Creates a rule-bundle host for local compilation snapshots.</summary>
     public RuleApplication()
@@ -17,8 +20,22 @@ public sealed class RuleApplication
         : this(fileSystem, new CoverageProcess()) { }
 
     internal RuleApplication(IFileSystem fileSystem, CoverageProcess coverageProcess)
+        : this(
+            fileSystem,
+            coverageProcess,
+            new SourceFilePolicy(fileSystem, new FileIdentityProbe())
+        ) { }
+
+    internal RuleApplication(
+        IFileSystem fileSystem,
+        CoverageProcess coverageProcess,
+        SourceFilePolicy sourceFiles,
+        SourceGeneratorCatalog? generators = null
+    )
     {
         _fileSystem = fileSystem;
+        _sourceFiles = sourceFiles;
+        _generators = generators;
         _coverageProcess = coverageProcess;
     }
 
@@ -36,10 +53,12 @@ public sealed class RuleApplication
     {
         standardOutput ??= Console.Out;
         standardError ??= Console.Error;
+        var generated = args.Length > 0 && args[0] == "check-generated";
+        var flagsStart = generated ? 4 : 2;
         if (
-            args.Length < 2
-            || args[0] != "check"
-            || args.Skip(2)
+            args.Length < flagsStart
+            || (!generated && args[0] != "check")
+            || args.Skip(flagsStart)
                 .Any(argument =>
                     argument
                         is not (
@@ -48,48 +67,70 @@ public sealed class RuleApplication
                             or "--refresh-coverage"
                             or "--skip-coverage"
                             or "--explain-coverage"
+                            or "--parallel-queries"
                         )
                 )
             || (args.Contains("--refresh-coverage") && args.Contains("--skip-coverage"))
         )
         {
             await standardError.WriteLineAsync(
-                "Usage: <rule-bundle> check <snapshot> [--profile] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
+                "Usage: <rule-bundle> check <snapshot> [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
             );
             return RuleExitCode.Failure;
         }
 
         var profile = new PipelineProfile(
-            args.Skip(2).Contains("--profile"),
+            args.Skip(flagsStart).Contains("--profile"),
             standardError,
             "rules"
         );
         using var total = profile.Measure("total");
         try
         {
-            CompilationSnapshot snapshot;
-            using (profile.Measure("snapshot.loading"))
+            var options = new AnalysisOptions
             {
-                snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(
-                    args[1],
+                EnableOptimizations = !args.Skip(flagsStart).Contains("--no-optimization"),
+                Profile = profile,
+                RefreshCoverage = args.Skip(flagsStart).Contains("--refresh-coverage"),
+                SkipCoverage = args.Skip(flagsStart).Contains("--skip-coverage"),
+                ExplainCoverage = args.Skip(flagsStart).Contains("--explain-coverage"),
+                QueryPreparationConcurrency = args.Skip(flagsStart).Contains("--parallel-queries")
+                    ? Math.Min(generated ? 8 : 4, Environment.ProcessorCount)
+                    : 1,
+            };
+            CompilationSnapshot snapshot;
+            BundleResponse response;
+            if (generated)
+            {
+                var catalog =
+                    _generators
+                    ?? Assembly
+                        .GetEntryAssembly()
+                        ?.GetCustomAttribute<SourceGeneratorCatalogAttribute>()
+                        ?.Create()
+                    ?? SourceGeneratorCatalog.Empty;
+                var result = await new SourceGenerationSession(
+                    _fileSystem,
+                    _coverageProcess,
+                    _sourceFiles
+                ).RunAsync(rules, catalog, args[1], args[2], args[3], options, cancellationToken);
+                snapshot = result.Snapshot;
+                response = result.Response;
+            }
+            else
+            {
+                using (profile.Measure("snapshot.loading"))
+                    snapshot = await new CompilationSnapshotFile(_fileSystem).ReadAsync(
+                        args[1],
+                        cancellationToken
+                    );
+                response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(
+                    rules,
+                    snapshot,
+                    options,
                     cancellationToken
                 );
             }
-
-            var options = new AnalysisOptions
-            {
-                EnableOptimizations = !args.Skip(2).Contains("--no-optimization"),
-                Profile = profile,
-                RefreshCoverage = args.Skip(2).Contains("--refresh-coverage"),
-                SkipCoverage = args.Skip(2).Contains("--skip-coverage"),
-                ExplainCoverage = args.Skip(2).Contains("--explain-coverage"),
-            };
-            var response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(
-                rules,
-                snapshot,
-                options,
-                cancellationToken
-            );
             ValidatedResult plan;
             using (profile.Measure("aggregation"))
             {

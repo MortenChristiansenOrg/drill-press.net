@@ -37,7 +37,10 @@ public sealed class AnalysisProject
         ProjectSnapshot snapshot,
         CSharpCompilation compilation,
         IFileSystem fileSystem,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken = default,
+        Func<Microsoft.CodeAnalysis.SyntaxTree, Microsoft.CodeAnalysis.SemanticModel>? models =
+            null,
+        Lazy<bool>? compilerErrors = null
     )
     {
         FileSystem = fileSystem;
@@ -64,11 +67,12 @@ public sealed class AnalysisProject
         CancellationToken = cancellationToken;
         Snapshot = snapshot;
         Compilation = compilation;
+        Errors = new(this, compilerErrors);
         _sources = new(() =>
             trees
                 .Zip(
                     snapshot.Documents,
-                    (tree, document) => new AnalysisSource(this, document, tree)
+                    (tree, document) => new AnalysisSource(this, document, tree, models)
                 )
                 .ToArray()
         );
@@ -95,6 +99,8 @@ public sealed class AnalysisProject
     internal AnalysisSolution? SolutionOrNull => _solution;
 
     internal RewriteValidationCache RewriteValidation { get; }
+
+    internal ProjectErrors Errors { get; }
 
     internal IFileSystem FileSystem { get; }
 

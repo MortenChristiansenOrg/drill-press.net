@@ -45,6 +45,11 @@ public sealed class AnalysisEngine
     private readonly IFileSystem _fileSystem;
     private readonly CoverageProcess _coverageProcess;
     private readonly CoverageCache _coverageCache;
+    private readonly Dictionary<string, AnalysisProject> _preparedProjects = [];
+
+    /// <summary>Uses a project whose semantic models were prepared while it was compiled.</summary>
+    internal void ReusePrepared(AnalysisProject project) =>
+        _preparedProjects.Add(project.Snapshot.ContextId, project);
 
     /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
     public AnalysisEngine()
@@ -177,12 +182,9 @@ public sealed class AnalysisEngine
         {
             solution = new AnalysisSolution(
                 compilations
-                    .Select(context => new AnalysisProject(
-                        context.Snapshot,
-                        context.Compilation,
-                        _fileSystem,
-                        cancellationToken
-                    ))
+                    .Select(context =>
+                        PrepareProject(context, cancellationToken, !rules.RequiresCoverage)
+                    )
                     .ToArray(),
                 options,
                 cancellationToken
@@ -211,6 +213,27 @@ public sealed class AnalysisEngine
             solution,
             diagnostics,
             skippedRules,
+            cancellationToken
+        );
+    }
+
+    private AnalysisProject PrepareProject(
+        CompilationContext context,
+        CancellationToken cancellationToken,
+        bool reuseModels
+    )
+    {
+        if (
+            reuseModels
+            && _preparedProjects.TryGetValue(context.Snapshot.ContextId, out var prepared)
+            && ReferenceEquals(prepared.Compilation, context.Compilation)
+            && prepared.CancellationToken == cancellationToken
+        )
+            return prepared;
+        return new AnalysisProject(
+            context.Snapshot,
+            context.Compilation,
+            _fileSystem,
             cancellationToken
         );
     }

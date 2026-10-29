@@ -422,7 +422,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Declaration filters · API field guide",
     "url": "reference.html#api-declaration-filters",
-    "text": "Named(names); NameMatching(glob); WithNameContainingAnyWord(words); WithAttribute(types); WithExplicitModifier(modifier); WithAccessibility(accessibility) Shared by types, type parts, methods, fields, properties, parameters and declared symbols."
+    "text": "Named(names); NameMatching(glob | regex); WithNameContainingAnyWord(words); WithAttribute(types); WithExplicitModifier(modifier); WithAccessibility(accessibility) Shared by types, type parts, methods, fields, properties, parameters and declared symbols."
   },
   {
     "title": "ICodeDeclaration · API field guide",

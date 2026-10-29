@@ -18,7 +18,6 @@
     <PropertyGroup>
       <_CoverageReaderPublishDirectory>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)coverage-reader'))/</_CoverageReaderPublishDirectory>
     </PropertyGroup>
-    <RemoveDir Directories="$(_CoverageReaderPublishDirectory)" />
     <MSBuild
       Projects="../../tools/DrillPress.CoverageReader/DrillPress.CoverageReader.csproj"
       Targets="Publish"
@@ -37,6 +36,7 @@
   </Target>
   <ItemGroup>
     <InternalsVisibleTo Include="DrillPress.UnitTests" />
+    <InternalsVisibleTo Include="DrillPress.BuildHost" />
     <InternalsVisibleTo Include="DrillPress.Testing" />
     <InternalsVisibleTo Include="DrillPress.IntegrationTests" />
   </ItemGroup>

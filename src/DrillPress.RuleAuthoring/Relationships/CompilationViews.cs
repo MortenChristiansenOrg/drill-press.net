@@ -1,20 +1,21 @@
+using System.Collections.Concurrent;
+
 namespace DrillPress;
 
+// Concurrent query preparation shares these deterministic results, so a racing duplicate is harmless.
 internal sealed class CompilationViews(AnalysisSolution solution)
 {
-    private readonly Dictionary<string, AnalysisProject[]> _closures = [];
-    private readonly Dictionary<string, AnalysisProject[][]> _views = [];
+    private readonly ConcurrentDictionary<string, AnalysisProject[]> _closures = new();
+    private readonly ConcurrentDictionary<string, AnalysisProject[][]> _views = new();
 
     public bool Reaches(AnalysisProject project, string contextId) =>
         Closure(project).Any(dependency => dependency.Snapshot.ContextId == contextId);
 
-    public AnalysisProject[][] For(AnalysisProject owner)
-    {
-        if (_views.TryGetValue(owner.Snapshot.ContextId, out var cached))
-        {
-            return cached;
-        }
+    public AnalysisProject[][] For(AnalysisProject owner) =>
+        _views.GetOrAdd(owner.Snapshot.ContextId, _ => CreateViews(owner));
 
+    private AnalysisProject[][] CreateViews(AnalysisProject owner)
+    {
         var consumers = solution
             .Projects.Where(project => Reaches(project, owner.Snapshot.ContextId))
             .ToArray();
@@ -31,9 +32,7 @@ internal sealed class CompilationViews(AnalysisSolution solution)
             Expand([], framework.ToList(), [], result);
         }
 
-        cached = result.ToArray();
-        _views.Add(owner.Snapshot.ContextId, cached);
-        return cached;
+        return result.ToArray();
     }
 
     // Enumerate maximal compatible root sets. This preserves alternate dependency evaluations,
@@ -91,13 +90,11 @@ internal sealed class CompilationViews(AnalysisSolution solution)
         );
     }
 
-    private AnalysisProject[] Closure(AnalysisProject root)
-    {
-        if (_closures.TryGetValue(root.Snapshot.ContextId, out var cached))
-        {
-            return cached;
-        }
+    private AnalysisProject[] Closure(AnalysisProject root) =>
+        _closures.GetOrAdd(root.Snapshot.ContextId, _ => CreateClosure(root));
 
+    private AnalysisProject[] CreateClosure(AnalysisProject root)
+    {
         var seen = new HashSet<string>();
         var pending = new Stack<AnalysisProject>();
         var result = new List<AnalysisProject>();
@@ -118,8 +115,6 @@ internal sealed class CompilationViews(AnalysisSolution solution)
             }
         }
 
-        cached = result.ToArray();
-        _closures.Add(root.Snapshot.ContextId, cached);
-        return cached;
+        return result.ToArray();
     }
 }

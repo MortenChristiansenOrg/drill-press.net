@@ -1,8 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(DrillPressParallelCapture)' == 'true'">
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <ThreadPoolMinThreads>32</ThreadPoolMinThreads>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DrillPressParallelCapture)' == 'true'">
+    <RuntimeHostConfigurationOption
+      Include="System.GC.HeapCount"
+      Value="$(DrillPressCaptureHeapCount)"
+    />
+    <RuntimeHostConfigurationOption Include="System.GC.DynamicAdaptationMode" Value="0" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
     <ProjectReference Include="../DrillPress.Engine/DrillPress.Engine.csproj" />

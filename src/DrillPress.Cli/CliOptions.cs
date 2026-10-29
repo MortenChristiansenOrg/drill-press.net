@@ -13,7 +13,9 @@ internal sealed record CliOptions(
     bool ShowFixComplexity,
     IReadOnlySet<RuleFixComplexity?>? FixComplexities,
     bool ExplainCoverage,
-    bool ExplainFixes
+    bool ExplainFixes,
+    bool ParallelQueries = false,
+    bool StreamCompilation = false
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -36,11 +38,19 @@ internal sealed record CliOptions(
         var showFixComplexity = false;
         var explainCoverage = false;
         var explainFixes = false;
+        var parallelQueries = false;
+        var streamCompilation = false;
         IReadOnlySet<RuleFixComplexity?>? fixComplexities = null;
         for (var index = 1; index < args.Length; index++)
         {
             switch (args[index])
             {
+                case "--stream-compilation":
+                    streamCompilation = true;
+                    break;
+                case "--parallel-queries":
+                    parallelQueries = true;
+                    break;
                 case "--build-host" when buildHost is null && index + 1 < args.Length:
                     buildHost = args[++index];
                     break;
@@ -133,7 +143,9 @@ internal sealed record CliOptions(
             showFixComplexity,
             fixComplexities,
             explainCoverage,
-            explainFixes
+            explainFixes,
+            parallelQueries,
+            streamCompilation
         );
         return true;
     }

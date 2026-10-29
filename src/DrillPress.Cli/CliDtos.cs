@@ -14,3 +14,9 @@ internal sealed record RuleEvaluation(
     ValidatedResult Result,
     string Response
 );
+
+internal sealed record GeneratorProcessResult(
+    ChildProcessResult Export,
+    ChildProcessResult Rules,
+    string SnapshotPath
+);
