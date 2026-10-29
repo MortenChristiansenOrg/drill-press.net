@@ -40,10 +40,16 @@ internal sealed class GeneratorProjectCollector(
             ReadPlans(cancellationToken);
             StartReady(cancellationToken);
             if (final is null && _fileSystem.File.Exists(snapshotPath))
+            {
                 final = new CompilationSnapshotFile(_fileSystem)
                     .ReadAsync(snapshotPath, cancellationToken)
                     .GetAwaiter()
                     .GetResult();
+                // BuildHost writes every plan before the final snapshot, so plans written since
+                // the last read are on disk now. Only targets without plans, such as loose sources,
+                // take the shortcut below.
+                ReadPlans(cancellationToken);
+            }
             if (final is not null && _plans.Count == 0)
                 return new CollectedGeneration(final, []);
             Thread.Sleep(5);

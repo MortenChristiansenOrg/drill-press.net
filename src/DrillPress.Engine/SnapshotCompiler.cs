@@ -268,12 +268,11 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem, bool revalidateRe
 
             if (captured.Metadata is null || captured.Fingerprint != fingerprint)
             {
+                // Fingerprint the bytes that are loaded, in case a build rewrote the file meanwhile.
+                var bytes = _fileSystem.File.ReadAllBytes(reference.Path);
                 captured = (
-                    MetadataReference.CreateFromImage(
-                        _fileSystem.File.ReadAllBytes(reference.Path),
-                        filePath: reference.Path
-                    ),
-                    fingerprint
+                    MetadataReference.CreateFromImage(bytes, filePath: reference.Path),
+                    Convert.ToHexString(SHA256.HashData(bytes))
                 );
                 _references[reference.Path] = captured;
             }
