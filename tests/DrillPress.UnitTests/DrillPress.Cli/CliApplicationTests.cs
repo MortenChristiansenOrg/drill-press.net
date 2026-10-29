@@ -145,8 +145,6 @@ public sealed class CliApplicationTests
             --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
             --parallel-queries  Prepare pure, thread-safe queries concurrently; reporting and fixes remain ordered.
             --stream-compilation  Compile each project in the rule bundle as soon as capture finishes it.
-            --worker  Reuse private compiler workers for five idle minutes; inputs are revalidated and all rules run.
-            drillpress stop-workers --rules <path> <target>  Stop this target's current workers.
             --explain-coverage  Show typed reasons, context identity and matching source ranges.
             --explain-fixes  Show why each proposed fix without '+' was withheld.
             --refresh-coverage  Rerun tests even when cached coverage inputs match.
@@ -437,7 +435,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -639,7 +637,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --refresh-coverage and --skip-coverage cannot be combined.
-            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -932,7 +930,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

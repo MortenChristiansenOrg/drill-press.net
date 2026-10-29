@@ -10,8 +10,6 @@ public class MsBuildSnapshotLoader
 {
     private readonly IFileSystem _fileSystem;
     private readonly SourceFilePolicy _sourcePolicy;
-    private readonly SnapshotInputCache _cache;
-    private readonly ProjectGenerationCache _generations;
 
     /// <summary>Creates a loader for local SDK and loose-source targets.</summary>
     public MsBuildSnapshotLoader()
@@ -24,8 +22,6 @@ public class MsBuildSnapshotLoader
     {
         _fileSystem = fileSystem;
         _sourcePolicy = new SourceFilePolicy(fileSystem, probe);
-        _cache = new SnapshotInputCache(fileSystem);
-        _generations = new ProjectGenerationCache(fileSystem);
     }
 
     /// <summary>Exports a target using fast compiler capture and default MSBuild properties.</summary>
@@ -64,41 +60,6 @@ public class MsBuildSnapshotLoader
     {
         var resolver = new TargetResolver(_fileSystem);
         target = resolver.Resolve(target);
-        var reuseInputs =
-            options.ReuseInputs
-            && target.IndexOfAny(['*', '?']) < 0
-            && !_fileSystem
-                .Path.GetExtension(target)
-                .Equals(".cs", StringComparison.OrdinalIgnoreCase);
-        var cacheKey =
-            target
-            + "\n"
-            + options.IncludeReferencedProjects
-            + "\n"
-            + options.ValidateCompilation
-            + string.Join(
-                "\n",
-                options
-                    .Properties.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                    .Select(pair => pair.Key + "=" + pair.Value)
-            );
-        if (reuseInputs && _cache.Find(cacheKey, cancellationToken) is { } cached)
-            return Restrict(cached, cancellationToken);
-        var started = DateTime.UtcNow;
-        var export = await CaptureAsync(target, options, profile, cancellationToken);
-        if (reuseInputs)
-            _cache.Store(cacheKey, export, started, cancellationToken);
-        return Restrict(export, cancellationToken);
-    }
-
-    // The external compiler loader consumes real paths; cache policy is independent of that consumer.
-    internal virtual async Task<SnapshotExport> CaptureAsync(
-        string target,
-        SnapshotLoadOptions options,
-        PipelineProfile profile,
-        CancellationToken cancellationToken
-    )
-    {
         if (
             target.IndexOfAny(['*', '?']) >= 0
             || _fileSystem
@@ -106,9 +67,12 @@ public class MsBuildSnapshotLoader
                 .Equals(".cs", StringComparison.OrdinalIgnoreCase)
         )
         {
-            return await new LooseSourceLoader(_fileSystem).LoadAsync(
-                new TargetResolver(_fileSystem).ExpandSources(target),
-                options,
+            return Restrict(
+                await new LooseSourceLoader(_fileSystem).LoadAsync(
+                    resolver.ExpandSources(target),
+                    options,
+                    cancellationToken
+                ),
                 cancellationToken
             );
         }
@@ -133,15 +97,15 @@ public class MsBuildSnapshotLoader
             MSBuildLocator.RegisterInstance(sdk);
         }
 
-        return await new SdkSnapshotLoader(
-            _fileSystem,
-            options.ReuseInputs ? _generations : null
-        ).LoadAsync(
-            target,
-            options,
-            sdk.Version.ToString(),
-            sdk.MSBuildPath,
-            profile,
+        return Restrict(
+            await new SdkSnapshotLoader(_fileSystem).LoadAsync(
+                target,
+                options,
+                sdk.Version.ToString(),
+                sdk.MSBuildPath,
+                profile,
+                cancellationToken
+            ),
             cancellationToken
         );
     }
@@ -156,7 +120,7 @@ public class MsBuildSnapshotLoader
             export
                 .Contexts.Zip(
                     snapshot.Projects,
-                    (context, project) => context with { Snapshot = project }
+                    (context, project) => new CompilationContext(project, context.Compilation)
                 )
                 .ToArray()
         );

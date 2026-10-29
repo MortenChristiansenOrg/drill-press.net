@@ -72,18 +72,12 @@ the original bytes and timestamps afterward. The cold speedup therefore applies
 to changed input, including a central dependency; it is not restricted to repeating
 an unchanged check.
 
-There is also an optional worker path. Earlier valid worker measurements were
-32.71 s for the first request, 3.98 s unchanged and 15.22 s after a Dataset edit,
-versus 29.45 s for that edited input in fresh processes. The edited worker reused
-12 of 14 project generations; Dataset and dependent Core.Tests were invalidated.
-That retained about 61% of the warm-run saving. A Core edit has greater fan-out.
-These are historical worker measurements, preceding the final native cold path,
-not measurements of the final default workflow.
-
-Workers revalidate declared inputs and metadata, invalidate changed contexts and
-transitive dependents, and rerun all rules, allowances and fix validation. Coverage
-refreshes cannot reuse stale query evidence. Generators with undeclared external
-state need fresh execution, which remains the default.
+A persistent-worker prototype reused capture and compilations between checks. Its
+managed measurements were 32.71 s for the first request, 3.98 s unchanged and
+15.22 s after a Dataset edit, versus 29.45 s for that edited input in fresh
+processes. Review found stale-result, resource and Windows problems, so it isn't
+part of the release; [#182](https://github.com/MortenChristiansenOrg/drill-press.net/issues/182)
+keeps the branch and those findings.
 
 ## Overview of retained solutions
 
@@ -137,7 +131,9 @@ both versions, so linking both was rejected. The supported implementation runs i
 the bundle; mismatches run in managed capture with actual generated dependency
 metadata. Failed reference emission falls back to captured dependency sources.
 No version is substituted. In the final snapshot check, two projects use this
-managed fallback.
+managed fallback. Review later moved all of such a project's generators to managed
+capture, because generators only see each other's post-initialization sources
+within one driver; the source-checkout timings predate that correction.
 
 The consumer also reuses immutable source/reference data already captured and
 verified during that check. New generated documents and effective compiler options
@@ -178,17 +174,17 @@ version-preserving generation.
 
 ## Source wiring and validation
 
-Joblet's ignored `.config/drillpress-source.props` points to this worktree:
+For the source-checkout results, an ignored `.config/drillpress-source.props` in a
+local Joblet checkout pointed at a Drill Press checkout. That wiring is local
+development tooling and isn't part of Joblet's repository; Joblet references the
+published packages.
 
-```text
-/home/morten/.t3/worktrees/drill-press.net/t3-228e2919
-```
-
-Both rules and rule tests remove published DrillPress package references and use
-`artifacts/local-sdk/`. Release source mode publishes the native CLI, native rule
-bundle and composite ReadyToRun capture host through `scripts/SourceCheck.targets`.
-Debug remains managed. The source projects stay outside Joblet's analysis scope,
-and target capture keeps its original MSBuild configuration.
+With it, both rules and rule tests replaced the published DrillPress package
+references with `artifacts/local-sdk/`. Release source mode published the native CLI,
+native rule bundle and composite ReadyToRun capture host through
+`scripts/SourceCheck.targets`. Debug remained managed. The source projects stayed
+outside Joblet's analysis scope, and target capture kept its original MSBuild
+configuration.
 
 Artifact refresh after tool/rule/generator-dependency changes takes minutes:
 the two final full publications measured 518.76 s and 431.18 s on the busy host.
@@ -223,9 +219,9 @@ Raw JSON, profiles and validation reports are in ignored
 `default-confirmation.json`; contended batches are preserved separately. See
 [profiling](PROFILING.md) and Joblet's `docs/code-rules.md` for operation.
 
-## Assumptions and doubts at handoff
+## Assumptions and limits
 
-No user questions were posed. The remaining qualifications are:
+The remaining qualifications are:
 
 1. Cold measurements assume compiled tool artifacts and restored dependencies.
    Their refresh cost is substantial; the OS file cache is not flushed.
@@ -234,9 +230,7 @@ No user questions were posed. The remaining qualifications are:
 3. Compiler-process memory is higher than the original workstation-GC configuration.
    Other hardware and memory budgets need their own measurement.
 4. WSL/Linux x64 is measured. Windows-specific ACL behavior remains skipped here.
-5. The regex NameMatching overload is local until released. Returning to the current
-   published package requires restoring the old declaration predicate or upgrading
-   to a release containing the overload. Keep this worktree available, or update
-   the source override when moving it.
-
-No packages were published, messages sent, commits pushed or pull requests merged.
+5. Package consumers can't yet generate a generator catalogue or publish native
+   bundles without a source checkout, so the published packages stop at the managed
+   results above. Native artifacts also take minutes to publish, which CI would
+   need to cache ([#181](https://github.com/MortenChristiansenOrg/drill-press.net/issues/181)).

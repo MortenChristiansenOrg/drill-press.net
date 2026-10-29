@@ -7,7 +7,6 @@ internal enum CliCommand
     Check,
     Fix,
     Status,
-    StopWorkers,
 }
 
 internal sealed record RuleEvaluation(

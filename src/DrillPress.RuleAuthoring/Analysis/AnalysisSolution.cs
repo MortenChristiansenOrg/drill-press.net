@@ -264,10 +264,7 @@ public sealed class AnalysisSolution
     public CancellationToken CancellationToken { get; }
 
     /// <summary>Execution strategy and measurements shared by all rules in this analysis.</summary>
-    public AnalysisOptions Options { get; private set; }
-
-    internal void UpdateProfile(DrillPress.Manifest.PipelineProfile profile) =>
-        Options = Options with { Profile = profile };
+    public AnalysisOptions Options { get; }
 
     /// <summary>All loaded contexts, including dependencies and alternate target frameworks.</summary>
     public IReadOnlyList<AnalysisProject> Projects { get; }

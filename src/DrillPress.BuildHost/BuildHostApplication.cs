@@ -11,7 +11,6 @@ public sealed class BuildHostApplication
     private readonly IFileSystem _fileSystem;
     private readonly MsBuildSnapshotLoader _snapshotLoader;
     private readonly ProcessProfileProbe _profileProbe;
-    private bool _reuseInputs;
 
     /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
     public BuildHostApplication()
@@ -42,21 +41,6 @@ public sealed class BuildHostApplication
     )
     {
         standardError ??= Console.Error;
-        if (args is [CommandWorker.Command, var name])
-        {
-            _reuseInputs = true;
-            await new CommandWorker().RunAsync(
-                name,
-                async (arguments, token) =>
-                {
-                    using var error = new BoundedStringWriter(8 * 1024 * 1024, "standard error");
-                    var code = await RunAsync(arguments, error, token);
-                    return new WorkerResponse((int)code, "", error.ToString());
-                },
-                cancellationToken
-            );
-            return BuildHostExitCode.Success;
-        }
         if (args.Length < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
@@ -74,7 +58,7 @@ public sealed class BuildHostApplication
         using var total = profile.Measure("total");
         try
         {
-            var options = ParseOptions(args[3..]) with { ReuseInputs = _reuseInputs };
+            var options = ParseOptions(args[3..]);
             await ExportAsync(args[1], args[2], options, profile, cancellationToken);
             return BuildHostExitCode.Success;
         }

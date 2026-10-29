@@ -15,15 +15,9 @@ using Project = Microsoft.CodeAnalysis.Project;
 
 namespace DrillPress.BuildHost;
 
-internal sealed class SdkSnapshotLoader(
-    IFileSystem fileSystem,
-    ProjectGenerationCache? generationCache = null
-)
+internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
 {
     private readonly IFileSystem _fileSystem = fileSystem;
-    private readonly ConcurrentDictionary<string, byte> _inputs = new();
-    private readonly ConcurrentDictionary<string, byte> _inputDirectories = new();
-    private readonly ProjectGenerationCache? _generations = generationCache;
     private GeneratorPlanPublisher? _publisher;
     private readonly GeneratorBuildCollector _generatorBuild = new(fileSystem);
     private IReadOnlyDictionary<ProjectId, string> _contextIds =
@@ -39,26 +33,6 @@ internal sealed class SdkSnapshotLoader(
         CancellationToken cancellationToken
     )
     {
-        _inputs.TryAdd(target, 0);
-        for (
-            var directory = _fileSystem.Path.GetDirectoryName(target);
-            directory is not null;
-            directory = _fileSystem.Path.GetDirectoryName(directory)
-        )
-        {
-            foreach (
-                var name in new[]
-                {
-                    "global.json",
-                    "Directory.Build.props",
-                    "Directory.Build.targets",
-                    "Directory.Packages.props",
-                    "NuGet.Config",
-                    ".editorconfig",
-                }
-            )
-                _inputs.TryAdd(_fileSystem.Path.Combine(directory, name), 0);
-        }
         var loadedDirectory = _fileSystem.Path.GetDirectoryName(
             typeof(ProjectCollection).Assembly.Location
         )!;
@@ -214,11 +188,7 @@ internal sealed class SdkSnapshotLoader(
             contexts.Select(context => context.Snapshot).ToArray()
         );
         SnapshotValidation.Validate(envelope);
-        return new SnapshotExport(envelope, contexts)
-        {
-            InputPaths = _inputs.Keys.Order(StringComparer.Ordinal).ToArray(),
-            InputDirectories = _inputDirectories.Keys.Order(StringComparer.Ordinal).ToArray(),
-        };
+        return new SnapshotExport(envelope, contexts);
     }
 
     private void ScheduleProject(
@@ -306,9 +276,10 @@ internal sealed class SdkSnapshotLoader(
             .GetTopologicallySortedProjects(cancellationToken)
             .Select(id => solution.GetProject(id)!)
             .ToArray();
-        _contextIds =
-            _generations?.Begin(solution, options)
-            ?? order.ToDictionary(project => project.Id, project => project.Id.Id.ToString("N"));
+        _contextIds = order.ToDictionary(
+            project => project.Id,
+            project => project.Id.Id.ToString("N")
+        );
         await using var evaluator = new ProjectEvaluator(_fileSystem, options.Properties);
         var evaluations = evaluator.Start(order, cancellationToken);
         var capture = new CompilerCapture(_fileSystem);
@@ -460,36 +431,6 @@ internal sealed class SdkSnapshotLoader(
             );
         }
         var diagnosticIds = await GetDiagnosticIdsAsync(liveProject, cancellationToken);
-        var signature = "";
-        if (_generations is not null)
-        {
-            var input = WithMetadata(
-                capture.Capture(
-                    project.Name,
-                    project.FilePath!,
-                    _contextIds[project.Id],
-                    compilation,
-                    [],
-                    diagnosticIds,
-                    cancellationToken
-                ),
-                metadata,
-                edges.ToArray(),
-                options,
-                sdkVersion
-            );
-            signature = _generations.Fingerprint(
-                input,
-                metadata,
-                dependenciesReady.Select(item => item.Project.Signature),
-                cancellationToken
-            );
-            if (_generations.Find(_contextIds[project.Id], signature) is { } cached)
-            {
-                profile.Count("loading.reused." + project.Name, 1);
-                return cached;
-            }
-        }
         var sources = new List<SourceReference>();
         foreach (var (reference, dependency) in dependenciesReady)
         {
@@ -529,7 +470,6 @@ internal sealed class SdkSnapshotLoader(
             );
             return new GeneratedProject(
                 _contextIds[project.Id],
-                signature,
                 diagnosticIds,
                 metadata,
                 compilation,
@@ -550,9 +490,8 @@ internal sealed class SdkSnapshotLoader(
             sources,
             cancellationToken
         );
-        var result = new GeneratedProject(
+        return new GeneratedProject(
             _contextIds[project.Id],
-            signature,
             diagnosticIds,
             metadata,
             generated.Compilation,
@@ -564,8 +503,6 @@ internal sealed class SdkSnapshotLoader(
                 return EmitReferenceAssembly(generated.Compilation, cancellationToken);
             })
         );
-        _generations?.Store(result);
-        return result;
     }
 
     private async Task<CompilationContext> CaptureProjectAsync(
@@ -583,10 +520,6 @@ internal sealed class SdkSnapshotLoader(
         var generated = await generation;
         using var capturing = profile.Measure("loading.capture." + project.Name);
         var metadata = generated.Metadata;
-        foreach (var path in metadata.InputPaths)
-            _inputs.TryAdd(path, 0);
-        foreach (var directory in metadata.InputDirectories)
-            _inputDirectories.TryAdd(directory, 0);
         ThrowLoadFailures(failures);
         await CompilationValidation.ValidateAsync(
             generated.Compilation,

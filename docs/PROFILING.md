@@ -99,44 +99,10 @@ Windows-PDB origins of IL2050/IL2072: metadata-only reference emission requests
 Portable PDB format and supplies no PDB stream. Warnings from other origins still
 fail that gate. Native parity is required when changing compatibility.
 
-Worker requests and `--validate-compilation` use the ordinary capture path.
-Generator transport files live inside the CLI's private temporary directory and
-are removed with that check. Fresh-process results require no persisted analysis
-or generator-result cache. See [the Joblet measurements](JOBLET_PERFORMANCE.md)
+`--validate-compilation` uses the ordinary capture path. Generator transport files
+live inside the CLI's private temporary directory and are removed with that check.
+Results require no persisted analysis or generator-result cache. See [the Joblet measurements](JOBLET_PERFORMANCE.md)
 for full-command scope, edited inputs and setup costs.
-
-## Persistent workers
-
-`check`, `fix`, and `status` accept `--worker`. The CLI uses private, current-user
-named pipes to reuse BuildHost and rule processes for the target. Workers expire
-after five idle minutes; stop the current pair explicitly with:
-
-```sh
-drillpress stop-workers --rules path/to/Rules.dll path/to/Target.slnx
-```
-
-Each request gets a new snapshot request ID and evaluates every selected rule,
-allowance, and fix-validation step. No diagnostic response is cached. BuildHost
-reuses an SDK capture only while content fingerprints of sources, references,
-evaluated build inputs and imports match and directory inventories are unchanged.
-Symlinked directory inventories prevent capture reuse. Loose-source targets are
-loaded again on each request. The rule worker revalidates metadata and retains
-unchanged compilations, semantic models, and pure query results. Coverage rules
-receive a new query evaluation so refreshed evidence cannot reuse old conditions.
-
-Workers assume deterministic generators and declared build inputs. Custom targets
-or generators that read undeclared external state need fresh processes: omit `--worker`. A changed
-component or process environment selects a new worker; request-specific Codex
-tool-call identifiers do not affect worker identity. Cancellation disconnects the
-request and retires its worker rather than preserving interrupted analysis.
-
-Report cold, repeated, and edited-input timings separately. Input changes re-evaluate the graph. Unchanged compiler inputs retain their
-generated compilations, and reconstruction invalidates a changed context and its
-transitive dependents. Solution-wide query materializations are rebuilt after a
-graph change; unchanged projects can retain their semantic models. A repeated profile reports work done in that
-request; candidate counters and peak working set describe retained worker state.
-Omit `--worker` for a fresh-process comparison, and keep source/rule builds
-outside analysis-only measurements. Ordinary checks remain fresh by default.
 
 ## BuildHost loading
 

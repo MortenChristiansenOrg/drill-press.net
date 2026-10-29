@@ -8,7 +8,6 @@ namespace DrillPress.BuildHost;
 
 internal sealed record GeneratedProject(
     string ContextId,
-    string Signature,
     string[] DiagnosticIds,
     EvaluatedMetadata Metadata,
     CSharpCompilation Compilation,

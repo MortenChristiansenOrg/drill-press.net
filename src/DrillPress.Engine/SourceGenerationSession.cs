@@ -42,7 +42,7 @@ internal sealed class SourceGenerationSession(
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default
             );
-            var engine = new AnalysisEngine(_fileSystem, coverageProcess, reuseCompilations: true);
+            var engine = new AnalysisEngine(_fileSystem, coverageProcess);
             if (collected.Projects.Length == 0)
             {
                 await new CompilationSnapshotFile(_fileSystem).WriteAsync(

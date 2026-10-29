@@ -23,13 +23,11 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem, bool revalidateRe
         (string Fingerprint, CompilationContext Context)
     > _projects = [];
 
-    internal void Reset()
-    {
-        _cachedFingerprint = null;
-        _cachedContexts = null;
-        _projects.Clear();
-        _verifiedPaths.Clear();
-    }
+    // Streaming passes the same immutable project snapshots on every round; hashing each once keeps
+    // the rounds linear in the solution's size.
+    private readonly Dictionary<ProjectSnapshot, byte[]> _contentHashes = new(
+        ReferenceEqualityComparer.Instance
+    );
 
     public CompilationContext[] Reconstruct(
         CompilationSnapshot snapshot,
@@ -171,12 +169,7 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem, bool revalidateRe
             if (!visiting.Add(project.ContextId))
                 throw new InvalidDataException("The source compilation graph contains a cycle.");
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            hash.AppendData(
-                System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-                    project,
-                    CompilationSnapshotJsonContext.Default.ProjectSnapshot
-                )
-            );
+            hash.AppendData(ContentHash(project));
             foreach (var reference in project.CompilationReferences)
                 hash.AppendData(
                     System.Text.Encoding.UTF8.GetBytes(Visit(projects[reference.ContextId]))
@@ -190,6 +183,21 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem, bool revalidateRe
         }
     }
 
+    private byte[] ContentHash(ProjectSnapshot project)
+    {
+        if (!_contentHashes.TryGetValue(project, out var hash))
+        {
+            hash = SHA256.HashData(
+                System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                    project,
+                    CompilationSnapshotJsonContext.Default.ProjectSnapshot
+                )
+            );
+            _contentHashes.Add(project, hash);
+        }
+        return hash;
+    }
+
     private string Fingerprint(CompilationSnapshot snapshot)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -198,10 +206,13 @@ internal sealed class SnapshotCompiler(IFileSystem fileSystem, bool revalidateRe
                 snapshot with
                 {
                     RequestId = "",
+                    Projects = [],
                 },
                 CompilationSnapshotJsonContext.Default.CompilationSnapshot
             )
         );
+        foreach (var project in snapshot.Projects)
+            hash.AppendData(ContentHash(project));
         foreach (var path in _verifiedPaths.Order(StringComparer.Ordinal))
             hash.AppendData(
                 System.Text.Encoding.UTF8.GetBytes(path + "\n" + _references[path].Fingerprint)

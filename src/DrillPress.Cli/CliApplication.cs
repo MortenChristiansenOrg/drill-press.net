@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--worker] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck;
@@ -22,8 +22,6 @@ public sealed class CliApplication
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
         --parallel-queries  Prepare pure, thread-safe queries concurrently; reporting and fixes remain ordered.
         --stream-compilation  Compile each project in the rule bundle as soon as capture finishes it.
-        --worker  Reuse private compiler workers for five idle minutes; inputs are revalidated and all rules run.
-        drillpress stop-workers --rules <path> <target>  Stop this target's current workers.
         --explain-coverage  Show typed reasons, context identity and matching source ranges.
         --explain-fixes  Show why each proposed fix without '+' was withheld.
         --refresh-coverage  Rerun tests even when cached coverage inputs match.
@@ -46,10 +44,7 @@ public sealed class CliApplication
 
     /// <summary>Creates the coordinator for local BuildHost and rule-bundle processes.</summary>
     public CliApplication()
-        : this(new FileSystem()) { }
-
-    private CliApplication(IFileSystem fileSystem)
-        : this(fileSystem, new WorkerProcessRunner(fileSystem)) { }
+        : this(new FileSystem(), new ChildProcessRunner()) { }
 
     internal CliApplication(
         IFileSystem fileSystem,
@@ -85,7 +80,7 @@ public sealed class CliApplication
             );
             return CliExitCode.Clean;
         }
-        if (args is ["--help"] or [("check" or "fix" or "status" or "stop-workers"), "--help"])
+        if (args is ["--help"] or [("check" or "fix" or "status"), "--help"])
         {
             await standardOutput.WriteAsync(Help.ReplaceLineEndings("\n") + "\n");
             return CliExitCode.Clean;
@@ -111,20 +106,6 @@ public sealed class CliApplication
         try
         {
             options = options with { BuildHost = ResolveBuildHost(options.BuildHost) };
-            if (options.Command == CliCommand.StopWorkers)
-            {
-                await _processRunner.CaptureAsync(
-                    options.BuildHost!,
-                    [CommandWorker.StopCommand, WorkerProcessRunner.Prefix + options.Target],
-                    cancellationToken
-                );
-                await _processRunner.CaptureAsync(
-                    options.Rules,
-                    [CommandWorker.StopCommand, WorkerProcessRunner.Prefix + options.Target],
-                    cancellationToken
-                );
-                return CliExitCode.Clean;
-            }
             var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
@@ -228,9 +209,7 @@ public sealed class CliApplication
     )
     {
         if (
-            options.StreamCompilation
-            && !options.UseWorker
-            && !options.ExportArguments.Contains("--validate-compilation")
+            options.StreamCompilation && !options.ExportArguments.Contains("--validate-compilation")
         )
         {
             using var generation = profile.Measure("generation.pipeline");
@@ -251,15 +230,7 @@ public sealed class CliApplication
         {
             export = await _processRunner.CaptureAsync(
                 options.BuildHost!,
-                [
-                    "export",
-                    options.Target,
-                    snapshotPath,
-                    .. options.ExportArguments,
-                    .. options.UseWorker
-                        ? new[] { WorkerProcessRunner.Prefix + options.Target }
-                        : [],
-                ],
+                ["export", options.Target, snapshotPath, .. options.ExportArguments],
                 cancellationToken
             );
         }
@@ -296,8 +267,6 @@ public sealed class CliApplication
     private static string[] RuleFlags(CliOptions options)
     {
         var flags = new List<string>();
-        if (options.UseWorker)
-            flags.Add(WorkerProcessRunner.Prefix + options.Target);
         if (options.Profile)
             flags.Add("--profile");
         if (options.ParallelQueries)

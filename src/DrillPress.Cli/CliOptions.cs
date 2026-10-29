@@ -14,7 +14,6 @@ internal sealed record CliOptions(
     IReadOnlySet<RuleFixComplexity?>? FixComplexities,
     bool ExplainCoverage,
     bool ExplainFixes,
-    bool UseWorker = false,
     bool ParallelQueries = false,
     bool StreamCompilation = false
 )
@@ -23,7 +22,7 @@ internal sealed record CliOptions(
     {
         options = null!;
         error = null;
-        if (args.Length < 4 || args[0] is not ("check" or "fix" or "status" or "stop-workers"))
+        if (args.Length < 4 || args[0] is not ("check" or "fix" or "status"))
         {
             return false;
         }
@@ -39,7 +38,6 @@ internal sealed record CliOptions(
         var showFixComplexity = false;
         var explainCoverage = false;
         var explainFixes = false;
-        var worker = false;
         var parallelQueries = false;
         var streamCompilation = false;
         IReadOnlySet<RuleFixComplexity?>? fixComplexities = null;
@@ -52,9 +50,6 @@ internal sealed record CliOptions(
                     break;
                 case "--parallel-queries":
                     parallelQueries = true;
-                    break;
-                case "--worker":
-                    worker = true;
                     break;
                 case "--build-host" when buildHost is null && index + 1 < args.Length:
                     buildHost = args[++index];
@@ -135,7 +130,6 @@ internal sealed record CliOptions(
             {
                 "fix" => CliCommand.Fix,
                 "status" => CliCommand.Status,
-                "stop-workers" => CliCommand.StopWorkers,
                 _ => CliCommand.Check,
             },
             buildHost,
@@ -150,7 +144,6 @@ internal sealed record CliOptions(
             fixComplexities,
             explainCoverage,
             explainFixes,
-            worker,
             parallelQueries,
             streamCompilation
         );

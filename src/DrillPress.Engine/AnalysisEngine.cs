@@ -45,20 +45,11 @@ public sealed class AnalysisEngine
     private readonly IFileSystem _fileSystem;
     private readonly CoverageProcess _coverageProcess;
     private readonly CoverageCache _coverageCache;
-    private readonly SnapshotCompiler _compiler;
-    private readonly bool _reuseCompilations;
     private readonly Dictionary<string, AnalysisProject> _preparedProjects = [];
-    private AnalysisSolution? _lastSolution;
 
+    /// <summary>Uses a project whose semantic models were prepared while it was compiled.</summary>
     internal void ReusePrepared(AnalysisProject project) =>
         _preparedProjects.Add(project.Snapshot.ContextId, project);
-
-    internal void Reset()
-    {
-        _preparedProjects.Clear();
-        _compiler.Reset();
-        _lastSolution = null;
-    }
 
     /// <summary>Creates an analyzer that reads the snapshot's metadata assemblies from local files.</summary>
     public AnalysisEngine()
@@ -67,15 +58,8 @@ public sealed class AnalysisEngine
     internal AnalysisEngine(IFileSystem fileSystem)
         : this(fileSystem, new CoverageProcess()) { }
 
-    internal AnalysisEngine(
-        IFileSystem fileSystem,
-        CoverageProcess coverageProcess,
-        bool reuseCompilations = false
-    )
-        : this(fileSystem, coverageProcess, new CoverageCache(fileSystem))
-    {
-        _reuseCompilations = reuseCompilations;
-    }
+    internal AnalysisEngine(IFileSystem fileSystem, CoverageProcess coverageProcess)
+        : this(fileSystem, coverageProcess, new CoverageCache(fileSystem)) { }
 
     internal AnalysisEngine(
         IFileSystem fileSystem,
@@ -86,7 +70,6 @@ public sealed class AnalysisEngine
         _fileSystem = fileSystem;
         _coverageProcess = coverageProcess;
         _coverageCache = coverageCache;
-        _compiler = new SnapshotCompiler(fileSystem);
     }
 
     /// <summary>Analyzes an in-memory snapshot and returns its deterministically ordered diagnostics.</summary>
@@ -172,11 +155,7 @@ public sealed class AnalysisEngine
     public CompilationContext[] Reconstruct(
         CompilationSnapshot snapshot,
         CancellationToken cancellationToken = default
-    ) =>
-        (_reuseCompilations ? _compiler : new SnapshotCompiler(_fileSystem)).Reconstruct(
-            snapshot,
-            cancellationToken
-        );
+    ) => new SnapshotCompiler(_fileSystem).Reconstruct(snapshot, cancellationToken);
 
     /// <summary>Evaluates prepared live or reconstructed contexts, enabling semantic conformance comparisons.</summary>
     public Task<BundleResponse> EvaluateAsync(
@@ -201,35 +180,15 @@ public sealed class AnalysisEngine
         AnalysisSolution solution;
         using (options.Profile.Measure("preparation"))
         {
-            var active = compilations.Select(context => context.Snapshot.ContextId).ToHashSet();
-            foreach (
-                var context in _preparedProjects
-                    .Keys.Where(context => !active.Contains(context))
-                    .ToArray()
-            )
-                _preparedProjects.Remove(context);
-            var projects = compilations
-                .Select(context =>
-                    PrepareProject(context, cancellationToken, !rules.RequiresCoverage)
-                )
-                .ToArray();
-            if (
-                _reuseCompilations
-                && !rules.RequiresCoverage
-                && _lastSolution is { } previous
-                && previous.CancellationToken == cancellationToken
-                && previous.Projects.SequenceEqual(projects)
-                && previous.Options == options with { Profile = previous.Options.Profile }
-            )
-            {
-                solution = previous;
-                solution.UpdateProfile(options.Profile);
-            }
-            else
-            {
-                solution = new AnalysisSolution(projects, options, cancellationToken);
-                _lastSolution = solution;
-            }
+            solution = new AnalysisSolution(
+                compilations
+                    .Select(context =>
+                        PrepareProject(context, cancellationToken, !rules.RequiresCoverage)
+                    )
+                    .ToArray(),
+                options,
+                cancellationToken
+            );
         }
 
         if (rules.RequiresCoverage && !options.SkipCoverage)
@@ -265,24 +224,18 @@ public sealed class AnalysisEngine
     )
     {
         if (
-            _reuseCompilations
-            && reuseModels
-            && _preparedProjects.TryGetValue(context.Snapshot.ContextId, out var existing)
-            && ReferenceEquals(existing.Compilation, context.Compilation)
+            reuseModels
+            && _preparedProjects.TryGetValue(context.Snapshot.ContextId, out var prepared)
+            && ReferenceEquals(prepared.Compilation, context.Compilation)
+            && prepared.CancellationToken == cancellationToken
         )
-        {
-            existing.BeginEvaluation(cancellationToken);
-            return existing;
-        }
-        var project = new AnalysisProject(
+            return prepared;
+        return new AnalysisProject(
             context.Snapshot,
             context.Compilation,
             _fileSystem,
             cancellationToken
         );
-        if (_reuseCompilations && reuseModels)
-            _preparedProjects[context.Snapshot.ContextId] = project;
-        return project;
     }
 
     private static void ValidateOptions(AnalysisOptions options)

@@ -9,7 +9,6 @@ public sealed class RuleApplication
 {
     private readonly IFileSystem _fileSystem;
     private readonly CoverageProcess _coverageProcess;
-    private readonly AnalysisEngine _engine;
     private readonly SourceFilePolicy _sourceFiles;
     private readonly SourceGeneratorCatalog? _generators;
 
@@ -33,21 +32,11 @@ public sealed class RuleApplication
         SourceFilePolicy sourceFiles,
         SourceGeneratorCatalog? generators = null
     )
-        : this(fileSystem, coverageProcess, false, sourceFiles, generators) { }
-
-    private RuleApplication(
-        IFileSystem fileSystem,
-        CoverageProcess coverageProcess,
-        bool reuseCompilations,
-        SourceFilePolicy sourceFiles,
-        SourceGeneratorCatalog? generators
-    )
     {
         _fileSystem = fileSystem;
         _sourceFiles = sourceFiles;
         _generators = generators;
         _coverageProcess = coverageProcess;
-        _engine = new AnalysisEngine(fileSystem, coverageProcess, reuseCompilations);
     }
 
     /// <summary>
@@ -64,28 +53,6 @@ public sealed class RuleApplication
     {
         standardOutput ??= Console.Out;
         standardError ??= Console.Error;
-        if (args is [CommandWorker.Command, var name])
-        {
-            var worker = new RuleApplication(
-                _fileSystem,
-                _coverageProcess,
-                reuseCompilations: true,
-                _sourceFiles,
-                _generators
-            );
-            await new CommandWorker().RunAsync(
-                name,
-                async (arguments, token) =>
-                {
-                    using var output = new BoundedStringWriter(64 * 1024 * 1024, "standard output");
-                    using var error = new BoundedStringWriter(8 * 1024 * 1024, "standard error");
-                    var code = await worker.RunAsync(rules, arguments, output, error, token);
-                    return new WorkerResponse((int)code, output.ToString(), error.ToString());
-                },
-                cancellationToken
-            );
-            return RuleExitCode.Clean;
-        }
         var generated = args.Length > 0 && args[0] == "check-generated";
         var flagsStart = generated ? 4 : 2;
         if (
@@ -157,7 +124,12 @@ public sealed class RuleApplication
                         args[1],
                         cancellationToken
                     );
-                response = await _engine.EvaluateAsync(rules, snapshot, options, cancellationToken);
+                response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(
+                    rules,
+                    snapshot,
+                    options,
+                    cancellationToken
+                );
             }
             ValidatedResult plan;
             using (profile.Measure("aggregation"))
@@ -183,14 +155,8 @@ public sealed class RuleApplication
                 ? RuleExitCode.Clean
                 : RuleExitCode.Findings;
         }
-        catch (OperationCanceledException)
-        {
-            _engine.Reset();
-            throw;
-        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            _engine.Reset();
             await standardError.WriteLineAsync($"drillpress-rules: {exception.Message}");
             return RuleExitCode.Failure;
         }

@@ -107,10 +107,7 @@ public sealed class AnalysisProject
     internal string InvocationDirectory { get; }
 
     /// <summary>Stops candidate discovery and contextual compiler validation.</summary>
-    public CancellationToken CancellationToken { get; private set; }
-
-    internal void BeginEvaluation(CancellationToken cancellationToken) =>
-        CancellationToken = cancellationToken;
+    public CancellationToken CancellationToken { get; }
 
     /// <summary>Evaluated context identity, graph edges, and document metadata.</summary>
     public ProjectSnapshot Snapshot { get; }
