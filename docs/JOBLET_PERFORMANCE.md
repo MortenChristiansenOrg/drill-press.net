@@ -1,8 +1,8 @@
 # Joblet full-check performance
 
-Measured on 28–29 October 2026 on Ubuntu under WSL, with .NET SDK 10.0.113,
+Measured on 28–30 October 2026 on Ubuntu under WSL, with .NET SDK 10.0.113,
 runtime 10.0.13, 16 logical processors and 19 GiB RAM, against Joblet `aefe5e22`
-and Drill Press `f091234` plus the changes released in 0.0.3-preview.24.
+and Drill Press `f091234` plus the changes released in 0.0.3-preview.25.
 
 ## Result with the published packages
 
@@ -15,7 +15,7 @@ throughout, so the runs are interleaved and each variant runs twice.
 | Workflow | All cores | Two cores |
 | --- | ---: | ---: |
 | 0.0.3-preview.23 (Debug rules locally, Release on two cores, as in CI) | 84.5 / 76.1 s | 98.2 / 99.4 s |
-| 0.0.3-preview.24, rules with tiered compilation off and server GC | 42.1 / 39.3 s | 61.2 / 58.0 s |
+| Local packages of the 0.0.3-preview.25 code, rules with tiered compilation off and server GC | 42.1 / 39.3 s | 61.2 / 58.0 s |
 | + `--parallel-queries` | 30.2 / 29.4 s | 55.6 / 52.6 s |
 | + `--stream-compilation`, as Joblet's script now runs it | **24.6 / 24.5 s** | **48.5 / 46.5 s** |
 | Same, tiered compilation re-enabled in the rule bundle | — | 81.6 / 68.7 s |
@@ -27,6 +27,39 @@ after its build and tests, so the saving there is about 50 seconds per run.
 
 Without a source generator catalogue, `--stream-compilation` runs every generator
 in BuildHost and still overlaps capture with compilation in the rule bundle.
+
+## Effect on other targets
+
+These settings are not a general default. With published 0.0.3-preview.25 packages,
+bundle already built, on a quiet host (medians of three runs; Joblet is the mean of two):
+
+| Target | Cores | Defaults | Tiering off and server GC in the bundle | + both options |
+| --- | ---: | ---: | ---: | ---: |
+| One small project, 8 rules | 16 | 5.4 s | 6.6 s | 9.5 s |
+| | 2 | 5.7 s | 6.6 s | 9.6 s |
+| `DrillPress.Engine` and its references, 8 rules | 16 | 22.1 s | 18.8 s | 14.9 s |
+| | 2 | 23.6 s | 20.2 s | 21.2 s |
+| Joblet, 14 contexts, 125 rules | 16 | 53 s | 37 s | 22 s |
+| | 2 | 75 s | 54 s | 44 s |
+
+Findings were identical across configurations. On the library target, tiering off alone
+gave 18.6 s on 16 cores and server GC alone 21.9 s, against 22.1 s with defaults. Joblet
+never ran with tiering off alone, so its split is not measured directly; re-enabling
+tiering in its final configuration costs 20–35 s on two cores (table above), and turning
+server GC off in the bundle costs 26.3 against 23.0 s on 16 cores and 45.6 against 44.4 s
+on two, timed through the check script. The bundle template therefore stays minimal, and
+`user-docs/testing.html#speed` and the agent skill describe these settings as guidance
+for large solutions.
+
+Joblet's peak memory, sampling the summed resident memory of the check's process tree
+every 0.25 s over two runs:
+
+| Configuration | 16 cores | Two cores |
+| --- | ---: | ---: |
+| Defaults | 1.05 / 1.05 GiB | 1.03 / 1.03 GiB |
+| Tiering off and server GC in the bundle | 1.28 / 1.37 GiB | 1.17 / 1.08 GiB |
+| + `--stream-compilation` | 1.64 / 1.60 GiB | 1.59 / 1.52 GiB |
+| + `--parallel-queries` | 1.62 / 1.66 GiB | 1.47 / 1.54 GiB |
 
 ## Result with a Drill Press source checkout
 
@@ -196,7 +229,8 @@ Validation completed:
 - **545 unit tests** pass on the final branch.
 - The full integration suite passes **815 tests**, with one Windows ACL skip.
 - **91 Joblet rule tests** pass against the local source SDK and against locally
-  packed 0.0.3-preview.24 packages.
+  packed packages of the same code, which was published as 0.0.3-preview.25 with a test
+  fixture fix.
 - Complete managed/native parity passes main cases, target forms, complexity
   selection, both safe fixes and recheck, LINQ, occurrence coverage and typed evidence.
 - After the final capture change, the native generated snapshot matches ordinary,

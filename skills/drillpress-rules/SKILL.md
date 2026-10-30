@@ -235,6 +235,8 @@ Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean
 the next project or `--fix-complexity` level to work on. `--explain-fixes` explains
 withheld proposals; CLI options, profiling and protocol compatibility are in
 [reference/testing.md](reference/testing.md#running-against-real-code).
+Settings that shorten full checks of large solutions, and slow small ones, are in
+[faster checks](reference/testing.md#faster-checks-on-large-solutions).
 
 Where a finding is a justified exception, the code says so with
 `// drillpress-allow RULE-ID: reason`, after the code on its line or on its own line

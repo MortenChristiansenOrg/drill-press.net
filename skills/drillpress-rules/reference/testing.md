@@ -194,6 +194,8 @@ load in parallel; failures are reported in snapshot order.
 | `--explain-coverage` | Prints coverage contexts, reasons and source ranges. |
 | `--refresh-coverage` / `--skip-coverage` | Refreshes cached evidence / skips coverage rules and lists them; mutually exclusive. |
 | `--build-host path` | Selects an explicit BuildHost rather than the installed one. |
+| `--parallel-queries` | Prepares the queries of different rules concurrently; see [faster checks](#faster-checks-on-large-solutions). |
+| `--stream-compilation` | Compiles each project in the bundle as soon as capture finishes it; see [faster checks](#faster-checks-on-large-solutions). |
 
 Findings use physical line/column coordinates. Calls report at their method name,
 including the final method in a fluent chain; `ReportAt` can choose another span.
@@ -208,6 +210,52 @@ proofs, disagreements between contexts, conflicts or a complexity selection.
 `RuleTestResult.ExplainedOutput` uses the same format. Library callers can use
 `CompactDiagnosticRenderer.Render(result, explainFixes: true)` in `DrillPress.Manifest`.
 Explanations diagnose a proposal; they do not grant permission to bypass its proof.
+
+### Faster checks on large solutions
+
+The defaults suit small targets. On a large solution, two bundle properties and two
+CLI options shorten a full check, but on a small target they slow it down, so the
+bundle template leaves them off. Time a full check of your own solution before and
+after adopting them.
+
+```xml
+<PropertyGroup>
+  <TieredCompilation>false</TieredCompilation>
+  <ServerGarbageCollection>true</ServerGarbageCollection>
+</PropertyGroup>
+```
+
+```sh
+dotnet tool run drillpress check --parallel-queries --stream-compilation --rules MyRules/bin/Debug/net10.0/MyRules.dll path/to/App.sln
+```
+
+Seconds for `drillpress check` with DrillPress 0.0.3-preview.25, the bundle already built:
+
+| Target | Cores | Defaults | Both properties | Properties and both options |
+| --- | ---: | ---: | ---: | ---: |
+| One small project, 8 rules | 16 | 5.4 | 6.6 | 9.5 |
+| | 2 | 5.7 | 6.6 | 9.6 |
+| One library and its project references, 8 rules | 16 | 22.1 | 18.8 | 14.9 |
+| | 2 | 23.6 | 20.2 | 21.2 |
+| A large solution, 14 compilation contexts, 125 rules | 16 | 53 | 37 | 22 |
+| | 2 | 75 | 54 | 44 |
+
+Findings were the same in every configuration.
+
+- On the library, `TieredCompilation` alone gave all of the properties' gain (22.1 to
+  18.6 s on 16 cores) and `ServerGarbageCollection` alone none (21.9 s). On the large
+  solution, with tiering off and both options on, server GC moved a check from 26.3 to
+  23.0 s on 16 cores and from 45.6 to 44.4 s on two.
+- On two cores the options helped only the large solution.
+- `--parallel-queries` prepares the queries of different rules at the same time, which runs
+  your selectors, predicates, conditions and `AnalysisFact` and `ProjectFact` computations
+  concurrently. All of them must be safe for concurrent calls as well as pure: for example,
+  no unsynchronized cache shared between calls. Rule tests evaluate sequentially and do
+  not catch a violation. Reporting and fixes stay ordered.
+- `--stream-compilation` runs capture and the bundle at the same time, which raises peak
+  memory. On the large solution with 16 cores, the combined peak of the check's processes
+  was 1.05 GiB with defaults, about 1.3 GiB with the properties and about 1.6 GiB with
+  streaming added. `--parallel-queries` added nothing measurable.
 
 ### Profiles
 

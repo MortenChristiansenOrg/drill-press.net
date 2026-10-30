@@ -139,7 +139,7 @@ rules.Rule(&quot;PARAM001&quot;, &quot;Group long parameter lists into a request
 </tbody></table></div>
 <p>See <a href="relationships.html#counterparts">counterpart matching</a> and <a href="facts.html#custom">custom queries</a> for complete examples.</p>
 <h2 id="reuse">Reuse queries; keep predicates pure</h2>
-<p>Drill Press materializes a query once per query instance and analysis. Reuse the instance to share work. Do not increment counters, write files, log to standard output, or depend on evaluation order in predicates. A new analysis gets fresh caches.</p>
+<p>Drill Press materializes a query once per query instance and analysis. Reuse the instance to share work. Do not increment counters, write files, log to standard output, or depend on evaluation order in predicates. A new analysis gets fresh caches. With <a href="testing.html#speed"><code>--parallel-queries</code></a>, predicates, conditions and facts must also be safe for concurrent calls.</p>
 <p>Place filters run after candidates are found. When a policy covers a small part of a large solution, start narrow, as in <code>Code.Files.InFolder(&quot;Domain&quot;).Calls()</code>, so the compiler binds only the calls you need. Generated files supply compiler information but ordinary roots exclude them; see <a href="syntax.html#generated">generated and linked source</a>.</p>
 <nav class="page-links" aria-label="Previous and next chapters">
 <a href="first-rule.html"><small>← PREVIOUS</small>Write your first rule</a>
