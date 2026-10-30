@@ -92,7 +92,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Reuse queries; keep predicates pure · Select and compose",
     "url": "selections.html#reuse",
-    "text": "Drill Press materializes a query once per query instance and analysis. Reuse the instance to share work. Do not increment counters, write files, log to standard output, or depend on evaluation order in predicates. A new analysis gets fresh caches. Place filters run after candidates are found. When a policy covers a small part of a large solution, start narrow, as in Code.Files.InFolder(\"Domain\").Calls(), so the compiler binds only the calls you need. Generated files supply compiler information but ordinary roots exclude them; see generated and linked source."
+    "text": "Drill Press materializes a query once per query instance and analysis. Reuse the instance to share work. Do not increment counters, write files, log to standard output, or depend on evaluation order in predicates. A new analysis gets fresh caches. With --parallel-queries, predicates, conditions and facts must also be safe for concurrent calls. Place filters run after candidates are found. When a policy covers a small part of a large solution, start narrow, as in Code.Files.InFolder(\"Domain\").Calls(), so the compiler binds only the calls you need. Generated files supply compiler information but ordinary roots exclude them; see generated and linked source."
   },
   {
     "title": "Types and members",
@@ -358,6 +358,11 @@ window.DRILLPRESS_SEARCH = [
     "title": "Before sharing a bundle · Test and run your rules",
     "url": "testing.html#checklist",
     "text": "Test one violation and a nearby allowed case, including configured exceptions. Check exact locations and full output; do not assert only the count. Test alias spelling, overloads, generated source, and unresolved symbols where relevant. For fixes, check both accepted and withheld corrections. Run the bundle against a restored real project with the CLI."
+  },
+  {
+    "title": "Speed up checks of large solutions · Test and run your rules",
+    "url": "testing.html#speed",
+    "text": "The defaults suit small targets. On a large solution, two bundle properties and two CLI options shorten a full check, but on a small target they slow it down. TieredCompilation false ServerGarbageCollection true --parallel-queries --stream-compilation. Selectors, predicates, conditions and AnalysisFact and ProjectFact computations must be safe for concurrent calls. Rule tests evaluate sequentially and do not catch a violation. Streaming raises peak memory."
   },
   {
     "title": "When a rule does not behave as expected · Test and run your rules",

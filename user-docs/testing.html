@@ -151,6 +151,24 @@ var changes = baseline.ChangedFiles.In(after.Analyze());
 // A.cs is Modified; B.cs is Added.</code></pre></div>
 <h2 id="checklist">Before sharing a bundle</h2>
 <ul><li>Test one violation and a nearby allowed case, including configured exceptions.</li><li>Check exact locations and full output; do not assert only the count.</li><li>Test alias spelling, overloads, generated source, and unresolved symbols where relevant.</li><li>For fixes, check both accepted and withheld corrections.</li><li>Run the bundle against a restored real project with the CLI.</li></ul>
+<h2 id="speed">Speed up checks of large solutions</h2>
+<p>The defaults suit small targets. On a large solution, two bundle properties and two CLI options shorten a full check, but on a small target they slow it down, so a new bundle leaves them off. Time a full check of your own solution before and after adopting them.</p>
+<div class="codeblock"><div class="codehead"><span>In the rule bundle’s project file</span></div><pre tabindex="0" data-check="xml" id="example-speed-properties"><code>&lt;PropertyGroup&gt;
+  &lt;TieredCompilation&gt;false&lt;/TieredCompilation&gt;
+  &lt;ServerGarbageCollection&gt;true&lt;/ServerGarbageCollection&gt;
+&lt;/PropertyGroup&gt;</code></pre></div>
+<div class="codeblock"><div class="codehead"><span>Run the check</span></div><pre tabindex="0"><code>dotnet tool run drillpress check --parallel-queries --stream-compilation --rules MyRules/bin/Debug/net10.0/MyRules.dll path/to/App.sln</code></pre></div>
+<p>Seconds for <code>drillpress check</code> with Drill Press 0.0.3-preview.25, the bundle already built:</p>
+<div class="table-wrap"><table><thead><tr><th>Target</th><th>Cores</th><th>Defaults</th><th>Both properties</th><th>Properties and both options</th></tr></thead><tbody>
+<tr><td>One small project, 8 rules</td><td>16</td><td>5.4</td><td>6.6</td><td>9.5</td></tr>
+<tr><td></td><td>2</td><td>5.7</td><td>6.6</td><td>9.6</td></tr>
+<tr><td>One library and its project references, 8 rules</td><td>16</td><td>22.1</td><td>18.8</td><td>14.9</td></tr>
+<tr><td></td><td>2</td><td>23.6</td><td>20.2</td><td>21.2</td></tr>
+<tr><td>A large solution, 14 compilation contexts, 125 rules</td><td>16</td><td>53</td><td>37</td><td>22</td></tr>
+<tr><td></td><td>2</td><td>75</td><td>54</td><td>44</td></tr>
+</tbody></table></div>
+<p>Findings were the same in every configuration.</p>
+<ul><li>On the library, <code>TieredCompilation</code> alone gave all of the properties’ gain (22.1 to 18.6 s on 16 cores) and <code>ServerGarbageCollection</code> alone none (21.9 s). On the large solution, with tiering off and both options on, server GC moved a check from 26.3 to 23.0 s on 16 cores and from 45.6 to 44.4 s on two.</li><li>On two cores the options helped only the large solution.</li><li><code>--parallel-queries</code> prepares the queries of different rules at the same time, which runs your selectors, predicates, conditions and <code>AnalysisFact</code> and <code>ProjectFact</code> computations concurrently. All of them must be <a href="selections.html#reuse">pure</a> and also safe for concurrent calls: for example, no unsynchronized cache shared between calls. Rule tests evaluate sequentially and do not catch a violation. Reporting and fixes stay ordered.</li><li><code>--stream-compilation</code> runs capture and the bundle at the same time, which raises peak memory. On the large solution with 16 cores, the combined peak of the check’s processes was 1.05 GiB with defaults, about 1.3 GiB with the properties and about 1.6 GiB with streaming added. <code>--parallel-queries</code> added nothing measurable.</li></ul>
 <h2 id="troubleshooting">When a rule does not behave as expected</h2>
 <dl><dt>It finds nothing.</dt><dd>Check the project/file scope, whether the source is generated, the declaring type’s full name, and whether your exact overload includes all parameters.</dd>
 <dt>The test compiles, but the target does not.</dt><dd>Runtime reference defaults are a convenience, not a target reference pack. Supply explicit references for fidelity.</dd>
@@ -162,7 +180,7 @@ var changes = baseline.ChangedFiles.In(after.Analyze());
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and source text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Rules about tests</a><a href="#allowances">Show that exceptions can be allowed</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#setup">Add the consumer test kit</a><a href="#first-test">Assert the complete finding and source text</a><a href="#contexts">Model the contexts your policy depends on</a><a href="#xunit">Rules about tests</a><a href="#allowances">Show that exceptions can be allowed</a><a href="#baselines">Test an accepted baseline</a><a href="#checklist">Before sharing a bundle</a><a href="#speed">Speed up checks of large solutions</a><a href="#troubleshooting">When a rule does not behave as expected</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">
