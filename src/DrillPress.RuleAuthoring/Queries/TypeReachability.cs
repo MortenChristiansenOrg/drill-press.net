@@ -44,7 +44,7 @@ public sealed class TypeReachability
 
     internal static TypeReachability Traverse(TypeSeed seed, TypeTraversal policy)
     {
-        var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         var pending = new Queue<(ITypeSymbol? Type, int Depth)>();
         var result = new List<ReachedType>();
         var status = TypeTraversalStatus.Complete;

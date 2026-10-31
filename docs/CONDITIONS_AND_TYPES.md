@@ -74,8 +74,9 @@ inherited, instance, non-indexer properties. Options and predicates refine those
 source-language facts; they do not establish serializer behavior.
 
 `WhereType` filters output only. `StopAt` explicitly prunes outgoing edges. Visited
-sets use constructed symbols in the seed context, preserving `Box<A>` and `Box<B>`
-until their distinct property edges have been explored. Definition/partial
+sets use constructed symbols in the seed context, including nullable annotations,
+preserving `Box<A>`, `Box<B>` and `Box<A?>` until their distinct property edges have
+been explored. Definition/partial
 deduplication occurs only in `Definitions`, using actual source declaration
 references and the evaluated dependency graph. Alternate framework contexts remain
 separate. Generated-only and metadata types can be intermediate nodes but never
@@ -88,6 +89,43 @@ recursion yields `DepthLimit`/`StateLimit`, and selected unresolved types/edges 
 complete evidence. Complete means complete for the configured static graph, never
 for all possible runtime payloads. A deliberate boundary or resolved `object` leaf
 is not itself an unresolved compiler edge. Queries are lazy and cached per solution.
+
+### Property views
+
+`PropertyViews()` projects reachability results or type definitions to one
+reportable view per property, including synthesized positional record properties:
+
+```csharp
+var views = reached.PropertyViews();
+var missing = views.Where(view =>
+    view.Nullability == PropertyNullability.NonNullable
+    && !view.HasAttribute(requiredAttribute)
+    && view.Default?.Value.ResultValues().IsNonNullByLanguage != true);
+```
+
+The default scope is the same as `ThroughProperties()`: public getters on inherited,
+instance, non-indexer properties. Views prefer the visible property and find a getter
+it inherits through an override, while `ThroughProperties()` checks each property's own
+getter and so still follows the base property of a setter-only override.
+`PropertyViewOptions` widens the scope (`Inherited`, `IncludeStatic`,
+`IncludeIndexers`, `IncludeNonPublic`, `IncludeGenerated`) and narrows it (`Where`,
+`Owner`). Overridden and hidden base properties yield to the visible one; metadata
+properties have no source and never produce a view.
+
+A view reports at the property identifier, positional parameter identifier or indexer
+`this` (`Origin`), and attributes come from the property, so `[property: Required]`
+counts and a parameter-only attribute doesn't. A redeclared positional member is one
+view at its declaration; a positional member reused from a base record maps to the base.
+`Default` keeps its kind: `PropertyInitializer` or `PositionalParameterDefault`, which is
+not a serializer default.
+
+`Symbol`, `Type` and `DeclaringType` keep substitutions, and `Definition` gives the
+source identity. `Envelope<string>` and `Envelope<int>` are separate views at one
+location; equal substitutions merge and list every source in `ReachedFrom`, which also
+keeps seeds and completeness. Starting from definitions gives open types and an empty
+`ReachedFrom`. `Nullability` is a declaration fact: `Nullable`, `NonNullable`,
+`Oblivious`, `TypeParameter` or `Unavailable`. Absence rules should also read the
+reachability query, because a seed with no views produces nothing here.
 
 ### Readable validation and type sources
 

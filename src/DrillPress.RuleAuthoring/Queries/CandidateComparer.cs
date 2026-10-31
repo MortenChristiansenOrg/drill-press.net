@@ -1,4 +1,5 @@
 using DrillPress;
+using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
 
@@ -14,6 +15,13 @@ internal sealed class CandidateComparer<T> : IEqualityComparer<T>
                 && leftArgument.Parameter.Ordinal == rightArgument.Parameter.Ordinal
         : first is CodeArgument { Location: null } || second is CodeArgument { Location: null }
             ? false
+        : first is CodePropertyView leftView && second is CodePropertyView rightView
+            ? leftView.Source == rightView.Source
+                && leftView.Location == rightView.Location
+                && SymbolEqualityComparer.IncludeNullability.Equals(
+                    leftView.Symbol,
+                    rightView.Symbol
+                )
         : first is ICodeElement { Source: { } left } a
         && second is ICodeElement { Source: { } right } b
             ? left == right && a.Location == b.Location

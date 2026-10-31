@@ -63,6 +63,38 @@ public static class TypeQueries
         Func<ITypeSymbol, bool> where
     ) => results.Select(result => result.WhereType(where));
 
+    /// <summary>Projects selected constructed types to source-anchored property views, keeping generic substitutions. Keep the reachability query as well when a rule depends on absence: a type with no views produces nothing here.</summary>
+    public static CodeQuery<CodePropertyView> PropertyViews(
+        this CodeQuery<TypeReachability> results,
+        PropertyViewOptions? options = null
+    ) =>
+        CodeQuery<CodePropertyView>.Create(solution =>
+            new PropertyViewProjection(solution, options ?? new()).Project(
+                results
+                    .In(solution)
+                    .SelectMany(result =>
+                        result.Types.Select(node => new PropertyViewInput(
+                            node.Type,
+                            result.Seed.Source.Project,
+                            result
+                        ))
+                    )
+            )
+        );
+
+    /// <summary>Projects type definitions to source-anchored property views. Generic properties stay in their open form; start from reachability results to see substitutions.</summary>
+    public static CodeQuery<CodePropertyView> PropertyViews(
+        this CodeQuery<CodeTypeDefinition> types,
+        PropertyViewOptions? options = null
+    ) =>
+        CodeQuery<CodePropertyView>.Create(solution =>
+            new PropertyViewProjection(solution, options ?? new()).Project(
+                types
+                    .In(solution)
+                    .Select(type => new PropertyViewInput(type.Symbol, type.Source.Project, null))
+            )
+        );
+
     /// <summary>Projects selected constructed types to deterministic ordinary-source definitions in compatible dependency contexts. Metadata/generated-only types do not become findings.</summary>
     public static CodeQuery<CodeTypeDefinition> Definitions(
         this CodeQuery<TypeReachability> results,
