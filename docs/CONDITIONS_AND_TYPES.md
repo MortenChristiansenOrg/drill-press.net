@@ -103,8 +103,11 @@ var missing = views.Where(view =>
     && view.Default?.Value.ResultValues().IsNonNullByLanguage != true);
 ```
 
-Selection matches `ThroughProperties()`: public getters on inherited, instance,
-non-indexer properties. `PropertyViewOptions` widens it (`Inherited`, `IncludeStatic`,
+The default scope is the same as `ThroughProperties()`: public getters on inherited,
+instance, non-indexer properties. Views prefer the visible property and find a getter
+it inherits through an override, while `ThroughProperties()` checks each property's own
+getter and so still follows the base property of a setter-only override.
+`PropertyViewOptions` widens the scope (`Inherited`, `IncludeStatic`,
 `IncludeIndexers`, `IncludeNonPublic`, `IncludeGenerated`) and narrows it (`Where`,
 `Owner`). Overridden and hidden base properties yield to the visible one; metadata
 properties have no source and never produce a view.
