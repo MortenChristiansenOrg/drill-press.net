@@ -227,6 +227,69 @@ public sealed class ResultValueTests(SdkFixture fixture) : IClassFixture<SdkFixt
         Assert.False(analysis.IsNonNullByLanguage);
     }
 
+    [Theory]
+    [InlineData("T", "new T() -> Unproven Direct")]
+    [InlineData("TStruct", "new TStruct() -> Construction Direct non-null")]
+    [InlineData("TClass", "new TClass() -> Construction Direct non-null")]
+    public void Type_parameter_creation_counts_only_when_nullable_values_are_excluded(
+        string type,
+        string expected
+    )
+    {
+        var analysis = Results(
+            $$"""
+            #nullable enable
+            public class Base {}
+            public class Input<T, TStruct, TClass>
+                where T : new()
+                where TStruct : struct
+                where TClass : Base, new()
+            {
+                public {{type}} Value { get; init; } = new {{type}}();
+            }
+            """
+        );
+
+        Assert.Equal([expected], Describe(analysis));
+    }
+
+    [Theory]
+    [InlineData("Built", "[] -> Unproven Direct")]
+    [InlineData("BuiltValue", "[] -> Construction Direct non-null")]
+    [InlineData("List<int>", "[] -> Construction Direct non-null")]
+    [InlineData("IEnumerable<int>", "[] -> Construction Direct non-null")]
+    [InlineData("int[]", "[] -> Construction Direct non-null")]
+    public void Collection_builders_are_not_language_proven(string type, string expected)
+    {
+        var analysis = Results(
+            $$"""
+            #nullable enable
+            using System;
+            using System.Collections;
+            using System.Collections.Generic;
+            using System.Runtime.CompilerServices;
+            [CollectionBuilder(typeof(Maker), nameof(Maker.Create))]
+            public class Built : IEnumerable<int> {
+                public IEnumerator<int> GetEnumerator() => throw new Exception();
+                IEnumerator IEnumerable.GetEnumerator() => throw new Exception();
+            }
+            [CollectionBuilder(typeof(Maker), nameof(Maker.CreateValue))]
+            public struct BuiltValue : IEnumerable<int> {
+                public IEnumerator<int> GetEnumerator() => throw new Exception();
+                IEnumerator IEnumerable.GetEnumerator() => throw new Exception();
+            }
+            public static class Maker {
+                public static Built Create(ReadOnlySpan<int> items) => null!;
+                public static BuiltValue CreateValue(ReadOnlySpan<int> items) => default;
+            }
+            public class Input { public {{type}} Value { get; init; } = []; }
+            """,
+            property => property.Name == "Value"
+        );
+
+        Assert.Equal([expected], Describe(analysis));
+    }
+
     [Fact]
     public void Invalid_binding_and_dynamic_values_are_boundaries()
     {

@@ -180,6 +180,14 @@ internal sealed class ResultValueWalker(int maxDepth, int maxResults)
         {
             IObjectCreationOperation { Arguments.Length: 0 } creation
                 when IsNullableValue(creation.Type) => ResultValueKind.Null,
+            // A type argument can be Nullable<T> unless constraints fix the kind of type.
+            ITypeParameterObjectCreationOperation { Type.IsReferenceType: false } creation
+                when !IsNonNullableValue(creation.Type) => ResultValueKind.Unproven,
+            // A collection builder is arbitrary code that can return null.
+            ICollectionExpressionOperation
+            {
+                ConstructMethod.MethodKind: not MethodKind.Constructor
+            } collection when !IsNonNullableValue(collection.Type) => ResultValueKind.Unproven,
             IObjectCreationOperation
             or ITypeParameterObjectCreationOperation
             or IAnonymousObjectCreationOperation

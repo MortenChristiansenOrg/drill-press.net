@@ -65,9 +65,7 @@ internal sealed class PropertyViewProjection(AnalysisSolution solution, Property
         foreach (var property in TypeTraversal.Properties(type, options.Inherited))
         {
             if (
-                !IsAccessible(property)
-                || property.IsStatic && !options.IncludeStatic
-                || property.IsIndexer && !options.IncludeIndexers
+                !options.IncludeNonPublic && property.DeclaredAccessibility != Accessibility.Public
                 || overridden.Contains(property)
             )
                 continue;
@@ -79,15 +77,19 @@ internal sealed class PropertyViewProjection(AnalysisSolution solution, Property
                 && !names.Add(property.Name)
             )
                 continue;
-            if (options.Where?.Invoke(property) ?? true)
+            if (
+                (options.IncludeNonPublic || HasPublicGetter(property))
+                && (options.IncludeStatic || !property.IsStatic)
+                && (options.IncludeIndexers || !property.IsIndexer)
+                && (options.Where?.Invoke(property) ?? true)
+            )
                 yield return property;
         }
     }
 
-    private bool IsAccessible(IPropertySymbol property) =>
-        options.IncludeNonPublic
-        || property.DeclaredAccessibility == Accessibility.Public
-            && property.GetMethod?.DeclaredAccessibility == Accessibility.Public;
+    private static bool HasPublicGetter(IPropertySymbol property) =>
+        CodePropertyView.Accessor(property, candidate => candidate.GetMethod)?.DeclaredAccessibility
+        == Accessibility.Public;
 
     private (AnalysisSource Source, SyntaxNode Syntax)? Anchor(
         IPropertySymbol property,

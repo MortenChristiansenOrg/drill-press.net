@@ -111,13 +111,14 @@ public sealed class CodePropertyView : ICodeDeclaration
         };
 
     /// <summary>Whether the property has a getter.</summary>
-    public bool HasGetter => Symbol.GetMethod is not null;
+    public bool HasGetter => Accessor(Symbol, property => property.GetMethod) is not null;
 
     /// <summary>Whether the property has a set accessor.</summary>
-    public bool HasSetter => Symbol.SetMethod is { IsInitOnly: false };
+    public bool HasSetter =>
+        Accessor(Symbol, property => property.SetMethod) is { IsInitOnly: false };
 
     /// <summary>Whether the property has an init accessor.</summary>
-    public bool HasInit => Symbol.SetMethod is { IsInitOnly: true };
+    public bool HasInit => Accessor(Symbol, property => property.SetMethod) is { IsInitOnly: true };
 
     /// <summary>Whether the property is static.</summary>
     public bool IsStatic => Symbol.IsStatic;
@@ -135,6 +136,22 @@ public sealed class CodePropertyView : ICodeDeclaration
     public bool HasExplicitModifier(Modifier modifier) =>
         Origin != PropertyViewOrigin.PositionalParameter
         && DeclarationSyntax.HasModifier(Syntax, modifier);
+
+    // An override can write one accessor and inherit the other.
+    internal static IMethodSymbol? Accessor(
+        IPropertySymbol property,
+        Func<IPropertySymbol, IMethodSymbol?> select
+    )
+    {
+        for (
+            IPropertySymbol? current = property;
+            current is not null;
+            current = current.OverriddenProperty
+        )
+            if (select(current) is { } accessor)
+                return accessor;
+        return null;
+    }
 
     /// <summary>The property identifier, positional parameter identifier, or indexer <c>this</c> keyword.</summary>
     public SourceLocation Location { get; }

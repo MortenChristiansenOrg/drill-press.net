@@ -12,7 +12,7 @@ public enum ResultValueKind
     /// <summary>A non-null compile-time constant.</summary>
     Constant,
 
-    /// <summary>A value the language always creates: object, array, collection, anonymous or delegate creation, a <c>with</c> copy, interpolated text or <c>typeof</c>.</summary>
+    /// <summary>A value the language always creates: object, array, anonymous or delegate creation, a collection expression that doesn't use a custom builder, a <c>with</c> copy, interpolated text or <c>typeof</c>. A <c>new T()</c> counts only when constraints rule out <c>Nullable&lt;T&gt;</c>.</summary>
     Construction,
 
     /// <summary>The default of a non-nullable value type, such as <c>default(Guid)</c>.</summary>

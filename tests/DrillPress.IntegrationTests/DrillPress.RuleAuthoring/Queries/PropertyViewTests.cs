@@ -220,6 +220,74 @@ public sealed class PropertyViewTests(SdkFixture fixture) : IClassFixture<SdkFix
     }
 
     [Fact]
+    public void Union_keeps_distinct_substitutions_and_merges_the_same_view()
+    {
+        var solution = Analyze(
+            """
+            #nullable enable
+            class Envelope<T> { public T Value { get; init; } = default!; }
+            class Root {
+                public Envelope<string> Sure { get; init; } = new();
+                public Envelope<string?> Maybe { get; init; } = new();
+            }
+            class H { void Ok(object value) {} void M() { Ok(new Root()); } }
+            """
+        );
+        var views = Views().Where(view => view.Name == "Value");
+
+        var nullabilities = views
+            .Union(views)
+            .In(solution)
+            .Select(view => view.Nullability)
+            .Order();
+
+        Assert.Equal(
+            [PropertyNullability.NonNullable, PropertyNullability.Nullable],
+            nullabilities
+        );
+    }
+
+    [Fact]
+    public void A_derived_property_without_a_public_getter_or_of_another_kind_still_hides_the_base()
+    {
+        var solution = Analyze(
+            """
+            #nullable enable
+            class Base {
+                public string Name { get; init; } = "";
+                public string Shared { get; init; } = "";
+            }
+            class Derived : Base {
+                public new string? Name { private get; set; }
+                public static new string Shared { get; } = "";
+            }
+            """
+        );
+
+        var views = Code.Types.Named("Derived").PropertyViews().In(solution);
+
+        Assert.Empty(views);
+    }
+
+    [Fact]
+    public void An_override_of_one_accessor_inherits_the_other()
+    {
+        var solution = Analyze(
+            """
+            #nullable enable
+            class Base { public virtual string Name { get; set; } = ""; }
+            class Derived : Base { public override string Name { set { } } }
+            """
+        );
+
+        var view = Code.Types.Named("Derived").PropertyViews().In(solution).Single();
+
+        Assert.Equal("Derived", view.DeclaringType.Name);
+        Assert.True(view.HasGetter);
+        Assert.True(view.HasSetter);
+    }
+
+    [Fact]
     public void Nullability_keeps_oblivious_and_open_declarations_distinct()
     {
         var solution = Analyze(
