@@ -161,7 +161,7 @@ public sealed class TypeTraversal
             _opaque
         );
 
-    private static IEnumerable<IPropertySymbol> Properties(ITypeSymbol type, bool inherited)
+    internal static IEnumerable<IPropertySymbol> Properties(ITypeSymbol type, bool inherited)
     {
         if (type is not INamedTypeSymbol named)
             yield break;

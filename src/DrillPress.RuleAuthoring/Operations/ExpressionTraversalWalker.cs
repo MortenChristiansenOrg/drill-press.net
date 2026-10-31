@@ -31,17 +31,20 @@ internal sealed class ExpressionTraversalWalker(
             _values.Add(next.Expression);
             Visit(next.Expression, next.Depth);
         }
-        var status =
-            _boundaries.Any(boundary =>
-                boundary.Reason
-                    is ExpressionTraversalReason.DepthLimit
-                        or ExpressionTraversalReason.ExpressionLimit
-            )
-                ? ExpressionTraversalStatus.LimitExceeded
-            : _boundaries.Count > 0 ? ExpressionTraversalStatus.Unavailable
-            : ExpressionTraversalStatus.Complete;
-        return new(status, _values.AsReadOnly(), _boundaries.AsReadOnly());
+        return new(StatusOf(_boundaries), _values.AsReadOnly(), _boundaries.AsReadOnly());
     }
+
+    internal static ExpressionTraversalStatus StatusOf(
+        IReadOnlyList<ExpressionTraversalBoundary> boundaries
+    ) =>
+        boundaries.Any(boundary =>
+            boundary.Reason
+                is ExpressionTraversalReason.DepthLimit
+                    or ExpressionTraversalReason.ExpressionLimit
+        )
+            ? ExpressionTraversalStatus.LimitExceeded
+        : boundaries.Count > 0 ? ExpressionTraversalStatus.Unavailable
+        : ExpressionTraversalStatus.Complete;
 
     private void Visit(CodeExpression expression, int depth)
     {

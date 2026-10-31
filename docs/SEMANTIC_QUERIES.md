@@ -292,6 +292,37 @@ evidence as `CodeExpression`. `member.References.OutsideNameOf()` and
 operands; ordinary reference queries retain them. Fix builders continue to withhold observable
 rewrites independently of reporting filters.
 
+## Result values of initializers and defaults
+
+`expression.ResultValues()` answers what can supply a value without running anything.
+It looks through parentheses, `!`, conditional and switch arms, `??` and built-in casts,
+and works the same on `property.Initializer` and `parameter.DefaultValue`:
+
+```csharp
+var result = property.Initializer!.ResultValues();
+var hasDefault = result.IsNonNullByLanguage;
+var masked = result.Values.Where(value => value.IsSuppressed && !value.IsNonNullByLanguage);
+```
+
+Each `ResultValue` keeps its evidence separate:
+
+- `Kind`: `Null`, `ReferenceDefault`, `Constant`, `Construction`, `ValueTypeDefault`,
+  `ValueTypeValue`, `TypeParameterDefault` or `Unproven`. `null!` stays `Null`,
+  `default(Guid)` is `ValueTypeDefault`, and a call with a non-null return annotation
+  stays `Unproven`. These facts hold with nullable analysis disabled.
+- `Role`: `Direct`, `NonNullLeft` or `Fallback`. The left of `??` supplies the result
+  only when it isn't null, so `Maybe() ?? ""` is non-null while `Maybe() ?? null!` isn't.
+- `IsSuppressed` and `IsCast`: whether `!` or a built-in cast applies.
+- `Anchor` and `Expression`: the written alternative for reporting, and the expression
+  beneath its parentheses and suppression. Suppression makes the compiler report
+  `FlowState` as not null for both, so a suppressed value's flow state says nothing;
+  `DeclaredNullability` still reads the declaration.
+
+Conditions, call arguments and throw arms are not results. Invalid binding, user-defined
+conversions, dynamic expressions and exhausted bounds (16 steps and 256 results by
+default) become typed `Boundaries`, and `IsNonNullByLanguage` is then false. Locals,
+properties and method bodies aren't followed; they are `Unproven`.
+
 ## Multiple argument roles
 
 `calls.WhereAnyArgument(named: ["source", "first", "second"], value: predicate)`

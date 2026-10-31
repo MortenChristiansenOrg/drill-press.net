@@ -15,6 +15,14 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
         int maxExpressions = 256
     ) => traversal.Traverse(this, maxDepth, maxExpressions);
 
+    /// <summary>The alternatives that can supply this expression's result, looking through parentheses, suppression, conditional and switch expressions, <c>??</c> and built-in casts. Bounded by depth and result count; nothing is executed.</summary>
+    public ResultValueAnalysis ResultValues(int maxDepth = 16, int maxResults = 256)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDepth);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxResults, 1);
+        return new ResultValueWalker(maxDepth, maxResults).Analyze(this);
+    }
+
     /// <summary>Views an explicit bound invocation through parentheses and implicit built-in conversions. Explicit/user conversions and conditional-access envelopes remain unavailable.</summary>
     public CodeInvocation? AsInvocation()
     {

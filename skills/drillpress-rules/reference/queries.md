@@ -125,6 +125,17 @@ parameters, enum members, symbols):
   (written or implied constant; null when binding fails), `HasExplicitValue`; reports
   at its name.
 - `CodeField`: `Type`, `TypeIs<T>()`, `IsConst`, `IsReadOnly`, `IsStatic`, `Initializer`, `Declaration`.
+- `CodePropertyView` (`reached.PropertyViews(options?)` or `types.PropertyViews(options?)`):
+  properties seen through a type, including positional record properties. Shared
+  declaration members, `Symbol` (substituted), `Definition`, `Type`, `DeclaringType`,
+  `IsConstructed`, `Origin` (`PropertyDeclaration`, `PositionalParameter`, `Indexer`),
+  `Declaration`, `PositionalParameter`, `Default` (`Kind`, `Value`), `Nullability`
+  (`Nullable`, `NonNullable`, `Oblivious`, `TypeParameter`, `Unavailable`), `ReachedFrom`,
+  `HasGetter`, `HasSetter`, `HasInit`, `IsStatic`, `IsIndexer`, `TypeIs`. `Syntax` is the
+  written property, indexer or parameter. Attributes are the property's, including
+  `[property: ...]`. `PropertyViewOptions`: `Where`, `Owner`, `Inherited`, `IncludeStatic`,
+  `IncludeIndexers`, `IncludeNonPublic`, `IncludeGenerated`. One view per distinct
+  substitution; hidden and overridden base members and metadata produce none.
 - `CodeProperty`: `Type`, `TypeIs<T>()`, `IsStatic`, `HasGetter`, `HasSetter`, `HasInit`,
   `IsAutoProperty` (compiler-supplied storage only), `Initializer`.
 - `CodeParameter`: `Type`, `TypeIs<T>()`, `Ordinal`, `ContainingSymbol`, `IsLambdaParameter`,
@@ -212,7 +223,16 @@ parameters, enum members, symbols):
   `Symbol`, `RefersTo(member)`, `IsNameOf(symbol)`, `FlowState`, `MayBeNull`,
   `DeclaredNullability`, `Facts` (`IsInsideNameOf`, `IsInsideExpressionTree`, comments),
   `AsInvocation()`, `AwaitedCall()` (the call an await awaits, through conversions and
-  `ConfigureAwait`). String construction and collection selection are below.
+  `ConfigureAwait`), `ResultValues(maxDepth: 16, maxResults: 256)`. String construction
+  and collection selection are below.
+- `ResultValueAnalysis`: `Status`, `IsComplete`, `Values`, `Boundaries`,
+  `IsNonNullByLanguage`. Use it on `Initializer` and `DefaultValue` instead of unwrapping
+  `!`, `?:`, `switch` or `??` yourself. `ResultValue`: `Anchor` (written, report here),
+  `Expression` (underlying), `Kind` (`Null`, `ReferenceDefault`, `Constant`,
+  `Construction`, `ValueTypeDefault`, `ValueTypeValue`, `TypeParameterDefault`,
+  `Unproven`), `Role` (`Direct`, `NonNullLeft`, `Fallback`), `IsSuppressed`, `IsCast`,
+  `IsNonNullByLanguage`. `FlowState` says nothing when suppressed; `DeclaredNullability`
+  still does. User conversions, dynamic, invalid binding and limits are `Boundaries`.
 - Culture and clock: `call.ComparesWithCulture()`, `call.FormatsWithCulture()`,
   `hole.FormatsWithCulture()` (a `CodeNode<InterpolationSyntax>`),
   `call.WaitsWithoutTimeProvider()`, `creation.TimesWithoutTimeProvider()`. They classify

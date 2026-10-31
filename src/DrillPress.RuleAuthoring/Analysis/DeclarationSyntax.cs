@@ -34,6 +34,8 @@ internal static class DeclarationSyntax
             CodeTypeDefinition type => type.Syntax,
             CodeField field => field.Declaration,
             CodeProperty property => property.Syntax,
+            CodePropertyView { Origin: not PropertyViewOrigin.PositionalParameter } view =>
+                view.Syntax,
             CodeParameter parameter => parameter.Syntax,
             CodeEnumMember member => member.Syntax,
             CodeSymbol
