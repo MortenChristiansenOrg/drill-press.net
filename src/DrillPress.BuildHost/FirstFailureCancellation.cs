@@ -60,6 +60,17 @@ internal sealed class FirstFailureCancellation(CancellationToken cancellationTok
         return order.Select(project => contexts[project.Id].Result).ToArray();
     }
 
+    /// <summary>
+    /// Cancels every context and waits for their work to stop, for an export that fails before it
+    /// can complete them.
+    /// </summary>
+    public async Task CancelAsync(IEnumerable<Task> contexts)
+    {
+        foreach (var source in _contexts.Values)
+            await source.CancelAsync();
+        await Task.WhenAll(contexts).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
     public void Dispose()
     {
         foreach (var source in _contexts.Values)

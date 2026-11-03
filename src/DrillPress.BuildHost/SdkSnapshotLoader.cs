@@ -95,37 +95,54 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         if (streaming is not null)
             _contextIds = streaming.Identities;
         Solution original;
-        using (profile.Measure("loading.workspace"))
+        try
         {
-            var directSolution = direct.Load(
-                workspace,
-                target,
-                options.Properties,
-                cancellationToken,
-                streaming is null
-                    ? null
-                    : project =>
-                        ScheduleProject(project, streaming, options, sdkVersion, failures, profile)
-            );
-            if (directSolution is not null)
-                original = directSolution;
-            else if (
-                _fileSystem
-                    .Path.GetExtension(target)
-                    .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
-            )
+            using (profile.Measure("loading.workspace"))
             {
-                await workspace.OpenProjectAsync(target, cancellationToken: cancellationToken);
-                original = workspace.CurrentSolution;
+                var directSolution = direct.Load(
+                    workspace,
+                    target,
+                    options.Properties,
+                    cancellationToken,
+                    streaming is null
+                        ? null
+                        : project =>
+                            ScheduleProject(
+                                project,
+                                streaming,
+                                options,
+                                sdkVersion,
+                                failures,
+                                profile
+                            )
+                );
+                if (directSolution is not null)
+                    original = directSolution;
+                else if (
+                    _fileSystem
+                        .Path.GetExtension(target)
+                        .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    await workspace.OpenProjectAsync(target, cancellationToken: cancellationToken);
+                    original = workspace.CurrentSolution;
+                }
+                else
+                {
+                    await workspace.OpenSolutionAsync(target, cancellationToken: cancellationToken);
+                    original = workspace.CurrentSolution;
+                }
             }
-            else
-            {
-                await workspace.OpenSolutionAsync(target, cancellationToken: cancellationToken);
-                original = workspace.CurrentSolution;
-            }
+
+            ThrowLoadFailures(failures);
+        }
+        catch when (streaming is not null)
+        {
+            // Contexts scheduled while loading may wait for generator requests that never come.
+            await streaming.Cancellation.CancelAsync(streaming.Contexts.Values);
+            throw;
         }
 
-        ThrowLoadFailures(failures);
         var solution = original;
         foreach (var project in original.Projects)
         {
