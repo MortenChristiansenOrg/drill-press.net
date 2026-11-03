@@ -118,7 +118,9 @@ external reference is fingerprinted once per export. Parallel phases can use mor
 than wall time.
 
 When several contexts fail, BuildHost reports the first in snapshot order (project path,
-then name) whose references loaded, regardless of which failed first.
+then name) whose references loaded, regardless of which failed first. Such a failure
+cancels the contexts after it in snapshot order that no earlier context references, so a
+known error does not wait for the slowest context.
 
 Measure loading of a synthetic layered solution whose contexts run the SDK's regex and
 JSON generators, using the Release BuildHost of the checkout:

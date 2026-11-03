@@ -30,6 +30,7 @@ internal sealed record GeneratedCompilation(
 internal sealed record ProjectCaptureState(
     ProjectEvaluator Evaluator,
     CompilerCapture Capture,
+    FirstFailureCancellation Cancellation,
     ConcurrentDictionary<ProjectId, string> Identities,
     Dictionary<ProjectId, Task<GeneratedProject>> Generations,
     Dictionary<ProjectId, Task<CompilationContext>> Contexts,

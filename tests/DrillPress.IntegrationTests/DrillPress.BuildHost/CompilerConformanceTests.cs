@@ -252,6 +252,45 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     }
 
     [Fact]
+    public async Task A_failure_cancels_the_contexts_after_it_in_snapshot_order()
+    {
+        var output = FileSystem.Path.Combine(
+            CreateTemporaryDirectory("drillpress-generator-cancellation-").FullName,
+            "snapshot.json"
+        );
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken
+        );
+        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+
+        var result = await RunProcessAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.BuildHost"),
+                "export",
+                _fixture.Consumer,
+                output,
+                "--property",
+                "FailGenerator=net10.0",
+                "--property",
+                "BlockGenerator=net9.0",
+            ],
+            RepositoryRoot,
+            timeout.Token
+        );
+
+        Assert.Equal(
+            new ProcessResult(
+                2,
+                "",
+                $"DrillPress.BuildHost: Source generation failed in 'Consumer(net10.0)': Requested generator failure.{Environment.NewLine}"
+            ),
+            result
+        );
+        Assert.False(FileSystem.File.Exists(output));
+    }
+
+    [Fact]
     public async Task Generators_receive_additional_files_in_build_order()
     {
         var target = await CreateAnalyzedProjectAsync(

@@ -213,7 +213,8 @@ newer compiler than the target SDK runs; validation reports that as CS9057 with 
 project's configured severity. Generators receive additional files in MSBuild item order,
 as in a real build. Generator exceptions,
 missing inputs, incomplete project graphs, and load failures fail both modes; with
-several failed contexts, the first in snapshot order is reported.
+several failed contexts, the first in snapshot order is reported, and contexts after it
+stop early.
 Semantic selections do not guess unresolved symbols; syntax queries retain erroneous code.
 Source project references remain compilation
 references, so an erroneous dependency need not emit an assembly. Generated

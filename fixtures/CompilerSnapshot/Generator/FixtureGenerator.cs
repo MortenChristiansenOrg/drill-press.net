@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace CompilerSnapshot.Fixtures;
 
@@ -11,12 +12,17 @@ public sealed class FixtureGenerator : IIncrementalGenerator
             context.AnalyzerConfigOptionsProvider,
             (production, options) =>
             {
-                if (
-                    options.GlobalOptions.TryGetValue("build_property.FailGenerator", out var fail)
-                    && fail == "true"
-                )
+                // Either property is "true" or names the target framework it applies to.
+                if (Requested(options, "FailGenerator"))
                 {
                     throw new InvalidOperationException("Requested generator failure.");
+                }
+
+                // Blocks until the export cancels this context.
+                if (Requested(options, "BlockGenerator"))
+                {
+                    production.CancellationToken.WaitHandle.WaitOne();
+                    production.CancellationToken.ThrowIfCancellationRequested();
                 }
 
                 production.AddSource(
@@ -55,4 +61,17 @@ public sealed class FixtureGenerator : IIncrementalGenerator
             }
         );
     }
+
+    private static bool Requested(AnalyzerConfigOptionsProvider options, string property) =>
+        options.GlobalOptions.TryGetValue("build_property." + property, out var value)
+        && (
+            value == "true"
+            || (
+                options.GlobalOptions.TryGetValue(
+                    "build_property.TargetFramework",
+                    out var framework
+                )
+                && value == framework
+            )
+        );
 }

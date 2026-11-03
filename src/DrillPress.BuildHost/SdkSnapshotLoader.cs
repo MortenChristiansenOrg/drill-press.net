@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.IO.Abstractions;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using DrillPress.Engine;
 using DrillPress.Manifest;
@@ -81,11 +80,13 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         await using var streamingEvaluator = _publisher is null
             ? null
             : new ProjectEvaluator(_fileSystem, options.Properties);
+        using var streamingCancellation = new FirstFailureCancellation(cancellationToken);
         var streaming = streamingEvaluator is null
             ? null
             : new ProjectCaptureState(
                 streamingEvaluator,
                 new CompilerCapture(_fileSystem),
+                streamingCancellation,
                 new(),
                 [],
                 [],
@@ -104,15 +105,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 streaming is null
                     ? null
                     : project =>
-                        ScheduleProject(
-                            project,
-                            streaming,
-                            options,
-                            sdkVersion,
-                            failures,
-                            profile,
-                            cancellationToken
-                        )
+                        ScheduleProject(project, streaming, options, sdkVersion, failures, profile)
             );
             if (directSolution is not null)
                 original = directSolution;
@@ -143,7 +136,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         using (profile.Measure("loading.contexts"))
         {
             captured = streaming is { Contexts.Count: > 0 }
-                ? await FinishStreamingAsync(streaming, cancellationToken)
+                ? await streaming.Cancellation.CompleteAsync(streaming.Order, streaming.Contexts)
                 : await CaptureProjectsAsync(
                     original,
                     solution,
@@ -197,12 +190,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         SnapshotLoadOptions options,
         string sdkVersion,
         ConcurrentQueue<string> failures,
-        PipelineProfile profile,
-        CancellationToken cancellationToken
+        PipelineProfile profile
     )
     {
         state.Identities.TryAdd(liveProject.Id, liveProject.Id.Id.ToString("N"));
         var project = liveProject.WithAnalyzerReferences([]);
+        var cancellationToken = state.Cancellation.Register(project.Id);
         var evaluation = state.Evaluator.Start(liveProject, cancellationToken);
         var dependencies = project
             .ProjectReferences.Select(reference => reference.ProjectId)
@@ -241,26 +234,9 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         );
     }
 
-    private static async Task<CompilationContext[]> FinishStreamingAsync(
-        ProjectCaptureState state,
-        CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            await Task.WhenAll(state.Contexts.Values);
-        }
-        catch
-        {
-            ThrowFirstFailure(state.Order.ToArray(), state.Contexts, cancellationToken);
-            throw;
-        }
-        return state.Order.Select(project => state.Contexts[project.Id].Result).ToArray();
-    }
-
     // Each context generates as soon as the contexts it references have generated, so independent
     // contexts evaluate, compile and run generators in parallel. Dependents do not wait for a
-    // reference's validation or capture.
+    // reference's validation or capture. A failure cancels the contexts it makes irrelevant.
     private async Task<CompilationContext[]> CaptureProjectsAsync(
         Solution original,
         Solution solution,
@@ -281,7 +257,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             project => project.Id.Id.ToString("N")
         );
         await using var evaluator = new ProjectEvaluator(_fileSystem, options.Properties);
-        var evaluations = evaluator.Start(order, cancellationToken);
+        using var cancellation = new FirstFailureCancellation(cancellationToken);
         var capture = new CompilerCapture(_fileSystem);
         var generations = new Dictionary<ProjectId, Task<GeneratedProject>>();
         var contexts = new Dictionary<ProjectId, Task<CompilationContext>>();
@@ -292,7 +268,8 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 .Distinct()
                 .ToDictionary(id => id, id => generations.GetValueOrDefault(id));
             var liveProject = original.GetProject(project.Id)!;
-            var evaluation = evaluations[project.Id];
+            var projectCancellation = cancellation.Register(project.Id);
+            var evaluation = evaluator.Start(liveProject, projectCancellation);
             var generation = Task.Run(
                 () =>
                     GenerateAsync(
@@ -304,7 +281,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                         options,
                         sdkVersion,
                         profile,
-                        cancellationToken
+                        projectCancellation
                     ),
                 CancellationToken.None
             );
@@ -320,50 +297,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                     sdkVersion,
                     failures,
                     profile,
-                    cancellationToken
+                    projectCancellation
                 )
             );
         }
 
-        try
-        {
-            await Task.WhenAll(contexts.Values);
-        }
-        catch
-        {
-            ThrowFirstFailure(order, contexts, cancellationToken);
-            throw;
-        }
-
-        return order.Select(project => contexts[project.Id].Result).ToArray();
-    }
-
-    // Reports the failure of the first context in snapshot order whose references were captured;
-    // a context whose reference failed only repeats that failure. The choice is independent of timing.
-    private static void ThrowFirstFailure(
-        Project[] order,
-        Dictionary<ProjectId, Task<CompilationContext>> contexts,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var failed = order
-            .Where(project => !contexts[project.Id].IsCompletedSuccessfully)
-            .Select(project => project.Id)
-            .ToHashSet();
-        var first = order
-            .Where(project =>
-                failed.Contains(project.Id)
-                && !project.ProjectReferences.Any(reference => failed.Contains(reference.ProjectId))
-            )
-            .OrderBy(project => project.FilePath, StringComparer.Ordinal)
-            .ThenBy(project => project.Name, StringComparer.Ordinal)
-            .First();
-        var exception = contexts[first.Id].Exception?.InnerException;
-        if (exception is not null)
-        {
-            ExceptionDispatchInfo.Throw(exception);
-        }
+        return await cancellation.CompleteAsync(order, contexts);
     }
 
     private async Task<GeneratedProject> GenerateAsync(
