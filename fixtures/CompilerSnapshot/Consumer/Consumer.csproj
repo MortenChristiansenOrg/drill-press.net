@@ -17,6 +17,7 @@
     <ProjectReference Include="../Dependency/Dependency.csproj" Aliases="dep" />
     <Analyzer Include="../Generator/bin/Release/netstandard2.0/Generator.dll" />
     <CompilerVisibleProperty Include="FailGenerator" />
+    <CompilerVisibleProperty Include="BlockGenerator" />
     <Compile Include="../Linked.cs" Link="Linked.cs" />
   </ItemGroup>
 </Project>

@@ -27,21 +27,12 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
     }
 
     /// <summary>
-    /// Evaluates the contexts one at a time in the given order on a background thread; the collection
-    /// serializes evaluations anyway, and the order lets the first captured contexts start soonest.
+    /// Queues one context's evaluation behind those already started. A background thread evaluates
+    /// the contexts one at a time in start order; the collection serializes evaluations anyway, and the
+    /// order lets the first captured contexts start soonest. Each context has its own cancellation, so
+    /// cancelling one does not cancel those queued before or after it.
     /// </summary>
-    public IReadOnlyDictionary<ProjectId, Task<EvaluatedMetadata>> Start(
-        IReadOnlyList<Project> projects,
-        CancellationToken cancellationToken
-    )
-    {
-        return projects.ToDictionary(
-            project => project.Id,
-            project => Start(project, cancellationToken)
-        );
-    }
-
-    internal Task<EvaluatedMetadata> Start(Project project, CancellationToken cancellationToken)
+    public Task<EvaluatedMetadata> Start(Project project, CancellationToken cancellationToken)
     {
         var result = new TaskCompletionSource<EvaluatedMetadata>(
             TaskCreationOptions.RunContinuationsAsynchronously
