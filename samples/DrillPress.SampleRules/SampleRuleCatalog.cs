@@ -46,6 +46,10 @@ public static class SampleRuleCatalog
                     .References.Where(OrdinalComparerFix.IsArgument)
             )
             .Forbid(fix: OrdinalComparerFix.Create);
+        rules
+            .Rule("DP1006", "Inline locals that only rename their initializer.")
+            .For(Code.LocalVariables.InNonTestProjects().WithSingleRead())
+            .Forbid(fix: declaration => Fix.For(declaration).Inline().Propose());
         var layout = new FileLayout();
         rules
             .Rule(

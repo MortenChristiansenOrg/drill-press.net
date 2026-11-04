@@ -92,6 +92,8 @@ public sealed class CliProfilingTests : IntegrationTest
                 "rules.rule.DP1004.own",
                 "rules.rule.DP1005",
                 "rules.rule.DP1005.own",
+                "rules.rule.DP1006",
+                "rules.rule.DP1006.own",
                 "rules.shared.declarations",
                 "rules.shared.facts",
                 "rules.shared.member-references",

@@ -104,6 +104,6 @@ public sealed class OrdinalComparerFixTests(SemanticRuleFixture fixture)
 
         var findings = await fixture.Describe(project);
 
-        Assert.Empty(findings);
+        Assert.DoesNotContain(findings, finding => finding.Rule == "DP1005");
     }
 }

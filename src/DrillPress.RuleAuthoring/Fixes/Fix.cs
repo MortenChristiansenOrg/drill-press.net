@@ -42,7 +42,7 @@ public static class Fix
     /// <summary>Starts the removal of a comment.</summary>
     public static CommentFix For(CodeComment comment) => new(comment);
 
-    /// <summary>Starts an edit of a local, foreach or out variable's written type.</summary>
+    /// <summary>Starts an edit of a local, foreach or out variable's written type, or the inlining of a local.</summary>
     public static VariableDeclarationFix For(CodeVariableDeclaration declaration) =>
         new(declaration);
 

@@ -215,6 +215,61 @@ in another scope does not prevent a rename. `nameof` results follow
 the new name, as a rename intends, but a compiler-supplied argument such as
 `CallerArgumentExpression` that would change withholds the fix.
 
+## Inlining locals
+
+```csharp
+rules.Rule("INLINE", "Inline locals that only rename their initializer.")
+    .For(Code.LocalVariables.WithSingleRead())
+    .Forbid(fix: local => Fix.For(local).Inline().Propose());
+```
+
+`Inline()` removes the declaration's lines and replaces the local's single read with the
+initializer's original text, adding parentheses only where the destination would parse
+it differently: `var sum = a + b; return sum * 2;` becomes `return (a + b) * 2;`.
+`WithSingleRead()` selects one initialized local referenced exactly once and never written.
+
+`Propose()` owns the proof when the initializer moves past nothing observable: the read
+is in the statement right after the declaration, and that statement evaluates only
+literals, constants, `default`, `typeof`, `sizeof`, `nameof`, `this`, non-ref locals and
+parameters the initializer does not write and no nested function captures, `readonly`
+fields of the containing type outside constructors and `init` accessors, and implicit
+identity, reference, boxing, numeric or nullable conversions before the read.
+`_items.Add(value)` with a `readonly` `_items` qualifies; a mutable field receiver, a call
+or an intervening statement does not. `SafeWhen(change => ...)` waives exactly that
+order: the read may follow other statements of the same block and other operands of its
+statement. `InlineChange` lists them in `SkippedStatements` and `SkippedOperands`, with
+`Declaration`, `Initializer`, `Read` and the `Rewrite` being validated.
+
+Either way, the fix is withheld when:
+
+- the declaration is not a local declaration statement directly in a block or switch
+  section, or is in generated or non-editable source;
+- it declares several variables, has no initializer, or is `const`, `ref`, `scoped` or
+  `using`;
+- the declaration has comments or directives, or shares a line with other code;
+- the initializer declares variables, is target-typed (lambdas, method groups, `new()`,
+  `[]`, `null`, `default`) or has a different type than the local, ignoring nullable
+  annotations, so that the declaration converts it (`object value = 1;`);
+- the local is written, passed by reference or referenced more than once, or the
+  reference is in `nameof` or an expression tree;
+- the read is not in the header of a later statement of the same list: an expression
+  statement, `return`, `throw`, `yield return`, local declaration, or the condition,
+  governing expression, collection, resource or lock expression. Loop conditions and
+  nested bodies are not headers;
+- the read is deferred in a lambda, local function or query, inside `checked` or
+  `unchecked`, or not always evaluated: after `&&`, `||` or `??`, in a `?:` branch, after
+  `?.`, in a switch expression arm or interpolated string handler, or in a call that a
+  `[Conditional]` attribute or a missing partial implementation may compile away;
+- a struct local is a receiver and its initializer is a variable, which the member would
+  then mutate instead of a copy.
+
+In every affected compilation the enclosing expressions keep their bindings, every
+expression of the moved initializer keeps its syntax, symbol, type and conversion and its
+root its natural type, the read's nullable state is unchanged, and no compiler-supplied
+argument changes. Removing a line moves the caller line numbers of later calls, which
+withholds the fix. Chained inlines such as `var a = M(); var b = a; return b;` conflict and
+are both withheld in one run; the next run inlines what remains.
+
 ## Renaming and moving files
 
 ```csharp
