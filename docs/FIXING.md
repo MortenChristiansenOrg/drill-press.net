@@ -23,7 +23,9 @@ cannot be written even if a fix factory proposes them from another document.
 
 The consumer-owned sample rule DP1004 replaces proven `string.Empty` references with `""`. DP1005 removes
 `StringComparer.Ordinal` only from the proven `Enumerable.Distinct<string>`
-call shapes described in [rule authoring](RULE_AUTHORING.md). Other findings
+call shapes described in [rule authoring](RULE_AUTHORING.md). DP1006 inlines locals that only
+rename their initializer, DP1007 renames a file after its only type and DP1008 moves a test
+file to the folder of the production file it tests. Other findings
 remain for manual correction. The CLI never invents edits.
 
 Findings allowed by a `// drillpress-allow` comment have no fix, so `fix` leaves

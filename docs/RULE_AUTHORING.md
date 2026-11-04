@@ -198,6 +198,8 @@ The sample bundle supplies these conventions:
 | DP1004 | A resolved `string.Empty` reference outside `nameof`. A fix replaces only the expression span with `""`, retaining surrounding trivia. |
 | DP1005 | A resolved `StringComparer.Ordinal` reference within an argument. Only the documented overload pair below currently receives a fix. |
 | DP1006 | An initialized local outside test projects that is read exactly once and never written. `Inline()` replaces the read with the initializer when `Propose()` proves it safe; see [Inlining locals](STRUCTURED_FIXES.md#inlining-locals). |
+| DP1007 | A file the SDK's default glob compiles whose only top-level type is not its file name. `RenameTo` renames the file after the type; see [Renaming and moving files](STRUCTURED_FIXES.md#renaming-and-moving-files). |
+| DP1008 | A `<Type>Tests.cs` file in a test project whose folder differs from that of the only production file in a referenced project declaring `<Type>`. `MoveTo` moves it to the mirrored folder. |
 
 The sample bundle selects tests with `Code.TestMethods`, which recognizes xUnit,
 NUnit and MSTest markers, including derived marker attributes and markers

@@ -310,6 +310,11 @@ window.DRILLPRESS_SEARCH = [
     "text": "Your rule proposes one complete batch. The engine checks every loaded context containing an edited physical file—even a context that reported no finding. The validator requires agreement and withholds conflicting or disagreeing batches. The CLI marks an accepted correction with +. Only fix writes it. Generated, missing, inactive, non-editable, or ambiguously bound memberships cannot be assumed safe. Source fingerprints guard against applying edits to a changed file. A multi-file proposal is validated as a unit, but physical application is atomic per file, not a filesystem-wide transaction. If later application fails, the CLI retains recovery information. There is no file creation or deletion, project-wide rename, or general refactoring engine in this API. See the application and recovery contract for operational details."
   },
   {
+    "title": "Inline locals · Offer safe fixes",
+    "url": "fixes.html#inline",
+    "text": "Fix.For(local).Inline() removes a local's declaration and replaces its single read with the initializer, parenthesized only where needed: var sum = a + b; return sum * 2; becomes return (a + b) * 2;. Select candidates with Code.LocalVariables.WithSingleRead(). Propose() accepts it when the read is in the next statement and nothing observable is evaluated before it there; SafeWhen(change => ...) sees the statements and operands the initializer would move past in change.SkippedStatements and change.SkippedOperands and can accept the new order. Either way, using, const and ref locals, converted or target-typed initializers, written locals, reads that may be skipped or deferred (lambdas, &&, ?:, ?., [Conditional] calls) and inlines that change a binding, type, nullable state or caller line number are withheld. The inlining contract lists every gate."
+  },
+  {
     "title": "Rename and move files · Offer safe fixes",
     "url": "fixes.html#files",
     "text": "Fix.For(file).RenameTo(\"OrderService.cs\") renames a CodeFile within its folder, and MoveTo(\"Orders/OrderServiceTests.cs\") moves it below its project directory, written like CodeFile.RelativePath. The text stays the same; other fixes to the file in the same run are written first. Propose() withholds a move when a call in the file receives a compiler-supplied [CallerFilePath]; SafeWhen(change => ...) sees those methods in change.CallerFilePathMethods and can accept them. A move must not change which projects compile the file. Only files the SDK’s default **/*.cs glob selects in every project and framework containing them can move (CodeFile.IsDefaultCompileItem), and only to a path below the same project directory, outside bin, obj, other excluded and dot-named folders, that no other loaded project compiles and no loaded file already has. Projects with their own Compile includes, removals or updates, linked and explicitly listed files, and loose sources keep their paths. fix checks the disk again before writing and confirms the membership after the recheck. The file move contract lists every gate."
@@ -492,7 +497,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeFile · API field guide",
     "url": "reference.html#api-codefile",
-    "text": "Path; Name; Folder; RelativePath; HasTopLevelStatements; Nodes<T>(); files.Calls(); files.Operations<T>(); files.Declarations(); files.Comments() One document membership. RelativePath is the path below the project directory, null for a linked file outside it. File queries restrict discovery to that scope, and place filters apply before syntax is enumerated."
+    "text": "Path; Name; Folder; RelativePath; HasTopLevelStatements; IsDefaultCompileItem; Nodes<T>(); files.Calls(); files.Operations<T>(); files.Declarations(); files.Comments() One document membership. RelativePath is the path below the project directory, null for a linked file outside it. File queries restrict discovery to that scope, and place filters apply before syntax is enumerated."
   },
   {
     "title": "CodeNode<T> · API field guide",
@@ -512,7 +517,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeVariableDeclaration · API field guide",
     "url": "reference.html#api-codevariabledeclaration",
-    "text": "TypeName; HasExplicitType; HasInitializer; CanUseVar; Variables; WithExplicitType(); WithInitializer(); WhereVarPreservesType() Local, for, using, foreach and out declarations."
+    "text": "TypeName; HasExplicitType; HasInitializer; CanUseVar; HasSingleRead; Variables; WithExplicitType(); WithInitializer(); WhereVarPreservesType(); WithSingleRead() Local, for, using, foreach and out declarations."
   },
   {
     "title": "CodeComment / CodeBody · API field guide",
@@ -687,7 +692,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Fix · API field guide",
     "url": "reference.html#api-fix",
-    "text": "For(expression | reference | creation | call | argument | declaration | branch | comment | variableDeclaration); Extract(group) Starts a typed fix plan from the candidate you selected."
+    "text": "For(expression | reference | creation | call | argument | declaration | branch | comment | variableDeclaration | file); Extract(group) Starts a typed fix plan from the candidate you selected."
   },
   {
     "title": "Expression fixes · API field guide",
@@ -697,7 +702,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Structural fixes · API field guide",
     "url": "reference.html#api-structural-fixes",
-    "text": "RemoveArgument(name) / Remove(); AddArgument(name, expression); RemoveModifier(modifier); AddModifier(modifier); Rename(newName); AddBraces(); Remove(); UseVar(); ToConstant(name); ToMethod(name, parameterName) Finish with Propose() where the library owns the proof, or SafeWhen(...)."
+    "text": "RemoveArgument(name) / Remove(); AddArgument(name, expression); RemoveModifier(modifier); AddModifier(modifier); Rename(newName); AddBraces(); Remove(); UseVar(); Inline(); RenameTo(fileName); MoveTo(relativePath); ToConstant(name); ToMethod(name, parameterName) Finish with Propose() where the library owns the proof, or SafeWhen(...)."
   },
   {
     "title": "SourceChanges / FixProposal / RewriteContext · API field guide",
@@ -712,12 +717,12 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "RuleTestWorkspace · API field guide",
     "url": "reference.html#api-ruletestworkspace",
-    "text": "constructor(references?); AddProject(name, sources, framework?, isTest?, dependencies?, symbols?, allowErrors?, references?, packages?, nullable?, languageVersion?, implicitUsings?, outputKind?); Analyze(); CheckAsync(rules); WithCoverage(configure) In-memory projects; CheckAsync runs the production evaluator and validator, including // drillpress-allow allowances."
+    "text": "constructor(references?); AddProject(name, sources, framework?, isTest?, dependencies?, symbols?, allowErrors?, references?, packages?, nullable?, languageVersion?, implicitUsings?, outputKind?, projectDirectory?); Analyze(); CheckAsync(rules); WithCoverage(configure) In-memory projects; CheckAsync runs the production evaluator and validator, including // drillpress-allow allowances."
   },
   {
     "title": "RuleTestResult / TestFinding · API field guide",
     "url": "reference.html#api-ruletestresult-testfinding",
-    "text": "Output; ExplainedOutput; Findings; FixedText(path) / Rule, Path, Line, Column, Text, HasFix Output is exactly what the CLI prints; FixedText applies validated fixes in memory."
+    "text": "Output; ExplainedOutput; Findings; FixedText(path); FixedPath(path); FixedSource(path) / Rule, Path, Line, Column, Text, HasFix Output is exactly what the CLI prints; FixedText applies validated fixes in memory; FixedPath follows a renamed or moved file."
   },
   {
     "title": "RuleApplication · API field guide",

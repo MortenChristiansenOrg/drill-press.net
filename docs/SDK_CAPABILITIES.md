@@ -194,7 +194,8 @@ runtime execution cannot reach the API.
 ## Safe corrections
 
 Typed builders from `Fix.For(...)` cover expression replacement, argument and
-modifier removal, braces, comments, `var`, extraction and
+modifier removal, braces, comments, `var`, extraction,
+[local inlining](STRUCTURED_FIXES.md#inlining-locals) and
 [file renames and moves](STRUCTURED_FIXES.md#renaming-and-moving-files); see the
 [fix contracts](RULE_AUTHORING.md#fix-contracts). For hand-built edits,
 `SourceChanges.Replace` constructs an exact original-text/fingerprint edit.
