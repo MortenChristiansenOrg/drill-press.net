@@ -277,14 +277,25 @@ public sealed class LocalInliningTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
     }
 
-    [Fact]
-    public async Task SafeWhen_sees_the_operands_the_initializer_moves_past()
+    [Theory]
+    [InlineData(
+        "var value = Compute();\n_mutable.Add(value);\nreturn 0;",
+        "_mutable",
+        "_mutable.Add(Compute());\nreturn 0;"
+    )]
+    [InlineData(
+        "var value = Compute();\nreturn string.Concat(_mutable.Count, value).Length;",
+        "_mutable.Count",
+        "return string.Concat(_mutable.Count, Compute()).Length;"
+    )]
+    public async Task SafeWhen_sees_the_operands_the_initializer_moves_past(
+        string body,
+        string operand,
+        string expected
+    )
     {
         var workspace = fixture.Workspace();
-        workspace.AddProject(
-            "Library",
-            [new("A.cs", Source("var value = Compute();\n_mutable.Add(value);\nreturn 0;"))]
-        );
+        workspace.AddProject("Library", [new("A.cs", Source(body))]);
         var skipped = new List<string>();
 
         var result = await workspace.CheckAsync(
@@ -300,8 +311,8 @@ public sealed class LocalInliningTests(SdkFixture fixture) : IClassFixture<SdkFi
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(["_mutable"], skipped);
-        Assert.Equal(Source("_mutable.Add(Compute());\nreturn 0;"), result.FixedText("A.cs"));
+        Assert.Equal([operand], skipped);
+        Assert.Equal(Source(expected), result.FixedText("A.cs"));
     }
 
     [Fact]

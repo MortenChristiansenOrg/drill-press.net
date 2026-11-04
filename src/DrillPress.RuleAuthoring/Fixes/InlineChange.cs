@@ -1,4 +1,6 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace DrillPress;
 
@@ -19,13 +21,20 @@ public sealed class InlineChange
                 .ToArray()
         );
         SkippedOperands = Array.AsReadOnly(
-            plan.SkippedOperations.Where(operation =>
-                    !operation.IsImplicit && operation.Syntax is ExpressionSyntax
-                )
+            plan.SkippedOperations.Select(Written)
+                .Where(operation => !operation.IsImplicit && operation.Syntax is ExpressionSyntax)
                 .Select(operation => new CodeExpression(source, (ExpressionSyntax)operation.Syntax))
                 .ToArray()
         );
         Rewrite = rewrite;
+    }
+
+    // An implicit conversion evaluates the operand written in source, which the proof must see.
+    private static IOperation Written(IOperation operation)
+    {
+        while (operation is IConversionOperation { IsImplicit: true } conversion)
+            operation = conversion.Operand;
+        return operation;
     }
 
     /// <summary>The removed declaration in this compilation's original source.</summary>

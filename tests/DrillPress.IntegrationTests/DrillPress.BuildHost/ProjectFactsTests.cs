@@ -79,11 +79,11 @@ public sealed class ProjectFactsTests : IntegrationTest
     }
 
     [Theory]
-    [InlineData("Microsoft.NET.Sdk", "", "bin,bin/Debug,obj,obj/Debug", "Glob.cs,Nested/Deep.cs")]
+    [InlineData("Microsoft.NET.Sdk", "", "bin,obj", "Glob.cs,Nested/Deep.cs")]
     [InlineData(
         "Microsoft.NET.Sdk.Web",
         "",
-        "**/bower_components,**/jspm_packages,**/node_modules,bin,bin/Debug,bower_components,jspm_packages,node_modules,obj,obj/Debug,wwwroot",
+        "**/bower_components,**/jspm_packages,**/node_modules,bin,bower_components,jspm_packages,node_modules,obj,wwwroot",
         "Glob.cs,Nested/Deep.cs"
     )]
     [InlineData(
@@ -107,6 +107,12 @@ public sealed class ProjectFactsTests : IntegrationTest
     [InlineData(
         "Microsoft.NET.Sdk",
         "<Target Name=\"Filter\" BeforeTargets=\"CoreCompile\"><ItemGroup><Compile Remove=\"Nested/**\" /></ItemGroup></Target>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<Target Name=\"Generate\" BeforeTargets=\"CoreCompile\"><ItemGroup><Generated Include=\"Gen/**/*.cs\" /><Compile Include=\"@(Generated)\" /></ItemGroup></Target>",
         null,
         ""
     )]
@@ -155,6 +161,11 @@ public sealed class ProjectFactsTests : IntegrationTest
                     FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/')
                 )
                 .Concat(project.CompileGlob.ExcludedFolderNames.Select(name => "**/" + name))
+                // Which output folders below bin and obj are excluded varies between SDK versions.
+                .Where(path =>
+                    !path.StartsWith("bin/", StringComparison.Ordinal)
+                    && !path.StartsWith("obj/", StringComparison.Ordinal)
+                )
                 .Order(StringComparer.Ordinal)
                 .ToArray()
         );

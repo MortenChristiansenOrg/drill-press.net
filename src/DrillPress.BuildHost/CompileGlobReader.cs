@@ -66,17 +66,22 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         );
     }
 
-    /// <summary>The directories below which any Compile wildcard of the project, in evaluation or in a target, could select a file.</summary>
-    internal string[] Roots(Microsoft.Build.Evaluation.Project project)
+    /// <summary>The directories below which any Compile wildcard of the project, in evaluation or in a target, could select a file; null when an include outside the SDK takes another item list, whose own wildcards are unknown here.</summary>
+    internal string[]? Roots(Microsoft.Build.Evaluation.Project project)
     {
         var directory = project.DirectoryPath;
-        return project
+        var sdk = SdkDirectory(project);
+        var includes = project
             .GetLogicalProject()
             .OfType<ProjectItemElement>()
             .Where(element =>
                 element.ItemType.Equals("Compile", StringComparison.OrdinalIgnoreCase)
                 && element.Include.Length > 0
             )
+            .ToArray();
+        if (includes.Any(element => !InSdk(element, sdk) && ReferencesItems(element.Include)))
+            return null;
+        return includes
             .SelectMany(element =>
                 project
                     .ExpandString(element.Include)
@@ -143,8 +148,7 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         Microsoft.Build.Evaluation.Project project
     )
     {
-        var sdk = project.GetPropertyValue("MSBuildExtensionsPath");
-        sdk = sdk.Length == 0 ? "" : _fileSystem.Path.GetFullPath(sdk);
+        var sdk = SdkDirectory(project);
         ProjectItemElement? glob = null;
         var removals = new List<string>();
         foreach (var element in project.GetLogicalProject().OfType<ProjectItemElement>())
@@ -152,12 +156,14 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
             if (!element.ItemType.Equals("Compile", StringComparison.OrdinalIgnoreCase))
                 continue;
             var file = element.ContainingProject.FullPath;
-            var inSdk = sdk.Length > 0 && file.StartsWith(sdk, StringComparison.OrdinalIgnoreCase);
+            var inSdk = InSdk(element, sdk);
             if (InTarget(element))
             {
+                // An item list built in a target is empty at evaluation, so its files are unknown.
                 if (
                     inSdk
                     || element.Remove.Length == 0
+                        && !ReferencesItems(element.Include)
                         && !HasWildcard(project.ExpandString(element.Include))
                 )
                     continue;
@@ -182,6 +188,18 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         }
         return (glob, removals);
     }
+
+    private string SdkDirectory(Microsoft.Build.Evaluation.Project project) =>
+        project.GetPropertyValue("MSBuildExtensionsPath") is { Length: > 0 } path
+            ? _fileSystem.Path.GetFullPath(path)
+            : "";
+
+    private static bool InSdk(ProjectElement element, string sdk) =>
+        sdk.Length > 0
+        && element.ContainingProject.FullPath.StartsWith(sdk, StringComparison.OrdinalIgnoreCase);
+
+    private static bool ReferencesItems(string include) =>
+        include.Contains("@(", StringComparison.Ordinal);
 
     private static bool InTarget(ProjectElement element)
     {
