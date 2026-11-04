@@ -521,5 +521,12 @@ public sealed class VerificationSession : IDisposable
             OutputDirectory,
             RuntimeIdentifier
         ).VerifyAsync();
+        // Runs last: its sources sit below the Probe project and would join its default globs.
+        await new BaselineCase(
+            _fileSystem,
+            RepositoryRoot,
+            _fileSystem.Path.Combine(_fixture.FullName, "Baseline"),
+            OutputDirectory
+        ).VerifyAsync(cli, BuildHost, ManagedBundle, NativeBundle);
     }
 }

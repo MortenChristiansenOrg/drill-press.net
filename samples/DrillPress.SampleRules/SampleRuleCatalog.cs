@@ -4,10 +4,10 @@ namespace DrillPress.SampleRules;
 
 public static class SampleRuleCatalog
 {
-    public static RuleCatalog Create()
+    public static RuleCatalog Create(SourceBaseline? accepted = null)
     {
         var rules = new RuleCatalog();
-        ShowcaseRules.Register(rules);
+        ShowcaseRules.Register(rules, accepted);
         var tests = Code.TestMethods.Select(method => new TestBody(method));
 
         rules

@@ -194,6 +194,7 @@ load in parallel; failures are reported in snapshot order.
 | `--explain-coverage` | Prints coverage contexts, reasons and source ranges. |
 | `--refresh-coverage` / `--skip-coverage` | Refreshes cached evidence / skips coverage rules and lists them; mutually exclusive. |
 | `--build-host path` | Selects an explicit BuildHost rather than the installed one. |
+| `--baseline <revision\|directory>` | Supplies an accepted state to a bundle whose `RunAsync` takes a rule factory; see [baselines](queries.md#baselines). |
 | `--parallel-queries` | Prepares the queries of different rules concurrently; see [faster checks](#faster-checks-on-large-solutions). |
 | `--stream-compilation` | Compiles each project in the bundle as soon as capture finishes it; see [faster checks](#faster-checks-on-large-solutions). |
 

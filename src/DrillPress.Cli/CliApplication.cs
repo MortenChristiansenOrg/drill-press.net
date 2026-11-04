@@ -10,13 +10,15 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
         check reports findings; fix applies common-safe edits and reports the recheck;
         status counts violations per project, then per fix complexity.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
         --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
+        --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,
+          or a directory holding an accepted copy of the current directory.
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
         --include-referenced-projects  Also lint dependencies of a project target (default: selected project only).
         --validate-compilation  Reject compiler errors.  --profile  Write phase timings to stderr.
@@ -114,9 +116,25 @@ public sealed class CliApplication
                     temporaryDirectory.FullName,
                     "compilation.snapshot.json"
                 );
+                string? acceptedSources = null;
+                if (options.Baseline is not null)
+                {
+                    using var baseline = profile.Measure("baseline");
+                    acceptedSources = await new AcceptedSourceResolver(
+                        _fileSystem,
+                        _processRunner
+                    ).WriteAsync(
+                        options.Baseline,
+                        options.Target,
+                        temporaryDirectory.FullName,
+                        cancellationToken
+                    );
+                }
+                var ruleFlags = RuleFlags(options, acceptedSources);
                 var evaluation = await EvaluateAsync(
                     options,
                     snapshotPath,
+                    ruleFlags,
                     standardError,
                     profile,
                     cancellationToken
@@ -143,6 +161,7 @@ public sealed class CliApplication
                             evaluation = await EvaluateAsync(
                                 options,
                                 snapshotPath,
+                                ruleFlags,
                                 standardError,
                                 profile,
                                 cancellationToken
@@ -203,6 +222,7 @@ public sealed class CliApplication
     private async Task<RuleEvaluation> EvaluateAsync(
         CliOptions options,
         string snapshotPath,
+        string[] ruleFlags,
         TextWriter error,
         PipelineProfile profile,
         CancellationToken cancellationToken
@@ -216,7 +236,7 @@ public sealed class CliApplication
             var pipeline = await new GeneratorProcessPipeline(
                 _fileSystem,
                 _processRunner
-            ).CaptureAsync(options, snapshotPath, RuleFlags(options), cancellationToken);
+            ).CaptureAsync(options, snapshotPath, ruleFlags, cancellationToken);
             await error.WriteAsync(pipeline.Export.StandardError);
             await error.WriteAsync(pipeline.Rules.StandardError);
             var generated = await new CompilationSnapshotFile(_fileSystem).ReadAsync(
@@ -250,7 +270,7 @@ public sealed class CliApplication
         }
 
         var ruleArguments = new List<string> { "check", snapshotPath };
-        ruleArguments.AddRange(RuleFlags(options));
+        ruleArguments.AddRange(ruleFlags);
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {
@@ -264,9 +284,11 @@ public sealed class CliApplication
         return ReadEvaluation(options, snapshot, check);
     }
 
-    private static string[] RuleFlags(CliOptions options)
+    private static string[] RuleFlags(CliOptions options, string? acceptedSources)
     {
         var flags = new List<string>();
+        if (acceptedSources is not null)
+            flags.AddRange(["--baseline", acceptedSources]);
         if (options.Profile)
             flags.Add("--profile");
         if (options.ParallelQueries)

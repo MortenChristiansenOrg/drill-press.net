@@ -36,4 +36,5 @@ The showcase policies deliberately apply only to projects whose names start
 with `CodecExamples`. Their consumer tests supply positive and negative
 snippets for all thirteen policies, including accepted-baseline input and
 synthetic package facts. `ShowcaseRules.Create(acceptedBaseline)` enables the
-optional baseline policy; ordinary CLI runs do not automatically load Git history.
+optional baseline policy, SDK2013. CLI runs enable it with `--baseline`, for example
+`--baseline HEAD` to flag `*.Legacy.cs` files added since the last commit.

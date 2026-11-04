@@ -325,6 +325,38 @@ parameters, enum members, symbols):
 - `ImplementationView` (`Interface`, `Projects`, `Implementations`): `IgnoringTestProjects()`,
   `ConcreteOnly()`, `WhereImplementation(...)`, `WithExactlyOneImplementation()`.
 - `SourceBaseline(acceptedSolution)`: `ChangeOf(file)`, `ChangedFiles`, `PreviousAccessibility`.
+  See [baselines](#baselines) for real checks.
+
+## Baselines
+
+Change-aware rules compare with an accepted state. In real checks, pass a rule factory to
+`RunAsync`; it receives a `SourceBaseline` when the CLI gets `--baseline`, otherwise null:
+
+```csharp
+using DrillPress;
+using DrillPress.Engine;
+
+return (int)await new RuleApplication().RunAsync(CreateRules, args);
+
+static RuleCatalog CreateRules(SourceBaseline? accepted)
+{
+    var rules = new RuleCatalog();
+    if (accepted is not null)
+        rules.Rule("TEAM020", "Add new implementations outside the legacy layer.")
+            .For(accepted.ChangedFiles.InFolder("Legacy")
+                .Where(file => accepted.ChangeOf(file) == SourceChange.Added))
+            .Forbid();
+    return rules;
+}
+```
+
+`drillpress check --baseline origin/main ...` reads the C# files of that Git revision of
+the target's repository; `--baseline ../accepted` reads an accepted copy of the current
+directory. Only source text comes from the accepted state: project evaluation, references
+and generated source stay current, and files outside the accepted root count as unchanged.
+A file deleted or moved within its project's directory still supplies `PreviousAccessibility`
+for the types it declared.
+A bundle that passes a fixed `RuleCatalog` ignores `--baseline`.
 
 ## Coverage requirements
 

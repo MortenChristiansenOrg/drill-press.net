@@ -141,7 +141,8 @@ with `CodeType.Of<string>().Member(nameof(string.Empty)).References.OutsideNameO
 and supplies the sample-owned `EmptyStringFix.Create` to `Forbid`.
 Specialized fixes and xUnit conventions live in the sample project; the SDK
 provides general analysis and edit primitives. Its explicit entry point calls
-`new RuleApplication().RunAsync(SampleRuleCatalog.Create(), args)`; there is no reflection
+`new RuleApplication().RunAsync(SampleRuleCatalog.Create, args)`, which passes any
+`--baseline` state to the catalog factory; there is no reflection
 discovery or runtime source compilation. Follow the complete examples and safety
 contracts in [rule authoring](RULE_AUTHORING.md), then rebuild and republish the
 bundle with the commands above. The bundle includes five general preview rules

@@ -12,7 +12,7 @@ internal sealed class SourceGenerationSession(
     private readonly IFileSystem _fileSystem = fileSystem;
 
     internal async Task<GeneratedRuleResult> RunAsync(
-        RuleCatalog rules,
+        RuleCatalogSource rules,
         SourceGeneratorCatalog catalog,
         string directory,
         string inputPath,
@@ -52,7 +52,12 @@ internal sealed class SourceGenerationSession(
                 );
                 return new GeneratedRuleResult(
                     collected.Snapshot,
-                    await engine.EvaluateAsync(rules, collected.Snapshot, options, token)
+                    await engine.EvaluateAsync(
+                        await rules.CreateAsync(collected.Snapshot, options, token),
+                        collected.Snapshot,
+                        options,
+                        token
+                    )
                 );
             }
             var projects = await Task.WhenAll(collected.Projects);
@@ -80,7 +85,7 @@ internal sealed class SourceGenerationSession(
                 token
             );
             var response = await engine.EvaluateAsync(
-                rules,
+                await rules.CreateAsync(snapshot, options, token),
                 snapshot.RequestId,
                 contexts,
                 options,
