@@ -177,7 +177,7 @@ diagnostic protocol.
 | Sets and duplicates | Keyed comparisons and exact repeated token shapes ignoring trivia | No semantic clone detector; repeated syntax does not prove equivalent behavior |
 | Requirements | Joins, contextual absence checks and source-anchored missing counterparts | Consumers supply ownership and naming policy |
 | Facts | Lazy values per analysis or evaluated project, composable with built-in queries | Cache identity is the fact instance; values are not serialized |
-| Fixes | Multi-file text batches, typed builders, caller-supplied semantic proof, compiler checks and binding helpers; renames and moves of files the SDK default glob compiles, within their project directory | No file creation or deletion; no moves of linked, explicitly listed or target-added files, or across project directories; no solution-wide refactoring engine |
+| Fixes | Multi-file text batches, typed builders, caller-supplied semantic proof, compiler checks and binding helpers; local inlining; renames and moves of files the SDK default glob compiles, within their project directory | No file creation or deletion; no moves of linked, explicitly listed or target-added files, or across project directories; no solution-wide refactoring engine |
 | Consumer tests | Explicit references or runtime defaults, multiple projects/contexts, generated source, exact findings, CLI-format output, fixed text, moved paths and withheld fixes | Framework labels do not select reference packs; no OS file writes or target builds |
 
 Generated sources contribute compiler semantics and can be inspected through
