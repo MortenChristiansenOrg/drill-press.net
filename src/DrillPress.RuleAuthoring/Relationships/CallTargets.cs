@@ -94,7 +94,7 @@ internal sealed class CallTargets(AnalysisSolution solution, CallGraph graph)
         {
             if (
                 !SymbolEqualityComparer.Default.Equals(implemented.OriginalDefinition, contract)
-                || closed is not null && implemented.ToDisplayString(_identity) != closed
+                || !Admits(implemented, closed)
             )
                 continue;
             foreach (var member in implemented.GetMembers(definition.Name))
@@ -119,15 +119,15 @@ internal sealed class CallTargets(AnalysisSolution solution, CallGraph graph)
     )
     {
         if (
-            closed is not null
-            && Bases(type)
+            Bases(type)
                 .FirstOrDefault(baseType =>
                     SymbolEqualityComparer.Default.Equals(
                         baseType.OriginalDefinition,
                         declaringType
                     )
                 )
-                ?.ToDisplayString(_identity) != closed
+                is { } constructed
+            && !Admits(constructed, closed)
         )
             yield break;
         for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
@@ -150,6 +150,13 @@ internal sealed class CallTargets(AnalysisSolution solution, CallGraph graph)
                 yield break;
         }
     }
+
+    // A call through a closed contract reaches implementations of that construction, and generic implementations
+    // whose contract still has type parameters, since they can be constructed to match.
+    private static bool Admits(INamedTypeSymbol contract, string? closed) =>
+        closed is null
+        || ContainsTypeParameter(contract)
+        || contract.ToDisplayString(_identity) == closed;
 
     private static IEnumerable<INamedTypeSymbol> Bases(INamedTypeSymbol type)
     {
@@ -280,8 +287,8 @@ internal sealed class CallTargets(AnalysisSolution solution, CallGraph graph)
                         derived.Add(ancestor.OriginalDefinition, types);
                     }
 
-                    if (!types.Contains(type, SymbolEqualityComparer.Default))
-                        types.Add(type);
+                    // A type lists each ancestor once, and seen admits each type once.
+                    types.Add(type);
                 }
             }
         }

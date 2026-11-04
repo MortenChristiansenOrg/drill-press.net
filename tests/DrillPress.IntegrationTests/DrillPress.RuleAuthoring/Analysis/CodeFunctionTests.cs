@@ -152,6 +152,46 @@ public sealed class CodeFunctionTests(SdkFixture fixture) : IClassFixture<SdkFix
     }
 
     [Fact]
+    public void Paths_run_primary_base_arguments_chosen_implicit_base_constructors_and_ref_getters()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Library",
+            [
+                new(
+                    "A.cs",
+                    """
+                    static class Danger { public static int Make() { System.Threading.Thread.Sleep(1); return 0; } }
+                    class Base { public Base(int value) { } }
+                    class Primary() : Base(Danger.Make()) { }
+                    class Overloaded { public Overloaded(int value = 0) => Danger.Make(); public Overloaded(params string[] values) { } }
+                    class Implicit : Overloaded { }
+                    class Holder { int _value; public ref int Value { get { Danger.Make(); return ref _value; } } }
+
+                    class Uses
+                    {
+                        void CreatePrimary() => new Primary();
+                        void CreateImplicit() => new Implicit();
+                        void Assign(Holder holder) => holder.Value = 1;
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+        var uses = Code
+            .Methods.In(solution)
+            .Where(method => method.Symbol!.ContainingType.Name == "Uses");
+
+        var reaches = uses.Select(method => (method.Name, method.Reaches(_sleep)));
+
+        Assert.Equal(
+            [("CreatePrimary", true), ("CreateImplicit", true), ("Assign", true)],
+            reaches
+        );
+    }
+
+    [Fact]
     public void Lambdas_and_method_groups_are_followed_only_through_delegates_and_say_so()
     {
         var workspace = fixture.Workspace();
@@ -221,6 +261,7 @@ public sealed class CodeFunctionTests(SdkFixture fixture) : IClassFixture<SdkFix
                     class DiskStore : IStore { public void Save() => System.Threading.Thread.Sleep(1); public int Count => 0; }
                     class OrderHandler : IHandler<Order> { public void Handle(Order message) { } }
                     class InvoiceHandler : IHandler<Invoice> { public void Handle(Invoice message) { } }
+                    class GenericHandler<T> : IHandler<T> { public void Handle(T message) { } }
                     class NightJob : Job { public override void Run() { } public override void Stop() { base.Stop(); } public override int Size => 1; }
                     """
                 ),
@@ -290,7 +331,7 @@ public sealed class CodeFunctionTests(SdkFixture fixture) : IClassFixture<SdkFix
         Assert.Equal(
             [
                 "Contracts/net10.0:IStore.Save, Storage/net10.0:DiskStore.Save",
-                "Contracts/net10.0:IHandler.Handle, Storage/net10.0:OrderHandler.Handle, Contracts/net10.0:Order..ctor",
+                "Contracts/net10.0:IHandler.Handle, Storage/net10.0:OrderHandler.Handle, Storage/net10.0:GenericHandler.Handle, Contracts/net10.0:Order..ctor",
                 "Contracts/net10.0:Job.Run, Storage/net10.0:NightJob.Run",
                 "Contracts/net10.0:Job.Stop",
                 "Contracts/net10.0:IStore.get_Count, Storage/net10.0:DiskStore.get_Count",

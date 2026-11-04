@@ -86,8 +86,8 @@ A function runs these members:
 | --- | --- |
 | Invocation, including local functions, query clauses and collection-initializer `Add` | The bound method |
 | `new T(...)`, target-typed `new(...)` | The constructor |
-| Constructor | Its `this(...)` or `base(...)` initializer, the implicit `base()` call, and, unless it chains to `this(...)`, the instance field, property and event initializers of every partial part |
-| Property or indexer use | The getter for a read, the setter or `init` accessor for an assignment, both for a compound assignment, increment or `??=` |
+| Constructor | Its `this(...)` or `base(...)` initializer (for a primary constructor, the base arguments), the implicit `base()` call, and, unless it chains to `this(...)`, the instance field, property and event initializers of every partial part |
+| Property or indexer use | The getter for a read, the setter or `init` accessor for an assignment, both for a compound assignment, increment or `??=`; a ref-returning property's getter for every use |
 | `+=` and `-=` on an event | The `add` or `remove` accessor |
 | Operator or conversion | The user-defined operator method |
 
@@ -117,7 +117,8 @@ private static readonly CallPaths Services = CallPaths.Bound
   projects in a compatible view that contains both the declaring project and the
   caller, so separate evaluation contexts and target frameworks stay apart, as in
   `ImplementationViews()`. A call through a closed generic contract such as
-  `IHandler<Order>` reaches only implementations of that construction. Members
+  `IHandler<Order>` reaches implementations of that construction and generic ones
+  such as `Handler<T>`, not `IHandler<Invoice>` implementations. Members
   declared in metadata, such as `IDisposable.Dispose`, and calls through `base`
   are not dispatched.
 - `WithEdge(call, target)` supplies an edge the compiler can't bind: dependency

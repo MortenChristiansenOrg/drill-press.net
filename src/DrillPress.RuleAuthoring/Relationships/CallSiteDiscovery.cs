@@ -6,6 +6,13 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
+internal readonly record struct SiteAt(
+    TextSpan Span,
+    IMethodSymbol Target,
+    bool Deferred,
+    bool Dispatchable
+);
+
 // The members each function in one document runs, read from the document's shared operations so that call paths
 // bind nothing other queries don't. Lambdas and anonymous methods belong to the function that creates them, with
 // deferred sites; local functions are separate functions, run only where they are called. Instance field, property
@@ -21,61 +28,58 @@ internal sealed class DocumentCallSites
         foreach (var operation in source.Operations.All)
         {
             token.ThrowIfCancellationRequested();
-            switch (operation)
-            {
-                case IInvocationOperation call:
-                    Add(
-                        source,
-                        call,
-                        NameSpan(call.Syntax),
-                        call.TargetMethod,
+            foreach (var site in SitesAt(operation))
+                Add(source, operation, site);
+        }
+    }
+
+    // The members one operation runs, before its owner and delegate context are known.
+    internal static IEnumerable<SiteAt> SitesAt(IOperation operation)
+    {
+        switch (operation)
+        {
+            case IInvocationOperation call:
+                yield return new(
+                    NameSpan(call.Syntax),
+                    call.TargetMethod,
+                    false,
+                    Dispatchable(call.Instance, call.TargetMethod)
+                );
+                break;
+            case IObjectCreationOperation { Constructor: { } constructor } creation:
+                yield return new(creation.Syntax.Span, constructor, false, false);
+                break;
+            case IPropertyReferenceOperation property:
+                foreach (var accessor in Accessors(property))
+                    yield return new(
+                        NameSpan(property.Syntax),
+                        accessor,
                         false,
-                        Dispatchable(call.Instance, call.TargetMethod)
+                        Dispatchable(property.Instance, accessor)
                     );
-                    break;
-                case IObjectCreationOperation { Constructor: { } constructor } creation:
-                    Add(source, creation, creation.Syntax.Span, constructor, false, false);
-                    break;
-                case IPropertyReferenceOperation property:
-                    foreach (var accessor in Accessors(property))
-                        Add(
-                            source,
-                            property,
-                            NameSpan(property.Syntax),
-                            accessor,
-                            false,
-                            Dispatchable(property.Instance, accessor)
-                        );
-                    break;
-                case IEventAssignmentOperation
-                {
-                    EventReference: IEventReferenceOperation reference
-                } assignment:
-                    if (
-                        (
-                            assignment.Adds
-                                ? reference.Event.AddMethod
-                                : reference.Event.RemoveMethod
-                        ) is
-                        { } eventAccessor
-                    )
-                        Add(
-                            source,
-                            assignment,
-                            NameSpan(reference.Syntax),
-                            eventAccessor,
-                            false,
-                            Dispatchable(reference.Instance, eventAccessor)
-                        );
-                    break;
-                case IMethodReferenceOperation group:
-                    Add(source, group, NameSpan(group.Syntax), group.Method, true, group.IsVirtual);
-                    break;
-                default:
-                    if (OperatorOf(operation) is { } method)
-                        Add(source, operation, operation.Syntax.Span, method, false, false);
-                    break;
-            }
+                break;
+            case IEventAssignmentOperation
+            {
+                EventReference: IEventReferenceOperation reference
+            } assignment:
+                if (
+                    (assignment.Adds ? reference.Event.AddMethod : reference.Event.RemoveMethod) is
+                    { } eventAccessor
+                )
+                    yield return new(
+                        NameSpan(reference.Syntax),
+                        eventAccessor,
+                        false,
+                        Dispatchable(reference.Instance, eventAccessor)
+                    );
+                break;
+            case IMethodReferenceOperation group:
+                yield return new(NameSpan(group.Syntax), group.Method, true, group.IsVirtual);
+                break;
+            default:
+                if (OperatorOf(operation) is { } method)
+                    yield return new(operation.Syntax.Span, method, false, false);
+                break;
         }
     }
 
@@ -87,15 +91,9 @@ internal sealed class DocumentCallSites
     public IReadOnlyList<CallSite> InitializersOf(TypeDeclarationSyntax type) =>
         _initializers.GetValueOrDefault(type.Span) ?? [];
 
-    private void Add(
-        AnalysisSource source,
-        IOperation operation,
-        TextSpan span,
-        IMethodSymbol target,
-        bool deferred,
-        bool dispatchable
-    )
+    private void Add(AnalysisSource source, IOperation operation, SiteAt site)
     {
+        var deferred = site.Deferred;
         if (Owner(operation, ref deferred) is not var (owner, initializer))
             return;
         var index = initializer ? _initializers : _functions;
@@ -105,7 +103,7 @@ internal sealed class DocumentCallSites
             index.Add(owner, sites);
         }
 
-        sites.Add(new(source, span, target, deferred, dispatchable));
+        sites.Add(new(source, site.Span, site.Target, deferred, site.Dispatchable));
     }
 
     // The function or type declaration a site belongs to, found through its enclosing operations. Sites in nameof,
@@ -158,25 +156,35 @@ internal sealed class DocumentCallSites
             _ => null,
         };
 
-    // Reads use the getter, assignments the setter or init accessor, and compound updates both.
+    // Reads use the getter, assignments the setter or init accessor, and compound updates both. A ref-returning
+    // property has only a getter, which every use runs to obtain the reference.
     private static IEnumerable<IMethodSymbol> Accessors(IPropertyReferenceOperation reference)
     {
         var property = reference.Property;
-        var (reads, writes) = reference.Parent switch
-        {
-            ISimpleAssignmentOperation assignment when assignment.Target == reference => (
-                false,
-                true
-            ),
-            ICompoundAssignmentOperation compound when compound.Target == reference => (true, true),
-            ICoalesceAssignmentOperation coalesce when coalesce.Target == reference => (true, true),
-            IIncrementOrDecrementOperation increment when increment.Target == reference => (
-                true,
-                true
-            ),
-            ITupleOperation tuple when IsDeconstructionTarget(tuple) => (false, true),
-            _ => (true, false),
-        };
+        var (reads, writes) =
+            property.ReturnsByRef || property.ReturnsByRefReadonly
+                ? (true, false)
+                : reference.Parent switch
+                {
+                    ISimpleAssignmentOperation assignment when assignment.Target == reference => (
+                        false,
+                        true
+                    ),
+                    ICompoundAssignmentOperation compound when compound.Target == reference => (
+                        true,
+                        true
+                    ),
+                    ICoalesceAssignmentOperation coalesce when coalesce.Target == reference => (
+                        true,
+                        true
+                    ),
+                    IIncrementOrDecrementOperation increment when increment.Target == reference => (
+                        true,
+                        true
+                    ),
+                    ITupleOperation tuple when IsDeconstructionTarget(tuple) => (false, true),
+                    _ => (true, false),
+                };
         if (reads && property.GetMethod is { } getter)
             yield return getter;
         if (writes && property.SetMethod is { } setter)
@@ -241,15 +249,7 @@ internal sealed class CallSiteDiscovery(CallGraph graph, CodeFunction function)
                     && source.Model.GetOperation(primaryBase, _token)
                         is IInvocationOperation baseCall
                 )
-                    _sites.Add(
-                        new(
-                            source,
-                            DocumentCallSites.NameSpan(primaryBase),
-                            baseCall.TargetMethod,
-                            false,
-                            false
-                        )
-                    );
+                    PrimaryBase(source, primaryBase, baseCall);
                 else
                     ImplicitBase(type);
                 break;
@@ -258,6 +258,38 @@ internal sealed class CallSiteDiscovery(CallGraph graph, CodeFunction function)
         }
 
         return _sites.AsReadOnly();
+    }
+
+    // The shared operations don't cover a primary constructor's base arguments, so they are read here.
+    private void PrimaryBase(
+        AnalysisSource source,
+        PrimaryConstructorBaseTypeSyntax syntax,
+        IInvocationOperation call
+    )
+    {
+        _sites.Add(
+            new(source, DocumentCallSites.NameSpan(syntax), call.TargetMethod, false, false)
+        );
+        foreach (var operation in call.Descendants())
+        {
+            var deferred = false;
+            for (
+                var parent = operation.Parent;
+                parent is not null && parent != call;
+                parent = parent.Parent
+            )
+                deferred |= parent is IAnonymousFunctionOperation;
+            foreach (var site in DocumentCallSites.SitesAt(operation))
+                _sites.Add(
+                    new(
+                        source,
+                        site.Span,
+                        site.Target,
+                        deferred || site.Deferred,
+                        site.Dispatchable
+                    )
+                );
+        }
     }
 
     private void MemberInitializers()
@@ -283,15 +315,20 @@ internal sealed class CallSiteDiscovery(CallGraph graph, CodeFunction function)
             || baseType.SpecialType == SpecialType.System_Object
         )
             return;
-        var candidates = baseType
-            .InstanceConstructors.Where(constructor =>
-                constructor.Parameters.All(parameter => parameter.IsOptional || parameter.IsParams)
-            )
-            .ToArray();
-        var target =
-            candidates.Length == 1
-                ? candidates[0]
-                : candidates.SingleOrDefault(constructor => constructor.Parameters.IsEmpty);
+        // Overload resolution prefers a parameterless constructor, then one whose parameters are all optional, then
+        // one that takes only a params array.
+        var target = new Func<IMethodSymbol, bool>[]
+        {
+            constructor => constructor.Parameters.IsEmpty,
+            constructor => constructor.Parameters.All(parameter => parameter.IsOptional),
+            constructor =>
+                constructor.Parameters.All(parameter => parameter.IsOptional || parameter.IsParams),
+        }
+            .Select(tier => baseType.InstanceConstructors.Where(tier).ToArray())
+            .FirstOrDefault(tier => tier.Length > 0)
+            is [var single]
+            ? single
+            : null;
         if (target is not null)
             _sites.Add(new(function.Source, type.Identifier.Span, target, false, false));
     }

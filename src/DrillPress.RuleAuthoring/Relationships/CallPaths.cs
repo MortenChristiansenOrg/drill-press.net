@@ -50,7 +50,7 @@ public sealed class CallPaths
     /// contexts and target frameworks apart. Calls to members declared in metadata, such as <c>IDisposable.Dispose</c>,
     /// and calls through <c>base</c> are not dispatched.
     /// </summary>
-    /// <remarks>A call through a closed generic contract, such as <c>IHandler&lt;Order&gt;</c>, reaches only implementations of that construction.</remarks>
+    /// <remarks>A call through a closed generic contract, such as <c>IHandler&lt;Order&gt;</c>, reaches implementations of that construction and generic implementations such as <c>Handler&lt;T&gt;</c>, not those of another construction.</remarks>
     public CallPaths ThroughDispatch() => new(Delegates, true, Edges, Boundary);
 
     /// <summary>
