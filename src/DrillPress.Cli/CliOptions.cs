@@ -15,7 +15,8 @@ internal sealed record CliOptions(
     bool ExplainCoverage,
     bool ExplainFixes,
     bool ParallelQueries = false,
-    bool StreamCompilation = false
+    bool StreamCompilation = false,
+    string? Baseline = null
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -30,6 +31,7 @@ internal sealed record CliOptions(
         string? buildHost = null;
         string? rules = null;
         string? target = null;
+        string? baseline = null;
         var exportArguments = new List<string>();
         var profile = false;
         var optimize = true;
@@ -53,6 +55,9 @@ internal sealed record CliOptions(
                     break;
                 case "--build-host" when buildHost is null && index + 1 < args.Length:
                     buildHost = args[++index];
+                    break;
+                case "--baseline" when baseline is null && index + 1 < args.Length:
+                    baseline = args[++index];
                     break;
                 case "--rules" when rules is null && index + 1 < args.Length:
                     rules = args[++index];
@@ -114,6 +119,7 @@ internal sealed record CliOptions(
             (buildHost is not null && string.IsNullOrWhiteSpace(buildHost))
             || string.IsNullOrWhiteSpace(rules)
             || string.IsNullOrWhiteSpace(target)
+            || (baseline is not null && string.IsNullOrWhiteSpace(baseline))
         )
         {
             return false;
@@ -145,7 +151,8 @@ internal sealed record CliOptions(
             explainCoverage,
             explainFixes,
             parallelQueries,
-            streamCompilation
+            streamCompilation,
+            baseline
         );
         return true;
     }

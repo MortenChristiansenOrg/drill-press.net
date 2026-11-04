@@ -325,6 +325,24 @@ parameters, enum members, symbols):
 - `ImplementationView` (`Interface`, `Projects`, `Implementations`): `IgnoringTestProjects()`,
   `ConcreteOnly()`, `WhereImplementation(...)`, `WithExactlyOneImplementation()`.
 - `SourceBaseline(acceptedSolution)`: `ChangeOf(file)`, `ChangedFiles`, `PreviousAccessibility`.
+  See [baselines](#baselines) for real checks.
+
+## Baselines
+
+Change-aware rules compare with an accepted state. In real checks, pass a rule factory to
+`RunAsync`; it receives a `SourceBaseline` when the CLI gets `--baseline`, otherwise null:
+
+```csharp
+return (int)await new RuleApplication().RunAsync(
+    accepted => ExampleRules.Create(accepted), args);
+```
+
+`drillpress check --baseline origin/main ...` reads the C# files of that Git revision of
+the target's repository; `--baseline ../accepted` reads an accepted copy of the current
+directory. Only source text comes from the accepted state: project evaluation, references
+and generated source stay current, and files outside the accepted root count as unchanged.
+A deleted or moved file still supplies `PreviousAccessibility` for the types it declared.
+A bundle that passes a fixed `RuleCatalog` ignores `--baseline`.
 
 ## Coverage requirements
 

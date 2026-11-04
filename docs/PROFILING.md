@@ -17,6 +17,8 @@ Phases include BuildHost loading (with its `loading.workspace` and `loading.cont
 parts) and snapshot serialization, snapshot loading,
 reconstruction, model preparation, every rule, allowances, fix validation and preparation,
 commit, aggregation, rendering, response serialization, and process totals.
+With `--baseline`, the CLI's `baseline` phase reads the accepted sources and the
+bundle's `baseline` phase compiles them into a `SourceBaseline`.
 Candidate collections are lazy: their first rule pays their preparation cost.
 Per-rule measurements include that rule's candidate selection and proposed-fix
 construction; cross-context fix validation has its own phase.

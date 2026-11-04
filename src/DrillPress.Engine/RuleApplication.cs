@@ -41,60 +41,91 @@ public sealed class RuleApplication
 
     /// <summary>
     /// Executes the rule-bundle command, writes the internal response, and returns the
-    /// clean, findings, or failure exit code understood by the coordinator.
+    /// clean, findings, or failure exit code understood by the coordinator. An accepted
+    /// baseline passed by the coordinator is ignored, because these rules cannot read it.
     /// </summary>
-    public async Task<RuleExitCode> RunAsync(
+    public Task<RuleExitCode> RunAsync(
         RuleCatalog rules,
         string[] args,
         TextWriter? standardOutput = null,
         TextWriter? standardError = null,
         CancellationToken cancellationToken = default
+    ) => RunAsync(_ => rules, false, args, standardOutput, standardError, cancellationToken);
+
+    /// <summary>
+    /// Executes the rule-bundle command with rules created after the snapshot is loaded. When
+    /// <c>drillpress check --baseline</c> supplies an accepted state, <paramref name="createRules"/>
+    /// receives it as a <see cref="SourceBaseline"/>; otherwise it receives null.
+    /// </summary>
+    public Task<RuleExitCode> RunAsync(
+        Func<SourceBaseline?, RuleCatalog> createRules,
+        string[] args,
+        TextWriter? standardOutput = null,
+        TextWriter? standardError = null,
+        CancellationToken cancellationToken = default
+    ) => RunAsync(createRules, true, args, standardOutput, standardError, cancellationToken);
+
+    private async Task<RuleExitCode> RunAsync(
+        Func<SourceBaseline?, RuleCatalog> createRules,
+        bool readsBaseline,
+        string[] args,
+        TextWriter? standardOutput,
+        TextWriter? standardError,
+        CancellationToken cancellationToken
     )
     {
         standardOutput ??= Console.Out;
         standardError ??= Console.Error;
         var generated = args.Length > 0 && args[0] == "check-generated";
         var flagsStart = generated ? 4 : 2;
+        var flags = args.Skip(flagsStart).ToList();
+        var baselineIndex = flags.IndexOf("--baseline");
+        string? baseline = null;
+        if (baselineIndex >= 0 && baselineIndex + 1 < flags.Count)
+        {
+            baseline = flags[baselineIndex + 1];
+            flags.RemoveRange(baselineIndex, 2);
+        }
         if (
             args.Length < flagsStart
             || (!generated && args[0] != "check")
-            || args.Skip(flagsStart)
-                .Any(argument =>
-                    argument
-                        is not (
-                            "--profile"
-                            or "--no-optimization"
-                            or "--refresh-coverage"
-                            or "--skip-coverage"
-                            or "--explain-coverage"
-                            or "--parallel-queries"
-                        )
-                )
-            || (args.Contains("--refresh-coverage") && args.Contains("--skip-coverage"))
+            || flags.Any(argument =>
+                argument
+                    is not (
+                        "--profile"
+                        or "--no-optimization"
+                        or "--refresh-coverage"
+                        or "--skip-coverage"
+                        or "--explain-coverage"
+                        or "--parallel-queries"
+                    )
+            )
+            || (flags.Contains("--refresh-coverage") && flags.Contains("--skip-coverage"))
         )
         {
             await standardError.WriteLineAsync(
-                "Usage: <rule-bundle> check <snapshot> [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
+                "Usage: <rule-bundle> check <snapshot> [--baseline <accepted-sources>] [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
             );
             return RuleExitCode.Failure;
         }
 
-        var profile = new PipelineProfile(
-            args.Skip(flagsStart).Contains("--profile"),
-            standardError,
-            "rules"
+        var rules = new RuleCatalogSource(
+            _fileSystem,
+            createRules,
+            readsBaseline ? baseline : null
         );
+        var profile = new PipelineProfile(flags.Contains("--profile"), standardError, "rules");
         using var total = profile.Measure("total");
         try
         {
             var options = new AnalysisOptions
             {
-                EnableOptimizations = !args.Skip(flagsStart).Contains("--no-optimization"),
+                EnableOptimizations = !flags.Contains("--no-optimization"),
                 Profile = profile,
-                RefreshCoverage = args.Skip(flagsStart).Contains("--refresh-coverage"),
-                SkipCoverage = args.Skip(flagsStart).Contains("--skip-coverage"),
-                ExplainCoverage = args.Skip(flagsStart).Contains("--explain-coverage"),
-                QueryPreparationConcurrency = args.Skip(flagsStart).Contains("--parallel-queries")
+                RefreshCoverage = flags.Contains("--refresh-coverage"),
+                SkipCoverage = flags.Contains("--skip-coverage"),
+                ExplainCoverage = flags.Contains("--explain-coverage"),
+                QueryPreparationConcurrency = flags.Contains("--parallel-queries")
                     ? Math.Min(generated ? 8 : 4, Environment.ProcessorCount)
                     : 1,
             };
@@ -125,7 +156,7 @@ public sealed class RuleApplication
                         cancellationToken
                     );
                 response = await new AnalysisEngine(_fileSystem, _coverageProcess).EvaluateAsync(
-                    rules,
+                    await rules.CreateAsync(snapshot, options, cancellationToken),
                     snapshot,
                     options,
                     cancellationToken

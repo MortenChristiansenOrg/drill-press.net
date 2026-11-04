@@ -105,6 +105,12 @@ The `+10:29` location offers a safe correction on line 10, column 29.
 To check your own C# project,
 replace the final argument with the path to its `.csproj` file.
 
+Change-aware rules compare the code with an accepted state. Pass a Git revision
+of the target's repository, or a directory holding an accepted copy of the current
+directory, with `--baseline`. For example, `--baseline origin/main` makes the sample's
+SDK2013 rule flag `CodecExamples*` projects' `*.Legacy.cs` files added since `origin/main`.
+The CLI resolves the revision; rules receive only a `SourceBaseline`.
+
 A clean check prints nothing and exits with code `0`. With `--skip-coverage`, rules
 that need test coverage are not evaluated and a final line lists them. Review-only findings also
 exit with code `0`, with visible output. Violations produce code `1`, including
