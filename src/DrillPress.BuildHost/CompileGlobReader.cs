@@ -189,14 +189,21 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         return (glob, removals);
     }
 
+    // The SDK directory with a trailing separator, so a sibling such as sdk-custom is not inside it.
     private string SdkDirectory(Microsoft.Build.Evaluation.Project project) =>
         project.GetPropertyValue("MSBuildExtensionsPath") is { Length: > 0 } path
-            ? _fileSystem.Path.GetFullPath(path)
+            ? _fileSystem.Path.TrimEndingDirectorySeparator(_fileSystem.Path.GetFullPath(path))
+                + _fileSystem.Path.DirectorySeparatorChar
             : "";
 
     private static bool InSdk(ProjectElement element, string sdk) =>
         sdk.Length > 0
-        && element.ContainingProject.FullPath.StartsWith(sdk, StringComparison.OrdinalIgnoreCase);
+        && element.ContainingProject.FullPath.StartsWith(
+            sdk,
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal
+        );
 
     private static bool ReferencesItems(string include) =>
         include.Contains("@(", StringComparison.Ordinal);
