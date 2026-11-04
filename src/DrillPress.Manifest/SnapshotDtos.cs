@@ -76,7 +76,11 @@ public sealed record ProjectSnapshot(
 /// <summary>The SDK's default <c>**/*.cs</c> compile glob of one project, reduced to the directories it leaves out.</summary>
 /// <param name="Directory">The project directory the glob searches.</param>
 /// <param name="ExcludedDirectories">Directories below which no source is compiled, such as the output and intermediate paths; folders whose name starts with a dot are always excluded.</param>
-public sealed record CompileGlobSnapshot(string Directory, string[] ExcludedDirectories);
+public sealed record CompileGlobSnapshot(string Directory, string[] ExcludedDirectories)
+{
+    /// <summary>Folder names such as <c>node_modules</c> below which no source is compiled at any depth.</summary>
+    public string[] ExcludedFolderNames { get; init; } = [];
+}
 
 /// <summary>A direct evaluated package reference, distinct from compiler assembly references and transitive restore dependencies.</summary>
 /// <param name="Id">NuGet package identity.</param>

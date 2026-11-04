@@ -963,10 +963,13 @@ public sealed class BundleResponseValidatorTests
     [InlineData("bin", "would not compile A.cs at its new path")]
     [InlineData("obj", "would not compile A.cs at its new path")]
     [InlineData(".git", "would not compile A.cs at its new path")]
+    [InlineData("Scripts/node_modules", "would not compile A.cs at its new path")]
     public void A_move_out_of_the_compiled_folders_is_withheld(string folder, string reason)
     {
         var fixture = new MoveFixture();
-        var response = fixture.Response(fixture.Batch("move", [], fixture.Move(0, folder, "A.cs")));
+        var response = fixture.Response(
+            fixture.Batch("move", [], fixture.Move(0, [.. folder.Split('/'), "A.cs"]))
+        );
 
         var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
 

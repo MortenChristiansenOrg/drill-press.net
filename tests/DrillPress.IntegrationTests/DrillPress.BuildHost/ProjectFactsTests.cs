@@ -83,7 +83,7 @@ public sealed class ProjectFactsTests : IntegrationTest
     [InlineData(
         "Microsoft.NET.Sdk.Web",
         "",
-        "bin,bin/Debug,obj,obj/Debug,wwwroot",
+        "**/bower_components,**/jspm_packages,**/node_modules,bin,bin/Debug,bower_components,jspm_packages,node_modules,obj,obj/Debug,wwwroot",
         "Glob.cs,Nested/Deep.cs"
     )]
     [InlineData(
@@ -148,6 +148,7 @@ public sealed class ProjectFactsTests : IntegrationTest
                 .CompileGlob?.ExcludedDirectories.Select(path =>
                     FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/')
                 )
+                .Concat(project.CompileGlob.ExcludedFolderNames.Select(name => "**/" + name))
                 .Order(StringComparer.Ordinal)
                 .ToArray()
         );

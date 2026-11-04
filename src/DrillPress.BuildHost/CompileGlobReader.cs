@@ -30,6 +30,7 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
             return null;
         var directory = project.DirectoryPath;
         var excluded = new List<string>();
+        var folders = new List<string>();
         foreach (
             var fragment in removals
                 .Prepend(glob.Exclude)
@@ -43,7 +44,7 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
                 )
         )
         {
-            if (!Exclude(fragment.Replace('\\', '/'), directory, excluded))
+            if (!Exclude(fragment.Replace('\\', '/'), directory, excluded, folders))
                 return null;
         }
 
@@ -56,17 +57,37 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
             .Select(item => _fileSystem.Path.GetFullPath(item.EvaluatedInclude, directory))
             .ToHashSet(comparer);
         return new(
-            new CompileGlobSnapshot(directory, excluded.Distinct(comparer).ToArray()),
+            new CompileGlobSnapshot(directory, excluded.Distinct(comparer).ToArray())
+            {
+                ExcludedFolderNames = folders.Distinct(comparer).ToArray(),
+            },
             items
         );
     }
 
-    // Records a directory the pattern excludes, or accepts a pattern no .cs file can match; false when the
-    // pattern could exclude individual sources.
-    private bool Exclude(string pattern, string directory, List<string> excluded)
+    // Records a directory or a folder name at any depth the pattern excludes, or accepts a pattern no .cs
+    // file can match; false when the pattern could exclude individual sources.
+    private bool Exclude(
+        string pattern,
+        string directory,
+        List<string> excluded,
+        List<string> folders
+    )
     {
         if (pattern == HiddenFolders)
             return true;
+        if (
+            pattern.StartsWith("**/", StringComparison.Ordinal)
+            && pattern.EndsWith("/**", StringComparison.Ordinal)
+            && pattern.Length > "**//**".Length
+            && pattern[3..^3] is var folder
+            && !folder.Contains('/')
+            && !HasWildcard(folder)
+        )
+        {
+            folders.Add(folder);
+            return true;
+        }
         if (pattern.EndsWith("/**", StringComparison.Ordinal) && !HasWildcard(pattern[..^3]))
         {
             var prefix = pattern[..^3];

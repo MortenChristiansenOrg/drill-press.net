@@ -103,13 +103,16 @@ internal static class FileMovePolicy
     }
 
     // The default glob compiles every .cs file below the project directory except in excluded directories,
-    // obj folders and folders whose name starts with a dot; a dot-named file is withheld as well.
+    // excluded folder names, obj folders and folders whose name starts with a dot; a dot-named file is
+    // withheld as well.
     private static bool Includes(CompileGlobSnapshot glob, string path) =>
         SourcePaths.IsBelow(path, glob.Directory)
         && !SourcePaths
             .Segments(SourcePaths.Relative(path, glob.Directory))
             .Any(segment =>
-                segment.StartsWith('.') || segment.Equals("obj", StringComparison.OrdinalIgnoreCase)
+                segment.StartsWith('.')
+                || segment.Equals("obj", StringComparison.OrdinalIgnoreCase)
+                || glob.ExcludedFolderNames.Contains(segment, StringComparer.OrdinalIgnoreCase)
             )
         && !glob.ExcludedDirectories.Any(excluded =>
             SourcePaths.IsBelow(path, excluded, ignoreCase: true)

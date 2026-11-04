@@ -41,7 +41,10 @@ internal sealed class MoveFixture
             ProjectPath = FileSystem.Path.Combine(Directory, "Orders.csproj"),
             TargetFramework = "net10.0",
             Documents = Documents,
-            CompileGlob = new(Directory, [FileSystem.Path.Combine(Directory, "bin")]),
+            CompileGlob = new(Directory, [FileSystem.Path.Combine(Directory, "bin")])
+            {
+                ExcludedFolderNames = ["node_modules"],
+            },
         };
         Snapshot = CompilationSnapshot.Create(Project);
         Replacer = new(FileSystem, new SourceFilePolicy(FileSystem, Probe));
