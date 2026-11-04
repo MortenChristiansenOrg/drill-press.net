@@ -167,7 +167,11 @@ public sealed class RuleApplicationTests
             {
                 Documents =
                 [
-                    new(Source("Changed.cs"), "public class Changed { }", false),
+                    new(Source("Changed.cs"), "public class Changed { }", false)
+                    {
+                        EncodingName = "utf-16",
+                        HasByteOrderMark = true,
+                    },
                     new(Source("Same.cs"), "class Same { }", false),
                     new(Source("Added.cs"), "class Added { }", false),
                     new(Source("Moved.cs"), "public class Moved { }", false),

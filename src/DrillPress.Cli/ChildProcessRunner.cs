@@ -42,21 +42,84 @@ public class ChildProcessRunner
         CancellationToken cancellationToken
     )
     {
+        var (exitCode, stdout, stderr) = await ExecuteAsync(
+            executable,
+            arguments,
+            null,
+            null,
+            cancellationToken
+        );
+        var encoding = new UTF8Encoding(false, true);
+        return new ChildProcessResult(
+            exitCode,
+            encoding.GetString(stdout),
+            encoding.GetString(stderr)
+        );
+    }
+
+    /// <summary>
+    /// Writes <paramref name="standardInput"/> as UTF-8 and copies unbounded standard output to
+    /// <paramref name="standardOutput"/>, for tools whose output is data rather than a response.
+    /// The result's standard output is empty.
+    /// </summary>
+    public virtual async Task<ChildProcessResult> StreamAsync(
+        string executable,
+        IReadOnlyList<string> arguments,
+        string standardInput,
+        Stream standardOutput,
+        CancellationToken cancellationToken
+    )
+    {
+        var (exitCode, _, stderr) = await ExecuteAsync(
+            executable,
+            arguments,
+            standardInput,
+            standardOutput,
+            cancellationToken
+        );
+        return new ChildProcessResult(
+            exitCode,
+            "",
+            new UTF8Encoding(false, true).GetString(stderr)
+        );
+    }
+
+    private async Task<(int ExitCode, byte[] Output, byte[] Error)> ExecuteAsync(
+        string executable,
+        IReadOnlyList<string> arguments,
+        string? standardInput,
+        Stream? standardOutput,
+        CancellationToken cancellationToken
+    )
+    {
         cancellationToken.ThrowIfCancellationRequested();
+        var startInfo = CreateStartInfo(executable, arguments);
+        if (standardInput is not null)
+        {
+            startInfo.RedirectStandardInput = true;
+            startInfo.StandardInputEncoding = new UTF8Encoding(false);
+        }
         using var process =
-            Process.Start(CreateStartInfo(executable, arguments))
+            Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{executable}'.");
         using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var failure = new TaskCompletionSource<Exception>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        var stdout = CaptureStreamAsync(
-            process.StandardOutput.BaseStream,
-            _maximumStandardOutputBytes,
-            "standard output",
-            failure,
-            shutdown.Token
-        );
+        var stdout = standardOutput is null
+            ? CaptureStreamAsync(
+                process.StandardOutput.BaseStream,
+                _maximumStandardOutputBytes,
+                "standard output",
+                failure,
+                shutdown.Token
+            )
+            : CopyStreamAsync(
+                process.StandardOutput.BaseStream,
+                standardOutput,
+                failure,
+                shutdown.Token
+            );
         var stderr = CaptureStreamAsync(
             process.StandardError.BaseStream,
             _maximumStandardErrorBytes,
@@ -64,7 +127,10 @@ public class ChildProcessRunner
             failure,
             shutdown.Token
         );
-        var drain = Task.WhenAll(stdout, stderr);
+        var input = standardInput is null
+            ? Task.CompletedTask
+            : WriteInputAsync(process.StandardInput, standardInput, shutdown.Token);
+        var drain = Task.WhenAll(stdout, stderr, input);
         var exit = process.WaitForExitAsync(shutdown.Token);
         var completion = Task.WhenAll(drain, exit);
         try
@@ -85,12 +151,43 @@ public class ChildProcessRunner
             throw;
         }
 
-        var encoding = new UTF8Encoding(false, true);
-        return new ChildProcessResult(
-            process.ExitCode,
-            encoding.GetString(await stdout),
-            encoding.GetString(await stderr)
-        );
+        return (process.ExitCode, await stdout, await stderr);
+    }
+
+    private static async Task WriteInputAsync(
+        StreamWriter writer,
+        string text,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await using (writer)
+                await writer.WriteAsync(text.AsMemory(), cancellationToken);
+        }
+        catch (IOException)
+        {
+            // The child stopped reading; its exit code and standard error describe why.
+        }
+    }
+
+    private static async Task<byte[]> CopyStreamAsync(
+        Stream source,
+        Stream destination,
+        TaskCompletionSource<Exception> failure,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await source.CopyToAsync(destination, cancellationToken);
+            return [];
+        }
+        catch (Exception exception)
+        {
+            failure.TrySetResult(exception);
+            throw;
+        }
     }
 
     private static ProcessStartInfo CreateStartInfo(

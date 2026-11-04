@@ -341,7 +341,8 @@ return (int)await new RuleApplication().RunAsync(
 the target's repository; `--baseline ../accepted` reads an accepted copy of the current
 directory. Only source text comes from the accepted state: project evaluation, references
 and generated source stay current, and files outside the accepted root count as unchanged.
-A deleted or moved file still supplies `PreviousAccessibility` for the types it declared.
+A file deleted or moved within its project's directory still supplies `PreviousAccessibility`
+for the types it declared.
 A bundle that passes a fixed `RuleCatalog` ignores `--baseline`.
 
 ## Coverage requirements

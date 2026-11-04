@@ -62,7 +62,7 @@ internal static class AcceptedSourceProjection
                 documents.Add(
                     document with
                     {
-                        Text = Decode(file.Content, Encoding.GetEncoding(document.EncodingName)),
+                        Text = Decode(file.Content, AcceptedEncoding(document)),
                         IsEditable = false,
                         Fingerprint = "",
                     }
@@ -88,6 +88,12 @@ internal static class AcceptedSourceProjection
         projectDirectories
             .Where(directory => Normalize(path).StartsWith(directory, _pathComparison))
             .MaxBy(directory => directory.Length);
+
+    // A current byte-order mark says nothing about accepted bytes; without one, the compiler falls back to UTF-8.
+    private static Encoding AcceptedEncoding(DocumentSnapshot document) =>
+        document.HasByteOrderMark
+            ? new UTF8Encoding(false)
+            : Encoding.GetEncoding(document.EncodingName);
 
     private static string Decode(byte[] content, Encoding encoding)
     {

@@ -1,4 +1,3 @@
-using System.Formats.Tar;
 using System.IO.Abstractions.TestingHelpers;
 using System.Text;
 using DrillPress.Cli;
@@ -15,6 +14,10 @@ public sealed class AcceptedSourceResolverTests
     private readonly List<string[]> _git = [];
     private readonly string _work;
     private string? _acceptedRoot;
+    private string? _batchInput;
+    private string? _topLevel;
+    private string _prefix = "";
+    private (string Metadata, string Path, string Text)[] _tree = [];
     private (string Path, string Text, bool Removed)[] _acceptedFiles = [];
 
     public AcceptedSourceResolverTests()
@@ -55,6 +58,14 @@ public sealed class AcceptedSourceResolverTests
     {
         var project = Work("src", "App");
         _fileSystem.AddFile(Path(project, "A.cs"), "class A { public int X; }");
+        _prefix = "src/App/";
+        _tree =
+        [
+            ("100644 blob 1", "src/App/A.cs", "class A { }"),
+            ("100644 blob 2", "src/App/Gone.CS", "class Gone { }"),
+            ("100644 blob 3", "src/App/App.csproj", "<Project />"),
+            ("120000 blob 4", "src/App/Link.cs", "A.cs"),
+        ];
         var error = new StringWriter();
 
         var exit = await RunAsync(error, "--baseline", "main", Path(project, "App.csproj"));
@@ -63,7 +74,7 @@ public sealed class AcceptedSourceResolverTests
         Assert.Equal("", error.ToString());
         Assert.Equal(
             [
-                ["-C", project, "rev-parse", "--show-cdup"],
+                ["-C", project, "rev-parse", "--show-toplevel", "--show-prefix"],
                 [
                     "-C",
                     _work,
@@ -73,28 +84,51 @@ public sealed class AcceptedSourceResolverTests
                     "--end-of-options",
                     "main^{commit}",
                 ],
-                [
-                    "-C",
-                    _work,
-                    "archive",
-                    "--format=tar",
-                    "-o",
-                    "<archive>",
-                    "abc123",
-                    "--",
-                    ":(glob)**/*.cs",
-                ],
+                ["-C", _work, "ls-tree", "-r", "-z", "--full-tree", "abc123"],
+                ["-C", _work, "cat-file", "--batch", "--filters"],
             ],
             _git
         );
+        Assert.Equal("1 src/App/A.cs\n2 src/App/Gone.CS\n", _batchInput);
         Assert.Equal(_work, _acceptedRoot);
         Assert.Equal(
             [
                 (Path(project, "A.cs"), "class A { }", false),
-                (Path(project, "Gone.cs"), "class Gone { }", true),
+                (Path(project, "Gone.CS"), "class Gone { }", true),
             ],
             _acceptedFiles
         );
+    }
+
+    [Fact]
+    public async Task A_revision_without_csharp_sources_supplies_an_empty_accepted_state()
+    {
+        _tree = [("100644 blob 1", "README.md", "# Empty")];
+        var error = new StringWriter();
+
+        var exit = await RunAsync(error, "--baseline", "main");
+
+        Assert.Equal(CliExitCode.Clean, exit);
+        Assert.Equal("", error.ToString());
+        Assert.Equal(_work, _acceptedRoot);
+        Assert.Empty(_acceptedFiles);
+        Assert.Null(_batchInput);
+    }
+
+    [Fact]
+    public async Task A_checkout_reached_through_a_link_uses_the_repository_root()
+    {
+        var linked = Work("linked");
+        _fileSystem.Directory.CreateDirectory(linked);
+        _topLevel = _fileSystem.Path.GetFullPath("/repository");
+        _prefix = "src/App/";
+        _tree = [];
+        var error = new StringWriter();
+
+        var exit = await RunAsync(error, "--baseline", "main", Path(linked, "App.csproj"));
+
+        Assert.Equal(CliExitCode.Clean, exit);
+        Assert.Equal(_topLevel, _acceptedRoot);
     }
 
     [Fact]
@@ -116,11 +150,11 @@ public sealed class AcceptedSourceResolverTests
     {
         var target = options.Length == 3 ? options[2] : "target.csproj";
         var runner = new ScriptedChildProcessRunner(
-            async (executable, arguments) =>
+            async (executable, arguments, streams) =>
                 executable switch
                 {
                     "host" => await ExportAsync(arguments),
-                    "git" => await GitAsync(arguments),
+                    "git" => await GitAsync(arguments, streams),
                     _ => await CheckAsync(arguments),
                 }
         );
@@ -146,44 +180,35 @@ public sealed class AcceptedSourceResolverTests
         return new(0, "", "");
     }
 
-    private async Task<ChildProcessResult> GitAsync(IReadOnlyList<string> arguments)
+    private async Task<ChildProcessResult> GitAsync(
+        IReadOnlyList<string> arguments,
+        ScriptedStreams? streams
+    )
     {
-        var archive = arguments.Contains("archive")
-            ? arguments[arguments.ToList().IndexOf("-o") + 1]
-            : null;
-        _git.Add(
-            arguments.Select(argument => argument == archive ? "<archive>" : argument).ToArray()
-        );
-        if (arguments.Contains("--show-cdup"))
-            return new(0, "../../\n", "");
+        _git.Add(arguments.ToArray());
+        if (arguments.Contains("--show-prefix"))
+            return new(0, $"{(_topLevel ?? _work).Replace('\\', '/')}\n{_prefix}\n", "");
         if (arguments.Contains("--verify"))
             return arguments[^1] == "main^{commit}" ? new(0, "abc123\n", "") : new(1, "", "");
-        await using var stream = _fileSystem.File.Create(archive!);
-        await using var writer = new TarWriter(stream);
-        await writer.WriteEntryAsync(
-            new PaxGlobalExtendedAttributesTarEntry(
-                new Dictionary<string, string> { ["comment"] = "abc123" }
-            ),
-            TestContext.Current.CancellationToken
-        );
-        await writer.WriteEntryAsync(
-            new PaxTarEntry(TarEntryType.Directory, "src/App/"),
-            TestContext.Current.CancellationToken
-        );
-        foreach (
-            var (name, text) in new[]
-            {
-                ("src/App/A.cs", "class A { }"),
-                ("src/App/Gone.cs", "class Gone { }"),
-            }
-        )
-            await writer.WriteEntryAsync(
-                new PaxTarEntry(TarEntryType.RegularFile, name)
-                {
-                    DataStream = new MemoryStream(Encoding.UTF8.GetBytes(text)),
-                },
+        if (arguments.Contains("ls-tree"))
+            return new(
+                0,
+                string.Concat(_tree.Select(entry => $"{entry.Metadata}\t{entry.Path}\0")),
+                ""
+            );
+        _batchInput = streams!.Input;
+        foreach (var line in _batchInput.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var content = Encoding.UTF8.GetBytes(
+                _tree.Single(entry => entry.Metadata.Split(' ')[2] + " " + entry.Path == line).Text
+            );
+            await streams.Output.WriteAsync(
+                Encoding.UTF8.GetBytes($"oid blob {content.Length}\n"),
                 TestContext.Current.CancellationToken
             );
+            await streams.Output.WriteAsync(content, TestContext.Current.CancellationToken);
+            streams.Output.WriteByte((byte)'\n');
+        }
         return new(0, "", "");
     }
 
