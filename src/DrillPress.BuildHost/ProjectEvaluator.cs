@@ -196,7 +196,8 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
             _fileSystem.Path.GetDirectoryName(project.FilePath!)!,
             evaluated.GetPropertyValue
         );
-        var membership = new CompileGlobReader(_fileSystem).Read(evaluated);
+        var reader = new CompileGlobReader(_fileSystem);
+        var membership = reader.Read(evaluated);
         return new EvaluatedMetadata(
             framework,
             isTest,
@@ -206,6 +207,7 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
             roots,
             compiler,
             membership?.Glob,
+            reader.Roots(evaluated),
             membership?.Items
                 ?? new HashSet<string>(
                     OperatingSystem.IsWindows()

@@ -153,6 +153,7 @@ public sealed class RuleTestWorkspace
                         SourcePaths.Join(projectDirectory, "obj"),
                     ]
                 ),
+            CompileRoots = projectDirectory is null ? [] : [projectDirectory],
             Packages = packages?.ToArray() ?? [],
             ReferencedContextIds = dependencies
                 .Select(project => project.Snapshot.ContextId)

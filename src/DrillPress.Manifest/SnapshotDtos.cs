@@ -71,6 +71,12 @@ public sealed record ProjectSnapshot(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]
     public CompileGlobSnapshot? CompileGlob { get; init; }
+
+    /// <summary>The directories below which any of the project's Compile wildcards, in evaluation or in targets, could select a new file; null when unknown, so no file can move to where this project might compile it.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public string[]? CompileRoots { get; init; }
 }
 
 /// <summary>The SDK's default <c>**/*.cs</c> compile glob of one project, reduced to the directories it leaves out.</summary>

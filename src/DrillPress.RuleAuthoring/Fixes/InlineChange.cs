@@ -40,7 +40,7 @@ public sealed class InlineChange
     /// <summary>The statements between the declaration and the read's statement, which now run before the initializer. Empty when the read is in the next statement.</summary>
     public IReadOnlyList<CodeNode<StatementSyntax>> SkippedStatements { get; }
 
-    /// <summary>The outermost written operands that the read's statement evaluates before the read, such as a receiver or an earlier argument, which now run before the initializer.</summary>
+    /// <summary>The outermost written operands that the read's statement evaluates before the read, such as a receiver, an earlier argument or the object creation whose initializer contains the read, which now run before the initializer.</summary>
     public IReadOnlyList<CodeExpression> SkippedOperands { get; }
 
     /// <summary>The complete rewritten compilation and edit batch being validated.</summary>

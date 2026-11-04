@@ -93,7 +93,8 @@ public sealed class FileMove
         return null;
     }
 
-    // Calls in the file whose omitted [CallerFilePath] argument the compiler fills with the file's path.
+    // Calls in the file whose omitted [CallerFilePath] argument the compiler fills with the file's path,
+    // including implicit calls such as collection initializer Add calls and conditional indexers.
     // Attributes are left out: their caller file path is metadata saying where the code is.
     private static IEnumerable<IMethodSymbol> CallerFilePathMethods(
         SemanticModel model,
@@ -101,16 +102,10 @@ public sealed class FileMove
     ) =>
         model
             .SyntaxTree.GetRoot(cancellationToken)
-            .DescendantNodes()
-            .Where(node =>
-                node
-                    is InvocationExpressionSyntax
-                        or BaseObjectCreationExpressionSyntax
-                        or ElementAccessExpressionSyntax
-                        or ConstructorInitializerSyntax
-                        or PrimaryConstructorBaseTypeSyntax
-            )
+            .DescendantNodes(node => node is not AttributeListSyntax)
             .Select(node => model.GetOperation(node, cancellationToken))
+            .Where(operation => operation is { Parent: null })
+            .SelectMany(operation => operation!.DescendantsAndSelf())
             .SelectMany(operation =>
                 operation switch
                 {
@@ -121,8 +116,11 @@ public sealed class FileMove
                         creation.Arguments.Select(argument =>
                             (Method: constructor, Argument: argument)
                         ),
-                    IPropertyReferenceOperation { Property.GetMethod: { } getter } indexer =>
-                        indexer.Arguments.Select(argument => (Method: getter, Argument: argument)),
+                    IPropertyReferenceOperation { Property: var property } indexer
+                        when (property.GetMethod ?? property.SetMethod) is { } accessor =>
+                        indexer.Arguments.Select(argument =>
+                            (Method: accessor, Argument: argument)
+                        ),
                     _ => Enumerable.Empty<(IMethodSymbol Method, IArgumentOperation Argument)>(),
                 }
             )

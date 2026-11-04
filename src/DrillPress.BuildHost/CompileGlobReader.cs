@@ -6,9 +6,10 @@ namespace DrillPress.BuildHost;
 
 /// <summary>
 /// Reads whether an evaluated project selects its C# sources only through the SDK's default compile glob,
-/// and which directories that glob leaves out. Any other Compile item element, including an explicit
-/// include, a removal or a metadata update outside the SDK, or an exclusion pattern this reader cannot
-/// reduce to a directory or to file names no source can have, makes the membership unknown.
+/// and which directories that glob leaves out. Any other Compile item element outside the SDK, including an
+/// explicit include, a removal or a metadata update in evaluation and a removal or wildcard include in a
+/// target, or an exclusion pattern this reader cannot reduce to a directory or to file names no source can
+/// have, makes the membership unknown. It also reads where any Compile wildcard of a project could reach.
 /// </summary>
 internal sealed class CompileGlobReader(IFileSystem fileSystem)
 {
@@ -65,6 +66,40 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         );
     }
 
+    /// <summary>The directories below which any Compile wildcard of the project, in evaluation or in a target, could select a file.</summary>
+    internal string[] Roots(Microsoft.Build.Evaluation.Project project)
+    {
+        var directory = project.DirectoryPath;
+        return project
+            .GetLogicalProject()
+            .OfType<ProjectItemElement>()
+            .Where(element =>
+                element.ItemType.Equals("Compile", StringComparison.OrdinalIgnoreCase)
+                && element.Include.Length > 0
+            )
+            .SelectMany(element =>
+                project
+                    .ExpandString(element.Include)
+                    .Split(
+                        ';',
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+                    )
+            )
+            .Select(fragment => fragment.Replace('\\', '/'))
+            .Where(HasWildcard)
+            .Select(fragment =>
+            {
+                var prefix = fragment[..fragment.IndexOfAny(['*', '?'])];
+                var folder = prefix[..(prefix.LastIndexOf('/') + 1)];
+                return _fileSystem
+                    .Path.GetFullPath(folder.Length == 0 ? "." : folder, directory)
+                    .TrimEnd('/', '\\');
+            })
+            .Distinct()
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+    }
+
     // Records a directory or a folder name at any depth the pattern excludes, or accepts a pattern no .cs
     // file can match; false when the pattern could exclude individual sources.
     private bool Exclude(
@@ -107,8 +142,9 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
     }
 
     // The SDK's single default Compile element and the SDK's own removals, such as the Web SDK's wwwroot,
-    // when no other Compile element outside a target adds, removes or updates items; an SDK element that
-    // only updates metadata is allowed.
+    // when no other Compile element adds, removes or updates items in evaluation; an SDK element that only
+    // updates metadata is allowed. In targets, the SDK's own elements and other elements that only update
+    // metadata or add files without wildcards, such as a generated entry point, are allowed.
     private (ProjectItemElement? Glob, List<string> Removals) CompileElements(
         Microsoft.Build.Evaluation.Project project
     )
@@ -119,12 +155,20 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         var removals = new List<string>();
         foreach (var element in project.GetLogicalProject().OfType<ProjectItemElement>())
         {
-            if (
-                !element.ItemType.Equals("Compile", StringComparison.OrdinalIgnoreCase)
-                || InTarget(element)
-            )
+            if (!element.ItemType.Equals("Compile", StringComparison.OrdinalIgnoreCase))
                 continue;
             var file = element.ContainingProject.FullPath;
+            var inSdk = sdk.Length > 0 && file.StartsWith(sdk, StringComparison.OrdinalIgnoreCase);
+            if (InTarget(element))
+            {
+                if (
+                    inSdk
+                    || element.Remove.Length == 0
+                        && !HasWildcard(project.ExpandString(element.Include))
+                )
+                    continue;
+                return (null, removals);
+            }
             if (
                 _fileSystem.Path.GetFileName(file) == DefaultItemsFile
                 && element.Include == DefaultInclude
@@ -134,11 +178,7 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
                 glob = element;
                 continue;
             }
-            if (
-                sdk.Length > 0
-                && file.StartsWith(sdk, StringComparison.OrdinalIgnoreCase)
-                && element.Include.Length == 0
-            )
+            if (inSdk && element.Include.Length == 0)
             {
                 if (element.Remove.Length > 0)
                     removals.Add(element.Remove);

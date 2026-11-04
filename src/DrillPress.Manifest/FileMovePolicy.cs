@@ -64,10 +64,14 @@ internal static class FileMovePolicy
             )
         )
         {
+            if (project.CompileGlob is null && project.CompileRoots is null)
+                return $"{Describe(project)} may also compile the file at its new path";
             if (
                 project.CompileGlob is { } glob
                     ? Includes(glob, destination)
-                    : SourcePaths.IsBelow(destination, SourcePaths.Directory(project.ProjectPath))
+                    : project.CompileRoots!.Any(root =>
+                        SourcePaths.IsBelow(destination, root, ignoreCase: true)
+                    )
             )
                 return $"{Describe(project)} would also compile the file at its new path";
         }
@@ -75,16 +79,21 @@ internal static class FileMovePolicy
         return projects
             .SelectMany(project => project.Documents)
             .Any(other =>
-                other.FileIdentity != fileIdentity
-                && string.Equals(
-                    SourcePaths.Normalize(other.Path),
-                    SourcePaths.Normalize(destination),
-                    StringComparison.OrdinalIgnoreCase
-                )
+                other.FileIdentity != fileIdentity && PathsCollide(other.Path, destination)
             )
-            ? "a loaded file already has that path"
+            ? "the new path collides with a loaded file"
             : null;
     }
+
+    /// <summary>Whether two file paths are the same, ignoring case, or one would be a folder of the other.</summary>
+    internal static bool PathsCollide(string left, string right) =>
+        string.Equals(
+            SourcePaths.Normalize(left),
+            SourcePaths.Normalize(right),
+            StringComparison.OrdinalIgnoreCase
+        )
+        || SourcePaths.IsBelow(left, right, ignoreCase: true)
+        || SourcePaths.IsBelow(right, left, ignoreCase: true);
 
     private static string? InvalidDestination(string destination)
     {

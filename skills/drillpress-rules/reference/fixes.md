@@ -282,10 +282,12 @@ unchanged, and other fixes to the file in the same run are applied before the mo
 Only files that the SDK default `**/*.cs` glob selects (`CodeFile.IsDefaultCompileItem`)
 in every project/framework containing them move, and only to a path the same projects
 still compile and no other loaded project does: not into `bin`, `obj`, other excluded
-or dot-named folders, nested project folders, or onto another loaded file (case-
-insensitive). Projects with their own Compile include/remove/update items, linked or
-explicit files, loose sources and generated-looking names (`.g.cs`, `.designer.cs`)
-are withheld. Calls receiving `[CallerFilePath]` withhold `Propose()`;
+or dot-named folders (`node_modules`), nested project folders, folders another project's
+Compile wildcard reaches, or onto another loaded file (case-insensitive). Projects with
+their own Compile include/remove/update items (also target removals and wildcard
+includes), linked or explicit files, loose sources and generated-looking names
+(`.g.cs`, `.designer.cs`) are withheld. Calls receiving `[CallerFilePath]`, including
+implicit `Add` calls and `?[]` indexers, withhold `Propose()`;
 `SafeWhen(change => ...)` gets `From`, `To`, `CallerFilePathMethods` and `Rewrite`.
 No file creation or deletion. In tests, pass `projectDirectory:` to `AddProject` and
 assert `result.FixedPath(path)` or `result.FixedSource(path)`.

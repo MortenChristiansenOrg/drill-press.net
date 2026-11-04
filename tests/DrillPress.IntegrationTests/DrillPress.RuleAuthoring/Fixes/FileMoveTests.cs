@@ -143,8 +143,8 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
     )]
     [InlineData("src/Orders", "Service.g.cs", "the new file name marks generated code")]
     [InlineData("src/Orders", "Service.txt", "the new file name does not end in .cs")]
-    [InlineData("src/Orders", "Other.cs", "a loaded file already has that path")]
-    [InlineData("src/Orders", "OTHER.cs", "a loaded file already has that path")]
+    [InlineData("src/Orders", "Other.cs", "the new path collides with a loaded file")]
+    [InlineData("src/Orders", "OTHER.cs", "the new path collides with a loaded file")]
     [InlineData(
         "src/Orders",
         "Nested/Service.cs",
@@ -221,13 +221,24 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
         );
     }
 
-    [Fact]
-    public async Task A_caller_file_path_withholds_the_proposed_move()
+    [Theory]
+    [InlineData("public void Save() => Log.Write();", "Orders.Log.Write(string)")]
+    [InlineData(
+        "public string? Save(Paths? paths) => paths?[0];",
+        "Orders.Paths.this[int, string].get"
+    )]
+    [InlineData("public Paths Save() => new() { 1 };", "Orders.Paths.Add(int, string)")]
+    public async Task A_caller_file_path_withholds_the_proposed_move(string member, string method)
     {
         var workspace = fixture.Workspace();
         workspace.AddProject(
             "Orders",
-            [new("src/Orders/Service.cs", CallerFilePathSource)],
+            [
+                new(
+                    "src/Orders/Service.cs",
+                    CallerFilePathSource.Replace("public void Save() => Log.Write();", member)
+                ),
+            ],
             projectDirectory: "src/Orders"
         );
 
@@ -237,11 +248,11 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
         );
 
         Assert.Equal(
-            """
+            $"""
             MOVE Move the file.
             src/Orders/Service.cs
               1
-                fix withheld: the move changes the caller file path passed to Orders.Log.Write(string); use SafeWhen
+                fix withheld: the move changes the caller file path passed to {method}; use SafeWhen
 
             """,
             result.ExplainedOutput
@@ -368,6 +379,13 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
         public static class Log
         {
             public static void Write([System.Runtime.CompilerServices.CallerFilePath] string path = "") {}
+        }
+
+        public class Paths : System.Collections.IEnumerable
+        {
+            public string this[int index, [System.Runtime.CompilerServices.CallerFilePath] string path = ""] => path;
+            public void Add(int value, [System.Runtime.CompilerServices.CallerFilePath] string path = "") {}
+            public System.Collections.IEnumerator GetEnumerator() => throw null!;
         }
 
         public class OrderService

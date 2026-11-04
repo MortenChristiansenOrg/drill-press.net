@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
+using Microsoft.CodeAnalysis.Text;
 
 namespace DrillPress;
 
@@ -9,20 +10,42 @@ namespace DrillPress;
 // pure enough for the move to be unobservable: it neither throws nor observes the initializer's effects.
 internal static class InlineEvaluationOrder
 {
-    // The outermost operations of the header that run before the read: earlier operands and implicit receivers.
+    // The outermost operations of the header that run before the read: earlier operands, implicit receivers
+    // and the creation or copy of an object whose initializer contains the read.
     internal static IReadOnlyList<IOperation> Before(InlineReadPosition position)
     {
         var ancestors = new HashSet<IOperation>();
+        var before = new List<IOperation>();
         for (var operation = position.Read; operation is not null; operation = operation.Parent)
         {
             ancestors.Add(operation);
+            if (ConstructedFirst(operation) is { } constructed)
+                before.Add(constructed);
             if (operation == position.Header)
                 break;
         }
-        var before = new List<IOperation>();
         Collect(position.Header, position.Read.Syntax.SpanStart, ancestors, before);
         return before.AsReadOnly();
     }
+
+    // A constructor or clone runs before the initializer it is written with, and a collection expression
+    // with a constructor creates its collection before adding the elements.
+    private static IOperation? ConstructedFirst(IOperation operation) =>
+        operation switch
+        {
+            IObjectOrCollectionInitializerOperation
+            {
+                Parent: IObjectCreationOperation
+                    or ITypeParameterObjectCreationOperation
+                    or IDynamicObjectCreationOperation
+                    or IWithOperation
+            } initializer => initializer.Parent,
+            ICollectionExpressionOperation
+            {
+                ConstructMethod: IMethodSymbol { MethodKind: MethodKind.Constructor },
+            } collection => collection,
+            _ => null,
+        };
 
     private static void Collect(
         IOperation operation,
@@ -65,12 +88,6 @@ internal static class InlineEvaluationOrder
     {
         private readonly Lazy<DataFlowAnalysis?> _initializerFlow = new(() =>
             source.Model.AnalyzeDataFlow(initializer) is { Succeeded: true } flow ? flow : null
-        );
-
-        private readonly Lazy<INamedTypeSymbol?> _containingType = new(() =>
-            source
-                .Model.GetEnclosingSymbol(declaration.SpanStart, source.Project.CancellationToken)
-                ?.ContainingType
         );
 
         internal bool IsPure(IOperation operation) =>
@@ -120,63 +137,45 @@ internal static class InlineEvaluationOrder
                     || conversion.IsNullable
                 );
 
-        // Readonly fields change only in constructors and init accessors; static ones of other types may run
-        // their type's initializer when read.
+        // Instance readonly fields change only in constructors and init accessors. Reading a static field may
+        // run its type's initializer, even for the containing type, so it is not pure.
         private bool IsReadOnlyField(IFieldReferenceOperation reference)
         {
             var field = reference.Field;
             if (field.IsConst)
                 return true;
-            if (!field.IsReadOnly)
+            if (!field.IsReadOnly || reference.Instance is null)
                 return false;
-            if (reference.Instance is null)
-                return IsInContainingTypes(field.ContainingType) && !InInitializer(isStatic: true);
             return reference.Instance
                     is IInstanceReferenceOperation
                     {
                         ReferenceKind: InstanceReferenceKind.ContainingTypeInstance,
                     } instance
                 && IsPure(instance)
-                && !InInitializer(isStatic: false);
+                && !InInstanceInitializer();
         }
 
-        private bool IsInContainingTypes(INamedTypeSymbol type)
-        {
-            for (var candidate = _containingType.Value; candidate is not null; )
-            {
-                if (
-                    SymbolEqualityComparer.Default.Equals(
-                        candidate.OriginalDefinition,
-                        type.OriginalDefinition
-                    )
-                )
-                    return true;
-                candidate = candidate.ContainingType;
-            }
-            return false;
-        }
-
-        private bool InInitializer(bool isStatic) =>
+        private bool InInstanceInitializer() =>
             declaration
                 .Ancestors()
                 .Any(node =>
                     node is ConstructorDeclarationSyntax constructor
-                        && constructor.Modifiers.Any(SyntaxKind.StaticKeyword) == isStatic
-                    || !isStatic
-                        && node
-                            is AccessorDeclarationSyntax
-                            {
-                                RawKind: (int)SyntaxKind.InitAccessorDeclaration
-                            }
+                        && !constructor.Modifiers.Any(SyntaxKind.StaticKeyword)
+                    || node
+                        is AccessorDeclarationSyntax
+                        {
+                            RawKind: (int)SyntaxKind.InitAccessorDeclaration
+                        }
                 );
 
-        // Neither written by the initializer nor captured by a nested function that it could run.
+        // Neither written by the initializer nor reachable through a nested function or a ref alias that it
+        // could use to write the variable.
         private bool IsStable(ISymbol variable) =>
             _initializerFlow.Value is { } flow
             && !flow.WrittenInside.Contains(variable, SymbolEqualityComparer.Default)
-            && !IsCaptured(variable);
+            && !IsShared(variable);
 
-        private bool IsCaptured(ISymbol variable)
+        private bool IsShared(ISymbol variable)
         {
             var declared = variable.DeclaringSyntaxReferences.Select(reference => reference.Span);
             var scope =
@@ -192,24 +191,40 @@ internal static class InlineEvaluationOrder
                 ?? source.Tree.GetRoot(source.Project.CancellationToken);
             return scope
                 .DescendantNodes()
-                .Where(node =>
+                .OfType<IdentifierNameSyntax>()
+                .Where(name =>
+                    name.Identifier.ValueText == variable.Name
+                    && (IsAliased(name) || IsInNestedFunction(name, declared))
+                )
+                .Any(name =>
+                    SymbolEqualityComparer.Default.Equals(
+                        source.Model.GetSymbolInfo(name, source.Project.CancellationToken).Symbol,
+                        variable
+                    )
+                );
+        }
+
+        private static bool IsInNestedFunction(SyntaxNode name, IEnumerable<TextSpan> declared) =>
+            name.Ancestors()
+                .Any(node =>
                     node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax
                     && !declared.Any(span => node.Span.Contains(span))
-                )
-                .Any(function =>
-                    function
-                        .DescendantNodes()
-                        .OfType<IdentifierNameSyntax>()
-                        .Any(name =>
-                            name.Identifier.ValueText == variable.Name
-                            && SymbolEqualityComparer.Default.Equals(
-                                source
-                                    .Model.GetSymbolInfo(name, source.Project.CancellationToken)
-                                    .Symbol,
-                                variable
-                            )
-                        )
                 );
+
+        // A reference passed by ref or out, taken by ref or by address, whose alias may later write it.
+        private static bool IsAliased(ExpressionSyntax name)
+        {
+            SyntaxNode node = name;
+            while (node.Parent is ParenthesizedExpressionSyntax parent)
+                node = parent;
+            return node.Parent switch
+            {
+                RefExpressionSyntax => true,
+                ArgumentSyntax argument => argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+                    || argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword),
+                PrefixUnaryExpressionSyntax prefix => prefix.IsKind(SyntaxKind.AddressOfExpression),
+                _ => false,
+            };
         }
     }
 }

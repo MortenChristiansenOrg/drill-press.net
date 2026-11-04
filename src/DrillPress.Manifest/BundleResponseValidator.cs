@@ -119,13 +119,11 @@ public sealed class BundleResponseValidator
     {
         var moves = batch.Moves ?? [];
         if (
-            moves.DistinctBy(move => move.FileIdentity).Count() != moves.Length
-            || moves
-                .Select(move => SourcePaths.Normalize(move.Destination))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count() != moves.Length
+            moves.Any(move =>
+                moves.Any(other => !ReferenceEquals(move, other) && MovesCollide(move, other))
+            )
         )
-            return "it moves one file twice or two files to the same path";
+            return "it moves one file twice or two files to colliding paths";
         return moves
             .Select(move =>
                 FileMovePolicy.Check(snapshot.Projects, move.FileIdentity, move.Destination)
@@ -581,21 +579,14 @@ public sealed class BundleResponseValidator
                 : a.Start < b.Start + b.Length && b.Start < a.Start + a.Length
         );
 
-    // Two moves conflict when they move one file to different paths or different files to one path.
+    // Two moves conflict when they move one file to different paths, or different files to one path or to
+    // paths where one would be a folder of the other.
     internal static bool MovesConflict(FixBatch left, FixBatch right) =>
-        (left.Moves ?? []).Any(a =>
-            (right.Moves ?? []).Any(b =>
-                a != b
-                && (
-                    a.FileIdentity == b.FileIdentity
-                    || string.Equals(
-                        SourcePaths.Normalize(a.Destination),
-                        SourcePaths.Normalize(b.Destination),
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-            )
-        );
+        (left.Moves ?? []).Any(a => (right.Moves ?? []).Any(b => a != b && MovesCollide(a, b)));
+
+    private static bool MovesCollide(SourceMove a, SourceMove b) =>
+        a.FileIdentity == b.FileIdentity
+        || FileMovePolicy.PathsCollide(a.Destination, b.Destination);
 
     private static bool SameEdits(FixBatch a, FixBatch b) =>
         a.Edits.ToHashSet().SetEquals(b.Edits)

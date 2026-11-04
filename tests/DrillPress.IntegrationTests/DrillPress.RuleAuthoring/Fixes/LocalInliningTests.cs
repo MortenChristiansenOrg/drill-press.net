@@ -18,7 +18,7 @@ public sealed class LocalInliningTests(SdkFixture fixture) : IClassFixture<SdkFi
             readonly List<int> _items = new();
             List<int> _mutable = new();
             Counter _counter;
-            string? _name;
+            string? _name; static readonly int Shared = 1;
             static int Compute() => 1;
             static void Log(int value, [CallerLineNumber] int line = 0) { }
             int M(bool flag, int a, int b)
@@ -241,6 +241,21 @@ public sealed class LocalInliningTests(SdkFixture fixture) : IClassFixture<SdkFi
         "var value = Compute();\n_items.Clear();\nreturn value;",
         "16:9",
         "the initializer would move past `_items.Clear();` at 17:9; use SafeWhen"
+    )]
+    [InlineData(
+        "var value = Compute();\nreturn new List<int> { value }.Count;",
+        "16:9",
+        "the initializer would move past `new List<int> { value }` at 17:16; use SafeWhen"
+    )]
+    [InlineData(
+        "ref int alias = ref a;\nvar value = ++alias;\nreturn a + value;",
+        "17:9",
+        "the initializer would move past `a` at 18:16; use SafeWhen"
+    )]
+    [InlineData(
+        "var value = Compute();\nreturn Shared + value;",
+        "16:9",
+        "the initializer would move past `Shared` at 17:16; use SafeWhen"
     )]
     public async Task Propose_withholds_inlining_that_could_change_meaning(
         string body,

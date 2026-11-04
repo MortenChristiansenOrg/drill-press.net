@@ -11,7 +11,7 @@ public sealed class LocalInlining
 
     internal LocalInlining(CodeVariableDeclaration declaration) => _declaration = declaration;
 
-    /// <summary>Proposes the inlining when the initializer moves past nothing observable: the read is in the statement right after the declaration, and that statement evaluates only literals, constants, <c>this</c>, unchanged non-ref locals and parameters, readonly fields outside constructors and safe implicit conversions before the read. The library owns this proof.</summary>
+    /// <summary>Proposes the inlining when the initializer moves past nothing observable: the read is in the statement right after the declaration, and that statement evaluates only literals, constants, <c>this</c>, unchanged non-ref locals and parameters that nothing aliases, instance readonly fields outside constructors and safe implicit conversions before the read; a constructor or copy whose initializer contains the read also runs first. The library owns this proof.</summary>
     public FixProposal? Propose() => Plan(ordered: true, _ => true);
 
     /// <summary>Proposes the inlining when your proof holds in every affected compilation. The proof waives only the evaluation order: the read may follow other statements of the same block, and its statement may evaluate calls, mutable fields or other operands before it. <see cref="InlineChange.SkippedStatements"/> and <see cref="InlineChange.SkippedOperands"/> list what the initializer now follows; state why that cannot observe or change its result or effects. Every other gate still applies.</summary>

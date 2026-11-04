@@ -980,16 +980,63 @@ public sealed class BundleResponseValidatorTests
         );
     }
 
-    [Fact]
-    public void A_move_onto_another_loaded_file_is_withheld()
+    [Theory]
+    [InlineData("b.cs")]
+    [InlineData("B.cs/A.cs")]
+    public void A_move_onto_another_loaded_file_is_withheld(string destination)
     {
         var fixture = new MoveFixture();
-        var response = fixture.Response(fixture.Batch("move", [], fixture.Move(0, "b.cs")));
+        var response = fixture.Response(
+            fixture.Batch("move", [], fixture.Move(0, destination.Split('/')))
+        );
 
         var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
 
         Assert.Equal(
-            ["the file move is unsupported: a loaded file already has that path"],
+            ["the file move is unsupported: the new path collides with a loaded file"],
+            result.Findings.Select(finding => finding.FixWithheld)
+        );
+    }
+
+    [Theory]
+    [InlineData(true, "Other (net10.0) would also compile the file at its new path")]
+    [InlineData(false, "Other (net10.0) may also compile the file at its new path")]
+    public void A_move_to_where_another_project_may_compile_it_is_withheld(
+        bool knownRoots,
+        string reason
+    )
+    {
+        var fixture = new MoveFixture();
+        var other = new ProjectSnapshot(
+            "Other",
+            "Other",
+            fixture.FileSystem.Path.GetFullPath("Other/Other.csproj"),
+            fixture.Project.LanguageVersion,
+            fixture.Project.OutputKind,
+            fixture.Project.NullableContextOptions,
+            [],
+            [],
+            []
+        )
+        {
+            TargetFramework = "net10.0",
+            CompileRoots = knownRoots ? [fixture.Path("Shared")] : null,
+        };
+        var snapshot = CompilationSnapshot.Create(fixture.Project, other) with
+        {
+            RequestId = fixture.Snapshot.RequestId,
+        };
+        var moved = fixture.Response(fixture.Batch("move", [], fixture.Move(0, "Shared", "A.cs")));
+        var response = moved with
+        {
+            Contexts = [.. moved.Contexts, new(other.ContextId, true, [])],
+        };
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Empty(result.Moves);
+        Assert.Equal(
+            [$"the file move is unsupported: {reason}"],
             result.Findings.Select(finding => finding.FixWithheld)
         );
     }
@@ -1026,13 +1073,15 @@ public sealed class BundleResponseValidatorTests
         );
     }
 
-    [Fact]
-    public void Moves_of_two_files_to_one_path_withhold_both_batches()
+    [Theory]
+    [InlineData("C.cs")]
+    [InlineData("C.cs/D.cs")]
+    public void Moves_of_two_files_to_colliding_paths_withhold_both_batches(string second)
     {
         var fixture = new MoveFixture();
         var response = fixture.Response(
             fixture.Batch("first", [], fixture.Move(0, "C.cs")),
-            fixture.Batch("second", [], fixture.Move(1, "C.cs"))
+            fixture.Batch("second", [], fixture.Move(1, second.Split('/')))
         );
 
         var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);

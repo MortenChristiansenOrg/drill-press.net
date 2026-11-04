@@ -12,5 +12,6 @@ internal sealed record EvaluatedMetadata(
     string[] SourceRoots,
     string? CompilerAssemblyPath,
     CompileGlobSnapshot? CompileGlob,
+    string[] CompileRoots,
     IReadOnlySet<string> DefaultCompileItems
 );

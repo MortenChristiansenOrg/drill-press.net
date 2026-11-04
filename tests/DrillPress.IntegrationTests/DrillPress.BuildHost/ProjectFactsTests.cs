@@ -104,6 +104,12 @@ public sealed class ProjectFactsTests : IntegrationTest
         null,
         ""
     )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<Target Name=\"Filter\" BeforeTargets=\"CoreCompile\"><ItemGroup><Compile Remove=\"Nested/**\" /></ItemGroup></Target>",
+        null,
+        ""
+    )]
     public async Task Project_capture_records_the_default_compile_glob_only_when_nothing_else_selects_sources(
         string sdk,
         string customization,
@@ -162,6 +168,46 @@ public sealed class ProjectFactsTests : IntegrationTest
                         FileSystem.Path.GetRelativePath(root, document.Path).Replace('\\', '/')
                     )
                     .Order(StringComparer.Ordinal)
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Project_capture_records_every_folder_a_compile_wildcard_can_reach()
+    {
+        var root = CreateTemporaryDirectory("drillpress-compile-roots-").FullName;
+        var project = FileSystem.Path.Combine(root, "App");
+        var target = FileSystem.Path.Combine(project, "App.csproj");
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+        FileSystem.Directory.CreateDirectory(project);
+        FileSystem.File.WriteAllText(
+            target,
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup><ItemGroup><Compile Include=\"../Shared/**/*.cs\" /></ItemGroup></Project>"
+        );
+        FileSystem.File.WriteAllText(
+            FileSystem.Path.Combine(project, "App.cs"),
+            "public class App { }"
+        );
+        await RestoreAsync(target);
+
+        var exported = await RunProcessAsync(
+            "dotnet",
+            [GetOutputPath("DrillPress.BuildHost"), "export", target, output],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            output,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), exported);
+        var captured = Assert.Single(snapshot.Projects);
+        Assert.Null(captured.CompileGlob);
+        Assert.Equal(
+            ["App", "Shared"],
+            captured.CompileRoots?.Select(path =>
+                FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/')
             )
         );
     }

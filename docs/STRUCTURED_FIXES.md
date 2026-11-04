@@ -231,11 +231,14 @@ it differently: `var sum = a + b; return sum * 2;` becomes `return (a + b) * 2;`
 `Propose()` owns the proof when the initializer moves past nothing observable: the read
 is in the statement right after the declaration, and that statement evaluates only
 literals, constants, `default`, `typeof`, `sizeof`, `nameof`, `this`, non-ref locals and
-parameters the initializer does not write and no nested function captures, `readonly`
-fields of the containing type outside constructors and `init` accessors, and implicit
-identity, reference, boxing, numeric or nullable conversions before the read.
-`_items.Add(value)` with a `readonly` `_items` qualifies; a mutable field receiver, a call
-or an intervening statement does not. `SafeWhen(change => ...)` waives exactly that
+parameters the initializer does not write and that no nested function captures and no
+`ref`, `out` or address-of expression aliases, instance `readonly` fields of the
+containing type outside constructors and `init` accessors, and implicit identity,
+reference, boxing, numeric or nullable conversions before the read.
+`_items.Add(value)` with a `readonly` `_items` qualifies; a mutable or static field, a
+call or an intervening statement does not, and neither does a read in an object,
+collection or `with` initializer or in a collection expression built by a constructor,
+because the constructor or copy runs first. `SafeWhen(change => ...)` waives exactly that
 order: the read may follow other statements of the same block and other operands of its
 statement. `InlineChange` lists them in `SkippedStatements` and `SkippedOperands`, with
 `Declaration`, `Initializer`, `Read` and the `Rewrite` being validated.
@@ -282,8 +285,9 @@ rules.Rule("FILE-NAMES", "Name the file after its only type.")
 `MoveTo(relativePath)` moves it below its project directory, written like
 `CodeFile.RelativePath` (`"Orders/OrderServiceTests.cs"`, forward slashes, no `.` or
 `..`). The text is unchanged; edits that other fixes make to the same file in the same
-run are applied first. `Propose()` owns the proof when no call in the file receives a
-compiler-supplied `[CallerFilePath]`, which would change with the path.
+run are applied first. `Propose()` owns the proof when no call in the file, including
+implicit calls such as collection initializer `Add` calls and conditional indexers,
+receives a compiler-supplied `[CallerFilePath]`, which would change with the path.
 `SafeWhen(change => ...)` accepts that: `FileMoveChange` exposes `From`, `To`, the
 `CallerFilePathMethods` whose argument changes, and the `Rewrite` it was bound in, so
 a rule can state that the path is only logged or locates files that move with it.
@@ -292,25 +296,32 @@ The supported scope is narrow on purpose: a move must not change which projects
 compile the file. BuildHost records, per project and target framework, whether the
 SDK's default `**/*.cs` glob is the only source of Compile items, with the directories
 its exclusions leave out (`bin`, `obj`, `BaseOutputPath`, `BaseIntermediateOutputPath`
-and similar). Any other Compile `Include`, `Remove` or `Update` outside the SDK, or an
-exclusion that is not a whole directory or a file pattern no `.cs` file can match,
-makes the membership unknown. `CodeFile.IsDefaultCompileItem` tells whether the glob
+and similar) and the folder names they leave out at any depth (`**/node_modules/**`).
+Any other Compile `Include`, `Remove` or `Update` outside the SDK in evaluation, a
+Compile `Remove` or wildcard `Include` in a target outside the SDK, or an exclusion that
+is not a whole directory, a folder name or a file pattern no `.cs` file can match,
+makes the membership unknown. It also records, for every project, the folders that any
+of its Compile wildcards can reach, such as `../Shared` for `../Shared/**/*.cs`. `CodeFile.IsDefaultCompileItem` tells whether the glob
 selected a file. The fix is withheld when:
 
 - a project or target framework containing the file has unknown membership, or
   compiles the file through a linked or explicit Compile item;
 - the destination is not below every such project directory, or lies in an excluded,
   `obj` or dot-named folder, or its name starts with a dot;
-- another loaded project would also compile the destination, or a loaded project
-  without known membership contains it in its directory;
+- another loaded project would also compile the destination: its default glob selects
+  it, one of its Compile wildcards reaches its folder, or the project has no recorded
+  reach;
 - the destination does not end in `.cs` (exactly), is named like generated code
   (`.g.cs`, `.g.i.cs`, `.generated.cs`, `.designer.cs`, `TemporaryGeneratedFile_`),
-  or equals another loaded file's path ignoring case;
+  or equals another loaded file's path ignoring case, or one of them would be a folder
+  of the other;
 - the file is generated or not editable, or an affected compilation has errors;
-- two fixes move one file to different paths or two files to one path.
+- two fixes move one file to different paths, or two files to one path or to paths
+  where one would be a folder of the other.
 
 A case-only rename (`orderService.cs` to `OrderService.cs`) is supported. Files outside
-the project directory, loose `.cs` targets, Compile items added by targets, and file
+the project directory, loose `.cs` targets, Compile items added by targets with
+wildcards, and file
 creation and deletion are not. Path-specific settings such as an `.editorconfig`
 section naming the old file, generators that read file paths and documentation links
 are not followed; the recheck after `fix` reports what they change. See

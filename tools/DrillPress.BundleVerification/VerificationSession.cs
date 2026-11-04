@@ -276,7 +276,7 @@ public sealed class VerificationSession : IDisposable
                 BundleOutcome.Failure,
                 [],
                 Encoding.UTF8.GetBytes(
-                    "drillpress-rules: Compilation snapshot format -1 is not supported; expected 5. Use matching Drill Press components."
+                    $"drillpress-rules: Compilation snapshot format -1 is not supported; expected {CompilationSnapshot.CurrentFormatVersion}. Use matching Drill Press components."
                         + Environment.NewLine
                 )
             )
