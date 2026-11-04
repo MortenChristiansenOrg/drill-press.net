@@ -86,7 +86,20 @@ public sealed record Finding(
 /// <param name="Id">Response-local batch identity.</param>
 /// <param name="Edits">Complete set of exact source replacements.</param>
 /// <param name="Validations">Safety decisions from every affected loaded context.</param>
-public sealed record FixBatch(string Id, SourceEdit[] Edits, FixValidation[] Validations);
+public sealed record FixBatch(string Id, SourceEdit[] Edits, FixValidation[] Validations)
+{
+    /// <summary>Files the correction renames or moves, after applying its edits; omitted when it moves none.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public SourceMove[]? Moves { get; init; }
+}
+
+/// <summary>A rename or move of one whole source file, tied to its captured original bytes.</summary>
+/// <param name="FileIdentity">Canonical editable file identity in the snapshot.</param>
+/// <param name="Fingerprint">Expected original-byte SHA-256.</param>
+/// <param name="Destination">The new path, in the same form as the captured document paths.</param>
+public sealed record SourceMove(string FileIdentity, string Fingerprint, string Destination);
 
 /// <summary>Replacement tied to captured original bytes and text.</summary>
 /// <param name="FileIdentity">Canonical editable file identity in the snapshot.</param>
@@ -178,6 +191,9 @@ public sealed record ValidatedResult(
     SourceEdit[] Edits
 )
 {
+    /// <summary>Deduplicated file moves from retained batches, applied after their files' edits.</summary>
+    public SourceMove[] Moves { get; init; } = [];
+
     /// <summary>Ordinal identifiers of rules that were not evaluated because coverage rules were skipped.</summary>
     public string[] SkippedRules { get; init; } = [];
 

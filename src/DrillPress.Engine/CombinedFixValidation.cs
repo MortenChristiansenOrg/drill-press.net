@@ -23,6 +23,20 @@ internal static class CombinedFixValidation
         for (var first = 0; first < candidates.Length; first++)
         for (var second = first + 1; second < candidates.Length; second++)
         {
+            if (BundleResponseValidator.MovesConflict(candidates[first], candidates[second]))
+            {
+                conflicted.Add(candidates[first].Id);
+                conflicted.Add(candidates[second].Id);
+                rejections.TryAdd(
+                    candidates[first].Id,
+                    "its file move conflicts with another fix's move of the same file or to the same path"
+                );
+                rejections.TryAdd(
+                    candidates[second].Id,
+                    "its file move conflicts with another fix's move of the same file or to the same path"
+                );
+                continue;
+            }
             var conflict = candidates[first]
                 .Edits.SelectMany(left =>
                     candidates[second]
@@ -106,12 +120,16 @@ internal static class CombinedFixValidation
                     )
                 )
             );
+            var moves = BundleResponseValidator.RetainedMoves(group);
             result.Add(
                 new(
                     id,
                     edits,
                     contexts.Order().Select(context => new FixValidation(context, true)).ToArray()
                 )
+                {
+                    Moves = moves.Length == 0 ? null : moves,
+                }
             );
             foreach (var batch in group)
                 ids.Add(batch.Id, id);

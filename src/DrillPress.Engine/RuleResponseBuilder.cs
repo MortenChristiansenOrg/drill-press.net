@@ -147,19 +147,27 @@ internal sealed class RuleResponseBuilder
         Dictionary<string, List<FixProposal>> proposals
     )
     {
+        var moves = proposal
+            .Moves.OrderBy(move => move.FileIdentity, StringComparer.Ordinal)
+            .ToArray();
         if (
-            proposal.Edits.Count > 0
+            (proposal.Edits.Count > 0 || moves.Length > 0)
             && proposal.Edits.All(edit => targetFiles.Contains(edit.FileIdentity))
+            && moves.All(move => targetFiles.Contains(move.FileIdentity))
         )
         {
             var edits = proposal
                 .Edits.OrderBy(edit => edit.FileIdentity, StringComparer.Ordinal)
                 .ThenBy(edit => edit.Start)
                 .ToArray();
+            var files = edits
+                .Select(edit => edit.FileIdentity)
+                .Concat(moves.Select(move => move.FileIdentity))
+                .ToHashSet();
             var affected = solution
                 .Projects.Where(project =>
                     project.Snapshot.Documents.Any(document =>
-                        edits.Any(edit => edit.FileIdentity == document.FileIdentity)
+                        files.Contains(document.FileIdentity)
                     )
                 )
                 .ToArray();
@@ -170,14 +178,26 @@ internal sealed class RuleResponseBuilder
             {
                 var signature = string.Join(
                     "|",
-                    edits.Select(edit =>
-                        $"{edit.FileIdentity.Length}:{edit.FileIdentity}{edit.Fingerprint}:{edit.Start}:{edit.Length}:{edit.Replacement.Length}:{edit.Replacement}"
-                    )
+                    edits
+                        .Select(edit =>
+                            $"{edit.FileIdentity.Length}:{edit.FileIdentity}{edit.Fingerprint}:{edit.Start}:{edit.Length}:{edit.Replacement.Length}:{edit.Replacement}"
+                        )
+                        .Concat(
+                            moves.Select(move =>
+                                $"move:{move.FileIdentity.Length}:{move.FileIdentity}{move.Fingerprint}:{move.Destination.Length}:{move.Destination}"
+                            )
+                        )
                 );
                 var batchId = Convert.ToHexString(
                     SHA256.HashData(Encoding.UTF8.GetBytes(signature))
                 );
-                batches.TryAdd(batchId, new FixBatch(batchId, edits, validations));
+                batches.TryAdd(
+                    batchId,
+                    new FixBatch(batchId, edits, validations)
+                    {
+                        Moves = moves.Length == 0 ? null : moves,
+                    }
+                );
                 if (!proposals.TryGetValue(batchId, out var proofs))
                     proposals.Add(batchId, proofs = []);
                 proofs.Add(proposal);

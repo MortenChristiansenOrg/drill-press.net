@@ -65,7 +65,18 @@ public sealed record ProjectSnapshot(
 
     /// <summary>Contains metadata emitted from project dependencies, including reference aliases.</summary>
     public MetadataImageSnapshot[] ProjectReferences { get; init; } = [];
+
+    /// <summary>How the project selects its sources when only the SDK's default compile glob does; null when other Compile items, removals or unknown exclusions take part, so moving its files is unsupported.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    )]
+    public CompileGlobSnapshot? CompileGlob { get; init; }
 }
+
+/// <summary>The SDK's default <c>**/*.cs</c> compile glob of one project, reduced to the directories it leaves out.</summary>
+/// <param name="Directory">The project directory the glob searches.</param>
+/// <param name="ExcludedDirectories">Directories below which no source is compiled, such as the output and intermediate paths; folders whose name starts with a dot are always excluded.</param>
+public sealed record CompileGlobSnapshot(string Directory, string[] ExcludedDirectories);
 
 /// <summary>A direct evaluated package reference, distinct from compiler assembly references and transitive restore dependencies.</summary>
 /// <param name="Id">NuGet package identity.</param>
@@ -105,4 +116,10 @@ public sealed record DocumentSnapshot(string Path, string Text, bool IsGenerated
 
     /// <summary>Whether the original bytes start with that encoding's preamble.</summary>
     public bool HasByteOrderMark { get; init; }
+
+    /// <summary>Whether this membership comes from the project's SDK default compile glob, rather than an explicit, linked or build-added Compile item.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+    )]
+    public bool IsDefaultCompileItem { get; init; }
 }

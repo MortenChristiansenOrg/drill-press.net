@@ -46,6 +46,9 @@ public static class Fix
     public static VariableDeclarationFix For(CodeVariableDeclaration declaration) =>
         new(declaration);
 
+    /// <summary>Starts a rename or move of a whole source file within its project.</summary>
+    public static FileFix For(CodeFile file) => new(file);
+
     /// <summary>Starts extracting every occurrence of a grouped expression into one private constant or helper method.</summary>
     public static ExpressionExtraction Extract(ExpressionGroup group) => new(group);
 }

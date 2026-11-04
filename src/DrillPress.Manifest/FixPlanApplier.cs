@@ -25,7 +25,7 @@ public sealed class FixPlanApplier
     }
 
     /// <summary>
-    /// Validates the exact bundle response, prepares every output, then replaces files once.
+    /// Validates the exact bundle response, prepares every output, then replaces files once and renames moved files after their content.
     /// Concurrent writers must be stopped: verification and replacement cannot form a cross-process transaction.
     /// Earlier successful replacements are retained on failure; unused temporary files are removed.
     /// Optional complexity selection runs after complete validation and withholds batches shared with excluded findings.
@@ -42,6 +42,7 @@ public sealed class FixPlanApplier
         using var preparation = profile.Measure("fix.preparation");
         var prepared = new List<PreparedSourceFile>();
         var changed = new List<string>();
+        var moved = new List<MovedFile>();
         string[] targets = [];
         string? current = null;
         var committing = false;
@@ -53,24 +54,48 @@ public sealed class FixPlanApplier
                 .Projects.SelectMany(project => project.Documents)
                 .DistinctBy(document => document.FileIdentity)
                 .ToDictionary(document => document.FileIdentity);
-            var groups = plan
-                .Edits.GroupBy(edit => edit.FileIdentity)
-                .OrderBy(group => documents[group.Key].Path, StringComparer.Ordinal)
+            var edits = plan.Edits.ToLookup(edit => edit.FileIdentity);
+            var moves = plan.Moves.ToDictionary(
+                move => move.FileIdentity,
+                move => move.Destination
+            );
+            var files = plan
+                .Edits.Select(edit => edit.FileIdentity)
+                .Concat(moves.Keys)
+                .Distinct()
+                .OrderBy(identity => documents[identity].Path, StringComparer.Ordinal)
                 .ToArray();
-            targets = groups
-                .Select(group => _fileSystem.Path.GetFullPath(documents[group.Key].Path))
+            targets = files
+                .Select(identity => _fileSystem.Path.GetFullPath(documents[identity].Path))
                 .ToArray();
             var states = _policy.Inspect(snapshot, cancellationToken);
-            foreach (var group in groups)
+            foreach (var identity in files)
             {
-                current = _fileSystem.Path.GetFullPath(documents[group.Key].Path);
+                current = _fileSystem.Path.GetFullPath(documents[identity].Path);
                 var file = await PrepareContentAsync(
-                    documents[group.Key],
-                    group,
+                    documents[identity],
+                    edits[identity],
                     states,
                     cancellationToken
                 );
-                if (file is not null)
+                if (moves.TryGetValue(identity, out var destination))
+                {
+                    file = file with
+                    {
+                        Destination = _fileSystem.Path.GetFullPath(destination),
+                        ProjectDirectories = snapshot
+                            .Projects.Where(project =>
+                                project.Documents.Any(document => document.FileIdentity == identity)
+                            )
+                            .Select(project =>
+                                _fileSystem.Path.GetFullPath(project.CompileGlob!.Directory)
+                            )
+                            .Distinct()
+                            .ToArray(),
+                    };
+                }
+
+                if (file.ChangesContent || file.Destination is not null)
                 {
                     prepared.Add(file);
                 }
@@ -79,7 +104,10 @@ public sealed class FixPlanApplier
             foreach (var file in prepared)
             {
                 current = file.Path;
-                await _replacer.PrepareAsync(file, cancellationToken);
+                if (file.ChangesContent)
+                    await _replacer.PrepareAsync(file, cancellationToken);
+                if (file.Destination is not null)
+                    _replacer.CheckDestination(file);
             }
 
             preparation.Dispose();
@@ -89,11 +117,21 @@ public sealed class FixPlanApplier
             foreach (var file in prepared)
             {
                 current = file.Path;
-                await _replacer.ReplaceAsync(snapshot, file, cancellationToken);
-                changed.Add(file.Path);
+                if (file.ChangesContent)
+                    await _replacer.ReplaceAsync(snapshot, file, cancellationToken);
+                if (file.Destination is { } destination)
+                {
+                    await _replacer.MoveAsync(snapshot, file, cancellationToken);
+                    moved.Add(new(file.Path, destination));
+                    snapshot = WithPath(snapshot, file.Document.FileIdentity, destination);
+                }
+                changed.Add(file.Destination ?? file.Path);
             }
 
-            result = new(FixApplicationOutcome.Completed, changed.ToArray(), null, [], null);
+            result = new(FixApplicationOutcome.Completed, changed.ToArray(), null, [], null)
+            {
+                Moved = moved.ToArray(),
+            };
         }
         catch (Exception exception)
         {
@@ -101,19 +139,50 @@ public sealed class FixPlanApplier
                 exception is OperationCanceledException ? FixApplicationOutcome.Cancelled
                 : committing ? FixApplicationOutcome.CommitFailed
                 : FixApplicationOutcome.PreparationFailed;
+            var completed = moved.Select(move => move.From).Concat(changed).ToHashSet();
             result = new(
                 outcome,
                 changed.ToArray(),
                 current,
-                targets.Except(changed).Where(path => path != current).ToArray(),
+                targets.Where(path => !completed.Contains(path) && path != current).ToArray(),
                 exception.Message
-            );
+            )
+            {
+                Moved = moved.ToArray(),
+            };
         }
 
         preparation.Dispose();
         profile.Count("fix.changed.files", changed.Count);
         return Cleanup(prepared, result);
     }
+
+    // Later identity checks inspect a moved file at its new path, so its old path is not an unknown alias.
+    private static CompilationSnapshot WithPath(
+        CompilationSnapshot snapshot,
+        string identity,
+        string path
+    ) =>
+        snapshot with
+        {
+            Projects = snapshot
+                .Projects.Select(project =>
+                    project with
+                    {
+                        Documents = project
+                            .Documents.Select(document =>
+                                document.FileIdentity == identity
+                                    ? document with
+                                    {
+                                        Path = path,
+                                    }
+                                    : document
+                            )
+                            .ToArray(),
+                    }
+                )
+                .ToArray(),
+        };
 
     private FixApplicationResult Cleanup(
         IEnumerable<PreparedSourceFile> prepared,
@@ -144,7 +213,7 @@ public sealed class FixPlanApplier
         return result;
     }
 
-    private async Task<PreparedSourceFile?> PrepareContentAsync(
+    private async Task<PreparedSourceFile> PrepareContentAsync(
         DocumentSnapshot document,
         IEnumerable<SourceEdit> edits,
         IReadOnlyDictionary<string, SourceFileState> states,
@@ -177,11 +246,6 @@ public sealed class FixPlanApplier
         }
 
         var replacement = SourceIdentity.Encode(document with { Text = text });
-        if (original.AsSpan().SequenceEqual(replacement))
-        {
-            return null;
-        }
-
         var temporaryPath = _fileSystem.Path.Combine(
             _fileSystem.Path.GetDirectoryName(state.Path)!,
             $".dp-{Guid.NewGuid():N}.tmp"

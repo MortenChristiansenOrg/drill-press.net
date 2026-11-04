@@ -373,11 +373,12 @@ proof or `SafeWhen(change => ...)` when you state why the edit preserves behavio
 | `Fix.For(comment)` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `Fix.For(variable)` | `UseVar()` | `Propose()` |
 | `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameter)` | `Propose()` for constants, otherwise `SafeWhen` |
+| `Fix.For(file)` | `RenameTo(fileName)`, `MoveTo(relativePath)` | `Propose()` without caller file paths, otherwise `SafeWhen` |
 
-The proposal contains every `SourceEdit` required by one atomic correction and a
-context validation function. The engine invokes that function for every loaded
-context containing an edited physical identity, including contexts without a
-finding. Missing, inactive, generated, non-editable, or ambiguously bound
+The proposal contains every `SourceEdit` and `SourceMove` required by one atomic
+correction and a context validation function. The engine invokes that function for
+every loaded context containing an edited or moved physical identity, including
+contexts without a finding. Missing, inactive, generated, non-editable, or ambiguously bound
 memberships cannot be assumed safe. The shared response validator then requires
 agreement and withholds entire conflicting batches. The `+` marker means that
 this complete plan survived validation; proposing a fix does not write files.

@@ -21,6 +21,9 @@ public sealed class CodeFile(AnalysisSource source) : ICodeElement
     /// <summary>The path below the project directory, with forward slashes, such as <c>Orders/OrderService.cs</c>; null for a file outside it, such as a linked file. Loose sources are read from the directory analysis was started in.</summary>
     public string? RelativePath => ScopeQueries.RelativePath(Source, null);
 
+    /// <summary>Whether the project's SDK default compile glob selects this file in this context; false for linked, explicitly listed and generated files, loose sources, and projects whose Compile items are customized. Only such files can be renamed or moved by a fix.</summary>
+    public bool IsDefaultCompileItem => Source.Document.IsDefaultCompileItem;
+
     /// <summary>Whether the file contains top-level statements, which make it the program's entry point.</summary>
     public bool HasTopLevelStatements =>
         Source.Tree.GetRoot(Source.Project.CancellationToken) is CompilationUnitSyntax unit

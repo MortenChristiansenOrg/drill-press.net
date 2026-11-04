@@ -39,7 +39,14 @@ public sealed class FixProposal
         IReadOnlyList<SourceEdit> edits,
         Func<AnalysisProject, IReadOnlyList<SourceEdit>, string?> check
     )
-        : this(edits, null, check) { }
+        : this(edits, (Func<AnalysisProject, string?>?)null, check) { }
+
+    internal FixProposal(
+        IReadOnlyList<SourceEdit> edits,
+        IReadOnlyList<SourceMove> moves,
+        Func<AnalysisProject, IReadOnlyList<SourceEdit>, string?> check
+    )
+        : this(edits, (Func<AnalysisProject, string?>?)null, check) => Moves = moves.ToArray();
 
     private FixProposal(
         IReadOnlyList<SourceEdit> edits,
@@ -76,24 +83,30 @@ public sealed class FixProposal
     // One atomic proposal from parts that are only safe together, such as both ends of a measurement. Each part's
     // proof runs against the complete batch, and a withheld part withholds the whole.
     internal static FixProposal All(IReadOnlyList<FixProposal> parts) =>
-        parts.FirstOrDefault(part => part.Edits.Count == 0) is { } withheld
+        parts.FirstOrDefault(part => !part.HasChanges) is { } withheld
             ? withheld
             : new(
                 parts.SelectMany(part => part.Edits).Distinct().ToArray(),
+                parts.SelectMany(part => part.Moves).Distinct().ToArray(),
                 (project, combined) =>
                     parts
                         .Select(part => part.Check(project, combined))
                         .FirstOrDefault(reason => reason is not null)
             );
 
-    /// <summary>The original-text and byte-identity-anchored replacements; empty when the proposal was withheld.</summary>
+    /// <summary>The original-text and byte-identity-anchored replacements; empty when the proposal was withheld or only moves files.</summary>
     public IReadOnlyList<SourceEdit> Edits { get; }
+
+    /// <summary>The files this correction renames or moves, after its edits; empty for most corrections.</summary>
+    public IReadOnlyList<SourceMove> Moves { get; } = [];
+
+    private bool HasChanges => Edits.Count > 0 || Moves.Count > 0;
 
     /// <summary>Why a builder or factory withheld this correction before validation, or null for a proposal with edits.</summary>
     public string? WithheldReason { get; }
 
     /// <summary>Checks binding and source eligibility in an affected context, even if it reported no finding.</summary>
-    public bool IsSafeIn(AnalysisProject project) => Edits.Count > 0 && _validate(project) is null;
+    public bool IsSafeIn(AnalysisProject project) => HasChanges && _validate(project) is null;
 
     /// <summary>Validates this proposal against all edits that will be applied together. Legacy validators accept only their own exact batch.</summary>
     public bool IsSafeIn(AnalysisProject project, IReadOnlyList<SourceEdit> combinedEdits) =>
@@ -101,7 +114,7 @@ public sealed class FixProposal
 
     /// <summary>Returns why the proposal is unsafe with the combined edits in a context, or null when it is safe.</summary>
     internal string? Check(AnalysisProject project, IReadOnlyList<SourceEdit> combinedEdits) =>
-        Edits.Count == 0
+        !HasChanges
             ? WithheldReason ?? "the proposal has no edits"
             : _check(project, combinedEdits);
 }

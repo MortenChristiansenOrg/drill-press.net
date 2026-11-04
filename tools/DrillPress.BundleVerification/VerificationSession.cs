@@ -507,6 +507,15 @@ public sealed class VerificationSession : IDisposable
         Console.WriteLine(
             "CLI fix/recheck: both safe fixes preserve exact source bytes with managed/native bundles"
         );
+        await new FileMoveVerificationCase(
+            _fileSystem,
+            RepositoryRoot,
+            _fileSystem.Path.Combine(_fixture.FullName, "MoveTarget"),
+            OutputDirectory
+        ).VerifyAsync(cli, BuildHost, ManagedBundle, NativeBundle);
+        Console.WriteLine(
+            "CLI fix/recheck: a file rename with its edit matches with managed/native bundles"
+        );
         await new OccurrenceCoverageCase(
             _fileSystem,
             RepositoryRoot,

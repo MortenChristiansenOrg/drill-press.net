@@ -51,15 +51,21 @@ public sealed class BundleResponseValidator
             ValidateBatch(batch, files, contexts, targetFiles);
         }
 
+        var unsupportedMoves = batches
+            .Values.Select(batch => (batch.Id, Reason: MoveRejection(snapshot, batch)))
+            .Where(item => item.Reason is not null)
+            .ToDictionary(item => item.Id, item => item.Reason!);
         var safe = batches
-            .Values.Where(batch => IsCommonSafe(batch, contexts))
+            .Values.Where(batch =>
+                !unsupportedMoves.ContainsKey(batch.Id) && IsCommonSafe(batch, contexts)
+            )
             .ToDictionary(batch => batch.Id);
         foreach (var id in safe.Keys.ToArray())
         {
             safe[id] = safe.Values.First(batch => SameEdits(batch, safe[id]));
         }
 
-        var findings = Aggregate(response, documents, safe);
+        var findings = Aggregate(response, documents, safe, unsupportedMoves);
         var proposed = findings
             .Where(finding => finding.BatchId is not null)
             .Select(finding => finding.BatchId!)
@@ -94,9 +100,37 @@ public sealed class BundleResponseValidator
                 .ToArray()
         )
         {
+            Moves = RetainedMoves(retained),
             SkippedRules = response.SkippedRules ?? [],
             ProjectViolations = CountProjectViolations(response, documents, contexts),
         };
+    }
+
+    internal static SourceMove[] RetainedMoves(IEnumerable<FixBatch> batches) =>
+        batches
+            .SelectMany(batch => batch.Moves ?? [])
+            .Distinct()
+            .OrderBy(move => move.FileIdentity, StringComparer.Ordinal)
+            .ToArray();
+
+    // A batch that moves a file the captured membership cannot keep in the same projects is withheld, as is
+    // one moving a file twice or two files to one path.
+    private static string? MoveRejection(CompilationSnapshot snapshot, FixBatch batch)
+    {
+        var moves = batch.Moves ?? [];
+        if (
+            moves.DistinctBy(move => move.FileIdentity).Count() != moves.Length
+            || moves
+                .Select(move => SourcePaths.Normalize(move.Destination))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() != moves.Length
+        )
+            return "it moves one file twice or two files to the same path";
+        return moves
+            .Select(move =>
+                FileMovePolicy.Check(snapshot.Projects, move.FileIdentity, move.Destination)
+            )
+            .FirstOrDefault(reason => reason is not null);
     }
 
     // A location counts once per project that reports it as a violation; review-only reports do not count.
@@ -347,7 +381,10 @@ public sealed class BundleResponseValidator
         IReadOnlySet<string> targetFiles
     )
     {
-        Require(batch.Edits.Length > 0, "Fix batch contains no edits.");
+        Require(
+            batch.Edits.Length > 0 || batch.Moves is { Length: > 0 },
+            "Fix batch contains no edits."
+        );
         Require(
             batch.Validations.Select(validation => validation.ContextId).Distinct().Count()
                 == batch.Validations.Length
@@ -375,11 +412,28 @@ public sealed class BundleResponseValidator
                 "Fix does not match captured source identity and span."
             );
         }
+
+        foreach (var move in batch.Moves ?? [])
+        {
+            Require(
+                move is not null
+                    && targetFiles.Contains(move.FileIdentity)
+                    && files.TryGetValue(move.FileIdentity, out var document)
+                    && document.IsEditable
+                    && !document.IsGenerated
+                    && move.Fingerprint == document.Fingerprint
+                    && IsSingleLine(move.Destination),
+                "File move does not match an editable captured source in the analysis scope."
+            );
+        }
     }
 
     private static bool IsCommonSafe(FixBatch batch, Dictionary<string, ProjectSnapshot> contexts)
     {
-        var editedFiles = batch.Edits.Select(edit => edit.FileIdentity).ToHashSet();
+        var editedFiles = batch
+            .Edits.Select(edit => edit.FileIdentity)
+            .Concat((batch.Moves ?? []).Select(move => move.FileIdentity))
+            .ToHashSet();
         return contexts
             .Values.Where(context =>
                 context.Documents.Any(document => editedFiles.Contains(document.FileIdentity))
@@ -394,7 +448,8 @@ public sealed class BundleResponseValidator
     private static AggregatedFinding[] Aggregate(
         BundleResponse response,
         Dictionary<string, DocumentSnapshot> documents,
-        Dictionary<string, FixBatch> safe
+        Dictionary<string, FixBatch> safe,
+        Dictionary<string, string> unsupportedMoves
     )
     {
         return response
@@ -420,7 +475,20 @@ public sealed class BundleResponseValidator
                     .OfType<string>()
                     .Distinct()
                     .ToList();
-                if (batch is null && group.Any(finding => finding.BatchId is not null))
+                var moveRejections = group
+                    .Select(finding => finding.BatchId)
+                    .OfType<string>()
+                    .Select(id => unsupportedMoves.GetValueOrDefault(id))
+                    .OfType<string>()
+                    .Distinct()
+                    .Select(reason => "the file move is unsupported: " + reason)
+                    .ToArray();
+                withheld.AddRange(moveRejections);
+                if (
+                    batch is null
+                    && moveRejections.Length == 0
+                    && group.Any(finding => finding.BatchId is not null)
+                )
                     withheld.Add(
                         group.Any(finding =>
                             finding.BatchId is not { } other || !safe.ContainsKey(other)
@@ -493,6 +561,7 @@ public sealed class BundleResponseValidator
                 if (
                     batches[left]
                         .Edits.Any(a => batches[right].Edits.Any(b => a != b && Overlaps(a, b)))
+                    || MovesConflict(batches[left], batches[right])
                 )
                 {
                     conflicts.Add(batches[left].Id);
@@ -512,7 +581,25 @@ public sealed class BundleResponseValidator
                 : a.Start < b.Start + b.Length && b.Start < a.Start + a.Length
         );
 
-    private static bool SameEdits(FixBatch a, FixBatch b) => a.Edits.ToHashSet().SetEquals(b.Edits);
+    // Two moves conflict when they move one file to different paths or different files to one path.
+    internal static bool MovesConflict(FixBatch left, FixBatch right) =>
+        (left.Moves ?? []).Any(a =>
+            (right.Moves ?? []).Any(b =>
+                a != b
+                && (
+                    a.FileIdentity == b.FileIdentity
+                    || string.Equals(
+                        SourcePaths.Normalize(a.Destination),
+                        SourcePaths.Normalize(b.Destination),
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+            )
+        );
+
+    private static bool SameEdits(FixBatch a, FixBatch b) =>
+        a.Edits.ToHashSet().SetEquals(b.Edits)
+        && (a.Moves ?? []).ToHashSet().SetEquals(b.Moves ?? []);
 
     private static bool IsSpan(string text, int start, int length) =>
         start >= 0 && length >= 0 && start <= text.Length && length <= text.Length - start;

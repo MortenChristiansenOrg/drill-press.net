@@ -46,6 +46,23 @@ public static class SampleRuleCatalog
                     .References.Where(OrdinalComparerFix.IsArgument)
             )
             .Forbid(fix: OrdinalComparerFix.Create);
+        var layout = new FileLayout();
+        rules
+            .Rule(
+                "DP1007",
+                "Name the file after its only top-level type.",
+                fixComplexity: RuleFixComplexity.Trivial
+            )
+            .For(Code.Files.Where(FileLayout.IsMisnamed))
+            .Forbid(fix: FileLayout.Rename);
+        rules
+            .Rule(
+                "DP1008",
+                "Place the test file in the folder of the production file it tests.",
+                fixComplexity: RuleFixComplexity.Trivial
+            )
+            .For(Code.Files.Where(file => layout.MirroredPath(file) is not null))
+            .Forbid(fix: layout.Mirror);
         return rules;
     }
 }

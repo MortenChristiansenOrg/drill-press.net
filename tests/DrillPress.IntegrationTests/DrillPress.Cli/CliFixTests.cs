@@ -112,6 +112,155 @@ public sealed class CliFixTests : IntegrationTest
         Assert.Empty(FileSystem.Directory.GetFiles(directory.FullName, ".dp-*.tmp"));
     }
 
+    [Fact]
+    public async Task Real_processes_rename_and_move_files_with_their_edits_and_recheck_clean()
+    {
+        var root = await WriteLayoutSolutionAsync("drillpress-move-fix-");
+        var solution = FileSystem.Path.Combine(root, "Orders.slnx");
+        await RestoreAsync(solution);
+
+        var result = await FixAsync(solution);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.Equal("", result.StandardError);
+        Assert.Equal(
+            [
+                "src/Orders/Invoice.cs",
+                "src/Orders/Orders.csproj",
+                "src/Orders/Services/OrderService.cs",
+                "tests/Orders.Tests/Orders.Tests.csproj",
+                "tests/Orders.Tests/Services/OrderServiceTests.cs",
+            ],
+            SourceFiles(root)
+        );
+        Assert.Equal(
+            "namespace Orders;\n\npublic class Invoice { public string Number => \"\"; }\n",
+            await FileSystem.File.ReadAllTextAsync(
+                FileSystem.Path.Combine(root, "src", "Orders", "Invoice.cs"),
+                TestContext.Current.CancellationToken
+            )
+        );
+        Assert.Equal(
+            "namespace Orders.Tests;\n\npublic class OrderServiceTests {}\n",
+            await FileSystem.File.ReadAllTextAsync(
+                FileSystem.Path.Combine(
+                    root,
+                    "tests",
+                    "Orders.Tests",
+                    "Services",
+                    "OrderServiceTests.cs"
+                ),
+                TestContext.Current.CancellationToken
+            )
+        );
+    }
+
+    [Fact]
+    public async Task A_move_to_a_path_created_after_analysis_stops_before_any_write()
+    {
+        var root = await WriteLayoutSolutionAsync("drillpress-move-collision-");
+        var solution = FileSystem.Path.Combine(root, "Orders.slnx");
+        await RestoreAsync(solution);
+        var blocked = FileSystem.Path.Combine(root, "tests", "Orders.Tests", "Services");
+        FileSystem.Directory.CreateDirectory(blocked);
+        await FileSystem.File.WriteAllTextAsync(
+            FileSystem.Path.Combine(blocked, "Services.csproj"),
+            "<Project />",
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await FixAsync(solution);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("", result.StandardOutput);
+        Assert.Equal(
+            $"""
+            drillpress: Fix stopped: Cannot move to '{FileSystem.Path.Combine(
+                blocked,
+                "OrderServiceTests.cs"
+            )}': '{blocked}' contains another project.
+              failed: {System.Text.Json.JsonEncodedText.Encode(
+                FileSystem.Path.Combine(root, "tests", "Orders.Tests", "OrderServiceTests.cs")
+            )}
+              pending: {System.Text.Json.JsonEncodedText.Encode(
+                FileSystem.Path.Combine(root, "src", "Orders", "Misnamed.cs")
+            )}
+
+            """.ReplaceLineEndings(
+                Environment.NewLine
+            ),
+            result.StandardError
+        );
+        Assert.Contains("src/Orders/Misnamed.cs", SourceFiles(root));
+    }
+
+    // A production project with a misnamed file and a test project whose test is outside the mirrored folder.
+    private async Task<string> WriteLayoutSolutionAsync(string prefix)
+    {
+        var root = CreateTemporaryDirectory(prefix).FullName;
+        var files = new Dictionary<string, string>
+        {
+            ["Orders.slnx"] = """
+                <Solution>
+                  <Project Path="src/Orders/Orders.csproj" />
+                  <Project Path="tests/Orders.Tests/Orders.Tests.csproj" />
+                </Solution>
+                """,
+            ["src/Orders/Orders.csproj"] = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                </Project>
+                """,
+            ["src/Orders/Misnamed.cs"] =
+                "namespace Orders;\n\npublic class Invoice { public string Number => string.Empty; }\n",
+            ["src/Orders/Services/OrderService.cs"] =
+                "namespace Orders.Services;\n\npublic class OrderService {}\n",
+            ["tests/Orders.Tests/Orders.Tests.csproj"] = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Nullable>enable</Nullable>
+                    <IsTestProject>true</IsTestProject>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <ProjectReference Include="../../src/Orders/Orders.csproj" />
+                  </ItemGroup>
+                </Project>
+                """,
+            ["tests/Orders.Tests/OrderServiceTests.cs"] =
+                "namespace Orders.Tests;\n\npublic class OrderServiceTests {}\n",
+        };
+        foreach (var (path, text) in files)
+        {
+            var full = FileSystem.Path.Combine(root, path);
+            FileSystem.Directory.CreateDirectory(FileSystem.Path.GetDirectoryName(full)!);
+            await FileSystem.File.WriteAllTextAsync(
+                full,
+                text.ReplaceLineEndings("\n"),
+                TestContext.Current.CancellationToken
+            );
+        }
+        return root;
+    }
+
+    private static string[] SourceFiles(string root) =>
+        FileSystem
+            .Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Select(path => FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/'))
+            .Where(path =>
+                !path.Split('/').Any(part => part is "bin" or "obj")
+                && (
+                    path.EndsWith(".cs", StringComparison.Ordinal)
+                    || path.EndsWith("proj", StringComparison.Ordinal)
+                )
+            )
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
     private static string CopySampleSolution(string destination)
     {
         var root = RepositoryPath("Sample Solution");

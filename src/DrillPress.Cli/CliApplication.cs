@@ -13,7 +13,7 @@ public sealed class CliApplication
         "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status --rules <path> <target> [options]
-        check reports findings; fix applies common-safe edits and reports the recheck;
+        check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
         status counts violations per project, then per fix complexity.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
         --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
@@ -139,7 +139,10 @@ public sealed class CliApplication
                     profile,
                     cancellationToken
                 );
-                if (options.Command == CliCommand.Fix && evaluation.Result.Edits.Length > 0)
+                if (
+                    options.Command == CliCommand.Fix
+                    && (evaluation.Result.Edits.Length > 0 || evaluation.Result.Moves.Length > 0)
+                )
                 {
                     var application = await _fixes.ApplyAsync(
                         evaluation.Snapshot,
@@ -156,6 +159,7 @@ public sealed class CliApplication
 
                     if (application.Changed.Length > 0)
                     {
+                        var original = evaluation.Snapshot;
                         try
                         {
                             evaluation = await EvaluateAsync(
@@ -166,10 +170,15 @@ public sealed class CliApplication
                                 profile,
                                 cancellationToken
                             );
+                            MovedMembership.Verify(
+                                original,
+                                evaluation.Snapshot,
+                                application.Moved
+                            );
                         }
                         catch (OperationCanceledException)
                         {
-                            await WritePathsAsync(standardError, "changed", application.Changed);
+                            await WriteChangesAsync(standardError, application);
                             throw;
                         }
                         catch (Exception exception)
@@ -177,7 +186,7 @@ public sealed class CliApplication
                             await standardError.WriteLineAsync(
                                 $"drillpress: Files changed but verification failed: {exception.Message}"
                             );
-                            await WritePathsAsync(standardError, "changed", application.Changed);
+                            await WriteChangesAsync(standardError, application);
                             return CliExitCode.Failure;
                         }
                     }
@@ -376,9 +385,24 @@ public sealed class CliApplication
     private static async Task WriteRecoveryAsync(TextWriter error, FixApplicationResult result)
     {
         await error.WriteLineAsync($"drillpress: Fix stopped: {result.Error}");
-        await WritePathsAsync(error, "changed", result.Changed);
+        await WriteChangesAsync(error, result);
         await WritePathsAsync(error, "failed", result.Failed is { } failed ? [failed] : []);
         await WritePathsAsync(error, "pending", result.Pending);
+    }
+
+    // A moved file is listed once, as its old and new paths.
+    private static async Task WriteChangesAsync(TextWriter error, FixApplicationResult result)
+    {
+        var destinations = result.Moved.Select(move => move.To).ToHashSet();
+        await WritePathsAsync(
+            error,
+            "changed",
+            result.Changed.Where(path => !destinations.Contains(path))
+        );
+        foreach (var move in result.Moved)
+            await error.WriteLineAsync(
+                $"  moved: {System.Text.Json.JsonEncodedText.Encode(move.From)} -> {System.Text.Json.JsonEncodedText.Encode(move.To)}"
+            );
     }
 
     private static async Task WritePathsAsync(

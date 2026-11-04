@@ -1,7 +1,8 @@
 # Structured edits with contextual proofs
 
 All operations start from `Fix.For(...)`, use original snapshots, reject compiler
-errors/generated/inactive source, and run in every affected loaded context.
+errors/generated/inactive source, and run in every affected loaded context. Most edit
+text; file renames and moves change paths.
 Unknown evidence retains the finding without a fix. The engine validates combined
 edits and exports their proven union atomically. Finish with `Propose()`, where
 the library owns the proof, or `SafeWhen(...)`; `AddArgumentOfType` instead takes
@@ -213,6 +214,52 @@ its symbol, type and conversion. An unrelated destination name
 in another scope does not prevent a rename. `nameof` results follow
 the new name, as a rename intends, but a compiler-supplied argument such as
 `CallerArgumentExpression` that would change withholds the fix.
+
+## Renaming and moving files
+
+```csharp
+rules.Rule("FILE-NAMES", "Name the file after its only type.")
+    .For(Code.Files.Where(file => file.IsDefaultCompileItem && PrimaryType(file) is { } type && file.Name != type + ".cs"))
+    .Forbid(fix: file => Fix.For(file).RenameTo(PrimaryType(file) + ".cs").Propose());
+```
+
+`Fix.For(file).RenameTo(fileName)` renames a `CodeFile` within its folder;
+`MoveTo(relativePath)` moves it below its project directory, written like
+`CodeFile.RelativePath` (`"Orders/OrderServiceTests.cs"`, forward slashes, no `.` or
+`..`). The text is unchanged; edits that other fixes make to the same file in the same
+run are applied first. `Propose()` owns the proof when no call in the file receives a
+compiler-supplied `[CallerFilePath]`, which would change with the path.
+`SafeWhen(change => ...)` accepts that: `FileMoveChange` exposes `From`, `To`, the
+`CallerFilePathMethods` whose argument changes, and the `Rewrite` it was bound in, so
+a rule can state that the path is only logged or locates files that move with it.
+
+The supported scope is narrow on purpose: a move must not change which projects
+compile the file. BuildHost records, per project and target framework, whether the
+SDK's default `**/*.cs` glob is the only source of Compile items, with the directories
+its exclusions leave out (`bin`, `obj`, `BaseOutputPath`, `BaseIntermediateOutputPath`
+and similar). Any other Compile `Include`, `Remove` or `Update` outside the SDK, or an
+exclusion that is not a whole directory or a file pattern no `.cs` file can match,
+makes the membership unknown. `CodeFile.IsDefaultCompileItem` tells whether the glob
+selected a file. The fix is withheld when:
+
+- a project or target framework containing the file has unknown membership, or
+  compiles the file through a linked or explicit Compile item;
+- the destination is not below every such project directory, or lies in an excluded,
+  `obj` or dot-named folder, or its name starts with a dot;
+- another loaded project would also compile the destination, or a loaded project
+  without known membership contains it in its directory;
+- the destination does not end in `.cs` (exactly), is named like generated code
+  (`.g.cs`, `.g.i.cs`, `.generated.cs`, `.designer.cs`, `TemporaryGeneratedFile_`),
+  or equals another loaded file's path ignoring case;
+- the file is generated or not editable, or an affected compilation has errors;
+- two fixes move one file to different paths or two files to one path.
+
+A case-only rename (`orderService.cs` to `OrderService.cs`) is supported. Files outside
+the project directory, loose `.cs` targets, Compile items added by targets, and file
+creation and deletion are not. Path-specific settings such as an `.editorconfig`
+section naming the old file, generators that read file paths and documentation links
+are not followed; the recheck after `fix` reports what they change. See
+[fixing](FIXING.md#moving-files) for the checks the CLI repeats on disk.
 
 ## Reusable structural and framework edits
 

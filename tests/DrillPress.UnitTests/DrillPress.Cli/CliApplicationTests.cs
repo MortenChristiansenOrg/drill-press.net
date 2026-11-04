@@ -136,7 +136,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress check|fix|status --rules <path> <target> [options]
-            check reports findings; fix applies common-safe edits and reports the recheck;
+            check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
             status counts violations per project, then per fix complexity.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
             --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
@@ -270,7 +270,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Clean, result);
         Assert.Equal(
-            $"drillpress {ComponentVersion.Current} (snapshot 5, response 10)\n",
+            $"drillpress {ComponentVersion.Current} (snapshot 6, response 11)\n",
             output.ToString()
         );
         Assert.Equal("", error.ToString());

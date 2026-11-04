@@ -77,4 +77,91 @@ public sealed class ProjectFactsTests : IntegrationTest
         );
         Assert.Equal(project.SourceRoots.Order(StringComparer.Ordinal), project.SourceRoots);
     }
+
+    [Theory]
+    [InlineData("Microsoft.NET.Sdk", "", "bin,bin/Debug,obj,obj/Debug", "Glob.cs,Nested/Deep.cs")]
+    [InlineData(
+        "Microsoft.NET.Sdk.Web",
+        "",
+        "bin,bin/Debug,obj,obj/Debug,wwwroot",
+        "Glob.cs,Nested/Deep.cs"
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<ItemGroup><Compile Remove=\"Nested/**\" /></ItemGroup>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<PropertyGroup><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"**/*.cs\" /></ItemGroup>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<PropertyGroup><DefaultItemExcludes>$(DefaultItemExcludes);**/Legacy*.cs</DefaultItemExcludes></PropertyGroup>",
+        null,
+        ""
+    )]
+    public async Task Project_capture_records_the_default_compile_glob_only_when_nothing_else_selects_sources(
+        string sdk,
+        string customization,
+        string? excluded,
+        string globbed
+    )
+    {
+        var root = CreateTemporaryDirectory("drillpress-compile-glob-").FullName;
+        var target = FileSystem.Path.Combine(root, "Glob.csproj");
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+        FileSystem.File.WriteAllText(
+            target,
+            $"<Project Sdk=\"{sdk}\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Library</OutputType></PropertyGroup>{customization}</Project>"
+        );
+        FileSystem.File.WriteAllText(
+            FileSystem.Path.Combine(root, "Glob.cs"),
+            "public class Glob { }"
+        );
+        FileSystem.Directory.CreateDirectory(FileSystem.Path.Combine(root, "Nested"));
+        FileSystem.File.WriteAllText(
+            FileSystem.Path.Combine(root, "Nested", "Deep.cs"),
+            "public class Deep { }"
+        );
+        await RestoreAsync(target);
+
+        var exported = await RunProcessAsync(
+            "dotnet",
+            [GetOutputPath("DrillPress.BuildHost"), "export", target, output],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            output,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), exported);
+        var project = Assert.Single(snapshot.Projects);
+        Assert.Equal(
+            excluded?.Split(','),
+            project
+                .CompileGlob?.ExcludedDirectories.Select(path =>
+                    FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/')
+                )
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+        );
+        Assert.Equal(
+            globbed,
+            string.Join(
+                ",",
+                project
+                    .Documents.Where(document => document.IsDefaultCompileItem)
+                    .Select(document =>
+                        FileSystem.Path.GetRelativePath(root, document.Path).Replace('\\', '/')
+                    )
+                    .Order(StringComparer.Ordinal)
+            )
+        );
+    }
 }

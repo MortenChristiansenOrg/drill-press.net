@@ -53,6 +53,23 @@ public static class SourceChanges
         );
     }
 
+    /// <summary>The compilation after the batch's edits in this context; the original compilation when none of them edits it.</summary>
+    internal static PreparedRewrite Rewrite(
+        AnalysisProject project,
+        IReadOnlyList<SourceEdit> edits
+    )
+    {
+        if (
+            project.Sources.Any(source =>
+                edits.Any(edit => edit.FileIdentity == source.Document.FileIdentity)
+            )
+        )
+            return project.RewriteValidation.Get(edits, batch => Prepare(project, batch));
+        return project.RewriteValidation.OriginalHasErrors
+            ? new(null, "the original compilation has errors")
+            : new(new(project, project.Compilation, edits), null);
+    }
+
     private static string? Validate(
         AnalysisProject project,
         IReadOnlyList<SourceEdit> batch,

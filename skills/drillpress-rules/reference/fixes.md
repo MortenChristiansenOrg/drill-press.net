@@ -29,6 +29,7 @@ Start at `Fix.For(candidate)` (or `Fix.Extract(group)`) and finish with
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
 | `ExpressionGroup` via `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameterName)` | `Propose()` (constants), `SafeWhen` (templates) |
+| `CodeFile` (`FileFix`) | `RenameTo("Name.cs")`, `MoveTo("Folder/Name.cs")` (below the project directory) → `FileMove` | `Propose()` unless a call in the file receives `[CallerFilePath]`, else `SafeWhen(FileMoveChange)` |
 
 All proposals check editable ordinary source, inactive text and compilation. Each
 builder adds its own trivia and binding gates: expression replacement, for example,
@@ -239,6 +240,39 @@ The example's consumer contract observes string contents, not allocation identit
 resource exhaustion or stack inspection. Those assumptions cannot be inferred from syntax.
 Broader policies must also justify evaluation timing, culture/formatting and configured-call
 effects; allowlisting a call establishes none of these.
+
+## File renames and moves
+
+```csharp
+using DrillPress;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+var rules = new RuleCatalog();
+
+rules.Rule("TEAM041", "Name the file after its only class.")
+    .For(Code.Files.Where(file =>
+        file.IsDefaultCompileItem && Expected(file) is { } name && file.Name != name))
+    .Forbid(fix: file => Fix.For(file).RenameTo(Expected(file)!).Propose());
+
+static string? Expected(CodeFile file) =>
+    file.Nodes<ClassDeclarationSyntax>().ToArray() is [var type]
+        ? type.Syntax.Identifier.Text + ".cs"
+        : null;
+```
+
+`MoveTo(relativePath)` takes a path below the file's project directory with forward
+slashes, like `CodeFile.RelativePath`; `RenameTo` keeps the folder. The text is
+unchanged, and other fixes to the file in the same run are applied before the move.
+Only files that the SDK default `**/*.cs` glob selects (`CodeFile.IsDefaultCompileItem`)
+in every project/framework containing them move, and only to a path the same projects
+still compile and no other loaded project does: not into `bin`, `obj`, other excluded
+or dot-named folders, nested project folders, or onto another loaded file (case-
+insensitive). Projects with their own Compile include/remove/update items, linked or
+explicit files, loose sources and generated-looking names (`.g.cs`, `.designer.cs`)
+are withheld. Calls receiving `[CallerFilePath]` withhold `Propose()`;
+`SafeWhen(change => ...)` gets `From`, `To`, `CallerFilePathMethods` and `Rewrite`.
+No file creation or deletion. In tests, pass `projectDirectory:` to `AddProject` and
+assert `result.FixedPath(path)` or `result.FixedSource(path)`.
 
 ## Custom edits
 
