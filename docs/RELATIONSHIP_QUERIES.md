@@ -70,11 +70,86 @@ separately. The first is syntax classification, the second is annotation evidenc
 the third is compiler incoming flow evidence. They are never ORed into a runtime
 non-null guarantee or used as automatic authority to delete guards.
 
-`method.Callees(sameType, transitive, nested)` lists the ordinary source methods a
-method calls through statically bound calls, in the order the calls appear and then
-breadth first, each once. `sameType` keeps methods of the method's own type, including
-other partial parts; `transitive` follows the callees' calls too; calls in lambdas and
-local functions count unless `nested` is `Exclude`. Constructors, accessors, method
-groups, delegates, virtual dispatch and metadata targets are not followed, and the
-method itself appears only when it is called. Callees resolve to the `CodeMethod` in
-the declaring project's context.
+## Call paths
+
+`method.Reaches(member)`, `method.PathTo(member)` and `method.Callees()` follow call
+paths through `CodeFunction`s: every source declaration with a body a call can run.
+That is an ordinary method, a local function, an instance constructor (declared,
+primary, or a type's implicit parameterless one), a property, indexer or event
+accessor (including an expression-bodied getter), or a user-defined operator or
+conversion. `method.Function` is the method's own function; `solution.Relationships
+.FunctionOf(symbol)` resolves any source method symbol, and returns null for metadata.
+
+A function runs these members:
+
+| Site | Members |
+| --- | --- |
+| Invocation, including local functions, query clauses and collection-initializer `Add` | The bound method |
+| `new T(...)`, target-typed `new(...)` | The constructor |
+| Constructor | Its `this(...)` or `base(...)` initializer, the implicit `base()` call, and, unless it chains to `this(...)`, the instance field, property and event initializers of every partial part |
+| Property or indexer use | The getter for a read, the setter or `init` accessor for an assignment, both for a compound assignment, increment or `??=` |
+| `+=` and `-=` on an event | The `add` or `remove` accessor |
+| Operator or conversion | The user-defined operator method |
+
+Lambdas and anonymous methods belong to the function that creates them; a local
+function is a function of its own, reached where it is called. Pattern-based
+calls the compiler makes without a bound operation, such as `foreach` enumerators,
+`using` disposal, awaiters and deconstructors, and static constructors, are not
+followed.
+
+`CallPaths` chooses which further edges a query follows. `CallPaths.Bound`, the
+default, follows only statically bound sites outside delegates:
+
+```csharp
+private static readonly CallPaths Callbacks = CallPaths.Bound.ThroughDelegates();
+private static readonly CallPaths Services = CallPaths.Bound
+    .ThroughDispatch()
+    .WithEdge(CodeType.Named("Bus").Member("Publish"),
+        CodeType.Named("IConsumer").Member("Consume"))
+    .StopAt(function => function.Source.Project.IsTestProject);
+```
+
+- `ThroughDelegates()` also follows calls in lambdas and anonymous methods a
+  function creates, and method groups it converts to delegates. The SDK can't
+  tell whether the delegate runs; each such step has `ViaDelegate` set.
+- `ThroughDispatch()` follows virtual, abstract and interface calls to source
+  overrides and implementations (`Kind` is `Dispatch`). It considers only
+  projects in a compatible view that contains both the declaring project and the
+  caller, so separate evaluation contexts and target frameworks stay apart, as in
+  `ImplementationViews()`. A call through a closed generic contract such as
+  `IHandler<Order>` reaches only implementations of that construction. Members
+  declared in metadata, such as `IDisposable.Dispose`, and calls through `base`
+  are not dispatched.
+- `WithEdge(call, target)` supplies an edge the compiler can't bind: dependency
+  injection, reflection, messaging or framework callbacks. Each site that runs
+  `call` also runs `target`'s source declarations and their source overrides and
+  implementations, in any project that shares a compatible view with the caller
+  (`Kind` is `Configured`).
+- `StopAt(predicate)` keeps a path from entering selected functions, such as
+  approved helpers. The call into a boundary still matches a target, and `Callees`
+  lists it, but its own calls are not followed unless the query starts there.
+
+Queries cache their answers per analysis, target instance and `CallPaths`
+instance, so keep both in static fields. Each function's sites are found once,
+the first time a query reaches it; the type indexes behind dispatch and
+configured edges are built only when a query uses those options.
+
+`method.PathTo(member, paths)` returns the shortest `CallPath`, or null. Its
+`Steps` say which function made each step, the member it ran, the `Kind` of edge
+and whether it is `ViaDelegate`; `IsBound` is true when every step is a bound
+call outside delegates. A path is reportable at its first step.
+`function.Steps(paths)` lists one function's own steps, including calls to
+metadata members.
+
+`method.Callees(sameType, transitive, paths)` lists the source functions a method
+calls, in the order the sites appear and then breadth first, each once.
+`sameType` keeps functions of the method's own type, including other partial
+parts and its local functions; `transitive` follows the callees' calls too. The
+method itself appears only when it is called. Callees resolve to the function in
+the declaring project's context, and generated functions are included: check
+`callee.Source.Document.IsGenerated` if they don't belong in a finding.
+
+A negative answer only says that the modeled paths don't reach the target. It
+does not prove that runtime execution can't, for example through reflection,
+dependency injection the rule did not configure, or a delegate stored and run
+elsewhere.

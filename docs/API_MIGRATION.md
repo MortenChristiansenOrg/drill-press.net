@@ -71,6 +71,9 @@ ID or message, and location selectors moved to `ReportAt`.
 | `ExpressionGroups.OneHoleTemplates(expressions, options, ...)` | `expressions.TemplateGroups(options, ...)` |
 | `DuplicateSyntax.In(nodes, minimumTokens)` | `nodes.Duplicates(minimumTokens)` |
 | `statement.BranchWithoutBraces` (only when one side of an if/else has braces) | `statement.InconsistentlyBracedBranch`; every unbraced branch is `Code.IfStatements.Branches().WithoutBraces()` |
+| `method.Callees(...)` returning `CodeMethod`s | `method.Callees(...)` returning `CodeFunction`s, which include local functions, constructors, accessors and operators; `callee.Method` is the `CodeMethod`, and `method.Function` stands for the method itself, as in `.Prepend(method.Function)` |
+| `method.Callees(nested: NestedFunctions.Include)` (the default), or Callees composed with `Body(NestedFunctions.Include).Calls()` to reach local functions | `method.Callees(paths: CallPaths.Bound.ThroughDelegates())`; local functions are callees of their own |
+| `method.Callees(nested: NestedFunctions.Exclude)` | `method.Callees()` |
 
 ## Fixes
 
@@ -135,6 +138,10 @@ affected loaded context.
   in every query form. Global aliases declared in generated files are recognized.
 - `CodeProperty.IsAutoProperty` requires a compiler-supplied backing field, so
   abstract, interface, extern and partial-definition properties are excluded.
+- `Reaches` and `Callees` follow constructors (with their initializers and the member
+  initializers they run), property, indexer and event accessors, operators and
+  conversions, besides methods and local functions. `Callees` no longer counts calls
+  inside lambdas unless its `CallPaths` follows delegates, as `Reaches` already did.
 
 ## New capabilities
 
@@ -152,3 +159,6 @@ affected loaded context.
 - `element.IsInFolder(folder)` beside `IsInProject` and `IsInNamespace`.
 - `CodeIfStatement.Branches`, `statements.Branches()` and `branches.WithoutBraces()`.
 - `drillpress install-skill` installs the version-matched [agent skill](AGENT_SKILL.md).
+- `CallPaths` for [call-path queries](RELATIONSHIP_QUERIES.md#call-paths): delegate bodies,
+  source dispatch, consumer-supplied edges and boundaries; `method.PathTo(member)`
+  returns the steps as evidence.

@@ -7,14 +7,19 @@ internal class JsonCodec : ITextCodec
     public async Task SendWithRetryAsync(string text, Func<string, Task> send)
     {
         var encoded = Encode(text);
+        await RetryOnTimeoutAsync(() => send(encoded), WaitBeforeRetry);
+    }
+
+    private static async Task RetryOnTimeoutAsync(Func<Task> attempt, Action backoff)
+    {
         try
         {
-            await send(encoded);
+            await attempt();
         }
         catch (TimeoutException)
         {
-            WaitBeforeRetry();
-            await send(encoded);
+            backoff();
+            await attempt();
         }
     }
 

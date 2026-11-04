@@ -18,6 +18,10 @@ internal static class CodecBehavior
     private static readonly CodeMember _blockingSleep = CodeType
         .Named("System.Threading.Thread")
         .Member("Sleep");
+
+    // A callback an async method passes, such as a retry backoff, may run on its thread. The SDK can't tell whether it
+    // runs, so following delegates is this policy's choice rather than the default.
+    private static readonly CallPaths _withCallbacks = CallPaths.Bound.ThroughDelegates();
     private static readonly CodeMember _trimWithoutArguments = CodeType
         .Of<string>()
         .Member(nameof(string.Trim))
@@ -35,7 +39,7 @@ internal static class CodecBehavior
 
     internal static CodeQuery<CodeMethod> WhoseCallPathsReachBlockingSleep(
         this CodeQuery<CodeMethod> methods
-    ) => methods.Where(method => method.Reaches(_blockingSleep));
+    ) => methods.Where(method => method.Reaches(_blockingSleep, _withCallbacks));
 
     internal static bool CapturesRentedBuffer(CodeMethod method) =>
         method.Flow.Data is { Succeeded: true } data

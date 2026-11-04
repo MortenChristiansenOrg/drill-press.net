@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
 
-/// <summary>Solution-scoped source relationships. Call paths follow statically bound targets, not possible runtime implementations, reflection or dependency injection.</summary>
+/// <summary>Solution-scoped source relationships. Call paths follow statically bound source functions by default; <see cref="CallPaths"/> opts into delegates, dispatch and consumer edges.</summary>
 public sealed class CodeRelationships
 {
     private readonly AnalysisSolution _solution;
@@ -51,13 +51,14 @@ public sealed class CodeRelationships
             () => solution.Shared("relationships", () => new CodeRelationships(solution))
         );
 
-    /// <summary>Direct source calls in a method, excluding nested function bodies.</summary>
+    /// <summary>Direct invocations in a method, excluding nested function bodies; <see cref="CodeFunction.Steps"/> also lists constructions, accessor uses and operators.</summary>
     public IReadOnlyList<CodeInvocation> CallsFrom(IMethodSymbol method) =>
         Key(method) is { } key && _calls.Value.TryGetValue(key, out var calls)
             ? calls.AsReadOnly()
             : [];
 
-    /// <summary>Finds source calls bound to this declaration; metadata-only targets have no declaration key.</summary>
+    /// <summary>Finds source invocations bound to this declaration, including local-function calls; metadata-only targets have no declaration key.</summary>
+    /// <remarks>Constructions and accessor uses are not invocations; find them with <c>Code.ReferencesTo(symbol)</c> or a function's <see cref="CodeFunction.Steps"/>.</remarks>
     public IReadOnlyList<CodeInvocation> CallersOf(IMethodSymbol method) =>
         Key(method) is { } key
             ? _calls
@@ -66,34 +67,14 @@ public sealed class CodeRelationships
                 .ToArray()
             : [];
 
-    /// <summary>Reports whether a bound source call path reaches the configured API. False does not prove absence of indirect runtime calls.</summary>
-    /// <remarks>Nested functions are not attributed to their enclosing method. Direct local-function calls are followed, but delegate dispatch into lambda bodies is not inferred.</remarks>
-    public bool Reaches(IMethodSymbol method, CodeMember target)
-    {
-        var pending = new Stack<IMethodSymbol>();
-        var seen = new HashSet<DeclarationKey>();
-        pending.Push(method);
-        while (pending.TryPop(out var current))
-        {
-            _solution.CancellationToken.ThrowIfCancellationRequested();
-            if (Key(current) is not { } key || !seen.Add(key))
-            {
-                continue;
-            }
+    /// <summary>Whether a call path from the method's source function runs the target; see <see cref="CodeFunction.Reaches"/>. Metadata methods have no function and don't match.</summary>
+    /// <remarks>False doesn't prove that runtime execution can't reach the target.</remarks>
+    public bool Reaches(IMethodSymbol method, CodeMember target, CallPaths? paths = null) =>
+        FunctionOf(method)?.Reaches(target, paths) == true;
 
-            foreach (var call in CallsFrom(current))
-            {
-                if (target.Matches(call.Target))
-                {
-                    return true;
-                }
-
-                pending.Push(call.Target);
-            }
-        }
-
-        return false;
-    }
+    /// <summary>The source function a method, local function, constructor, accessor or operator symbol declares, including implicit parameterless constructors; null for metadata members and lambdas.</summary>
+    public CodeFunction? FunctionOf(IMethodSymbol method) =>
+        CallGraph.In(_solution).Resolve(method);
 
     /// <summary>Finds ordinary source types implementing an interface or inheriting a class in a compatible source view. Abstract and test types are retained for consumer filtering.</summary>
     public IReadOnlyList<CodeTypeDefinition> DerivedTypes(CodeTypeDefinition declaration)

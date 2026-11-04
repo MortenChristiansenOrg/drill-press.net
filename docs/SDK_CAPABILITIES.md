@@ -116,8 +116,10 @@ rules.Rule("TEAM002", "Keep blocking sleeps out of asynchronous call paths.")
 
 Start from the object whose information you need: `method.Flow` gives its cached
 compiler flow facts; `method.Reaches(member)` follows statically bound source
-calls; `method.Solution.Relationships` and `solution.ProjectGraph` expose shared
-solution-wide analysis. These are entry points into the existing analysis, not
+calls into methods, local functions, constructors, accessors and operators, and a
+`CallPaths` argument opts into delegates, dispatch and consumer-supplied edges
+([call paths](RELATIONSHIP_QUERIES.md#call-paths)); `method.Solution.Relationships`
+and `solution.ProjectGraph` expose shared solution-wide analysis. These are entry points into the existing analysis, not
 separate caches or alternate matching semantics.
 
 `CodeQuery<T>.Create` is the public extension point. A query can `Select`,
@@ -168,7 +170,7 @@ diagnostic protocol.
 | Syntax and trivia | Original Roslyn syntax/text, paths, modifiers, comments, generated classification, precise spans | No universal primary-type or human-quality judgment |
 | Semantics | Resolved identities, attributes, generic definitions, conversions, constants, overloads, type references and nullable state | Ambiguous bindings are never guessed |
 | Operations and flow | Cached operation roots, calls, object creations, compiler CFG/data-flow sets, nullable flow at an expression | No interprocedural alias, transaction, token-provenance or general behavioral-equivalence engine |
-| Relationships | Inheritance, source ownership, references, callers and bound invocation paths, generated call bodies included | Paths follow invocation targets; constructor/property/event edges, dynamic dispatch, reflection, delegate dispatch (including lambda bodies) and DI resolution are not inferred |
+| Relationships | Inheritance, source ownership, references, invocation callers and call paths through methods, local functions, constructors and their initializers, accessors and operators, generated bodies included; opt-in delegate bodies, source dispatch within compatible views and consumer-supplied edges | Reflection, DI resolution, messaging and framework callbacks are followed only as consumer-supplied edges; metadata members are not dispatched; pattern-based calls (enumerators, disposal, awaiters) and static constructors are not followed |
 | Project facts | Context identity, test classification, source edges, TFM, nullable/compiler settings, direct packages including central versions, source-root items and selected policy properties | No transitive package inventory or indiscriminate export of environment/MSBuild properties |
 | Baselines | Added/modified source, previous accessibility, changed declarations including partials, using accepted analyses | No Git integration, rename detection, migration deployment state or baseline CLI transport |
 | Configuration | Typed C# records/closures, `CodeType`, `CodeMember`, `ApiSet`, `PathPattern` and query exceptions | No configuration DSL or automatic suppression database |

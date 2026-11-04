@@ -67,7 +67,7 @@ public sealed class CodeRelationshipsTests(SdkFixture fixture) : IClassFixture<S
     }
 
     [Fact]
-    public void Delegate_invocations_do_not_infer_paths_into_lambda_bodies()
+    public void Delegate_invocations_reach_lambda_bodies_only_through_delegates()
     {
         var workspace = fixture.Workspace();
         workspace.AddProject(
@@ -83,13 +83,15 @@ public sealed class CodeRelationshipsTests(SdkFixture fixture) : IClassFixture<S
         var graph = CodeRelationships.In(solution);
         var method = solution.Methods.Single().Symbol!;
 
-        var reaches = graph.Reaches(
-            method,
-            new(CodeType.Named("System.Threading.Thread"), "Sleep")
-        );
+        var sleep = new CodeMember(CodeType.Named("System.Threading.Thread"), "Sleep");
+
+        var reaches = graph.Reaches(method, sleep);
+        var throughDelegates = graph.Reaches(method, sleep, CallPaths.Bound.ThroughDelegates());
         var calls = graph.CallsFrom(method);
 
         Assert.False(reaches);
+        Assert.True(throughDelegates);
+        Assert.Same(solution.Methods.Single().Function, graph.FunctionOf(method));
         Assert.Equal(["pause()"], calls.Select(call => call.Operation.Syntax.ToString()));
     }
 
