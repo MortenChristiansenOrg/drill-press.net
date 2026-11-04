@@ -112,15 +112,37 @@ parameters, enum members, symbols):
 - `CodeTypeDeclaration`: `IsTopLevel`, `Syntax`, `Symbol`; attributes are those written on this part.
 - `CodeMethod`: `IsAsync`, `IsStatic`, `ReturnsVoid`, `ReturnTypeIs(type)`, `Parameters`,
   `HasBody`, `HasEmptyBody`, `HasNoStatements`, `Body(nested?)`, `ContainingType`,
-  `Flow`, `Reaches(member)` (static call paths through loaded source), `Syntax`,
-  `Callees(sameType: false, transitive: false, nested: Include)` (source methods it calls,
-  in discovery order, deduplicated; transitive traversal is breadth-first).
-  `sameType` includes other partial parts; `nested` defaults to `NestedFunctions.Include`.
-  Only ordinary statically bound source methods count, not constructors, accessors,
-  method groups, delegate targets, runtime virtual dispatch or metadata. Recursion can
-  include the original method.
+  `Flow`, `Syntax`, `Function` (the method as a `CodeFunction`), and the call-path queries
+  `Reaches(member, paths?)`, `PathTo(member, paths?)` and
+  `Callees(sameType: false, transitive: false, paths?)`, which delegate to `Function`.
   Queries: `DeclaredInTypesDerivedFrom(types)`, `Overriding(member)`,
   `DirectlyOverriding(member)`, `WhereBody(MethodBodyShape)`, `ContainingTypes()`.
+- `CodeFunction`: a source function a call path can run: `Kind` (`Method`, `LocalFunction`,
+  `Constructor` (declared, primary or implicit parameterless), `Accessor` (property, indexer
+  or event; `Symbol.MethodKind` tells which), `Operator`), `Name` (compiler name such as
+  `.ctor` or `get_Value`), `Symbol`, `Syntax`, `Method` (the `CodeMethod`, if ordinary),
+  `Body(nested?)`, `Source` (generated functions included), `Location`.
+  `Reaches(member, paths?)`: whether a path runs a method, constructor or accessor matching
+  the member (a property member matches its accessors); false never proves absence.
+  `PathTo(member, paths?)`: the shortest `CallPath` (`Steps`, `IsBound`, reportable at its
+  first step) or null; each `CallStep` has `Caller`, `Target`, `Callee`, `Kind` (`Bound`,
+  `Dispatch`, `Configured`), `ViaDelegate`, `Location`. `Callees(sameType, transitive,
+  paths?)`: functions it calls, in site order then breadth first, each once; the function
+  itself only when called. `Steps(paths?)`: its own steps, including metadata targets.
+  Edges: invocations (incl. local functions), `new`, constructor initializers and the member
+  initializers a constructor runs, property/indexer getters and setters by use, event
+  `+=`/`-=`, user-defined operators and conversions. Lambdas belong to their creating
+  function. Not followed: `foreach`/`using`/await patterns, static constructors.
+- `CallPaths` (immutable; keep instances in static fields, answers are cached per instance):
+  `CallPaths.Bound` (default: bound sites outside delegates), `.ThroughDelegates()` (lambda
+  and anonymous-method bodies and method groups converted to delegates; steps are
+  `ViaDelegate`), `.ThroughDispatch()` (virtual/abstract/interface calls to source overrides
+  and implementations in compatible views containing the caller; closed generic contracts
+  narrow; metadata members and `base.` calls aren't dispatched), `.WithEdge(call, target)`
+  (consumer edges for DI, reflection, messaging: a site running `call` also runs `target`'s
+  source declarations, overrides and implementations in projects sharing a view with the
+  caller), `.StopAt(function => ...)` (don't enter approved helpers; the call into one still
+  matches and is listed).
 - `CodeEnumMember`: shared declaration members, `Syntax`, `ContainingType`, `Value`
   (written or implied constant; null when binding fails), `HasExplicitValue`; reports
   at its name.
@@ -298,7 +320,8 @@ parameters, enum members, symbols):
   `project.Solution` throws until the project belongs to one. During coverage planning,
   avoid coverage-dependent queries through this property.
 - `solution.ProjectGraph`: `Includes(consumer, owner)`, `DependenciesOf`, `CompatibleViewsOf`.
-- `solution.Relationships`: `CallsFrom`, `CallersOf`, `Reaches`, `DerivedTypes`, `FilesOf`.
+- `solution.Relationships`: `CallsFrom`, `CallersOf` (invocations only), `Reaches(symbol, member, paths?)`,
+  `FunctionOf(symbol)` (null for metadata), `DerivedTypes`, `FilesOf`.
 - `ImplementationView` (`Interface`, `Projects`, `Implementations`): `IgnoringTestProjects()`,
   `ConcreteOnly()`, `WhereImplementation(...)`, `WithExactlyOneImplementation()`.
 - `SourceBaseline(acceptedSolution)`: `ChangeOf(file)`, `ChangedFiles`, `PreviousAccessibility`.

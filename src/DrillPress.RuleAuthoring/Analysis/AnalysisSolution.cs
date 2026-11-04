@@ -236,7 +236,7 @@ public sealed class AnalysisSolution
     internal IReadOnlySet<string> Aliases => _aliases.Value;
 
     // Documents bind independently, so they bind in parallel; consumers still read them in order.
-    private void PrepareOperations(IReadOnlyList<AnalysisSource> sources)
+    internal void PrepareOperations(IReadOnlyList<AnalysisSource> sources)
     {
         var pending = sources.Where(source => !source.Operations.IsBound).Distinct().ToArray();
         if (!Options.EnableOptimizations || pending.Length < 2)

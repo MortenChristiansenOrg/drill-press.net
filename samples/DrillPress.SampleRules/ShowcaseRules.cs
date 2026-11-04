@@ -34,7 +34,10 @@ public static class ShowcaseRules
             .Require(CodecBehavior.IsInTracingAdapter);
 
         rules
-            .Rule("SDK2003", "Keep blocking sleeps out of asynchronous codec call paths.")
+            .Rule(
+                "SDK2003",
+                "Keep blocking sleeps out of asynchronous codec call paths and the callbacks they pass."
+            )
             .For(code.AsyncMethods.WhoseCallPathsReachBlockingSleep())
             .Forbid();
 

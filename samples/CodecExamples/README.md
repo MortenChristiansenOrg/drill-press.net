@@ -7,9 +7,10 @@ modifier with an eligible fix. The two codec implementations keep the older
 single-implementation interface rule from obscuring these examples.
 
 `JsonCodec.SendWithRetryAsync` encodes a message and retries a timed-out send
-once. Its backoff helper blocks a thread with `Thread.Sleep`; SDK2003 follows
-the call path from the async entry point. An awaited `Task.Delay` would express
-the nonblocking backoff this code intends.
+once. It passes a backoff callback that blocks a thread with `Thread.Sleep`.
+SDK2003 follows call paths with `CallPaths.Bound.ThroughDelegates()`, so the
+method group the async entry point passes counts as a step that may run. An
+awaited `Task.Delay` would express the nonblocking backoff this code intends.
 
 `PooledUtf8Decoder.ReadDeferred` demonstrates a concrete ownership bug: it
 returns a callback that reads a rented array, then returns the array to the pool

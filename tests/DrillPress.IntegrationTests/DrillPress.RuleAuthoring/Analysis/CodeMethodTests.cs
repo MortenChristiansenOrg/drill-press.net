@@ -6,7 +6,7 @@ namespace DrillPress.IntegrationTests.RuleAuthoring.Analysis;
 public sealed class CodeMethodTests(SdkFixture fixture) : IClassFixture<SdkFixture>
 {
     [Fact]
-    public void Callees_follow_calls_within_the_type_or_beyond_directly_or_transitively()
+    public void Callees_follow_calls_within_the_type_or_beyond_directly_transitively_or_through_delegates()
     {
         var workspace = fixture.Workspace();
         workspace.AddProject(
@@ -36,19 +36,20 @@ public sealed class CodeMethodTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         var ownType = execute.Callees(sameType: true);
         var ownTypeClosure = execute.Callees(sameType: true, transitive: true);
         var closure = execute.Callees(transitive: true);
-        var outsideLambdas = execute.Callees(nested: NestedFunctions.Exclude);
+        var withLambdas = execute.Callees(paths: CallPaths.Bound.ThroughDelegates());
 
-        Assert.Equal(["Loop", "Run", "Inner", "Recurse"], direct.Select(method => method.Name));
-        Assert.Equal(["Loop", "Inner", "Recurse"], ownType.Select(method => method.Name));
+        Assert.Equal(["Loop", "Run", "Recurse"], direct.Select(method => method.Name));
+        Assert.Equal(["Loop", "Recurse"], ownType.Select(method => method.Name));
+        Assert.Equal(["Loop", "Recurse", "Step"], ownTypeClosure.Select(method => method.Name));
         Assert.Equal(
-            ["Loop", "Inner", "Recurse", "Step"],
-            ownTypeClosure.Select(method => method.Name)
-        );
-        Assert.Equal(
-            ["Loop", "Run", "Inner", "Recurse", "Step", "Other"],
+            ["Loop", "Run", "Recurse", "Step", "Other"],
             closure.Select(method => method.Name)
         );
-        Assert.Equal(["Loop", "Run", "Recurse"], outsideLambdas.Select(method => method.Name));
-        Assert.Equal("Worker.Step.cs", ownTypeClosure[3].Source.Document.Path);
+        Assert.Equal(
+            ["Loop", "Run", "Inner", "Recurse"],
+            withLambdas.Select(method => method.Name)
+        );
+        Assert.Equal("Worker.Step.cs", ownTypeClosure[2].Source.Document.Path);
+        Assert.Same(Code.Methods.Named("Loop").In(solution).Single(), ownTypeClosure[0].Method);
     }
 }

@@ -252,9 +252,10 @@ public sealed class ShowcaseRulesTests(SdkFixture fixture) : IClassFixture<SdkFi
                     {
                         async System.Threading.Tasks.Task Read()
                         {
-                            Pause();
+                            Retry(Pause);
                             await System.Threading.Tasks.Task.CompletedTask;
                         }
+                        void Retry(System.Action backoff) => backoff();
                         void Pause() => System.Threading.Thread.Sleep(1);
                         void Trace() => System.Console.WriteLine(System.Guid.NewGuid());
                     }

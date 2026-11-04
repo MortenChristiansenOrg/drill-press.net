@@ -32,72 +32,27 @@ public sealed class CodeMethod : ICodeDeclaration
     /// <summary>Cached compiler control flow, reads, writes, captures and nullable state for this method.</summary>
     public MethodFlow Flow => MethodFlow.For(Solution, this);
 
-    /// <summary>Whether a statically bound source call path reaches the target. Unresolved methods do not match.</summary>
-    /// <remarks>Does not infer dynamic dispatch, delegate invocation or reflection. Nested functions are followed only through direct calls.</remarks>
-    public bool Reaches(CodeMember target) =>
-        Symbol is { } symbol && Solution.Relationships.Reaches(symbol, target);
+    /// <summary>This method as a call-path function, shared with the functions other queries resolve to it; a partial method resolves to its implementation.</summary>
+    public CodeFunction Function => CallGraph.In(Solution).FunctionOf(this);
+
+    /// <summary>Whether a call path from this method runs the target; see <see cref="CodeFunction.Reaches"/>.</summary>
+    /// <remarks>False doesn't prove that runtime execution can't reach the target.</remarks>
+    public bool Reaches(CodeMember target, CallPaths? paths = null) =>
+        Function.Reaches(target, paths);
+
+    /// <summary>The shortest call path from this method to a site that runs the target; see <see cref="CodeFunction.PathTo"/>.</summary>
+    public CallPath? PathTo(CodeMember target, CallPaths? paths = null) =>
+        Function.PathTo(target, paths);
 
     /// <summary>
-    /// The source methods this method calls, in the order its calls are found, following statically bound targets. With
-    /// <paramref name="sameType"/>, only methods of this method's type, including its other partial parts; with
-    /// <paramref name="transitive"/>, also the methods those call, as in "the methods <c>ExecuteAsync</c> runs in its own type".
+    /// The source functions this method calls, as in "the methods <c>ExecuteAsync</c> runs in its own type"; see
+    /// <see cref="CodeFunction.Callees"/>. Local functions, constructors, accessors and operators are included.
     /// </summary>
-    /// <remarks>Calls in lambdas and local functions count unless <paramref name="nested"/> excludes them. Only ordinary
-    /// methods are followed, not constructors, accessors, method groups, delegates, virtual dispatch or metadata. The method
-    /// itself is included only when it is called, such as through recursion.</remarks>
-    public IReadOnlyList<CodeMethod> Callees(
+    public IReadOnlyList<CodeFunction> Callees(
         bool sameType = false,
         bool transitive = false,
-        NestedFunctions nested = NestedFunctions.Include
-    )
-    {
-        var methods = Solution.Cached(
-            _methodIndex,
-            () => Solution.Shared("declarations", () => IndexMethods(Solution))
-        );
-        var owner = Symbol?.ContainingType?.OriginalDefinition;
-        var found = new List<CodeMethod>();
-        var seen = new HashSet<CodeMethod>();
-        var pending = new Queue<CodeMethod>([this]);
-        while (pending.TryDequeue(out var current))
-        {
-            foreach (var call in current.Body(nested)?.Calls() ?? [])
-            {
-                Solution.CancellationToken.ThrowIfCancellationRequested();
-                var target = (call.Target.ReducedFrom ?? call.Target).OriginalDefinition;
-                target = target.PartialImplementationPart ?? target;
-                if (
-                    sameType
-                    && !SymbolEqualityComparer.Default.Equals(
-                        target.ContainingType?.OriginalDefinition,
-                        owner
-                    )
-                )
-                    continue;
-                foreach (var reference in target.DeclaringSyntaxReferences)
-                {
-                    if (
-                        methods.TryGetValue(
-                            (reference.SyntaxTree, reference.Span.Start),
-                            out var callee
-                        ) && seen.Add(callee)
-                    )
-                    {
-                        found.Add(callee);
-                        if (transitive)
-                            pending.Enqueue(callee);
-                    }
-                }
-            }
-        }
-        return found.AsReadOnly();
-    }
-
-    private static readonly object _methodIndex = new();
-
-    private static Dictionary<(SyntaxTree Tree, int Start), CodeMethod> IndexMethods(
-        AnalysisSolution solution
-    ) => solution.Methods.ToDictionary(method => (method.Source.Tree, method.Syntax.SpanStart));
+        CallPaths? paths = null
+    ) => Function.Callees(sameType, transitive, paths);
 
     /// <summary>The complete method declaration.</summary>
     public MethodDeclarationSyntax Syntax { get; }

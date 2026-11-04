@@ -66,8 +66,9 @@ rules.Rule(&quot;TEAM016&quot;, &quot;Add a &lt;CodecName&gt;RoundTrip test for 
 <p><code>solution.Relationships</code> is the shared <code>CodeRelationships</code> object, also available from <code>CodeRelationships.In(solution)</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>Member</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>CallsFrom(methodSymbol)</code></td><td>Direct bound source calls, excluding nested function bodies.</td></tr>
-<tr><td><code>CallersOf(methodSymbol)</code></td><td>Source calls bound to a loaded source declaration. Metadata-only targets have no source declaration key.</td></tr>
-<tr><td><code>Reaches(methodSymbol, member)</code></td><td>The same static call-path analysis exposed by <code>method.Reaches(member)</code>.</td></tr>
+<tr><td><code>CallersOf(methodSymbol)</code></td><td>Source invocations bound to a loaded source declaration. Metadata-only targets have no source declaration key. Constructions and property uses are not invocations; <code>Code.ReferencesTo(symbol)</code> finds them.</td></tr>
+<tr><td><code>Reaches(methodSymbol, member, paths?)</code></td><td>The same call-path analysis exposed by <code>method.Reaches(member, paths)</code>.</td></tr>
+<tr><td><code>FunctionOf(methodSymbol)</code></td><td>The <code>CodeFunction</code> a source method, local function, constructor, accessor or operator declares; null for metadata.</td></tr>
 <tr><td><code>DerivedTypes(type)</code></td><td>Compatible source types inheriting a class or implementing an interface; includes abstract and test types for you to filter.</td></tr>
 <tr><td><code>FilesOf(type)</code></td><td>Ordinary source files for a type’s partial declarations in its own context.</td></tr>
 </tbody></table></div>

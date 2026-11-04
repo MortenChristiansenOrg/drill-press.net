@@ -164,7 +164,7 @@ public sealed class InterfaceImplementations(AnalysisSolution solution)
         return index;
     }
 
-    private static IAssemblySymbol? ResolveAssembly(AnalysisProject project, AnalysisProject owner)
+    internal static IAssemblySymbol? ResolveAssembly(AnalysisProject project, AnalysisProject owner)
     {
         if (project == owner)
         {
