@@ -9,6 +9,7 @@ internal sealed class FaultFileReplacer(IFileSystem fileSystem, SourceFilePolicy
     public string? PreparationFailure { get; set; }
     public Dictionary<string, Action> OnReplacement { get; } = [];
     public List<string> Replacements { get; } = [];
+    public Dictionary<string, Action> OnMove { get; } = [];
 
     internal override Task PrepareAsync(
         PreparedSourceFile file,
@@ -30,5 +31,16 @@ internal sealed class FaultFileReplacer(IFileSystem fileSystem, SourceFilePolicy
             action();
         await base.ReplaceAsync(snapshot, file, cancellationToken);
         Replacements.Add(file.Path);
+    }
+
+    internal override Task MoveAsync(
+        CompilationSnapshot snapshot,
+        PreparedSourceFile file,
+        CancellationToken cancellationToken
+    )
+    {
+        if (OnMove.TryGetValue(file.Path, out var action))
+            action();
+        return base.MoveAsync(snapshot, file, cancellationToken);
     }
 }

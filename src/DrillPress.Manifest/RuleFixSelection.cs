@@ -21,8 +21,15 @@ internal static class RuleFixSelection
             .Batches.Where(batch => excludedProposals.Contains(batch.Id))
             .SelectMany(batch => batch.Edits)
             .ToHashSet();
+        var excludedMoves = response
+            .Batches.Where(batch => excludedProposals.Contains(batch.Id))
+            .SelectMany(batch => batch.Moves ?? [])
+            .ToHashSet();
         var excludedBatches = result
-            .Batches.Where(batch => batch.Edits.Any(excludedEdits.Contains))
+            .Batches.Where(batch =>
+                batch.Edits.Any(excludedEdits.Contains)
+                || (batch.Moves ?? []).Any(excludedMoves.Contains)
+            )
             .Select(batch => batch.Id)
             .ToHashSet();
         var findings = result
@@ -54,6 +61,7 @@ internal static class RuleFixSelection
                 .ToArray()
         )
         {
+            Moves = BundleResponseValidator.RetainedMoves(batches),
             SkippedRules = result.SkippedRules,
             ProjectViolations = result
                 .ProjectViolations.Where(count => complexities.Contains(count.FixComplexity))

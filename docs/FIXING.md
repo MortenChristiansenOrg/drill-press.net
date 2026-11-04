@@ -12,7 +12,7 @@ loads their current compilation without restoring or building. Rule bundles are
 trusted local executable code. Review the bundle before running it.
 
 `fix` analyzes every loaded context, validates the bundle response, and applies
-all retained safe edits once. Reporting contexts must agree on each complete
+all retained safe edits and [file moves](#moving-files) once. Reporting contexts must agree on each complete
 batch, and every affected context must validate it, including contexts with no
 finding. Duplicate edits are written once. Conflicts withhold whole batches;
 unrelated safe batches still apply. Edits conflict when they overlap or when an
@@ -23,7 +23,9 @@ cannot be written even if a fix factory proposes them from another document.
 
 The consumer-owned sample rule DP1004 replaces proven `string.Empty` references with `""`. DP1005 removes
 `StringComparer.Ordinal` only from the proven `Enumerable.Distinct<string>`
-call shapes described in [rule authoring](RULE_AUTHORING.md). Other findings
+call shapes described in [rule authoring](RULE_AUTHORING.md). DP1006 inlines locals that only
+rename their initializer, DP1007 renames a file after its only type and DP1008 moves a test
+file to the folder of the production file it tests. Other findings
 remain for manual correction. The CLI never invents edits.
 
 Findings allowed by a `// drillpress-allow` comment have no fix, so `fix` leaves
@@ -55,7 +57,7 @@ guarantee against machine failure.
 
 A preparation failure leaves all originals untouched. A later replacement
 failure or cancellation stops further writes, retains earlier replacements,
-cleans unused temporary files, and exits 2. Stderr lists `changed`, `failed`,
+cleans unused temporary files, and exits 2. Stderr lists `changed`, `moved`, `failed`,
 and `pending` paths for recovery; paths are escaped when necessary. Inspect
 those current files, resolve the failure, and rerun `check` or `fix`. The CLI
 does not roll back over possible user changes. A cleanup failure names its
@@ -69,6 +71,33 @@ exits 2. Cancellation during verification lists the changed files and reaches
 the CLI cancellation handler, which reports cancellation and exits 2. If no
 changes survive, the initial completed analysis supplies the
 output without another export. There is no automatic iteration loop.
+
+## Moving files
+
+A fix can rename or move a whole source file within its project; see
+[renaming and moving files](STRUCTURED_FIXES.md#renaming-and-moving-files) for the
+membership rules the bundle and the validator check against the captured projects.
+`fix` applies a moved file's edits first, as an ordinary atomic replacement, and then
+renames it with a single filesystem move, creating missing folders. Before any write it
+refuses a destination that exists on disk as another file or a directory, a folder on
+the way that is a file, a symbolic link or a reparse point, and a folder below the
+project directory that holds a project file of its own; immediately before the move it
+checks the source bytes, identity and destination again. A refusal before writing
+leaves every file untouched; a later one is reported like any other failure:
+
+```text
+drillpress: Fix stopped: Source identity or bytes changed before the move.
+  moved: "/repo/src/Orders/Misnamed.cs" -> "/repo/src/Orders/Invoice.cs"
+  failed: "/repo/tests/Orders.Tests/OrderServiceTests.cs"
+```
+
+A move whose edits were written but whose rename failed is listed as both `changed`
+and `failed` at its old path, which holds the new text. Folders created for a move remain. A move within one
+project directory is a rename on one volume; a mount point inside the project is not
+detected. After the recheck export, `fix` confirms that each moved file is compiled by
+exactly the projects and frameworks that compiled it before, and that none still
+compiles the old path; otherwise it reports that verification failed, lists the
+changes and exits 2.
 
 ## Why a fix was withheld
 

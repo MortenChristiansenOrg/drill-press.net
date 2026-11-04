@@ -177,8 +177,8 @@ diagnostic protocol.
 | Sets and duplicates | Keyed comparisons and exact repeated token shapes ignoring trivia | No semantic clone detector; repeated syntax does not prove equivalent behavior |
 | Requirements | Joins, contextual absence checks and source-anchored missing counterparts | Consumers supply ownership and naming policy |
 | Facts | Lazy values per analysis or evaluated project, composable with built-in queries | Cache identity is the fact instance; values are not serialized |
-| Fixes | Multi-file text batches, typed builders, caller-supplied semantic proof, compiler checks and binding helpers | No file create/delete/move or solution-wide rename/inlining refactoring engine |
-| Consumer tests | Explicit references or runtime defaults, multiple projects/contexts, generated source, exact findings, CLI-format output, fixed text and withheld fixes | Framework labels do not select reference packs; no OS file writes or target builds |
+| Fixes | Multi-file text batches, typed builders, caller-supplied semantic proof, compiler checks and binding helpers; local inlining; renames and moves of files the SDK default glob compiles, within their project directory | No file creation or deletion; no moves of linked, explicitly listed or target-added files, or across project directories; no solution-wide refactoring engine |
+| Consumer tests | Explicit references or runtime defaults, multiple projects/contexts, generated source, exact findings, CLI-format output, fixed text, moved paths and withheld fixes | Framework labels do not select reference packs; no OS file writes or target builds |
 
 Generated sources contribute compiler semantics and can be inspected through
 `Code.FilesIncludingGenerated`; reporting candidates normally exclude them.
@@ -194,7 +194,9 @@ runtime execution cannot reach the API.
 ## Safe corrections
 
 Typed builders from `Fix.For(...)` cover expression replacement, argument and
-modifier removal, braces, comments, `var` and extraction; see the
+modifier removal, braces, comments, `var`, extraction,
+[local inlining](STRUCTURED_FIXES.md#inlining-locals) and
+[file renames and moves](STRUCTURED_FIXES.md#renaming-and-moving-files); see the
 [fix contracts](RULE_AUTHORING.md#fix-contracts). For hand-built edits,
 `SourceChanges.Replace` constructs an exact original-text/fingerprint edit.
 `SourceChanges.Propose` takes a complete batch and a required
@@ -215,7 +217,9 @@ The engine validates every loaded context containing edited physical files,
 including contexts that reported no violation. Its response validator withholds
 conflicting or disagreeing batches in full. A multi-file *proposal* is a complete
 unit for validation; OS application is still atomic **per file**, with the
-existing recovery report if a later file fails. See [fixing](FIXING.md).
+existing recovery report if a later file fails. A file move is checked against the
+captured project membership by the bundle and again by the validator, and against
+the disk by the CLI before it writes; see [fixing](FIXING.md#moving-files).
 
 ## Consumer tests and examples
 
@@ -246,7 +250,12 @@ records with rule ID, path, exact line/column/text, `HasFix`, readable
 support deterministic coverage-policy tests without a collector.
 The test kit runs the production evaluator and validator, so withheld fixes are
 tested through the same path as normal checks. `FixedText` applies the validated
-plan in memory; create a new workspace from that text to assert a clean recheck.
+plan in memory, by the captured path or a moved file's new one; `FixedPath` returns
+the path a fix renames or moves a file to, and `FixedSource` both as a `TestSource`.
+Create a new workspace from them to assert a clean recheck. File moves need
+`AddProject(..., projectDirectory: "src/Orders")`, which models an SDK project in that
+folder compiling the sources below it by the default glob, without `bin` and `obj`;
+without it the membership is unknown and moves are withheld.
 Default references are read once per workspace from the runtime assembly
 inventory through the filesystem abstraction. Supply metadata references to the
 constructor, or per project, for synthetic fixtures and reference-pack fidelity.

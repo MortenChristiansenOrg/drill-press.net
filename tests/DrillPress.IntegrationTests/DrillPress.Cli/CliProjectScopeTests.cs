@@ -43,11 +43,11 @@ public sealed class CliProjectScopeTests : IntegrationTest
         var dependencyPath = FileSystem
             .Path.GetRelativePath(
                 RepositoryRoot,
-                FileSystem.Path.Combine(root, "Dependency/Source.cs")
+                FileSystem.Path.Combine(root, "Dependency/Dependency.cs")
             )
             .Replace('\\', '/');
         var leafPath = FileSystem
-            .Path.GetRelativePath(RepositoryRoot, FileSystem.Path.Combine(root, "Leaf/Source.cs"))
+            .Path.GetRelativePath(RepositoryRoot, FileSystem.Path.Combine(root, "Leaf/Leaf.cs"))
             .Replace('\\', '/');
 
         var result = await RunCliAsync(FileSystem.Path.Combine(root, target), options);
@@ -81,7 +81,7 @@ public sealed class CliProjectScopeTests : IntegrationTest
     )
     {
         var root = await CreateGraphAsync();
-        await WriteAsync(root, "App/Source.cs", "class App { string Value => string.Empty; }");
+        await WriteAsync(root, "App/App.cs", "class App { string Value => string.Empty; }");
 
         var result = await RunProcessAsync(
             "dotnet",
@@ -100,9 +100,9 @@ public sealed class CliProjectScopeTests : IntegrationTest
         );
 
         Assert.Equal(new ProcessResult(0, "", ""), result);
-        Assert.Equal("class App { string Value => \"\"; }", await ReadAsync(root, "App/Source.cs"));
-        Assert.Equal(expectedDependency, await ReadAsync(root, "Dependency/Source.cs"));
-        Assert.Equal(expectedLeaf, await ReadAsync(root, "Leaf/Source.cs"));
+        Assert.Equal("class App { string Value => \"\"; }", await ReadAsync(root, "App/App.cs"));
+        Assert.Equal(expectedDependency, await ReadAsync(root, "Dependency/Dependency.cs"));
+        Assert.Equal(expectedLeaf, await ReadAsync(root, "Leaf/Leaf.cs"));
     }
 
     [Fact]
@@ -182,11 +182,11 @@ public sealed class CliProjectScopeTests : IntegrationTest
             </Project>
             """
         );
-        await WriteAsync(root, "Leaf/Source.cs", LeafSource);
-        await WriteAsync(root, "Dependency/Source.cs", DependencySource);
+        await WriteAsync(root, "Leaf/Leaf.cs", LeafSource);
+        await WriteAsync(root, "Dependency/Dependency.cs", DependencySource);
         await WriteAsync(
             root,
-            "App/Source.cs",
+            "App/App.cs",
             "class App { string Value => Dependency.Value + Leaf.Value; }"
         );
         await WriteAsync(

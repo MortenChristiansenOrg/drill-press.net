@@ -23,6 +23,11 @@ public static class StyleQueries
         this CodeQuery<CodeVariableDeclaration> declarations
     ) => declarations.Where(declaration => declaration.HasInitializer);
 
+    /// <summary>Selects declarations of one initialized local that is read exactly once and never written, as candidates for <see cref="VariableDeclarationFix.Inline"/>.</summary>
+    public static CodeQuery<CodeVariableDeclaration> WithSingleRead(
+        this CodeQuery<CodeVariableDeclaration> declarations
+    ) => declarations.Where(declaration => declaration.HasSingleRead);
+
     /// <summary>Selects if statements with an else, including else-if continuations marked by Else.IsElseIf.</summary>
     public static CodeQuery<CodeIfStatement> WithElse(this CodeQuery<CodeIfStatement> statements) =>
         statements.Where(statement => statement.Else is not null);

@@ -945,4 +945,172 @@ public sealed class BundleResponseValidatorTests
 
         Assert.Equal("Unknown rule fix complexity.", error.Message);
     }
+
+    [Fact]
+    public void A_move_keeping_the_project_membership_is_retained()
+    {
+        var fixture = new MoveFixture();
+        var move = fixture.Move(0, "Services", "Invoice.cs");
+        var response = fixture.Response(fixture.Batch("move", [], move));
+
+        var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
+
+        Assert.Equal([move], result.Moves);
+        Assert.Equal(["move"], result.Findings.Select(finding => finding.BatchId));
+    }
+
+    [Theory]
+    [InlineData("bin", "would not compile A.cs at its new path")]
+    [InlineData("obj", "would not compile A.cs at its new path")]
+    [InlineData(".git", "would not compile A.cs at its new path")]
+    [InlineData("Scripts/node_modules", "would not compile A.cs at its new path")]
+    public void A_move_out_of_the_compiled_folders_is_withheld(string folder, string reason)
+    {
+        var fixture = new MoveFixture();
+        var response = fixture.Response(
+            fixture.Batch("move", [], fixture.Move(0, [.. folder.Split('/'), "A.cs"]))
+        );
+
+        var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
+
+        Assert.Empty(result.Moves);
+        Assert.Equal(
+            [$"the file move is unsupported: TestProject (net10.0) {reason}"],
+            result.Findings.Select(finding => finding.FixWithheld)
+        );
+    }
+
+    [Theory]
+    [InlineData("b.cs")]
+    [InlineData("B.cs/A.cs")]
+    public void A_move_onto_another_loaded_file_is_withheld(string destination)
+    {
+        var fixture = new MoveFixture();
+        var response = fixture.Response(
+            fixture.Batch("move", [], fixture.Move(0, destination.Split('/')))
+        );
+
+        var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
+
+        Assert.Equal(
+            ["the file move is unsupported: the new path collides with a loaded file"],
+            result.Findings.Select(finding => finding.FixWithheld)
+        );
+    }
+
+    [Theory]
+    [InlineData(true, "Other (net10.0) would also compile the file at its new path")]
+    [InlineData(false, "Other (net10.0) may also compile the file at its new path")]
+    public void A_move_to_where_another_project_may_compile_it_is_withheld(
+        bool knownRoots,
+        string reason
+    )
+    {
+        var fixture = new MoveFixture();
+        var other = new ProjectSnapshot(
+            "Other",
+            "Other",
+            fixture.FileSystem.Path.GetFullPath("Other/Other.csproj"),
+            fixture.Project.LanguageVersion,
+            fixture.Project.OutputKind,
+            fixture.Project.NullableContextOptions,
+            [],
+            [],
+            []
+        )
+        {
+            TargetFramework = "net10.0",
+            CompileRoots = knownRoots ? [fixture.Path("Shared")] : null,
+        };
+        var snapshot = CompilationSnapshot.Create(fixture.Project, other) with
+        {
+            RequestId = fixture.Snapshot.RequestId,
+        };
+        var moved = fixture.Response(fixture.Batch("move", [], fixture.Move(0, "Shared", "A.cs")));
+        var response = moved with
+        {
+            Contexts = [.. moved.Contexts, new(other.ContextId, true, [])],
+        };
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Empty(result.Moves);
+        Assert.Equal(
+            [$"the file move is unsupported: {reason}"],
+            result.Findings.Select(finding => finding.FixWithheld)
+        );
+    }
+
+    [Fact]
+    public void A_file_selected_explicitly_is_not_moved()
+    {
+        var fixture = new MoveFixture();
+        var snapshot = CompilationSnapshot.Create(
+            fixture.Project with
+            {
+                Documents =
+                [
+                    fixture.Documents[0] with
+                    {
+                        IsDefaultCompileItem = false,
+                    },
+                    fixture.Documents[1],
+                ],
+            }
+        ) with
+        {
+            RequestId = fixture.Snapshot.RequestId,
+        };
+        var response = fixture.Response(fixture.Batch("move", [], fixture.Move(0, "C.cs")));
+
+        var result = new BundleResponseValidator().Validate(snapshot, response);
+
+        Assert.Equal(
+            [
+                "the file move is unsupported: TestProject (net10.0) compiles the file through a linked or explicit Compile item",
+            ],
+            result.Findings.Select(finding => finding.FixWithheld)
+        );
+    }
+
+    [Theory]
+    [InlineData("C.cs")]
+    [InlineData("C.cs/D.cs")]
+    public void Moves_of_two_files_to_colliding_paths_withhold_both_batches(string second)
+    {
+        var fixture = new MoveFixture();
+        var response = fixture.Response(
+            fixture.Batch("first", [], fixture.Move(0, "C.cs")),
+            fixture.Batch("second", [], fixture.Move(1, second.Split('/')))
+        );
+
+        var result = new BundleResponseValidator().Validate(fixture.Snapshot, response);
+
+        Assert.Empty(result.Moves);
+        Assert.Equal(
+            [
+                "its file move conflicts with another fix's move of the same file or to a colliding path",
+                "its file move conflicts with another fix's move of the same file or to a colliding path",
+            ],
+            result.Findings.Select(finding => finding.FixWithheld)
+        );
+    }
+
+    [Fact]
+    public void A_move_of_a_file_outside_the_snapshot_is_rejected()
+    {
+        var fixture = new MoveFixture();
+        var response = fixture.Response(
+            fixture.Batch("move", [], fixture.Move(0, "C.cs") with { Fingerprint = "stale" })
+        );
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            new BundleResponseValidator().Validate(fixture.Snapshot, response)
+        );
+
+        Assert.Equal(
+            "File move does not match an editable captured source in the analysis scope.",
+            error.Message
+        );
+    }
 }

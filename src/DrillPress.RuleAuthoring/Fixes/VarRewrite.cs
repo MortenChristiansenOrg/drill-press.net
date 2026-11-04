@@ -91,7 +91,7 @@ internal static class VarRewrite
         };
     }
 
-    private static bool HasTargetTyping(AnalysisSource source, ExpressionSyntax expression) =>
+    internal static bool HasTargetTyping(AnalysisSource source, ExpressionSyntax expression) =>
         expression switch
         {
             ImplicitObjectCreationExpressionSyntax

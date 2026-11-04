@@ -51,6 +51,10 @@ and text in two projects to model a linked file.
   line number, with no space: `  +5:32`, not `+ 5:32`. Coverage findings append
   `[coverage: state]`.
 - `result.FixedText(path)` applies validated fixes in memory; assert the complete text.
+  For a renamed or moved file, `result.FixedPath(path)` is the new path and
+  `result.FixedSource(path)` the new `TestSource`; file moves need
+  `AddProject(..., projectDirectory: "src/Orders")`, which models an SDK project
+  compiling the sources below that folder by the default glob.
 - `result.ExplainedOutput` is `Output` plus a `    fix withheld: <reason>` line under each
   finding with a recorded rejection, naming the check that rejected it. A factory
   returning null supplies no explanation. Use it to

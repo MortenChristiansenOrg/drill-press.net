@@ -42,9 +42,12 @@ public static class Fix
     /// <summary>Starts the removal of a comment.</summary>
     public static CommentFix For(CodeComment comment) => new(comment);
 
-    /// <summary>Starts an edit of a local, foreach or out variable's written type.</summary>
+    /// <summary>Starts an edit of a local, foreach or out variable's written type, or the inlining of a local.</summary>
     public static VariableDeclarationFix For(CodeVariableDeclaration declaration) =>
         new(declaration);
+
+    /// <summary>Starts a rename or move of a whole source file within its project.</summary>
+    public static FileFix For(CodeFile file) => new(file);
 
     /// <summary>Starts extracting every occurrence of a grouped expression into one private constant or helper method.</summary>
     public static ExpressionExtraction Extract(ExpressionGroup group) => new(group);

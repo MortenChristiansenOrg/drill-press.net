@@ -21,7 +21,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":10,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":11,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -50,7 +50,32 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":10,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":11,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":"fix"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"file","fingerprint":"hash","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":false}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
+            ),
+            output
+        );
+    }
+
+    [Fact]
+    public void Move_batch_internal_golden_adds_moves_only_when_present()
+    {
+        var response = new BundleResponse(
+            BundleResponseProtocol.CurrentVersion,
+            "request",
+            [new("context", true, [new("R", "Rename.", "doc", 0, 5, "fix")])],
+            [
+                new("fix", [], [new("context", true)])
+                {
+                    Moves = [new("file", "hash", "/repo/Orders/Invoice.cs")],
+                },
+            ]
+        );
+
+        var output = BundleResponseProtocol.Serialize(response);
+
+        Assert.Equal(
+            Encoding.UTF8.GetBytes(
+                $$"""{"protocolVersion":11,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Rename.","documentId":"doc","start":0,"length":5,"batchId":"fix"}]}],"batches":[{"id":"fix","edits":[],"validations":[{"contextId":"context","isSafe":true}],"moves":[{"fileIdentity":"file","fingerprint":"hash","destination":"/repo/Orders/Invoice.cs"}]}],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -70,7 +95,7 @@ public sealed class BundleResponseProtocolTests
 
         Assert.Equal(
             Encoding.UTF8.GetBytes(
-                $$"""{"protocolVersion":10,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
+                $$"""{"protocolVersion":11,"requestId":"request","contexts":[{"contextId":"context","isComplete":true,"findings":[{"ruleId":"R","message":"Replace.","documentId":"doc","start":2,"length":5,"batchId":null}]}],"batches":[],"productVersion":"{{ComponentVersion.Current}}"}"""
             ),
             output
         );
@@ -98,7 +123,7 @@ public sealed class BundleResponseProtocolTests
         var result = BundleResponseProtocol.Read(json, fixture.Snapshot);
 
         Assert.Equal(
-            $$"""{"protocolVersion":10,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"DP1004","message":"Replace alpha.","documentId":"document","start":2,"length":5,"batchId":"fix","fixComplexity":"{{wireValue}}"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"Shared.cs","fingerprint":"{{fixture.Document.Fingerprint}}","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":true}]}],"productVersion":"{{ComponentVersion.Current}}"}""",
+            $$"""{"protocolVersion":11,"requestId":"request","contexts":[{"contextId":"first","isComplete":true,"findings":[{"ruleId":"DP1004","message":"Replace alpha.","documentId":"document","start":2,"length":5,"batchId":"fix","fixComplexity":"{{wireValue}}"}]},{"contextId":"second","isComplete":true,"findings":[]}],"batches":[{"id":"fix","edits":[{"fileIdentity":"Shared.cs","fingerprint":"{{fixture.Document.Fingerprint}}","start":2,"length":5,"originalText":"alpha","replacement":"A"}],"validations":[{"contextId":"first","isSafe":true},{"contextId":"second","isSafe":true}]}],"productVersion":"{{ComponentVersion.Current}}"}""",
             json
         );
         Assert.Equal(

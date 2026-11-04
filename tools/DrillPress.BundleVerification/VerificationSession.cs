@@ -276,7 +276,7 @@ public sealed class VerificationSession : IDisposable
                 BundleOutcome.Failure,
                 [],
                 Encoding.UTF8.GetBytes(
-                    "drillpress-rules: Compilation snapshot format -1 is not supported; expected 5. Use matching Drill Press components."
+                    $"drillpress-rules: Compilation snapshot format -1 is not supported; expected {CompilationSnapshot.CurrentFormatVersion}. Use matching Drill Press components."
                         + Environment.NewLine
                 )
             )
@@ -506,6 +506,15 @@ public sealed class VerificationSession : IDisposable
         ).VerifyAsync(cli, BuildHost, ManagedBundle, NativeBundle);
         Console.WriteLine(
             "CLI fix/recheck: both safe fixes preserve exact source bytes with managed/native bundles"
+        );
+        await new FileMoveVerificationCase(
+            _fileSystem,
+            RepositoryRoot,
+            _fileSystem.Path.Combine(_fixture.FullName, "MoveTarget"),
+            OutputDirectory
+        ).VerifyAsync(cli, BuildHost, ManagedBundle, NativeBundle);
+        Console.WriteLine(
+            "CLI fix/recheck: a file rename with its edit matches with managed/native bundles"
         );
         await new OccurrenceCoverageCase(
             _fileSystem,

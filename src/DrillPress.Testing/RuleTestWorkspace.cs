@@ -56,7 +56,7 @@ public sealed class RuleTestWorkspace
     }
 
     /// <summary>Adds an independently evaluated source project. Dependencies must already belong to this workspace. Framework labels do not select reference packs.</summary>
-    /// <remarks>Defaults to a class library with nullable annotations and warnings enabled, C# 14 and no implicit usings. Source directives override the project nullable setting. <c>implicitUsings: true</c> adds the Microsoft.NET.Sdk default global usings as a generated <c>{name}.GlobalUsings.g.cs</c> document, like an SDK project with <c>ImplicitUsings</c> enabled. Pass <c>outputKind: OutputKind.ConsoleApplication</c> for top-level statements. A reference whose assembly has the name of one of its dependencies is left out, so workspace projects can be named like assemblies the test process loads. The project itself keeps a reference with its own name, so a project named like a loaded assembly can still use that assembly's types.</remarks>
+    /// <remarks>Defaults to a class library with nullable annotations and warnings enabled, C# 14 and no implicit usings. Source directives override the project nullable setting. <c>implicitUsings: true</c> adds the Microsoft.NET.Sdk default global usings as a generated <c>{name}.GlobalUsings.g.cs</c> document, like an SDK project with <c>ImplicitUsings</c> enabled. Pass <c>outputKind: OutputKind.ConsoleApplication</c> for top-level statements. Pass <c>projectDirectory</c>, such as <c>"src/Orders"</c> or <c>""</c> for the current folder, to model an SDK project in that folder that compiles its sources by the default glob, without <c>bin</c> and <c>obj</c>: sources below it can then be renamed or moved by a fix. Without it the project's membership is unknown and file moves are withheld. A reference whose assembly has the name of one of its dependencies is left out, so workspace projects can be named like assemblies the test process loads. The project itself keeps a reference with its own name, so a project named like a loaded assembly can still use that assembly's types.</remarks>
     public AnalysisProject AddProject(
         string name,
         IReadOnlyList<TestSource> sources,
@@ -70,7 +70,8 @@ public sealed class RuleTestWorkspace
         NullableContextOptions nullable = NullableContextOptions.Enable,
         LanguageVersion languageVersion = LanguageVersion.CSharp14,
         bool implicitUsings = false,
-        OutputKind outputKind = OutputKind.DynamicallyLinkedLibrary
+        OutputKind outputKind = OutputKind.DynamicallyLinkedLibrary,
+        string? projectDirectory = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -94,7 +95,13 @@ public sealed class RuleTestWorkspace
                     Encoding.UTF8.GetBytes(source.Text),
                     "utf-8",
                     false
-                )
+                ) with
+                {
+                    IsDefaultCompileItem =
+                        projectDirectory is not null
+                        && !source.Generated
+                        && SourcePaths.IsBelow(source.Path, projectDirectory),
+                }
             )
             .ToArray();
         var parse = new CSharpParseOptions(languageVersion, preprocessorSymbols: symbols);
@@ -124,7 +131,9 @@ public sealed class RuleTestWorkspace
         var snapshot = new ProjectSnapshot(
             name,
             name,
-            name + ".csproj",
+            projectDirectory is null
+                ? name + ".csproj"
+                : SourcePaths.Join(projectDirectory, name + ".csproj"),
             (int)languageVersion,
             (int)outputKind,
             (int)nullable,
@@ -135,6 +144,16 @@ public sealed class RuleTestWorkspace
         {
             TargetFramework = framework,
             IsTestProject = isTest,
+            CompileGlob = projectDirectory is null
+                ? null
+                : new(
+                    projectDirectory,
+                    [
+                        SourcePaths.Join(projectDirectory, "bin"),
+                        SourcePaths.Join(projectDirectory, "obj"),
+                    ]
+                ),
+            CompileRoots = projectDirectory is null ? [] : [projectDirectory],
             Packages = packages?.ToArray() ?? [],
             ReferencedContextIds = dependencies
                 .Select(project => project.Snapshot.ContextId)

@@ -141,7 +141,8 @@ public sealed class TestBodyTests(SemanticRuleFixture fixture) : IClassFixture<S
                     Xunit.Assert.NotNull(raw);
                 }
             }
-            """"
+            """",
+            isTest: true
         );
 
         var findings = await fixture.Describe(project);

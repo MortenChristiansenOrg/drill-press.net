@@ -197,6 +197,9 @@ The sample bundle supplies these conventions:
 | DP1003 | An interface with exactly one concrete non-test source implementation in every compatible evaluated view. Partial/generic definitions count once; inherited and generated implementations count. Source dependencies participate; external metadata consumers do not. |
 | DP1004 | A resolved `string.Empty` reference outside `nameof`. A fix replaces only the expression span with `""`, retaining surrounding trivia. |
 | DP1005 | A resolved `StringComparer.Ordinal` reference within an argument. Only the documented overload pair below currently receives a fix. |
+| DP1006 | An initialized local outside test projects that is read exactly once and never written. `Inline()` replaces the read with the initializer when `Propose()` proves it safe; see [Inlining locals](STRUCTURED_FIXES.md#inlining-locals). |
+| DP1007 | A file the SDK's default glob compiles whose only top-level, non-generic, non-partial type is not its file name; dotted companion names such as `MainWindow.xaml.cs` are left alone. `RenameTo` renames the file after the type; see [Renaming and moving files](STRUCTURED_FIXES.md#renaming-and-moving-files). |
+| DP1008 | A `<Type>Tests.cs` file in a test project whose folder differs from that of the only production file in a referenced project declaring `<Type>`. `MoveTo` moves it to the mirrored folder. |
 
 The sample bundle selects tests with `Code.TestMethods`, which recognizes xUnit,
 NUnit and MSTest markers, including derived marker attributes and markers
@@ -372,12 +375,14 @@ proof or `SafeWhen(change => ...)` when you state why the edit preserves behavio
 | `Fix.For(branch)` (if/else branch or any `Code.EmbeddedStatements` body) | `AddBraces()` | `Propose()` |
 | `Fix.For(comment)` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
 | `Fix.For(variable)` | `UseVar()` | `Propose()` |
+| `Fix.For(variable)` | `Inline()` | `Propose()` when the read follows only pure evaluation, otherwise `SafeWhen` |
 | `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameter)` | `Propose()` for constants, otherwise `SafeWhen` |
+| `Fix.For(file)` | `RenameTo(fileName)`, `MoveTo(relativePath)` | `Propose()` without caller file paths, otherwise `SafeWhen` |
 
-The proposal contains every `SourceEdit` required by one atomic correction and a
-context validation function. The engine invokes that function for every loaded
-context containing an edited physical identity, including contexts without a
-finding. Missing, inactive, generated, non-editable, or ambiguously bound
+The proposal contains every `SourceEdit` and `SourceMove` required by one atomic
+correction and a context validation function. The engine invokes that function for
+every loaded context containing an edited or moved physical identity, including
+contexts without a finding. Missing, inactive, generated, non-editable, or ambiguously bound
 memberships cannot be assumed safe. The shared response validator then requires
 agreement and withholds entire conflicting batches. The `+` marker means that
 this complete plan survived validation; proposing a fix does not write files.
@@ -454,6 +459,11 @@ code are excluded. C# may infer a nullable reference annotation for `var` even
 from a non-null initializer, so changing `string value = "x"` is excluded while
 `string? value = "x"` can qualify. `UseVar()` replaces only the type span and
 validates the final edit batch in every affected context.
+
+`HasSingleRead` and `WithSingleRead()` select one initialized, non-ref local that is
+referenced exactly once in its member and never written or passed by reference.
+`Inline()` replaces that read with the initializer and removes the declaration; see
+[Inlining locals](STRUCTURED_FIXES.md#inlining-locals) for its gates.
 
 ### Comments
 

@@ -23,6 +23,17 @@ internal static class ExpressionLayout
         return SyntaxFactory.ParenthesizedExpression(normalized);
     }
 
+    // Keeps an existing expression's own text, adding parentheses only when the destination would otherwise
+    // parse it differently.
+    internal static string FitText(
+        AnalysisSource source,
+        ExpressionSyntax original,
+        ExpressionSyntax replacement
+    ) =>
+        replacement is ParenthesizedExpressionSyntax || ParsesInPlace(source, original, replacement)
+            ? replacement.ToString()
+            : "(" + replacement + ")";
+
     private static bool ParsesInPlace(
         AnalysisSource source,
         ExpressionSyntax original,

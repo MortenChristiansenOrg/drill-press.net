@@ -77,4 +77,149 @@ public sealed class ProjectFactsTests : IntegrationTest
         );
         Assert.Equal(project.SourceRoots.Order(StringComparer.Ordinal), project.SourceRoots);
     }
+
+    [Theory]
+    [InlineData("Microsoft.NET.Sdk", "", "bin,obj", "Glob.cs,Nested/Deep.cs")]
+    [InlineData(
+        "Microsoft.NET.Sdk.Web",
+        "",
+        "**/bower_components,**/jspm_packages,**/node_modules,bin,bower_components,jspm_packages,node_modules,obj,wwwroot",
+        "Glob.cs,Nested/Deep.cs"
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<ItemGroup><Compile Remove=\"Nested/**\" /></ItemGroup>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<PropertyGroup><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include=\"**/*.cs\" /></ItemGroup>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<PropertyGroup><DefaultItemExcludes>$(DefaultItemExcludes);**/Legacy*.cs</DefaultItemExcludes></PropertyGroup>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<Target Name=\"Filter\" BeforeTargets=\"CoreCompile\"><ItemGroup><Compile Remove=\"Nested/**\" /></ItemGroup></Target>",
+        null,
+        ""
+    )]
+    [InlineData(
+        "Microsoft.NET.Sdk",
+        "<Target Name=\"Generate\" BeforeTargets=\"CoreCompile\"><ItemGroup><Generated Include=\"Gen/**/*.cs\" /><Compile Include=\"@(Generated)\" /></ItemGroup></Target>",
+        null,
+        ""
+    )]
+    public async Task Project_capture_records_the_default_compile_glob_only_when_nothing_else_selects_sources(
+        string sdk,
+        string customization,
+        string? excluded,
+        string globbed
+    )
+    {
+        var root = CreateTemporaryDirectory("drillpress-compile-glob-").FullName;
+        var target = FileSystem.Path.Combine(root, "Glob.csproj");
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+        FileSystem.File.WriteAllText(
+            target,
+            $"<Project Sdk=\"{sdk}\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Library</OutputType></PropertyGroup>{customization}</Project>"
+        );
+        FileSystem.File.WriteAllText(
+            FileSystem.Path.Combine(root, "Glob.cs"),
+            "public class Glob { }"
+        );
+        FileSystem.Directory.CreateDirectory(FileSystem.Path.Combine(root, "Nested"));
+        FileSystem.File.WriteAllText(
+            FileSystem.Path.Combine(root, "Nested", "Deep.cs"),
+            "public class Deep { }"
+        );
+        await RestoreAsync(target);
+
+        var exported = await RunProcessAsync(
+            "dotnet",
+            [GetOutputPath("DrillPress.BuildHost"), "export", target, output],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            output,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), exported);
+        var project = Assert.Single(snapshot.Projects);
+        Assert.Equal(
+            excluded?.Split(','),
+            project
+                .CompileGlob?.ExcludedDirectories.Select(path =>
+                    FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/')
+                )
+                .Concat(project.CompileGlob.ExcludedFolderNames.Select(name => "**/" + name))
+                // Which output folders below bin and obj are excluded varies between SDK versions.
+                .Where(path =>
+                    !path.StartsWith("bin/", StringComparison.Ordinal)
+                    && !path.StartsWith("obj/", StringComparison.Ordinal)
+                )
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+        );
+        Assert.Equal(
+            globbed,
+            string.Join(
+                ",",
+                project
+                    .Documents.Where(document => document.IsDefaultCompileItem)
+                    .Select(document =>
+                        FileSystem.Path.GetRelativePath(root, document.Path).Replace('\\', '/')
+                    )
+                    .Order(StringComparer.Ordinal)
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Project_capture_records_every_folder_a_compile_wildcard_can_reach()
+    {
+        var root = CreateTemporaryDirectory("drillpress-compile-roots-").FullName;
+        var project = FileSystem.Path.Combine(root, "App");
+        var target = FileSystem.Path.Combine(project, "App.csproj");
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+        FileSystem.Directory.CreateDirectory(project);
+        FileSystem.File.WriteAllText(
+            target,
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup><ItemGroup><Compile Include=\"../Shared/**/*.cs\" /></ItemGroup></Project>"
+        );
+        FileSystem.File.WriteAllText(
+            FileSystem.Path.Combine(project, "App.cs"),
+            "public class App { }"
+        );
+        await RestoreAsync(target);
+
+        var exported = await RunProcessAsync(
+            "dotnet",
+            [GetOutputPath("DrillPress.BuildHost"), "export", target, output],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken
+        );
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            output,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), exported);
+        var captured = Assert.Single(snapshot.Projects);
+        Assert.Null(captured.CompileGlob);
+        Assert.Equal(
+            ["App", "Shared"],
+            captured.CompileRoots?.Select(path =>
+                FileSystem.Path.GetRelativePath(root, path).Replace('\\', '/')
+            )
+        );
+    }
 }

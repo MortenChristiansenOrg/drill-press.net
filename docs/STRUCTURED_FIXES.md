@@ -1,7 +1,8 @@
 # Structured edits with contextual proofs
 
 All operations start from `Fix.For(...)`, use original snapshots, reject compiler
-errors/generated/inactive source, and run in every affected loaded context.
+errors/generated/inactive source, and run in every affected loaded context. Most edit
+text; file renames and moves change paths.
 Unknown evidence retains the finding without a fix. The engine validates combined
 edits and exports their proven union atomically. Finish with `Propose()`, where
 the library owns the proof, or `SafeWhen(...)`; `AddArgumentOfType` instead takes
@@ -213,6 +214,126 @@ its symbol, type and conversion. An unrelated destination name
 in another scope does not prevent a rename. `nameof` results follow
 the new name, as a rename intends, but a compiler-supplied argument such as
 `CallerArgumentExpression` that would change withholds the fix.
+
+## Inlining locals
+
+```csharp
+rules.Rule("INLINE", "Inline locals that only rename their initializer.")
+    .For(Code.LocalVariables.WithSingleRead())
+    .Forbid(fix: local => Fix.For(local).Inline().Propose());
+```
+
+`Inline()` removes the declaration's lines and replaces the local's single read with the
+initializer's original text, adding parentheses only where the destination would parse
+it differently: `var sum = a + b; return sum * 2;` becomes `return (a + b) * 2;`.
+`WithSingleRead()` selects a declaration statement in a block or switch section with one
+initialized local, neither `const`, `ref` nor `using`, referenced exactly once and never written.
+
+`Propose()` owns the proof when the initializer moves past nothing observable: the read
+is in the statement right after the declaration, and that statement evaluates only
+literals, constants, `default`, `typeof`, `sizeof`, `nameof`, `this`, non-ref locals and
+parameters the initializer does not write and that no nested function captures and no
+`ref`, `out` or address-of expression aliases, instance `readonly` fields of the
+containing type outside constructors and `init` accessors, and implicit identity,
+reference, boxing, numeric or nullable conversions before the read.
+`_items.Add(value)` with a `readonly` `_items` qualifies; a mutable or static field, a
+call or an intervening statement does not, and neither does a read in an object,
+collection or `with` initializer or in a collection expression built by a constructor,
+because the constructor or copy runs first. `SafeWhen(change => ...)` waives exactly that
+order: the read may follow other statements of the same block and other operands of its
+statement. `InlineChange` lists them in `SkippedStatements` and `SkippedOperands`, with
+`Declaration`, `Initializer`, `Read` and the `Rewrite` being validated. A skipped
+statement or operand that throws now keeps the initializer from running, so the proof
+covers that too.
+
+Either way, the fix is withheld when:
+
+- the declaration is not a local declaration statement directly in a block or switch
+  section, or is in generated or non-editable source;
+- it declares several variables, has no initializer, or is `const`, `ref`, `scoped` or
+  `using`;
+- the declaration has comments or directives, or shares a line with other code;
+- the initializer declares variables, is target-typed (lambdas, method groups, `new()`,
+  `[]`, `null`, `default`) or has a different type than the local, ignoring nullable
+  annotations, so that the declaration converts it (`object value = 1;`);
+- the local is written, passed by reference or referenced more than once, or the
+  reference is in `nameof` or an expression tree;
+- a label stands between the declaration and the read, or a statement before the read
+  may `return`, `throw`, `goto`, `break`, `continue` or `yield break` past it;
+- the read is not in the header of a later statement of the same list: an expression
+  statement, `return`, `throw`, `yield return`, local declaration, or the condition,
+  governing expression, collection, resource or lock expression. Loop conditions and
+  nested bodies are not headers;
+- the read is deferred in a lambda, local function or query, inside `checked` or
+  `unchecked`, or not always evaluated: after `&&`, `||` or `??`, in a `?:` branch, after
+  `?.`, in a switch expression arm or interpolated string handler, or in a call that a
+  `[Conditional]` attribute or a missing partial implementation may compile away;
+- a struct local is a receiver and its initializer is a variable, which the member would
+  then mutate instead of a copy.
+
+In every affected compilation the enclosing expressions keep their bindings, every
+expression of the moved initializer keeps its syntax, symbol, type and conversion and its
+root its natural type, the read's nullable state is unchanged, and no compiler-supplied
+argument changes. Removing a line moves the caller line numbers of later calls, which
+withholds the fix. Chained inlines such as `var a = M(); var b = a; return b;` conflict and
+are both withheld in one run; the next run inlines what remains.
+
+## Renaming and moving files
+
+```csharp
+rules.Rule("FILE-NAMES", "Name the file after its only type.")
+    .For(Code.Files.Where(file => file.IsDefaultCompileItem && PrimaryType(file) is { } type && file.Name != type + ".cs"))
+    .Forbid(fix: file => Fix.For(file).RenameTo(PrimaryType(file) + ".cs").Propose());
+```
+
+`Fix.For(file).RenameTo(fileName)` renames a `CodeFile` within its folder;
+`MoveTo(relativePath)` moves it below its project directory, written like
+`CodeFile.RelativePath` (`"Orders/OrderServiceTests.cs"`, forward slashes, no `.` or
+`..`). The text is unchanged; edits that other fixes make to the same file in the same
+run are applied first. `Propose()` owns the proof when no call in the file, including
+implicit calls such as collection initializer `Add` calls and conditional indexers,
+receives a compiler-supplied `[CallerFilePath]`, which would change with the path.
+`SafeWhen(change => ...)` accepts that: `FileMoveChange` exposes `From`, `To`, the
+`CallerFilePathMethods` whose argument changes, and the `Rewrite` it was bound in, so
+a rule can state that the path is only logged or locates files that move with it.
+
+The supported scope is narrow on purpose: a move must not change which projects
+compile the file. BuildHost records, per project and target framework, whether the
+SDK's default `**/*.cs` glob is the only source of Compile items, with the directories
+its exclusions leave out (`bin`, `obj`, `BaseOutputPath`, `BaseIntermediateOutputPath`
+and similar) and the folder names they leave out at any depth (`**/node_modules/**`).
+Any other Compile `Include`, `Remove` or `Update` outside the SDK in evaluation, a
+Compile `Remove` or wildcard `Include` in a target outside the SDK, or an exclusion that
+is not a whole directory, a folder name or a file pattern no `.cs` file can match,
+makes the membership unknown. It also records, for every project, the folders that any
+of its Compile wildcards can reach, such as `../Shared` for `../Shared/**/*.cs`. `CodeFile.IsDefaultCompileItem` tells whether the glob
+selected a file. The fix is withheld when:
+
+- a project or target framework containing the file has unknown membership, or
+  compiles the file through a linked or explicit Compile item;
+- the destination is not below every such project directory, or lies in an excluded,
+  `obj` or dot-named folder, or its name starts with a dot;
+- another loaded project would also compile the destination: its default glob selects
+  it, one of its Compile wildcards reaches its folder, or the project has no recorded
+  reach;
+- the destination does not end in `.cs` (exactly), is named like generated code
+  (`.g.cs`, `.g.i.cs`, `.generated.cs`, `.designer.cs`, `TemporaryGeneratedFile_`),
+  or equals another loaded file's path ignoring case, or one of them would be a folder
+  of the other;
+- the file is generated or not editable, or an affected compilation has errors;
+- the file declares a `[ModuleInitializer]` or a partial type with field or property
+  initializers whose other parts are in other files, because the compiler orders both
+  by file order;
+- two fixes move one file to different paths, or two files to one path or to paths
+  where one would be a folder of the other.
+
+A case-only rename (`orderService.cs` to `OrderService.cs`) is supported. Files outside
+the project directory, loose `.cs` targets, Compile items added by targets with
+wildcards, and file
+creation and deletion are not. Path-specific settings such as an `.editorconfig`
+section naming the old file, generators that read file paths and documentation links
+are not followed; the recheck after `fix` reports what they change. See
+[fixing](FIXING.md#moving-files) for the checks the CLI repeats on disk.
 
 ## Reusable structural and framework edits
 

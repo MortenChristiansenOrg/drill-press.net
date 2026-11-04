@@ -520,6 +520,18 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             SdkVersion = sdkVersion,
             Packages = metadata.Packages,
             SourceRoots = metadata.SourceRoots,
+            CompileGlob = metadata.CompileGlob,
+            CompileRoots = metadata.CompileRoots,
+            Documents = snapshot
+                .Documents.Select(document =>
+                    !document.IsGenerated && metadata.DefaultCompileItems.Contains(document.Path)
+                        ? document with
+                        {
+                            IsDefaultCompileItem = true,
+                        }
+                        : document
+                )
+                .ToArray(),
         };
 
     private static GeneratorDriver? CreateGeneratorDriver(

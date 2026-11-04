@@ -53,11 +53,10 @@ public sealed class RuleTestResult
         new CompactDiagnosticRenderer(_fileSystem).Render(_result, explainFixes: true);
 
     /// <summary>Applies only the validated plan to captured text. No OS files are written.</summary>
+    /// <param name="path">The captured path, or the path a validated fix moves the file to.</param>
     public string FixedText(string path)
     {
-        var document = _snapshot
-            .Projects.SelectMany(project => project.Documents)
-            .First(document => document.Path == path);
+        var document = Document(path);
         return SourceText
             .From(document.Text)
             .WithChanges(
@@ -66,5 +65,36 @@ public sealed class RuleTestResult
                     .Select(edit => new TextChange(new(edit.Start, edit.Length), edit.Replacement))
             )
             .ToString();
+    }
+
+    /// <summary>The path a validated fix renames or moves the file to, or the captured path when no fix moves it.</summary>
+    /// <param name="path">The captured path.</param>
+    public string FixedPath(string path)
+    {
+        var document = Document(path);
+        return _result
+                .Moves.FirstOrDefault(move => move.FileIdentity == document.FileIdentity)
+                ?.Destination
+            ?? document.Path;
+    }
+
+    /// <summary>The file after the validated plan: its new path and text, ready to add to a fresh workspace for a clean recheck.</summary>
+    /// <param name="path">The captured path.</param>
+    public TestSource FixedSource(string path) => new(FixedPath(path), FixedText(path));
+
+    private DocumentSnapshot Document(string path)
+    {
+        var documents = _snapshot.Projects.SelectMany(project => project.Documents).ToArray();
+        return documents.FirstOrDefault(document => document.Path == path)
+            ?? _result
+                .Moves.Where(move => move.Destination == path)
+                .Select(move =>
+                    documents.First(document => document.FileIdentity == move.FileIdentity)
+                )
+                .FirstOrDefault()
+            ?? throw new ArgumentException(
+                $"No captured or moved file has the path '{path}'.",
+                nameof(path)
+            );
     }
 }

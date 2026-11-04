@@ -21,16 +21,7 @@ internal sealed class LocalAssignments(AnalysisSource source)
                 is not VariableDeclaratorSyntax { Initializer.Value: { } initializer } declaration
         )
             return null;
-        var scope =
-            declaration
-                .Ancestors()
-                .FirstOrDefault(node =>
-                    node
-                        is MemberDeclarationSyntax
-                            and not BaseTypeDeclarationSyntax
-                            and not GlobalStatementSyntax
-                )
-            ?? source.Tree.GetRoot(source.Project.CancellationToken);
+        var scope = LocalReferences.Scope(source, declaration);
         var writes = _writes.GetOrAdd(scope, node => new(() => FindWrites(node))).Value;
         return !writes.IsResolved || writes.Writes.Contains(local)
             ? null

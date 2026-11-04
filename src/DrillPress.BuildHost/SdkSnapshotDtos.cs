@@ -36,3 +36,8 @@ internal sealed record ProjectCaptureState(
     Dictionary<ProjectId, Task<CompilationContext>> Contexts,
     List<Project> Order
 );
+
+/// <summary>A project's default compile glob and the full paths of the sources it selected.</summary>
+/// <param name="Glob">The glob's directory and excluded directories.</param>
+/// <param name="Items">The full paths of the glob's Compile items without link metadata.</param>
+internal sealed record CompileGlobMembership(CompileGlobSnapshot Glob, IReadOnlySet<string> Items);

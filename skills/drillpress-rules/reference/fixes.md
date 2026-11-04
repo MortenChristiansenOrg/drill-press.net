@@ -27,8 +27,9 @@ Start at `Fix.For(candidate)` (or `Fix.Extract(group)`) and finish with
 | `CodeInvocation` | `AddArgumentOfType(type, expression, proof)` | returns a proposal directly |
 | `CodeBranch` (`Code.IfStatements.Branches()`, `Code.EmbeddedStatements`) | `AddBraces()` | `Propose()` |
 | `CodeComment` | `Remove()`, `Remove(preserveLines: true)` | `Propose()` |
-| `CodeVariableDeclaration` | `UseVar()` | `Propose()` |
+| `CodeVariableDeclaration` | `UseVar()`; `Inline()` → `LocalInlining`: removes the declaration, replaces the single read with the initializer | `UseVar`: `Propose()`; `Inline`: `Propose()` when the read is in the next statement and passes only pure operands, else `SafeWhen(InlineChange)` |
 | `ExpressionGroup` via `Fix.Extract(group)` | `ToConstant(name)`, `ToMethod(name, parameterName)` | `Propose()` (constants), `SafeWhen` (templates) |
+| `CodeFile` (`FileFix`) | `RenameTo("Name.cs")`, `MoveTo("Folder/Name.cs")` (below the project directory) → `FileMove` | `Propose()` unless a call in the file receives `[CallerFilePath]`, else `SafeWhen(FileMoveChange)` |
 
 All proposals check editable ordinary source, inactive text and compilation. Each
 builder adds its own trivia and binding gates: expression replacement, for example,
@@ -178,6 +179,10 @@ rules.Rule("TEAM033", "Track TODOs in the issue tracker instead of comments.")
 rules.Rule("TEAM034", "Use var when the type is apparent.")
     .For(Code.LocalVariables.WithExplicitType().WithInitializer().WhereVarPreservesType())
     .Forbid(fix: declaration => Fix.For(declaration).UseVar().Propose());
+
+rules.Rule("TEAM035", "Inline locals that only rename their initializer.")
+    .For(Code.LocalVariables.WithSingleRead())
+    .Forbid(fix: local => Fix.For(local).Inline().Propose());
 ```
 
 `RemoveModifier(...).Propose()` succeeds only for accessibility keywords whose removal
@@ -205,6 +210,18 @@ non-editable references, cross-project references, capture/shadowing (including 
 other files of a partial type), string literals of any kind equal to the old name,
 inactive `#if` code naming either name or changed caller info withhold even an approved
 wider rename.
+
+`Inline()` replaces the local's single read with the initializer text, parenthesized
+only where needed, and removes the declaration lines. It is withheld for `using`,
+`const`, `ref`/`scoped` locals, several declarators, comments on the declaration,
+target-typed or converted initializers (`object o = 1;`), writes, `nameof`, deferred
+or conditional reads (lambdas, `&&`, `?:`, `?.`, `[Conditional]` calls, `checked`),
+reads outside a later statement header of the same block, changed bindings, types or
+nullable state, and changed caller line numbers. `Propose()` also requires the read in
+the next statement with only literals, unwritten locals/parameters and `readonly`
+fields evaluated before it; `SafeWhen(change => ...)` approves the reordering it lists
+in `SkippedStatements` and `SkippedOperands`. Chained inlines conflict and wait for
+the next run.
 
 ## Extraction of repeated expressions
 
@@ -239,6 +256,42 @@ The example's consumer contract observes string contents, not allocation identit
 resource exhaustion or stack inspection. Those assumptions cannot be inferred from syntax.
 Broader policies must also justify evaluation timing, culture/formatting and configured-call
 effects; allowlisting a call establishes none of these.
+
+## File renames and moves
+
+```csharp
+using DrillPress;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+var rules = new RuleCatalog();
+
+rules.Rule("TEAM041", "Name the file after its only class.")
+    .For(Code.Files.Where(file =>
+        file.IsDefaultCompileItem && Expected(file) is { } name && file.Name != name))
+    .Forbid(fix: file => Fix.For(file).RenameTo(Expected(file)!).Propose());
+
+static string? Expected(CodeFile file) =>
+    file.Nodes<ClassDeclarationSyntax>().ToArray() is [var type]
+        ? type.Syntax.Identifier.Text + ".cs"
+        : null;
+```
+
+`MoveTo(relativePath)` takes a path below the file's project directory with forward
+slashes, like `CodeFile.RelativePath`; `RenameTo` keeps the folder. The text is
+unchanged, and other fixes to the file in the same run are applied before the move.
+Only files that the SDK default `**/*.cs` glob selects (`CodeFile.IsDefaultCompileItem`)
+in every project/framework containing them move, and only to a path the same projects
+still compile and no other loaded project does: not into `bin`, `obj`, other excluded
+or dot-named folders (`node_modules`), nested project folders, folders another project's
+Compile wildcard reaches, or onto another loaded file (case-insensitive). Projects with
+their own Compile include/remove/update items (also target removals and wildcard
+includes), linked or explicit files, loose sources and generated-looking names
+(`.g.cs`, `.designer.cs`) are withheld, and so are files declaring a
+`[ModuleInitializer]` or initializers of a partial type split across files. Calls receiving `[CallerFilePath]`, including
+implicit `Add` calls and `?[]` indexers, withhold `Propose()`;
+`SafeWhen(change => ...)` gets `From`, `To`, `CallerFilePathMethods` and `Rewrite`.
+No file creation or deletion. In tests, pass `projectDirectory:` to `AddProject` and
+assert `result.FixedPath(path)` or `result.FixedSource(path)`.
 
 ## Custom edits
 

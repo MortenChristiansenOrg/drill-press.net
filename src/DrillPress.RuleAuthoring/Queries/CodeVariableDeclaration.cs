@@ -59,4 +59,9 @@ public sealed class CodeVariableDeclaration : ICodeElement
     public bool HasInitializer =>
         Syntax is VariableDeclarationSyntax { Variables.Count: > 0 } declaration
         && declaration.Variables.All(variable => variable.Initializer is not null);
+
+    /// <summary>Whether this is a local declaration statement in a block or switch section that declares one initialized local, neither <c>const</c>, <c>ref</c> nor <c>using</c>, that is referenced exactly once in its member and never written or passed by reference: the shape <see cref="LocalInlining"/> inlines. Unresolved members return false.</summary>
+    public bool HasSingleRead =>
+        Syntax is VariableDeclarationSyntax declaration
+        && LocalReferences.SingleRead(Source, declaration) is not null;
 }

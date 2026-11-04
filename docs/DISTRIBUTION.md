@@ -100,9 +100,10 @@ native compiler; explicitly supplied native bundles remain supported.
 `drillpress --version` identifies the package version and snapshot/response
 protocol numbers. Snapshots and responses carry their producer's exact package
 version; incompatible or missing versions fail before findings or edits are
-accepted. Snapshot format 5 records explicit build overrides for coverage
-collection; response format 9 carries per-occurrence evidence, optional rule fix
-complexity and skipped coverage rules alongside stable remediation. Source preview bundles with earlier formats must be rebuilt.
+accepted. Snapshot format 6 records explicit build overrides for coverage
+collection and each project's default compile glob; response format 11 carries
+per-occurrence evidence, optional rule fix complexity, skipped coverage rules and file
+moves alongside stable remediation. Source preview bundles with earlier formats must be rebuilt.
 
 Update the local tool with `dotnet tool update DrillPress.Cli --version 1.0.0-rc.1`
 (or add `--global` for a global installation), update all SDK references to
