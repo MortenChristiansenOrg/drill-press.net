@@ -95,13 +95,10 @@ internal sealed class AcceptedSourceResolver(IFileSystem fileSystem, ChildProces
         var path = _fileSystem.Path.GetFullPath(
             _fileSystem.Path.Combine(currentRoot, relativePath)
         );
-        if (
-            !path.StartsWith(
-                _fileSystem.Path.TrimEndingDirectorySeparator(currentRoot)
-                    + _fileSystem.Path.DirectorySeparatorChar,
-                StringComparison.Ordinal
-            )
-        )
+        var root = _fileSystem.Path.GetFullPath(currentRoot);
+        if (!_fileSystem.Path.EndsInDirectorySeparator(root))
+            root += _fileSystem.Path.DirectorySeparatorChar;
+        if (!path.StartsWith(root, StringComparison.Ordinal))
             throw new InvalidDataException(
                 $"Accepted source '{relativePath}' is outside its root."
             );

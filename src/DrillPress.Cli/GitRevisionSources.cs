@@ -5,8 +5,8 @@ using System.Text;
 namespace DrillPress.Cli;
 
 /// <summary>
-/// Reads the C# blobs of a Git revision as a checkout would write them, applying line-ending
-/// and smudge filters but not release-archive attributes such as <c>export-ignore</c>.
+/// Reads the raw C# blobs of a Git revision, unaffected by release-archive attributes such as
+/// <c>export-ignore</c>. Checkout filters are not applied; the projection matches line endings.
 /// </summary>
 internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRunner runner)
 {
@@ -28,9 +28,13 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                 cancellationToken
             )
         ).Split('\n');
-        var root =
-            LogicalRoot(start, location.Length > 1 ? location[1] : "")
-            ?? _fileSystem.Path.GetFullPath(location[0]);
+        var root = await RootAsync(
+            start,
+            _fileSystem.Path.GetFullPath(location[0]),
+            location.Length > 1 ? location[1] : "",
+            unresolved,
+            cancellationToken
+        );
         var commit = await GitAsync(
             [
                 "-C",
@@ -75,9 +79,9 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                     () =>
                         runner.StreamAsync(
                             "git",
-                            ["-C", root, "cat-file", "--batch", "--filters"],
-                            // Filters need each blob's path, which follows its object name.
-                            string.Concat(blobs.Select(blob => $"{blob.Object} {blob.Path}\n")),
+                            // Raw blobs: with --filters, Git 2.43 headers give the unfiltered size.
+                            ["-C", root, "cat-file", "--batch"],
+                            string.Concat(blobs.Select(blob => blob.Object + "\n")),
                             output,
                             cancellationToken
                         ),
@@ -100,9 +104,16 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                     int.Parse(size, System.Globalization.CultureInfo.InvariantCulture)
                 ];
                 stream.ReadExactly(content);
-                stream.ReadByte();
+                if (stream.ReadByte() != '\n')
+                    throw new InvalidDataException(
+                        $"Git returned malformed source for '{path}' in baseline '{revision}'."
+                    );
                 files.Add((path, content));
             }
+            if (stream.ReadByte() != -1)
+                throw new InvalidDataException(
+                    $"Git returned more sources than requested for baseline '{revision}'."
+                );
         }
         finally
         {
@@ -112,8 +123,15 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
         return (root, files);
     }
 
-    // Keeps the target's spelling of the root, so a symlinked checkout still matches captured paths.
-    private string? LogicalRoot(string start, string prefix)
+    // Keeps the target's spelling of the root, so a symlinked checkout still matches captured
+    // paths, but only when Git confirms that spelling names the same checkout.
+    private async Task<string> RootAsync(
+        string start,
+        string topLevel,
+        string prefix,
+        string failure,
+        CancellationToken cancellationToken
+    )
     {
         var directory = start;
         foreach (var segment in prefix.Split('/', StringSplitOptions.RemoveEmptyEntries).Reverse())
@@ -125,15 +143,32 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                     OperatingSystem.IsWindows()
                         ? StringComparison.OrdinalIgnoreCase
                         : StringComparison.Ordinal
-                )
+                ) || _fileSystem.Path.GetDirectoryName(directory) is not { } parent
             )
-                return null;
-            directory = _fileSystem.Path.GetDirectoryName(directory);
-            if (directory is null)
-                return null;
+                return topLevel;
+            directory = parent;
         }
 
-        return directory;
+        if (string.Equals(directory, topLevel, StringComparison.Ordinal))
+            return topLevel;
+        var confirmed = await StartAsync(
+            () =>
+                runner.CaptureAsync(
+                    "git",
+                    ["-C", directory, "rev-parse", "--show-toplevel"],
+                    cancellationToken
+                ),
+            failure
+        );
+        return
+            confirmed.ExitCode == 0
+            && string.Equals(
+                _fileSystem.Path.GetFullPath(confirmed.StandardOutput.TrimEnd('\r', '\n')),
+                topLevel,
+                StringComparison.Ordinal
+            )
+            ? directory
+            : topLevel;
     }
 
     private async Task<string> GitAsync(

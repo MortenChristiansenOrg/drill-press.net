@@ -85,11 +85,18 @@ public sealed class AcceptedSourceResolverTests
                     "main^{commit}",
                 ],
                 ["-C", _work, "ls-tree", "-r", "-z", "--full-tree", "abc123"],
-                ["-C", _work, "cat-file", "--batch", "--filters"],
+                ["-C", _work, "cat-file", "--batch"],
             ],
             _git
         );
-        Assert.Equal("1 src/App/A.cs\n2 src/App/Gone.CS\n", _batchInput);
+        Assert.Equal(
+            """
+            1
+            2
+
+            """.ReplaceLineEndings("\n"),
+            _batchInput
+        );
         Assert.Equal(_work, _acceptedRoot);
         Assert.Equal(
             [
@@ -118,16 +125,17 @@ public sealed class AcceptedSourceResolverTests
     [Fact]
     public async Task A_checkout_reached_through_a_link_uses_the_repository_root()
     {
-        var linked = Work("linked");
+        var linked = Work("App");
         _fileSystem.Directory.CreateDirectory(linked);
         _topLevel = _fileSystem.Path.GetFullPath("/repository");
-        _prefix = "src/App/";
+        _prefix = "App/";
         _tree = [];
         var error = new StringWriter();
 
         var exit = await RunAsync(error, "--baseline", "main", Path(linked, "App.csproj"));
 
         Assert.Equal(CliExitCode.Clean, exit);
+        Assert.Equal(["-C", _work, "rev-parse", "--show-toplevel"], _git[1]);
         Assert.Equal(_topLevel, _acceptedRoot);
     }
 
@@ -186,8 +194,11 @@ public sealed class AcceptedSourceResolverTests
     )
     {
         _git.Add(arguments.ToArray());
+        var topLevel = (_topLevel ?? _work).Replace('\\', '/');
         if (arguments.Contains("--show-prefix"))
-            return new(0, $"{(_topLevel ?? _work).Replace('\\', '/')}\n{_prefix}\n", "");
+            return new(0, $"{topLevel}\n{_prefix}\n", "");
+        if (arguments.Contains("--show-toplevel"))
+            return new(128, "", "fatal: not a git repository");
         if (arguments.Contains("--verify"))
             return arguments[^1] == "main^{commit}" ? new(0, "abc123\n", "") : new(1, "", "");
         if (arguments.Contains("ls-tree"))
@@ -200,7 +211,7 @@ public sealed class AcceptedSourceResolverTests
         foreach (var line in _batchInput.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
             var content = Encoding.UTF8.GetBytes(
-                _tree.Single(entry => entry.Metadata.Split(' ')[2] + " " + entry.Path == line).Text
+                _tree.Single(entry => entry.Metadata.Split(' ')[2] == line).Text
             );
             await streams.Output.WriteAsync(
                 Encoding.UTF8.GetBytes($"oid blob {content.Length}\n"),

@@ -62,7 +62,10 @@ internal static class AcceptedSourceProjection
                 documents.Add(
                     document with
                     {
-                        Text = Decode(file.Content, AcceptedEncoding(document)),
+                        Text = MatchLineEndings(
+                            Decode(file.Content, AcceptedEncoding(document)),
+                            document.Text
+                        ),
                         IsEditable = false,
                         Fingerprint = "",
                     }
@@ -94,6 +97,12 @@ internal static class AcceptedSourceProjection
         document.HasByteOrderMark
             ? new UTF8Encoding(false)
             : Encoding.GetEncoding(document.EncodingName);
+
+    // Git stores LF and checks out CRLF under autocrlf or eol=crlf; compare as the checkout would.
+    private static string MatchLineEndings(string accepted, string current) =>
+        current.Contains("\r\n", StringComparison.Ordinal) && !accepted.Contains('\r')
+            ? accepted.Replace("\n", "\r\n", StringComparison.Ordinal)
+            : accepted;
 
     private static string Decode(byte[] content, Encoding encoding)
     {

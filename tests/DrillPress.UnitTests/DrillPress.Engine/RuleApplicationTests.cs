@@ -172,7 +172,7 @@ public sealed class RuleApplicationTests
                         EncodingName = "utf-16",
                         HasByteOrderMark = true,
                     },
-                    new(Source("Same.cs"), "class Same { }", false),
+                    new(Source("Same.cs"), "class Same\r\n{\r\n}", false),
                     new(Source("Added.cs"), "class Added { }", false),
                     new(Source("Moved.cs"), "public class Moved { }", false),
                     new(outside, "public class Outside { }", false),
@@ -189,7 +189,7 @@ public sealed class RuleApplicationTests
             AcceptedSources.Create(
                 root,
                 new(Source("Changed.cs"), "internal class Changed { }"u8.ToArray(), false),
-                new(Source("Same.cs"), "class Same { }"u8.ToArray(), false),
+                new(Source("Same.cs"), "class Same\n{\n}"u8.ToArray(), false),
                 new(Source("Old.cs"), "internal class Moved { }"u8.ToArray(), true)
             ),
             TestContext.Current.CancellationToken

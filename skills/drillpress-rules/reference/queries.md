@@ -333,8 +333,21 @@ Change-aware rules compare with an accepted state. In real checks, pass a rule f
 `RunAsync`; it receives a `SourceBaseline` when the CLI gets `--baseline`, otherwise null:
 
 ```csharp
-return (int)await new RuleApplication().RunAsync(
-    accepted => ExampleRules.Create(accepted), args);
+using DrillPress;
+using DrillPress.Engine;
+
+return (int)await new RuleApplication().RunAsync(CreateRules, args);
+
+static RuleCatalog CreateRules(SourceBaseline? accepted)
+{
+    var rules = new RuleCatalog();
+    if (accepted is not null)
+        rules.Rule("TEAM020", "Add new implementations outside the legacy layer.")
+            .For(accepted.ChangedFiles.InFolder("Legacy")
+                .Where(file => accepted.ChangeOf(file) == SourceChange.Added))
+            .Forbid();
+    return rules;
+}
 ```
 
 `drillpress check --baseline origin/main ...` reads the C# files of that Git revision of
