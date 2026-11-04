@@ -228,6 +228,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
         "Orders.Paths.this[int, string].get"
     )]
     [InlineData("public Paths Save() => new() { 1 };", "Orders.Paths.Add(int, string)")]
+    [InlineData("public sealed class Snapshots : Snapshot { }", "Orders.Snapshot.Snapshot(string)")]
     public async Task A_caller_file_path_withholds_the_proposed_move(string member, string method)
     {
         var workspace = fixture.Workspace();
@@ -296,6 +297,44 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
         );
     }
 
+    [Theory]
+    [InlineData(
+        "partial class Registry { static int B = A; }",
+        "the move may reorder the field initializers of partial Registry across its files"
+    )]
+    [InlineData(
+        "static class Startup { [System.Runtime.CompilerServices.ModuleInitializer] internal static void Run() {} }",
+        "the move may reorder the module initializers it declares"
+    )]
+    public async Task A_move_that_may_reorder_initialization_is_withheld(string text, string reason)
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Orders",
+            [
+                new("src/Orders/Registry.cs", "partial class Registry { static int A = 1; }"),
+                new("src/Orders/Defaults.cs", text),
+            ],
+            projectDirectory: "src/Orders"
+        );
+
+        var result = await workspace.CheckAsync(
+            MoveRules("src/Orders/Defaults.cs", "Setup/Defaults.cs"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            $"""
+            MOVE Move the file.
+            src/Orders/Defaults.cs
+              1
+                fix withheld: {reason}
+
+            """,
+            result.ExplainedOutput
+        );
+    }
+
     [Fact]
     public async Task Another_rule_edits_the_moved_file_in_the_same_run()
     {
@@ -344,10 +383,10 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
             MOVE Move the file.
             src/Orders/A.cs
               1
-                fix withheld: its file move conflicts with another fix's move of the same file or to the same path
+                fix withheld: its file move conflicts with another fix's move of the same file or to a colliding path
             src/Orders/B.cs
               1
-                fix withheld: its file move conflicts with another fix's move of the same file or to the same path
+                fix withheld: its file move conflicts with another fix's move of the same file or to a colliding path
 
             """,
             result.ExplainedOutput
@@ -386,6 +425,11 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
             public string this[int index, [System.Runtime.CompilerServices.CallerFilePath] string path = ""] => path;
             public void Add(int value, [System.Runtime.CompilerServices.CallerFilePath] string path = "") {}
             public System.Collections.IEnumerator GetEnumerator() => throw null!;
+        }
+
+        public class Snapshot
+        {
+            public Snapshot([System.Runtime.CompilerServices.CallerFilePath] string path = "") {}
         }
 
         public class OrderService

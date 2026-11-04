@@ -45,6 +45,7 @@ public sealed class FixPlanApplier
         var moved = new List<MovedFile>();
         string[] targets = [];
         string? current = null;
+        string? rewritten = null;
         var committing = false;
         FixApplicationResult result;
         try
@@ -121,7 +122,9 @@ public sealed class FixPlanApplier
                     await _replacer.ReplaceAsync(snapshot, file, cancellationToken);
                 if (file.Destination is { } destination)
                 {
+                    rewritten = file.ChangesContent ? file.Path : null;
                     await _replacer.MoveAsync(snapshot, file, cancellationToken);
+                    rewritten = null;
                     moved.Add(new(file.Path, destination));
                     snapshot = WithPath(snapshot, file.Document.FileIdentity, destination);
                 }
@@ -139,6 +142,9 @@ public sealed class FixPlanApplier
                 exception is OperationCanceledException ? FixApplicationOutcome.Cancelled
                 : committing ? FixApplicationOutcome.CommitFailed
                 : FixApplicationOutcome.PreparationFailed;
+            // A file whose new text was written before its move failed is both changed and failed.
+            if (rewritten is not null)
+                changed.Add(rewritten);
             var completed = moved.Select(move => move.From).Concat(changed).ToHashSet();
             result = new(
                 outcome,

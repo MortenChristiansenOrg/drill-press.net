@@ -332,14 +332,23 @@ public sealed class LocalInliningTests(SdkFixture fixture) : IClassFixture<SdkFi
         Assert.Equal(Source("_items.Clear();\nreturn Compute();"), result.FixedText("A.cs"));
     }
 
-    [Fact]
-    public async Task SafeWhen_keeps_the_other_gates()
+    [Theory]
+    [InlineData(
+        "var name = _name;\n_name = \"x\";\nreturn name?.Length ?? 0;",
+        "the read's nullable state would change"
+    )]
+    [InlineData(
+        "var name = _name;\nagain: _items.Clear();\n_items.Add(name?.Length ?? 0);\nif (flag) goto again;\nreturn 0;",
+        "a label between the declaration and the read could run the initializer again"
+    )]
+    [InlineData(
+        "var name = _name;\nif (flag) return 0;\nreturn name?.Length ?? 0;",
+        "a statement before the read may jump past it"
+    )]
+    public async Task SafeWhen_keeps_the_other_gates(string body, string reason)
     {
         var workspace = fixture.Workspace();
-        workspace.AddProject(
-            "Library",
-            [new("A.cs", Source("var name = _name;\n_name = \"x\";\nreturn name?.Length ?? 0;"))]
-        );
+        workspace.AddProject("Library", [new("A.cs", Source(body))]);
 
         var result = await workspace.CheckAsync(
             Rules(inlining => inlining.SafeWhen(_ => true), "name"),
@@ -347,7 +356,7 @@ public sealed class LocalInliningTests(SdkFixture fixture) : IClassFixture<SdkFi
         );
 
         Assert.Equal(
-            "INLINE Inline the local.\nA.cs\n  16:9\n    fix withheld: the read's nullable state would change\n",
+            $"INLINE Inline the local.\nA.cs\n  16:9\n    fix withheld: {reason}\n",
             result.ExplainedOutput
         );
     }

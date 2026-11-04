@@ -178,17 +178,7 @@ internal static class InlineEvaluationOrder
         private bool IsShared(ISymbol variable)
         {
             var declared = variable.DeclaringSyntaxReferences.Select(reference => reference.Span);
-            var scope =
-                declaration
-                    .Ancestors()
-                    .FirstOrDefault(node =>
-                        node
-                            is MemberDeclarationSyntax
-                                and not BaseTypeDeclarationSyntax
-                                and not BaseNamespaceDeclarationSyntax
-                                and not GlobalStatementSyntax
-                    )
-                ?? source.Tree.GetRoot(source.Project.CancellationToken);
+            var scope = LocalReferences.Scope(source, declaration);
             return scope
                 .DescendantNodes()
                 .OfType<IdentifierNameSyntax>()

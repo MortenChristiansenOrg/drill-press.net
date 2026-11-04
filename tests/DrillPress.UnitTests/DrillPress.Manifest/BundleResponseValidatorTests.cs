@@ -1088,7 +1088,10 @@ public sealed class BundleResponseValidatorTests
 
         Assert.Empty(result.Moves);
         Assert.Equal(
-            ["its edits overlap another fix's edits", "its edits overlap another fix's edits"],
+            [
+                "its file move conflicts with another fix's move of the same file or to a colliding path",
+                "its file move conflicts with another fix's move of the same file or to a colliding path",
+            ],
             result.Findings.Select(finding => finding.FixWithheld)
         );
     }

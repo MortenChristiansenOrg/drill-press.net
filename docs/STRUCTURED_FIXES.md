@@ -226,7 +226,8 @@ rules.Rule("INLINE", "Inline locals that only rename their initializer.")
 `Inline()` removes the declaration's lines and replaces the local's single read with the
 initializer's original text, adding parentheses only where the destination would parse
 it differently: `var sum = a + b; return sum * 2;` becomes `return (a + b) * 2;`.
-`WithSingleRead()` selects one initialized local referenced exactly once and never written.
+`WithSingleRead()` selects a declaration statement in a block or switch section with one
+initialized local, neither `const`, `ref` nor `using`, referenced exactly once and never written.
 
 `Propose()` owns the proof when the initializer moves past nothing observable: the read
 is in the statement right after the declaration, and that statement evaluates only
@@ -241,7 +242,9 @@ collection or `with` initializer or in a collection expression built by a constr
 because the constructor or copy runs first. `SafeWhen(change => ...)` waives exactly that
 order: the read may follow other statements of the same block and other operands of its
 statement. `InlineChange` lists them in `SkippedStatements` and `SkippedOperands`, with
-`Declaration`, `Initializer`, `Read` and the `Rewrite` being validated.
+`Declaration`, `Initializer`, `Read` and the `Rewrite` being validated. A skipped
+statement or operand that throws now keeps the initializer from running, so the proof
+covers that too.
 
 Either way, the fix is withheld when:
 
@@ -255,6 +258,8 @@ Either way, the fix is withheld when:
   annotations, so that the declaration converts it (`object value = 1;`);
 - the local is written, passed by reference or referenced more than once, or the
   reference is in `nameof` or an expression tree;
+- a label stands between the declaration and the read, or a statement before the read
+  may `return`, `throw`, `goto`, `break`, `continue` or `yield break` past it;
 - the read is not in the header of a later statement of the same list: an expression
   statement, `return`, `throw`, `yield return`, local declaration, or the condition,
   governing expression, collection, resource or lock expression. Loop conditions and
@@ -316,6 +321,9 @@ selected a file. The fix is withheld when:
   or equals another loaded file's path ignoring case, or one of them would be a folder
   of the other;
 - the file is generated or not editable, or an affected compilation has errors;
+- the file declares a `[ModuleInitializer]` or a partial type with field or property
+  initializers whose other parts are in other files, because the compiler orders both
+  by file order;
 - two fixes move one file to different paths, or two files to one path or to paths
   where one would be a folder of the other.
 

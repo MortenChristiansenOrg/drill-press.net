@@ -76,17 +76,17 @@ public sealed class BundleResponseValidator
             .ToArray();
         var conflicted = FindConflicts(candidates);
         var retained = candidates
-            .Where(batch => !conflicted.Contains(batch.Id))
+            .Where(batch => !conflicted.ContainsKey(batch.Id))
             .OrderBy(batch => batch.Id, StringComparer.Ordinal)
             .ToArray();
         return new ValidatedResult(
             findings
                 .Select(finding =>
-                    conflicted.Contains(finding.BatchId ?? "")
+                    conflicted.TryGetValue(finding.BatchId ?? "", out var conflict)
                         ? finding with
                         {
                             BatchId = null,
-                            FixWithheld = "its edits overlap another fix's edits",
+                            FixWithheld = conflict,
                         }
                         : finding
                 )
@@ -549,27 +549,39 @@ public sealed class BundleResponseValidator
         return evidence.Length == 0 ? null : string.Join("; ", evidence);
     }
 
-    private static HashSet<string> FindConflicts(FixBatch[] batches)
+    // The reason each conflicting batch is withheld; overlapping edits take precedence over moves.
+    private static Dictionary<string, string> FindConflicts(FixBatch[] batches)
     {
-        var conflicts = new HashSet<string>();
+        var conflicts = new Dictionary<string, string>();
         for (var left = 0; left < batches.Length; left++)
         {
             for (var right = left; right < batches.Length; right++)
             {
-                if (
+                var reason =
                     batches[left]
                         .Edits.Any(a => batches[right].Edits.Any(b => a != b && Overlaps(a, b)))
-                    || MovesConflict(batches[left], batches[right])
-                )
+                        ? OverlappingEdits
+                    : MovesConflict(batches[left], batches[right]) ? ConflictingMoves
+                    : null;
+                if (reason is null)
+                    continue;
+                foreach (var id in new[] { batches[left].Id, batches[right].Id })
                 {
-                    conflicts.Add(batches[left].Id);
-                    conflicts.Add(batches[right].Id);
+                    if (
+                        !conflicts.TryGetValue(id, out var existing)
+                        || existing != OverlappingEdits
+                    )
+                        conflicts[id] = reason;
                 }
             }
         }
 
         return conflicts;
     }
+
+    private const string OverlappingEdits = "its edits overlap another fix's edits";
+    internal const string ConflictingMoves =
+        "its file move conflicts with another fix's move of the same file or to a colliding path";
 
     private static bool Overlaps(SourceEdit a, SourceEdit b) =>
         a.FileIdentity == b.FileIdentity

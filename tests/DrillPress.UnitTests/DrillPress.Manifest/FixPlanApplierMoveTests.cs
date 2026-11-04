@@ -126,4 +126,28 @@ public sealed class FixPlanApplierMoveTests
         );
         Assert.Equal(["B.cs", "First.cs", "Orders.csproj"], fixture.Files());
     }
+
+    [Fact]
+    public async Task An_edited_file_whose_move_fails_is_reported_as_changed_and_failed()
+    {
+        var fixture = new MoveFixture();
+        fixture.Replacer.OnMove[fixture.Documents[0].Path] = () =>
+            fixture.FileSystem.File.WriteAllText(fixture.Documents[0].Path, "external edit");
+        var response = fixture.Response(
+            fixture.Batch("move", [fixture.Edit(0)], fixture.Move(0, "Invoice.cs"))
+        );
+
+        var result = await fixture.Applier.ApplyAsync(
+            fixture.Snapshot,
+            fixture.Json(response),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(FixApplicationOutcome.CommitFailed, result.Outcome);
+        Assert.Equal([fixture.Documents[0].Path], result.Changed);
+        Assert.Equal(fixture.Documents[0].Path, result.Failed);
+        Assert.Equal([], result.Pending);
+        Assert.Equal<MovedFile>([], result.Moved);
+        Assert.Equal(["A.cs", "B.cs", "Orders.csproj"], fixture.Files());
+    }
 }

@@ -91,8 +91,8 @@ drillpress: Fix stopped: Source identity or bytes changed before the move.
   failed: "/repo/tests/Orders.Tests/OrderServiceTests.cs"
 ```
 
-A move whose edits were written but whose rename failed is listed as `failed` at its
-old path with the new text. Folders created for a move remain. A move within one
+A move whose edits were written but whose rename failed is listed as both `changed`
+and `failed` at its old path, which holds the new text. Folders created for a move remain. A move within one
 project directory is a rename on one volume; a mount point inside the project is not
 detected. After the recheck export, `fix` confirms that each moved file is compiled by
 exactly the projects and frameworks that compiled it before, and that none still

@@ -103,6 +103,11 @@ internal sealed class LocalInliningPlan
         var skipped = list.Skip(list.IndexOf(statement) + 1)
             .TakeWhile(candidate => candidate != position.Statement)
             .ToArray();
+        if (Jumps(skipped.Append(position.Statement), skipped) is { } jump)
+        {
+            reason = jump;
+            return null;
+        }
         var before = InlineEvaluationOrder.Before(position);
         if (ordered && Unordered(source, statement, initializer, skipped, before) is { } moved)
         {
@@ -275,6 +280,45 @@ internal sealed class LocalInliningPlan
             or IInvalidOperation => true,
             _ => false,
         };
+
+    // A label up to the read lets a goto run the initializer again, and a jump in a skipped statement may
+    // leave before it runs at all; either breaks evaluating it exactly once.
+    private static string? Jumps(
+        IEnumerable<StatementSyntax> statements,
+        IReadOnlyList<StatementSyntax> skipped
+    )
+    {
+        if (statements.Any(statement => statement is LabeledStatementSyntax))
+            return "a label between the declaration and the read could run the initializer again";
+        return skipped.Any(statement =>
+            statement
+                .DescendantNodesAndSelf(node =>
+                    node is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
+                )
+                .Any(node => LeavesBlock(node, statement))
+        )
+            ? "a statement before the read may jump past it"
+            : null;
+    }
+
+    private static bool LeavesBlock(SyntaxNode node, StatementSyntax skipped) =>
+        node
+            is ReturnStatementSyntax
+                or ThrowStatementSyntax
+                or ThrowExpressionSyntax
+                or GotoStatementSyntax
+                or YieldStatementSyntax { RawKind: (int)SyntaxKind.YieldBreakStatement }
+        || node is BreakStatementSyntax or ContinueStatementSyntax
+            && !node.Ancestors()
+                .TakeWhile(ancestor => ancestor != skipped.Parent)
+                .Any(ancestor =>
+                    ancestor
+                        is ForStatementSyntax
+                            or CommonForEachStatementSyntax
+                            or WhileStatementSyntax
+                            or DoStatementSyntax
+                    || node is BreakStatementSyntax && ancestor is SwitchStatementSyntax
+                );
 
     // The first skipped statement or impure operand, described for the withheld reason.
     private static string? Unordered(

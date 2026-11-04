@@ -72,7 +72,7 @@ public sealed record ProjectSnapshot(
     )]
     public CompileGlobSnapshot? CompileGlob { get; init; }
 
-    /// <summary>The directories below which any of the project's Compile wildcards, in evaluation or in targets, could select a new file; null when unknown, so no file can move to where this project might compile it.</summary>
+    /// <summary>The directories below which any of the project's Compile wildcards, in evaluation or in targets, could select a new file, when <see cref="CompileGlob"/> does not describe the project; null when the glob does, or when unknown, in which case no file can move to where this project might compile it.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     )]

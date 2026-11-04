@@ -39,11 +39,14 @@ public sealed class FileLayoutTests(SdkFixture fixture) : IClassFixture<SdkFixtu
     }
 
     [Theory]
-    [InlineData("public class A {} public class B {}", "")]
-    [InlineData("public class Box<T> {}", "")]
-    [InlineData("public class Misnamed {} ", "")]
-    [InlineData("public partial class A {} public partial class A {}", "DP1007")]
-    public async Task Grouped_generic_and_matching_files_keep_their_names(
+    [InlineData("Misnamed.cs", "public class A {} public class B {}", "")]
+    [InlineData("Misnamed.cs", "public class Box<T> {}", "")]
+    [InlineData("Misnamed.cs", "public class Misnamed {} ", "")]
+    [InlineData("Misnamed.cs", "public partial class A {} public partial class A {}", "")]
+    [InlineData("Misnamed.cs", "public sealed class A {}", "DP1007")]
+    [InlineData("MainWindow.xaml.cs", "public class A {}", "")]
+    public async Task Grouped_generic_partial_companion_and_matching_files_keep_their_names(
+        string name,
         string text,
         string expected
     )
@@ -51,7 +54,7 @@ public sealed class FileLayoutTests(SdkFixture fixture) : IClassFixture<SdkFixtu
         var workspace = fixture.Workspace();
         workspace.AddProject(
             "Orders",
-            [new("src/Orders/Misnamed.cs", text)],
+            [new("src/Orders/" + name, text)],
             projectDirectory: "src/Orders"
         );
 

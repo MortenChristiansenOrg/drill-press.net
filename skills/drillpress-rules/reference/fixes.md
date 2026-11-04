@@ -286,7 +286,8 @@ or dot-named folders (`node_modules`), nested project folders, folders another p
 Compile wildcard reaches, or onto another loaded file (case-insensitive). Projects with
 their own Compile include/remove/update items (also target removals and wildcard
 includes), linked or explicit files, loose sources and generated-looking names
-(`.g.cs`, `.designer.cs`) are withheld. Calls receiving `[CallerFilePath]`, including
+(`.g.cs`, `.designer.cs`) are withheld, and so are files declaring a
+`[ModuleInitializer]` or initializers of a partial type split across files. Calls receiving `[CallerFilePath]`, including
 implicit `Add` calls and `?[]` indexers, withhold `Propose()`;
 `SafeWhen(change => ...)` gets `From`, `To`, `CallerFilePathMethods` and `Rewrite`.
 No file creation or deletion. In tests, pass `projectDirectory:` to `AddProject` and

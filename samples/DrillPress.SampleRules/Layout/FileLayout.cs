@@ -4,9 +4,9 @@ namespace DrillPress.SampleRules.Layout;
 
 /// <summary>
 /// Names a file after its only top-level type and places a test file in the folder of the production file it
-/// tests. Files declaring several types, generic types or top-level statements keep their names, and so do
-/// files the SDK's default compile glob does not select: a linked or explicitly listed file is named by its
-/// project file.
+/// tests. Files declaring several types, generic or partial types or top-level statements keep their names,
+/// and so do companion files with a dotted name such as <c>MainWindow.xaml.cs</c> and files the SDK's default
+/// compile glob does not select: a linked or explicitly listed file is named by its project file.
 /// </summary>
 internal sealed class FileLayout
 {
@@ -20,7 +20,7 @@ internal sealed class FileLayout
             .ToLookup(file => PrimaryType(file)!)
     );
 
-    /// <summary>The file's only top-level type name, or null when it declares none, several, a generic type or top-level statements.</summary>
+    /// <summary>The file's only top-level type name, or null when it declares none, several, a generic or partial type or top-level statements.</summary>
     internal static string? PrimaryType(CodeFile file)
     {
         if (file.HasTopLevelStatements)
@@ -35,6 +35,8 @@ internal sealed class FileLayout
                 member switch
                 {
                     TypeDeclarationSyntax { TypeParameterList: not null } => null,
+                    TypeDeclarationSyntax type
+                        when type.Modifiers.Any(modifier => modifier.Text == "partial") => null,
                     DelegateDeclarationSyntax { TypeParameterList: not null } => null,
                     BaseTypeDeclarationSyntax type => type.Identifier.Text,
                     DelegateDeclarationSyntax type => type.Identifier.Text,
@@ -46,9 +48,12 @@ internal sealed class FileLayout
         return names is [{ } name] ? name : null;
     }
 
-    /// <summary>Whether the file name differs from its only top-level type.</summary>
+    /// <summary>Whether the file name differs from its only top-level type; a dotted companion name such as <c>Index.razor.cs</c> is left alone.</summary>
     internal static bool IsMisnamed(CodeFile file) =>
-        file.IsDefaultCompileItem && PrimaryType(file) is { } type && file.Name != type + ".cs";
+        file.IsDefaultCompileItem
+        && file.Name.IndexOf('.') == file.Name.Length - ".cs".Length
+        && PrimaryType(file) is { } type
+        && file.Name != type + ".cs";
 
     /// <summary>Renames the file after its type; the library proves that the same projects compile it.</summary>
     internal static FixProposal? Rename(CodeFile file) =>

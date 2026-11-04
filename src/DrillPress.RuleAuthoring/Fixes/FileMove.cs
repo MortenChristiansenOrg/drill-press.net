@@ -1,5 +1,6 @@
 using DrillPress.Manifest;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -76,6 +77,8 @@ public sealed class FileMove
             return prepared.Reason;
         foreach (var source in memberships)
         {
+            if (InitializationOrder(source) is { } order)
+                return order;
             var tree = context.TreeFor(source) ?? source.Tree;
             var methods = CallerFilePathMethods(
                     context.Rewritten.GetSemanticModel(tree),
@@ -93,16 +96,62 @@ public sealed class FileMove
         return null;
     }
 
+    // The compiler orders partial declarations and module initializers by file order, which a move can change.
+    private static string? InitializationOrder(AnalysisSource source)
+    {
+        var token = source.Project.CancellationToken;
+        var root = source.Tree.GetRoot(token);
+        if (
+            root.DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Any(method =>
+                    method.AttributeLists.Count > 0
+                    && source
+                        .Model.GetDeclaredSymbol(method, token)
+                        ?.GetAttributes()
+                        .Any(attribute =>
+                            attribute.AttributeClass?.ToDisplayString()
+                            == "System.Runtime.CompilerServices.ModuleInitializerAttribute"
+                        ) == true
+                )
+        )
+            return "the move may reorder the module initializers it declares";
+        var partial = root.DescendantNodes()
+            .OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault(type =>
+                type.Modifiers.Any(SyntaxKind.PartialKeyword)
+                && type.Members.Any(member =>
+                    member is PropertyDeclarationSyntax { Initializer: not null }
+                    || member is FieldDeclarationSyntax field
+                        && field.Declaration.Variables.Any(variable =>
+                            variable.Initializer is not null
+                        )
+                )
+                && source.Model.GetDeclaredSymbol(type, token)
+                    is { DeclaringSyntaxReferences.Length: > 1 } symbol
+                && symbol.DeclaringSyntaxReferences.Any(reference =>
+                    reference.SyntaxTree != source.Tree
+                )
+            );
+        return partial is null
+            ? null
+            : $"the move may reorder the field initializers of partial {partial.Identifier.Text} across its files";
+    }
+
     // Calls in the file whose omitted [CallerFilePath] argument the compiler fills with the file's path,
-    // including implicit calls such as collection initializer Add calls and conditional indexers.
+    // including implicit calls: collection initializer Add calls, conditional indexers, implicit base
+    // constructor calls and the pattern methods of foreach, await and deconstruction.
     // Attributes are left out: their caller file path is metadata saying where the code is.
     private static IEnumerable<IMethodSymbol> CallerFilePathMethods(
         SemanticModel model,
         CancellationToken cancellationToken
-    ) =>
-        model
+    )
+    {
+        var nodes = model
             .SyntaxTree.GetRoot(cancellationToken)
             .DescendantNodes(node => node is not AttributeListSyntax)
+            .ToArray();
+        var explicitCalls = nodes
             .Select(node => model.GetOperation(node, cancellationToken))
             .Where(operation => operation is { Parent: null })
             .SelectMany(operation => operation!.DescendantsAndSelf())
@@ -126,11 +175,82 @@ public sealed class FileMove
             )
             .Where(item =>
                 item.Argument.ArgumentKind == ArgumentKind.DefaultValue
-                && item.Argument.Parameter?.GetAttributes()
-                    .Any(attribute => attribute.AttributeClass?.ToDisplayString() == CallerFilePath)
-                    == true
+                && IsCallerFilePath(item.Argument.Parameter)
             )
-            .Select(item => item.Method)
+            .Select(item => item.Method);
+        var implicitCalls = nodes
+            .SelectMany(node => ImplicitCalls(model, node, cancellationToken))
+            .Where(method => method.Parameters.Any(IsCallerFilePath));
+        return explicitCalls
+            .Concat(implicitCalls)
             .Distinct(SymbolEqualityComparer.Default)
             .Cast<IMethodSymbol>();
+    }
+
+    // Methods the compiler calls without written arguments, so every caller-info parameter gets the file path.
+    private static IEnumerable<IMethodSymbol> ImplicitCalls(
+        SemanticModel model,
+        SyntaxNode node,
+        CancellationToken cancellationToken
+    ) =>
+        (
+            node switch
+            {
+                CommonForEachStatementSyntax loop => model.GetForEachStatementInfo(loop) is var info
+                    ?
+                    [
+                        info.GetEnumeratorMethod,
+                        info.MoveNextMethod,
+                        info.CurrentProperty?.GetMethod,
+                        info.DisposeMethod,
+                    ]
+                    : [],
+                AwaitExpressionSyntax await => model.GetAwaitExpressionInfo(await) is var info
+                    ?
+                    [
+                        info.GetAwaiterMethod,
+                        info.GetResultMethod,
+                        info.IsCompletedProperty?.GetMethod,
+                    ]
+                    : [],
+                AssignmentExpressionSyntax
+                {
+                    Left: TupleExpressionSyntax or DeclarationExpressionSyntax,
+                } deconstruction => Deconstructions(model.GetDeconstructionInfo(deconstruction)),
+                ConstructorDeclarationSyntax { Initializer: null } constructor
+                    when !constructor.Modifiers.Any(modifier => modifier.ValueText == "static") =>
+                    BaseConstructors(
+                        model.GetDeclaredSymbol(constructor, cancellationToken)?.ContainingType
+                    ),
+                TypeDeclarationSyntax type
+                    when type.BaseList?.Types.FirstOrDefault()
+                        is not PrimaryConstructorBaseTypeSyntax
+                        && model.GetDeclaredSymbol(type, cancellationToken) is { } symbol
+                        && symbol.InstanceConstructors.Any(constructor =>
+                            constructor.IsImplicitlyDeclared
+                            || constructor.DeclaringSyntaxReferences.Any(reference =>
+                                reference.GetSyntax(cancellationToken) == type
+                            )
+                        ) => BaseConstructors(symbol),
+                _ => Array.Empty<IMethodSymbol?>(),
+            }
+        ).OfType<IMethodSymbol>();
+
+    private static IEnumerable<IMethodSymbol?> Deconstructions(DeconstructionInfo info) =>
+        info.Nested.SelectMany(Deconstructions).Prepend(info.Method);
+
+    // The base constructors a constructor without a written initializer may call: those callable without
+    // arguments.
+    private static IEnumerable<IMethodSymbol> BaseConstructors(INamedTypeSymbol? type) =>
+        type is { TypeKind: TypeKind.Class, BaseType: { } baseType }
+            ? baseType.InstanceConstructors.Where(constructor =>
+                constructor.Parameters.All(parameter => parameter.IsOptional || parameter.IsParams)
+            )
+            : [];
+
+    private static bool IsCallerFilePath(IParameterSymbol? parameter) =>
+        parameter
+            ?.GetAttributes()
+            .Any(attribute => attribute.AttributeClass?.ToDisplayString() == CallerFilePath)
+        == true;
 }

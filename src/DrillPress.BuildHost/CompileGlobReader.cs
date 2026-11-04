@@ -91,9 +91,7 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
             {
                 var prefix = fragment[..fragment.IndexOfAny(['*', '?'])];
                 var folder = prefix[..(prefix.LastIndexOf('/') + 1)];
-                return _fileSystem
-                    .Path.GetFullPath(folder.Length == 0 ? "." : folder, directory)
-                    .TrimEnd('/', '\\');
+                return FullDirectory(folder.Length == 0 ? "." : folder, directory);
             })
             .Distinct()
             .Order(StringComparer.Ordinal)
@@ -126,11 +124,7 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
         if (pattern.EndsWith("/**", StringComparison.Ordinal) && !HasWildcard(pattern[..^3]))
         {
             var prefix = pattern[..^3];
-            excluded.Add(
-                _fileSystem
-                    .Path.GetFullPath(prefix.Length == 0 ? "/" : prefix, directory)
-                    .TrimEnd('/', '\\')
-            );
+            excluded.Add(FullDirectory(prefix.Length == 0 ? "/" : prefix, directory));
             return true;
         }
         if (!HasWildcard(pattern))
@@ -207,6 +201,14 @@ internal sealed class CompileGlobReader(IFileSystem fileSystem)
             : tail.Length > 0
                 && !tail.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
                 && !".cs".EndsWith(tail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // A full directory path without a trailing separator, except for a filesystem root such as "/".
+    private string FullDirectory(string path, string directory)
+    {
+        var full = _fileSystem.Path.GetFullPath(path, directory);
+        var root = _fileSystem.Path.GetPathRoot(full) ?? "";
+        return full.Length > root.Length ? full.TrimEnd('/', '\\') : full;
     }
 
     private static bool HasWildcard(string text) => text.IndexOfAny(['*', '?']) >= 0;

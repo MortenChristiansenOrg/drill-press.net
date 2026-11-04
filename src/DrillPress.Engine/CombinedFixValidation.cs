@@ -27,14 +27,8 @@ internal static class CombinedFixValidation
             {
                 conflicted.Add(candidates[first].Id);
                 conflicted.Add(candidates[second].Id);
-                rejections.TryAdd(
-                    candidates[first].Id,
-                    "its file move conflicts with another fix's move of the same file or to the same path"
-                );
-                rejections.TryAdd(
-                    candidates[second].Id,
-                    "its file move conflicts with another fix's move of the same file or to the same path"
-                );
+                rejections.TryAdd(candidates[first].Id, BundleResponseValidator.ConflictingMoves);
+                rejections.TryAdd(candidates[second].Id, BundleResponseValidator.ConflictingMoves);
                 continue;
             }
             var conflict = candidates[first]

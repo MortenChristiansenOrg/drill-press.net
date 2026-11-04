@@ -207,7 +207,7 @@ internal sealed class ProjectEvaluator : IAsyncDisposable
             roots,
             compiler,
             membership?.Glob,
-            reader.Roots(evaluated),
+            membership is null ? reader.Roots(evaluated) : null,
             membership?.Items
                 ?? new HashSet<string>(
                     OperatingSystem.IsWindows()
