@@ -228,10 +228,12 @@ project and the repository's test framework. Install the tool once per repositor
 ## Run
 
 ```sh
-dotnet build MyRules
-dotnet tool run drillpress check --rules MyRules/bin/Debug/net10.0/MyRules.dll path/to/App.sln
-dotnet tool run drillpress fix --rules MyRules/bin/Debug/net10.0/MyRules.dll path/to/App.sln
+dotnet tool run drillpress check --rules path/to/MyRules path/to/App.sln
+dotnet tool run drillpress fix --rules path/to/MyRules path/to/App.sln
 ```
+
+`--rules` builds the rules project (or its directory) in Release each run; build
+errors print to stderr with exit 2. A built rule DLL also works.
 
 Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.

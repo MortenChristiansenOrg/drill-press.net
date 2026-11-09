@@ -157,7 +157,7 @@ var changes = baseline.ChangedFiles.In(after.Analyze());
   &lt;TieredCompilation&gt;false&lt;/TieredCompilation&gt;
   &lt;ServerGarbageCollection&gt;true&lt;/ServerGarbageCollection&gt;
 &lt;/PropertyGroup&gt;</code></pre></div>
-<div class="codeblock"><div class="codehead"><span>Run the check</span></div><pre tabindex="0"><code>dotnet tool run drillpress check --parallel-queries --stream-compilation --rules MyRules/bin/Debug/net10.0/MyRules.dll path/to/App.sln</code></pre></div>
+<div class="codeblock"><div class="codehead"><span>Run the check</span></div><pre tabindex="0"><code>dotnet tool run drillpress check --parallel-queries --stream-compilation --rules path/to/MyRules path/to/App.sln</code></pre></div>
 <p>Seconds for <code>drillpress check</code> with Drill Press 0.0.3-preview.25, the bundle already built:</p>
 <div class="table-wrap"><table><thead><tr><th>Target</th><th>Cores</th><th>Defaults</th><th>Both properties</th><th>Properties and both options</th></tr></thead><tbody>
 <tr><td>One small project, 8 rules</td><td>16</td><td>5.4</td><td>6.6</td><td>9.5</td></tr>

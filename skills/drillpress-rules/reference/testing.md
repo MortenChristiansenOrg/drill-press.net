@@ -176,8 +176,9 @@ evidence, `ForEnumeration(loop).Started()` loop advancement, and
 
 ## Running against real code
 
-Build the rule bundle before running `drillpress check`, `fix` or `status` with
-`--rules path/to/Rules.dll target`. Targets are solutions, projects, directories or
+Run `drillpress check`, `fix` or `status` with `--rules path/to/Rules target`:
+a rules project or its directory, which the CLI restores and builds in Release, or
+a built rule DLL. Targets are solutions, projects, directories or
 loose `.cs` files. The CLI loads the target with its SDK; the bundle consumes the
 captured compilation. Source generators receive additional files in build order,
 and referenced contexts generate before their dependents. Independent contexts can
@@ -231,7 +232,7 @@ after adopting them.
 ```
 
 ```sh
-dotnet tool run drillpress check --parallel-queries --stream-compilation --rules MyRules/bin/Debug/net10.0/MyRules.dll path/to/App.sln
+dotnet tool run drillpress check --parallel-queries --stream-compilation --rules path/to/MyRules path/to/App.sln
 ```
 
 Seconds for `drillpress check` with DrillPress 0.0.3-preview.25, the bundle already built:

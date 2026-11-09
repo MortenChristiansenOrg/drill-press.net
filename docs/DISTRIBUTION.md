@@ -79,21 +79,24 @@ rules.Rule("EMPTY", "Use an empty literal.")
 return (int)await new RuleApplication().RunAsync(rules, args);
 ```
 
-Build rules and restore the separate target explicitly, then use the installed
-local tool (or `drillpress` for a global installation):
+Restore the separate target explicitly, then use the installed local tool (or
+`drillpress` for a global installation) with the rules project:
 
 ```sh
-dotnet build Rules.csproj -c Release
 dotnet restore /path/to/Target.csproj
-dotnet tool run drillpress -- check --rules bin/Release/net10.0/Rules.dll /path/to/Target.csproj
+dotnet tool run drillpress -- check --rules Rules.csproj /path/to/Target.csproj
 ```
 
 Use OS-appropriate paths. CLI-supplied rule, target, and explicit BuildHost paths
 are relative to the invocation's working directory. Packaged assets are always
 relative to the installed tool, independent of that directory. Local tool
 discovery follows the .NET tool manifest's normal directory search rules.
-The CLI does not restore or build rules or targets. Managed execution needs no
-native compiler; explicitly supplied native bundles remain supported.
+`--rules` accepts a rules project, a directory holding exactly one, a compiled rule
+DLL, or a native bundle. The CLI restores and builds a rules project in Release
+with `dotnet build` on every run, alongside the target load, and runs its single
+output; MSBuild skips up-to-date work. Its compiler and restore errors go to stderr
+with exit code 2. The CLI does not restore or build targets. Managed execution
+needs no native compiler; explicitly supplied native bundles remain supported.
 
 ## Compatibility and upgrades
 
