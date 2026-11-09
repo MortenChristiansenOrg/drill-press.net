@@ -38,6 +38,14 @@ public abstract class IntegrationTest : IDisposable
 
         foreach (var temporaryDirectory in _temporaryDirectories)
         {
+            // Git writes read-only object files, which Windows refuses to delete.
+            foreach (
+                var file in temporaryDirectory.EnumerateFiles("*", SearchOption.AllDirectories)
+            )
+            {
+                file.Attributes &= ~FileAttributes.ReadOnly;
+            }
+
             temporaryDirectory.Delete(recursive: true);
         }
 
