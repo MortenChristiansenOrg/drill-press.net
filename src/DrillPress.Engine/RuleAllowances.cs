@@ -25,7 +25,7 @@ internal static class RuleAllowances
         FixComplexity = RuleFixComplexity.Local,
     };
 
-    /// <summary>Applies the allowances of every analysis-target document to the evaluated diagnostics.</summary>
+    /// <summary>Applies the allowances of every reported document to the evaluated diagnostics.</summary>
     /// <param name="rules">The catalog that defines which rule IDs an allowance may name.</param>
     /// <param name="solution">The evaluated contexts.</param>
     /// <param name="diagnostics">Every finding of the evaluated rules, before fixes are planned.</param>
@@ -108,7 +108,7 @@ internal static class RuleAllowances
         var allowances = new List<RuleAllowance>();
         foreach (
             var source in solution
-                .Projects.Where(project => project.Snapshot.IsAnalysisTarget)
+                .Projects.Where(solution.Reports)
                 .SelectMany(project => project.Sources)
                 .Where(source =>
                     !source.Document.IsGenerated

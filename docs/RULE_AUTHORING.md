@@ -208,6 +208,40 @@ Interface views combine compatible consumer roots for the same target framework;
 alternate frameworks and incompatible dependency evaluations remain separate
 views, and DP1003 requires exactly one implementation in each of them.
 
+### Excluding projects
+
+`rules.ExcludeProjects(patterns)` keeps every rule in the catalog, including the
+built-in allowance checks, from reporting in projects whose name matches one of the
+case-sensitive globs. The patterns work like `InProject(glob)`, and repeated calls
+add to them:
+
+```csharp
+var rules = new RuleCatalog();
+rules.ExcludeProjects("Contoso.ApiEmulator", "Contoso.ApiEmulator.*");
+```
+
+Use it for projects that deliberately follow other conventions, such as an emulator
+of a third-party API and its tests, while they stay in the solution so that
+solution-level `check` and `status` keep working. Excluded projects still load, and
+queries select candidates from them as before, so facts that span projects, such as
+implementations, references, counterparts and fix validation, stay the same. Only
+what would land in an excluded project is dropped:
+
+- findings, including those that `ReportAt` moves into an excluded project from a
+  tuple or another candidate;
+- fixes whose edits touch a file that only excluded projects compile, which are
+  withheld like edits outside the analysis target;
+- `drillpress-allow` comments, which are not read, so they report neither
+  `drillpress-allow-unused` nor `drillpress-allow-invalid`;
+- coverage collection for candidates that would report there.
+
+A linked file that an excluded and a non-excluded project both compile still reports
+and fixes for the non-excluded project. `status` lists only projects with violations,
+so excluded projects drop out of it. `RuleTestWorkspace.CheckAsync` and direct
+`RuleCatalog.Evaluate` apply the exclusions too. A pattern that matches no loaded
+project is not an error, because a `.csproj` target loads only that project and its
+dependencies.
+
 ## Rule fix complexity
 
 Estimate how much context and design judgment an agent needs for a typical fix
@@ -351,7 +385,8 @@ unused allowance is reported for review but never removed by `fix`. Rules that a
 evaluate never make an allowance unused: `--skip-coverage` skips coverage rules,
 and `--fix-complexity` only filters what is reported after every rule ran.
 Only analysis-target documents are read, so allowances in referenced projects
-outside the target and in generated files are ignored. Built-in rules cannot be
+outside the target, in [excluded projects](#excluding-projects) and in generated
+files are ignored. Built-in rules cannot be
 allowed. Fix complexity selection applies to the built-in findings like any
 other rule's, and `fix` removes unused allowances that pass the usual comment
 removal checks; removing a whole line is withheld when it would change a later

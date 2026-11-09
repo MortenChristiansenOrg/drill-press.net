@@ -26,7 +26,7 @@ internal sealed class CandidateRule<T>(
                 PlannedTarget(candidate) switch
                 {
                     null => planning.Projects,
-                    { Source: var source } when !IsReportable(source) => [],
+                    { Source: var source } when !IsReportable(planning, source) => [],
                     var report => candidate switch
                     {
                         AnalysisProject project => [project],
@@ -46,9 +46,10 @@ internal sealed class CandidateRule<T>(
                 : null
         );
 
-    // Eligibility follows where a finding lands, so ReportAt cannot anchor findings in generated or non-target source.
-    private static bool IsReportable(AnalysisSource source) =>
-        !source.Document.IsGenerated && source.Project.Snapshot.IsAnalysisTarget;
+    // Eligibility follows where a finding lands, so ReportAt cannot anchor findings in generated, non-target or
+    // excluded source.
+    private static bool IsReportable(AnalysisSolution solution, AnalysisSource source) =>
+        !source.Document.IsGenerated && solution.Reports(source);
 
     public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
@@ -62,7 +63,7 @@ internal sealed class CandidateRule<T>(
                     Report: target?.Invoke(candidate) ?? ReportingLocation.Default(candidate)
                 );
             })
-            .Where(item => IsReportable(item.Report.Source))
+            .Where(item => IsReportable(solution, item.Report.Source))
             .Select(item =>
             {
                 var (candidate, report) = item;

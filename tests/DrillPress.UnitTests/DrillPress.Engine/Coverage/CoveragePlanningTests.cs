@@ -77,6 +77,26 @@ public sealed class CoveragePlanningTests
     }
 
     [Fact]
+    public async Task Candidates_in_excluded_projects_launch_no_tests()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.Fail = true;
+        var rules = new RuleCatalog();
+        rules
+            .Rule("EXCLUDED", "Exercise call.")
+            .For(Code.Calls.ToMethodsNamed("Hit"))
+            .Require(global::DrillPress.Coverage.Executed);
+        rules.ExcludeProjects(fixture.Snapshot.Projects[0].Name);
+
+        var diagnostics = await fixture
+            .Engine()
+            .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Empty(diagnostics);
+        Assert.Empty(fixture.Process.Calls);
+    }
+
+    [Fact]
     public async Task Shared_clauses_with_no_candidates_launch_no_tests()
     {
         var fixture = new CoverageFixture();

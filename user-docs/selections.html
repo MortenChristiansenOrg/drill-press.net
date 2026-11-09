@@ -86,6 +86,16 @@ rules.Rule(&quot;FIELD001&quot;, &quot;Make private instance fields readonly whe
 <tr><td><code>InNamespace(&quot;A.B.**&quot;)</code>, <code>InFolder(&quot;Domain&quot;)</code>, <code>InFilesNamed(&quot;*Tests.cs&quot;)</code></td><td>Namespace segments, physical folders at any depth, or file-name globs.</td></tr>
 </tbody></table></div>
 <p>Inside predicates, the same ideas are available as tests on one declaration: <code>NameStartsWith</code>, <code>NameEndsWith</code>, <code>NameMatches</code>, <code>NameContainsWord</code>, <code>HasAttribute</code>, <code>HasExplicitModifier</code>, <code>HasDocumentationComment</code>, <code>IsInProject</code> and <code>IsInNamespace</code>.</p>
+<h2 id="exclude-projects">Leave whole projects out</h2>
+<p>Some projects deliberately follow other conventions, such as an emulator of a third-party API and its tests. Exclude them once for every rule in the catalog instead of adding an exception to each rule.</p>
+<div class="codeblock"><div class="codehead"><span>Exclude projects from every rule</span></div><pre tabindex="0" data-check="program" id="example-exclude-projects"><code>using DrillPress;
+
+var rules = new RuleCatalog();
+rules.ExcludeProjects(&quot;Contoso.ApiEmulator&quot;, &quot;Contoso.ApiEmulator.*&quot;);
+rules.Rule(&quot;TEAM001&quot;, &quot;Use the application logger instead of Console.WriteLine.&quot;)
+    .For(Code.Calls.To(CodeType.Named(&quot;System.Console&quot;).Member(&quot;WriteLine&quot;)))
+    .Forbid();</code></pre></div>
+<p>The patterns are the case-sensitive project-name globs of <code>InProject</code>. Excluded projects still load and still inform the others, so references, implementations and fix checks see the whole solution. Nothing is reported in them: no findings, including those <code>ReportAt</code> moves there, no fixes that edit their files, and no allowance diagnostics. <code>status</code> leaves them out, and <code>RuleTestWorkspace</code> applies the exclusions too. A linked file shared with a project that is not excluded still reports for that project.</p>
 <h2 id="shared-identity">Give typed clauses one rule identity</h2>
 <p>One rule can hold several clauses when a policy covers different candidate types. Calls can require execution while loops require enumeration advancement under the same ID and remediation.</p>
 <div class="codeblock"><div class="codehead"><span>Compose call and loop requirements</span></div><pre tabindex="0" data-check="program" id="example-shared-rule"><code>using DrillPress;
@@ -147,7 +157,7 @@ rules.Rule(&quot;PARAM001&quot;, &quot;Group long parameter lists into a request
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#filters">Filter by name, place, and shape</a><a href="#shared-identity">Give typed clauses one rule identity</a><a href="#conditions">Name conditions and exceptions</a><a href="#report-at">Choose where the finding points</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#filters">Filter by name, place, and shape</a><a href="#exclude-projects">Leave whole projects out</a><a href="#shared-identity">Give typed clauses one rule identity</a><a href="#conditions">Name conditions and exceptions</a><a href="#report-at">Choose where the finding points</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

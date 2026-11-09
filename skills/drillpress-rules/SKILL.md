@@ -47,6 +47,10 @@ or `.ReportOncePer(key)` → `.Forbid(fix?)` or `.Require(condition, fix?)`.
   same ID, for example one for calls and one for loops.
 - Conditions are lambdas or reusable `RuleCondition<T>` values (`And`, `Or`, `Not`,
   `ExceptWhen`). Keep them pure; reuse query instances to share work.
+- `rules.ExcludeProjects("Contoso.Emulator", "Contoso.Emulator.*")` stops every rule
+  and allowance check from reporting or fixing in projects matching the name globs,
+  including findings moved there with `ReportAt`. Excluded projects still supply
+  facts to the other projects. Prefer it to repeating `InProject` exceptions per rule.
 
 ## Choose candidates
 

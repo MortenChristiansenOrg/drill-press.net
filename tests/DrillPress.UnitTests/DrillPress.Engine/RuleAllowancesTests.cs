@@ -601,6 +601,33 @@ public sealed class RuleAllowancesTests
         Assert.Equal("", result.Output);
     }
 
+    [Fact]
+    public async Task Allowances_in_excluded_projects_are_ignored()
+    {
+        var workspace = new RuleTestWorkspace([]);
+        workspace.AddProject(
+            "Contoso.ApiEmulator",
+            [
+                new("System.cs", Prelude),
+                new(
+                    "Calls.cs",
+                    """
+                    class C { } // drillpress-allow HTI
+
+                    // drillpress-allow HIT: nothing here calls Hit
+                    class D { }
+                    """
+                ),
+            ]
+        );
+        var rules = Rules();
+        rules.ExcludeProjects("Contoso.*");
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal("", result.Output);
+    }
+
     private static RuleTestWorkspace Workspace(string source)
     {
         var workspace = new RuleTestWorkspace([]);

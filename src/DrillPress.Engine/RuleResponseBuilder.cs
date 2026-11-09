@@ -27,7 +27,7 @@ internal sealed class RuleResponseBuilder
             _ => new List<Finding>()
         );
         var targetFiles = solution
-            .Projects.Where(project => project.Snapshot.IsAnalysisTarget)
+            .Projects.Where(solution.Reports)
             .SelectMany(project => project.Snapshot.Documents)
             .Where(document => !document.IsGenerated)
             .Select(document => document.FileIdentity)
@@ -60,7 +60,7 @@ internal sealed class RuleResponseBuilder
                 else
                     reasons.Add(
                         proposal.WithheldReason
-                            ?? "the fix edits a file outside the analysis target, or generated source"
+                            ?? "the fix edits a file outside the analysis target, in an excluded project, or in generated source"
                     );
             }
 
