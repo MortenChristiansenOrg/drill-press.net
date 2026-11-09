@@ -232,7 +232,7 @@ after adopting them.
 ```
 
 ```sh
-dotnet tool run drillpress check --parallel-queries --stream-compilation --rules MyRules path/to/App.sln
+dotnet tool run drillpress check --parallel-queries --stream-compilation --rules path/to/MyRules path/to/App.sln
 ```
 
 Seconds for `drillpress check` with DrillPress 0.0.3-preview.25, the bundle already built:

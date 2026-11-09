@@ -224,8 +224,8 @@ project and the repository's test framework. Install the tool once per repositor
 ## Run
 
 ```sh
-dotnet tool run drillpress check --rules MyRules path/to/App.sln
-dotnet tool run drillpress fix --rules MyRules path/to/App.sln
+dotnet tool run drillpress check --rules path/to/MyRules path/to/App.sln
+dotnet tool run drillpress fix --rules path/to/MyRules path/to/App.sln
 ```
 
 `--rules` builds the rules project (or its directory) in Release each run; build
