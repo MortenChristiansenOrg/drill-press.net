@@ -19,11 +19,32 @@ internal sealed record CliOptions(
     string? Baseline = null
 )
 {
-    public static bool TryParse(string[] args, out CliOptions options, out string? error)
+    /// <summary>Rule IDs to report, or null for every rule.</summary>
+    public string[]? Select { get; init; }
+
+    /// <summary>Rule IDs to leave out.</summary>
+    public string[] Ignore { get; init; } = [];
+
+    /// <summary>Full-path globs of source files that report nothing.</summary>
+    public string[] Exclude { get; init; } = [];
+
+    /// <summary>
+    /// Parses the arguments and applies repository defaults beneath them: an explicit rules source or target replaces
+    /// the file's, command-line properties follow the file's, <c>--select</c> or <c>--rules</c> drops its selection
+    /// and ignored rules, and <c>--ignore</c> and <c>--exclude</c> add to it. <c>--no-config</c> skips the file.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">An explicit config file does not exist.</exception>
+    /// <exception cref="InvalidDataException">The config file is invalid.</exception>
+    public static bool TryParse(
+        string[] args,
+        RepositoryConfigFile configFile,
+        out CliOptions options,
+        out string? error
+    )
     {
         options = null!;
         error = null;
-        if (args.Length < 4 || args[0] is not ("check" or "fix" or "status"))
+        if (args.Length == 0 || args[0] is not ("check" or "fix" or "status"))
         {
             return false;
         }
@@ -32,7 +53,13 @@ internal sealed record CliOptions(
         string? rules = null;
         string? target = null;
         string? baseline = null;
+        string? config = null;
+        var noConfig = false;
+        List<string>? select = null;
+        var ignore = new List<string>();
+        var exclude = new List<string>();
         var exportArguments = new List<string>();
+        var properties = new List<string>();
         var profile = false;
         var optimize = true;
         var refreshCoverage = false;
@@ -62,9 +89,28 @@ internal sealed record CliOptions(
                 case "--rules" when rules is null && index + 1 < args.Length:
                     rules = args[++index];
                     break;
+                case "--config" when config is null && !noConfig && index + 1 < args.Length:
+                    config = args[++index];
+                    break;
+                case "--no-config" when config is null:
+                    noConfig = true;
+                    break;
+                case "--select":
+                case "--ignore":
+                    var option = args[index];
+                    if (index + 1 >= args.Length || !TryParseRuleIds(args[++index], out var ids))
+                    {
+                        error = $"{option} requires comma-separated rule IDs.";
+                        return false;
+                    }
+                    (option == "--select" ? select ??= [] : ignore).AddRange(ids);
+                    break;
+                case "--exclude"
+                    when index + 1 < args.Length && !string.IsNullOrWhiteSpace(args[index + 1]):
+                    exclude.Add(args[++index]);
+                    break;
                 case "--property" when index + 1 < args.Length && args[index + 1].IndexOf('=') > 0:
-                    exportArguments.Add(args[index]);
-                    exportArguments.Add(args[++index]);
+                    properties.Add(args[++index]);
                     break;
                 case "--profile":
                     profile = true;
@@ -117,9 +163,10 @@ internal sealed record CliOptions(
 
         if (
             (buildHost is not null && string.IsNullOrWhiteSpace(buildHost))
-            || string.IsNullOrWhiteSpace(rules)
-            || string.IsNullOrWhiteSpace(target)
+            || (rules is not null && string.IsNullOrWhiteSpace(rules))
+            || (target is not null && string.IsNullOrWhiteSpace(target))
             || (baseline is not null && string.IsNullOrWhiteSpace(baseline))
+            || (config is not null && string.IsNullOrWhiteSpace(config))
         )
         {
             return false;
@@ -131,6 +178,30 @@ internal sealed record CliOptions(
             return false;
         }
 
+        var defaults = noConfig ? null : configFile.Load(config);
+        // Rule IDs belong to a bundle, so another bundle on the command line drops the file's selection.
+        var fileSelection = rules is null && select is null;
+        rules ??= defaults?.Rules;
+        target ??= defaults?.Target;
+        if (rules is null || target is null)
+        {
+            if (defaults is not null)
+                error =
+                    $"Pass {(rules is null ? "--rules <path>" : "a target")} or set '{(rules is null ? "rules" : "target")}' in {defaults.DisplayPath}.";
+            return false;
+        }
+
+        // Loose files and globs accept no MSBuild properties, so the file's properties apply to project targets only.
+        var configured = IsLooseSource(target) ? [] : defaults?.Properties ?? [];
+        string[] export =
+        [
+            .. configured
+                .Select(property => $"{property.Key}={property.Value}")
+                .Concat(properties)
+                .SelectMany(assignment => new[] { "--property", assignment }),
+            .. exportArguments,
+        ];
+
         options = new CliOptions(
             args[0] switch
             {
@@ -141,7 +212,7 @@ internal sealed record CliOptions(
             buildHost,
             rules,
             target,
-            exportArguments.ToArray(),
+            export,
             profile,
             optimize,
             refreshCoverage,
@@ -153,7 +224,27 @@ internal sealed record CliOptions(
             parallelQueries,
             streamCompilation,
             baseline
-        );
+        )
+        {
+            Select = select?.Distinct().ToArray() ?? (fileSelection ? defaults?.Select : null),
+            Ignore = [.. (fileSelection ? defaults?.Ignore ?? [] : []).Concat(ignore).Distinct()],
+            Exclude =
+            [
+                .. (defaults?.Exclude ?? [])
+                    .Concat(exclude.Select(configFile.ExclusionGlob))
+                    .Distinct(),
+            ],
+        };
         return true;
     }
+
+    private static bool TryParseRuleIds(string value, out string[] ids)
+    {
+        ids = value.Split(',', StringSplitOptions.TrimEntries);
+        return ids.All(id => id.Length > 0);
+    }
+
+    private static bool IsLooseSource(string target) =>
+        target.IndexOfAny(['*', '?']) >= 0
+        || target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
 }

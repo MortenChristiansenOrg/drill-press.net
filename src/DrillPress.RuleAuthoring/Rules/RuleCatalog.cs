@@ -13,20 +13,49 @@ public sealed class RuleCatalog
 {
     // Built-in engine rules, such as allowance checks, use this prefix so they cannot clash with bundle rules.
     internal const string BuiltInPrefix = "drillpress-";
+    internal const string AllowUnusedId = BuiltInPrefix + "allow-unused";
+    internal const string AllowInvalidId = BuiltInPrefix + "allow-invalid";
+    private const int MaxListedIds = 20;
 
-    private readonly List<RuleRegistration> _rules = [];
-    private ReportingScope _reporting = ReportingScope.Targets;
+    private readonly List<RuleRegistration> _rules;
+    private readonly IReadOnlySet<string>? _selected;
+    private readonly IReadOnlySet<string> _ignored;
+    private ReportingScope _reporting;
+
+    /// <summary>Creates an empty catalog that reports in the whole analysis target.</summary>
+    public RuleCatalog()
+        : this([], null, new HashSet<string>(), ReportingScope.Targets) { }
+
+    private RuleCatalog(
+        List<RuleRegistration> rules,
+        IReadOnlySet<string>? selected,
+        IReadOnlySet<string> ignored,
+        ReportingScope reporting
+    )
+    {
+        _rules = rules;
+        _selected = selected;
+        _ignored = ignored;
+        _reporting = reporting;
+    }
 
     /// <summary>Where this catalog's findings, fixes and allowance diagnostics may land.</summary>
     internal ReportingScope Reporting => _reporting;
 
+    // Selection leaves every rule defined, so allowances naming an unselected rule stay valid.
     internal bool Defines(string id) => _rules.Any(rule => rule.Id == id);
 
-    internal bool RequiresCoverage => _rules.Any(rule => rule.RequiresCoverage);
+    /// <summary>Whether findings of this rule, including a built-in allowance rule, are evaluated and reported.</summary>
+    internal bool Selects(string id) =>
+        (_selected is null || _selected.Contains(id)) && !_ignored.Contains(id);
+
+    private IEnumerable<RuleRegistration> SelectedRules => _rules.Where(rule => Selects(rule.Id));
+
+    internal bool RequiresCoverage => SelectedRules.Any(rule => rule.RequiresCoverage);
 
     internal string[] SkippedRuleIds(AnalysisOptions options) =>
         options.SkipCoverage
-            ? _rules
+            ? SelectedRules
                 .Where(rule => rule.RequiresCoverage)
                 .Select(rule => rule.Id)
                 .Order(StringComparer.Ordinal)
@@ -44,7 +73,7 @@ public sealed class RuleCatalog
         {
             IsPlanningCoverage = true,
         };
-        return _rules
+        return SelectedRules
             .SelectMany(rule => rule.CoverageContexts(planning, _reporting))
             .Where(_reporting.Includes)
             .ToHashSet();
@@ -62,6 +91,44 @@ public sealed class RuleCatalog
     /// <exception cref="ArgumentException">A pattern is blank.</exception>
     public void ExcludeProjects(params string[] patterns) =>
         _reporting = _reporting.ExcludingProjects(patterns);
+
+    /// <summary>
+    /// Returns a catalog that shares these rule definitions but evaluates and reports only the selected rules, and
+    /// reports nothing in source files whose full path matches an excluded glob. This catalog is unchanged.
+    /// </summary>
+    /// <exception cref="ArgumentException">The selection names a rule this catalog does not define.</exception>
+    internal RuleCatalog Restrict(RuleSelection selection)
+    {
+        if (
+            selection.Select is null
+            && selection.Ignore.Count == 0
+            && selection.ExcludedPaths.Count == 0
+        )
+            return this;
+        string[] builtIns = [AllowInvalidId, AllowUnusedId];
+        var known = _rules.Select(rule => rule.Id).Concat(builtIns).ToHashSet();
+        var unknown = (selection.Select ?? [])
+            .Concat(selection.Ignore)
+            .Where(id => !known.Contains(id))
+            .Distinct()
+            .ToArray();
+        // Short catalogs list their IDs; long lists would cost more context than they save.
+        if (unknown.Length > 0)
+            throw new ArgumentException(
+                $"Rule selection names unknown rule IDs: {string.Join(", ", unknown)}."
+                    + (
+                        known.Count <= MaxListedIds
+                            ? $" Known IDs: {string.Join(", ", known.Order(StringComparer.Ordinal))}."
+                            : $" The bundle defines {known.Count} rule IDs."
+                    )
+            );
+        return new(
+            [.. _rules],
+            selection.Select?.ToHashSet(),
+            selection.Ignore.ToHashSet(),
+            _reporting.ExcludingPaths(selection.ExcludedPaths)
+        );
+    }
 
     /// <summary>Reserves a unique rule identity with its single-line remediation message and optional typical agent fix effort. Add clauses with <see cref="RuleDefinition.For{T}(CodeQuery{T})"/>.</summary>
     /// <param name="id">The stable, unique rule identifier shown in output.</param>
@@ -105,7 +172,9 @@ public sealed class RuleCatalog
         {
             using var preparation = solution.Options.Profile.Measure("queries.preparation");
             Parallel.ForEach(
-                _rules.Where(rule => !(solution.Options.SkipCoverage && rule.RequiresCoverage)),
+                SelectedRules.Where(rule =>
+                    !(solution.Options.SkipCoverage && rule.RequiresCoverage)
+                ),
                 new ParallelOptions
                 {
                     MaxDegreeOfParallelism = solution.Options.QueryPreparationConcurrency,
@@ -126,7 +195,7 @@ public sealed class RuleCatalog
             );
         }
         foreach (
-            var rule in _rules.Where(rule =>
+            var rule in SelectedRules.Where(rule =>
                 !(solution.Options.SkipCoverage && rule.RequiresCoverage)
             )
         )

@@ -149,7 +149,7 @@ public sealed class RuleApplicationTests
 
         Assert.Equal(RuleExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: <rule-bundle> check <snapshot> [--baseline <accepted-sources>] [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]{Environment.NewLine}",
+            $"Usage: <rule-bundle> check <snapshot> [--baseline <accepted-sources>] [--select <rule-id>]... [--ignore <rule-id>]... [--exclude <full-path-glob>]... [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -273,6 +273,361 @@ public sealed class RuleApplicationTests
 
         Assert.Equal(RuleExitCode.Clean, exitCode);
         Assert.Equal("", error.ToString());
+    }
+
+    [Theory]
+    [InlineData(
+        new string[0],
+        RuleExitCode.Findings,
+        """
+            EDIT Edit the declaration.
+            src/Order.cs
+              +4:35
+            EMPTY Use Target.Other.
+            src/Order.cs
+              +4:35
+            vendor/Target.cs
+              +5:35
+              +7:34
+            PROJECT Review the project.
+            vendor/System.cs
+              1
+            drillpress-allow-invalid Write allowances as // drillpress-allow RULE-ID[, RULE-ID]: reason, after or directly above the code.
+            vendor/Target.cs
+              6:5 [missing reason]
+            drillpress-allow-unused Remove the listed rules from this allowance; they report nothing in its scope.
+            src/Order.cs
+              +4:49 [PROJECT]
+
+            """
+    )]
+    [InlineData(
+        new[] { "--select", "EMPTY" },
+        RuleExitCode.Findings,
+        """
+            EMPTY Use Target.Other.
+            src/Order.cs
+              +4:35
+            vendor/Target.cs
+              +5:35
+              +7:34
+
+            """
+    )]
+    [InlineData(
+        new[] { "--ignore", "EMPTY", "--ignore", "drillpress-allow-unused" },
+        RuleExitCode.Findings,
+        """
+            EDIT Edit the declaration.
+            src/Order.cs
+              +4:35
+            PROJECT Review the project.
+            vendor/System.cs
+              1
+            drillpress-allow-invalid Write allowances as // drillpress-allow RULE-ID[, RULE-ID]: reason, after or directly above the code.
+            vendor/Target.cs
+              6:5 [missing reason]
+
+            """
+    )]
+    [InlineData(
+        new[] { "--select", "EMPTY", "--select", "PROJECT", "--ignore", "EMPTY" },
+        RuleExitCode.Findings,
+        """
+            PROJECT Review the project.
+            vendor/System.cs
+              1
+
+            """
+    )]
+    [InlineData(
+        new[] { "--select", "drillpress-allow-invalid" },
+        RuleExitCode.Findings,
+        """
+            drillpress-allow-invalid Write allowances as // drillpress-allow RULE-ID[, RULE-ID]: reason, after or directly above the code.
+            vendor/Target.cs
+              6:5 [missing reason]
+
+            """
+    )]
+    public async Task Selected_rules_alone_report_and_allowances_naming_other_rules_stay_quiet(
+        string[] selection,
+        RuleExitCode expectedExit,
+        string expectedOutput
+    )
+    {
+        var snapshot = await WriteSelectionSnapshotAsync(
+            """
+            namespace Sample;
+            public static class Order
+            {
+                public static Target First => Target.Empty; // drillpress-allow PROJECT: reviewed per release
+            }
+            """
+        );
+        var output = new StringWriter();
+
+        var exitCode = await new RuleApplication(_fileSystem).RunAsync(
+            SelectionRules(),
+            ["check", "snapshot.json", .. selection],
+            output,
+            TextWriter.Null,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            (expectedExit, expectedOutput.ReplaceLineEndings("\n")),
+            (
+                exitCode,
+                new CompactDiagnosticRenderer(_fileSystem).Render(
+                    BundleResponseProtocol.Read(output.ToString(), snapshot)
+                )
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Unknown_selected_rule_ids_fail_and_list_the_known_ids()
+    {
+        await WriteSelectionSnapshotAsync("namespace Sample;");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await new RuleApplication(_fileSystem).RunAsync(
+            SelectionRules(),
+            ["check", "snapshot.json", "--select", "EMPTY", "--select", "NOPE", "--ignore", "ALSO"],
+            output,
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(RuleExitCode.Failure, exitCode);
+        Assert.Equal("", output.ToString());
+        Assert.Equal(
+            $"drillpress-rules: Rule selection names unknown rule IDs: NOPE, ALSO. Known IDs: EDIT, EMPTY, PROJECT, drillpress-allow-invalid, drillpress-allow-unused.{Environment.NewLine}",
+            error.ToString()
+        );
+    }
+
+    [Theory]
+    [InlineData(
+        "vendor/**",
+        RuleExitCode.Findings,
+        """
+            EDIT Edit the declaration.
+            src/Order.cs
+              4:35
+                fix withheld: the fix edits or moves a file outside the analysis target, in an excluded project or path, or in generated source
+            EMPTY Use Target.Other.
+            src/Order.cs
+              +4:35
+            PROJECT Review the project.
+            src/Order.cs
+              1
+
+            """
+    )]
+    [InlineData("**", RuleExitCode.Clean, "")]
+    public async Task Excluded_paths_report_nothing_while_their_declarations_still_bind(
+        string exclusion,
+        RuleExitCode expectedExit,
+        string expectedOutput
+    )
+    {
+        var snapshot = await WriteSelectionSnapshotAsync(
+            """
+            namespace Sample;
+            public static class Order
+            {
+                public static Target First => Target.Empty;
+            }
+            """
+        );
+        var root = _fileSystem.Path.GetFullPath("/repo");
+        var output = new StringWriter();
+
+        var exitCode = await new RuleApplication(_fileSystem).RunAsync(
+            SelectionRules(),
+            ["check", "snapshot.json", "--exclude", $"{root}/{exclusion}"],
+            output,
+            TextWriter.Null,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            (expectedExit, expectedOutput.ReplaceLineEndings("\n")),
+            (
+                exitCode,
+                new CompactDiagnosticRenderer(_fileSystem).Render(
+                    BundleResponseProtocol.Read(output.ToString(), snapshot),
+                    explainFixes: true
+                )
+            )
+        );
+    }
+
+    [Fact]
+    public async Task A_move_into_an_excluded_path_is_withheld()
+    {
+        var project = _fileSystem.Path.GetFullPath("/repo/Orders");
+        _fileSystem.Directory.CreateDirectory(project);
+        _fileSystem.Directory.SetCurrentDirectory(project);
+        DocumentSnapshot Document(string name, string text) =>
+            SourceIdentity.Capture(
+                new DocumentSnapshot(_fileSystem.Path.Combine(project, name), text, false)
+                {
+                    IsDefaultCompileItem = true,
+                },
+                System.Text.Encoding.UTF8.GetBytes(text),
+                "utf-8",
+                false
+            );
+        var snapshot = CompilationSnapshot.Create(
+            TestSnapshots.CreateProject(_fileSystem.Path.Combine(project, "Orders.cs"), "") with
+            {
+                TargetFramework = "net10.0",
+                CompileGlob = new(project, []),
+                Documents =
+                [
+                    Document("System.cs", "namespace System { public class Object { } }"),
+                    Document("A.cs", "class A { }"),
+                ],
+            }
+        );
+        await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+            "snapshot.json",
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("MOVE", "Move A into excluded.")
+            .For(Code.Files.Where(file => file.Name == "A.cs"))
+            .Forbid(fix: file => Fix.For(file).MoveTo("excluded/A.cs").Propose());
+        var output = new StringWriter();
+
+        var exitCode = await new RuleApplication(_fileSystem).RunAsync(
+            rules,
+            ["check", "snapshot.json", "--exclude", project + "/excluded/**"],
+            output,
+            TextWriter.Null,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(
+            (
+                RuleExitCode.Findings,
+                """
+                MOVE Move A into excluded.
+                A.cs
+                  1
+                    fix withheld: the fix edits or moves a file outside the analysis target, in an excluded project or path, or in generated source
+
+                """.ReplaceLineEndings("\n")
+            ),
+            (
+                exitCode,
+                new CompactDiagnosticRenderer(_fileSystem).Render(
+                    BundleResponseProtocol.Read(output.ToString(), snapshot),
+                    explainFixes: true
+                )
+            )
+        );
+    }
+
+    // The vendored files come first, so project findings land in them unless they are excluded. The vendored
+    // declaration has its own findings and an allowance without a reason.
+    private async Task<CompilationSnapshot> WriteSelectionSnapshotAsync(string order)
+    {
+        var root = _fileSystem.Path.GetFullPath("/repo");
+        _fileSystem.Directory.CreateDirectory(root);
+        _fileSystem.Directory.SetCurrentDirectory(root);
+        DocumentSnapshot Document(string path, string text) =>
+            SourceIdentity.Capture(
+                new DocumentSnapshot(_fileSystem.Path.Combine(root, path), text, false),
+                System.Text.Encoding.UTF8.GetBytes(text),
+                "utf-8",
+                false
+            );
+        var vendor = Document(
+            _fileSystem.Path.Combine("vendor", "Target.cs"),
+            """
+            namespace Sample;
+            public sealed class Target
+            {
+                public static Target Empty => null!;
+                public static Target Other => Empty;
+                // drillpress-allow EMPTY
+                public static Target Copy => Target.Empty;
+            }
+            """
+        );
+        var system = Document(
+            _fileSystem.Path.Combine("vendor", "System.cs"),
+            """
+            namespace System
+            {
+                public class Object { }
+                public class ValueType { }
+                public struct Void { }
+            }
+            """
+        );
+        var snapshot = CompilationSnapshot.Create(
+            TestSnapshots.CreateProject(vendor.Path, vendor.Text) with
+            {
+                Documents =
+                [
+                    system,
+                    vendor,
+                    Document(_fileSystem.Path.Combine("src", "Order.cs"), order),
+                ],
+            }
+        );
+        await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+            "snapshot.json",
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
+        return snapshot;
+    }
+
+    private static RuleCatalog SelectionRules()
+    {
+        var rules = new RuleCatalog();
+        var references = CodeType.Named("Sample.Target").Member("Empty").References;
+        rules
+            .Rule("EMPTY", "Use Target.Other.")
+            .For(references)
+            .Forbid(fix: reference =>
+                SourceChanges.Propose(
+                    [
+                        SourceChanges.Replace(
+                            reference.Source,
+                            reference.Syntax.Span,
+                            "Target.Other"
+                        ),
+                    ],
+                    _ => true
+                )
+            );
+        rules
+            .Rule("EDIT", "Edit the declaration.")
+            .For(references.Where(reference => reference.Source.Document.Path.EndsWith("Order.cs")))
+            .Forbid(fix: reference =>
+                SourceChanges.Propose(
+                    [
+                        SourceChanges.Replace(
+                            reference.Source.Project.Sources.First(),
+                            new(0, 0),
+                            "// edited\n"
+                        ),
+                    ],
+                    _ => true
+                )
+            );
+        rules.Rule("PROJECT", "Review the project.").For(Code.Projects).Forbid();
+        return rules;
     }
 
     private static RuleCatalog ChangeRules(SourceBaseline? accepted)

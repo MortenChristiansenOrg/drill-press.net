@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="../../third_party/Vendor/**/*.cs" LinkBase="Vendor" />
+  </ItemGroup>
+</Project>

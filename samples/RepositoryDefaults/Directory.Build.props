@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Pin the same exact version as the drillpress tool in .config/dotnet-tools.json. -->
+    <DrillPressVersion Condition="'$(DrillPressVersion)' == ''">0.0.1</DrillPressVersion>
+  </PropertyGroup>
+</Project>

@@ -135,12 +135,19 @@ public sealed class CliApplicationTests
         Assert.Equal("", error.ToString());
         Assert.Equal(
             """
-            drillpress check|fix|status --rules <path> <target> [options]
+            drillpress check|fix|status [--rules <path>] [<target>] [options]
             check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
             status counts violations per project, then per fix complexity.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
             --rules: rules project (.csproj or its directory; restored and built in Release),
               compiled rule DLL, or native executable. --build-host: override the packaged loader.
+            --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
+              rules, target, properties, select, ignore, exclude; its paths are relative to its directory.
+              --rules and <target> replace its values; --property follows its properties. --no-config skips it.
+            --select <ids>, --ignore <ids>  Report only, or never, these comma-separated rule IDs (repeatable);
+              --select or --rules drops the config's select and ignore; --ignore adds. Unknown IDs fail.
+            --exclude <glob> (repeatable)  No findings, fixes or allowance checks in matching source files, which
+              still inform analysis. Relative to the current directory; adds to the config's exclude.
             --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,
               or a directory holding an accepted copy of the current directory.
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
@@ -154,7 +161,7 @@ public sealed class CliApplicationTests
             --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
             --show-fix-complexity  Include assigned agent fix effort once per rule.
             --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
-            Complexity selection applies to check, fix, status, and findings exit codes; omitted selects all rules.
+            Rule, path and complexity selection apply to check, fix, status, and findings exit codes.
             --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
             --version  Show the package and protocol versions.
             drillpress install-skill [<skills-directory>]  Write this version's rule-authoring agent skill
@@ -438,7 +445,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -640,7 +647,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --refresh-coverage and --skip-coverage cannot be combined.
-            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -933,7 +940,43 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+
+            """.ReplaceLineEndings(Environment.NewLine),
+            error.ToString()
+        );
+        Assert.Empty(_fileSystem.AllFiles);
+    }
+
+    [Theory]
+    [InlineData("--select", "")]
+    [InlineData("--select", "DP1,,DP2")]
+    [InlineData("--ignore", "DP1,")]
+    [InlineData("--ignore")]
+    public async Task Invalid_rule_selections_fail_clearly_before_starting_tools(
+        params string[] selection
+    )
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var runner = new StubChildProcessRunner(
+            (_, _, _) => throw new InvalidOperationException("Unexpected process.")
+        );
+        var cli = new CliApplication(_fileSystem, runner);
+
+        var result = await cli.RunAsync(
+            ["check", "--rules", "rules", "target.csproj", .. selection],
+            error,
+            TestContext.Current.CancellationToken,
+            output
+        );
+
+        Assert.Equal(CliExitCode.Failure, result);
+        Assert.Equal("", output.ToString());
+        Assert.Equal(
+            $"""
+            drillpress: {selection[0]} requires comma-separated rule IDs.
+            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

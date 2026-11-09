@@ -297,7 +297,7 @@ public sealed class AnalysisEngineTests
                 )
                 {
                     FixWithheld =
-                        "the fix edits a file outside the analysis target, in an excluded project, or in generated source",
+                        "the fix edits or moves a file outside the analysis target, in an excluded project or path, or in generated source",
                 },
             ],
             response.Contexts[1].Findings

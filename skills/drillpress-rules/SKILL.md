@@ -235,6 +235,14 @@ dotnet tool run drillpress fix --rules path/to/MyRules path/to/App.sln
 `--rules` builds the rules project (or its directory) in Release each run; build
 errors print to stderr with exit 2. A built rule DLL also works.
 
+A committed `drillpress.json` (found in the current directory or a parent) supplies
+`rules`, `target`, `properties`, `select`, `ignore` and `exclude`, so plain
+`dotnet tool run drillpress check` works; relative paths in it resolve against its
+directory. `--select ID[,ID]` reports only those rules (replacing the file's selection),
+`--ignore` adds rules to leave out, and `--exclude <glob>` adds paths that report
+nothing but still inform analysis. Put the rules project and its test fixtures in
+`exclude`. Details are in [reference/testing.md](reference/testing.md#repository-defaults).
+
 Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
 `status` prints only violation counts per project and fix complexity; use it to pick
@@ -249,6 +257,8 @@ Where a finding is a justified exception, the code says so with
 above the statement or declaration. Allowed findings are not reported, counted or
 fixed; unused or malformed allowances are reported as `drillpress-allow-unused` and
 `drillpress-allow-invalid`. Don't add custom comment detection to a rule for this.
+Exceptions that apply to whole projects belong in `rules.ExcludeProjects`, and those
+for whole paths in the repository's `exclude`.
 
 ## Pitfalls
 

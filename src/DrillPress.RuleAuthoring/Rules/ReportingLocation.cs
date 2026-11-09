@@ -8,12 +8,13 @@ internal sealed record ReportTarget(SourceLocation Location, AnalysisSource Sour
 
 internal static class ReportingLocation
 {
-    internal static ReportTarget Default<T>(T candidate) =>
+    // A project reports at the start of its first ordinary source that the predicate accepts.
+    internal static ReportTarget Default<T>(T candidate, Func<AnalysisSource, bool> reportable) =>
         candidate switch
         {
             ICodeElement element => new(element.Location, element.Source),
             AnalysisProject project => project
-                .Sources.Where(source => !source.Document.IsGenerated)
+                .Sources.Where(source => !source.Document.IsGenerated && reportable(source))
                 .Select(source => new ReportTarget(source.Locate(new(0, 0)), source))
                 .FirstOrDefault()
                 ?? throw new InvalidOperationException(

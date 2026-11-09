@@ -43,3 +43,17 @@ public sealed record RuleDiagnostic(RuleDescriptor Descriptor, SourceLocation Lo
     /// <summary>All proposals retained by a reporting group, including candidates whose displayed diagnostics were deduplicated. The engine validates their complete union and conflicts before offering a correction.</summary>
     public IReadOnlyList<FixProposal> Fixes { get; init; } = [];
 }
+
+/// <summary>The rules and source that a coordinator asks a bundle to report.</summary>
+/// <param name="Select">Rule IDs to evaluate and report, or null for every rule.</param>
+/// <param name="Ignore">Rule IDs to leave out, even when selected.</param>
+/// <param name="ExcludedPaths">Full-path globs of source files that receive no findings, fixes or allowance diagnostics.</param>
+internal sealed record RuleSelection(
+    IReadOnlyCollection<string>? Select,
+    IReadOnlyCollection<string> Ignore,
+    IReadOnlyCollection<string> ExcludedPaths
+)
+{
+    /// <summary>Every rule, reported in the whole analysis target.</summary>
+    public static RuleSelection All { get; } = new(null, [], []);
+}

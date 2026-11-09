@@ -72,7 +72,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Leave whole projects out · Select and compose",
     "url": "selections.html#exclude-projects",
-    "text": "Some projects deliberately follow other conventions, such as an emulator of a third-party API and its tests. Exclude them once for every rule in the catalog instead of adding an exception to each rule. Exclude projects from every rule using DrillPress; var rules = new RuleCatalog(); rules.ExcludeProjects(\"Contoso.ApiEmulator\", \"Contoso.ApiEmulator.*\"); rules.Rule(\"TEAM001\", \"Use the application logger instead of Console.WriteLine.\") .For(Code.Calls.To(CodeType.Named(\"System.Console\").Member(\"WriteLine\"))) .Forbid(); The patterns are the case-sensitive project-name globs of InProject. Excluded projects still load and still inform the others, so references, implementations and fix checks see the whole solution. Nothing is reported in them: no findings, including those ReportAt moves there, no fixes that edit their files, and no allowance diagnostics. status leaves them out, and RuleTestWorkspace applies the exclusions too. A linked file shared with a project that is not excluded still reports for that project."
+    "text": "Some projects deliberately follow other conventions, such as an emulator of a third-party API and its tests. Exclude them once for every rule in the catalog instead of adding an exception to each rule. Exclude projects from every rule using DrillPress; var rules = new RuleCatalog(); rules.ExcludeProjects(\"Contoso.ApiEmulator\", \"Contoso.ApiEmulator.*\"); rules.Rule(\"TEAM001\", \"Use the application logger instead of Console.WriteLine.\") .For(Code.Calls.To(CodeType.Named(\"System.Console\").Member(\"WriteLine\"))) .Forbid(); The patterns are the case-sensitive project-name globs of InProject. Excluded projects still load and still inform the others, so references, implementations and fix checks see the whole solution. Nothing is reported in them: no findings, including those ReportAt moves there, no fixes that edit their files, and no allowance diagnostics. status leaves them out, and RuleTestWorkspace applies the exclusions too. A linked file shared with a project that is not excluded still reports for that project. Vendored source, rule projects and test fixtures are better left out by path, and rules the repository does not enforce yet by ID. Those choices belong to the repository rather than the bundle: commit them as exclude and ignore in drillpress.json, or pass --exclude, --select and --ignore. Excluded files inform analysis in the same way. See repository setup."
   },
   {
     "title": "Give typed clauses one rule identity · Select and compose",
@@ -637,7 +637,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "AnalysisProject · API field guide",
     "url": "reference.html#api-analysisproject",
-    "text": "Name; ProjectPath; TargetFramework; IsTestProject; Packages; ReferencesPackage(id); Properties; SourceRoots; HasType(type); Sources; Compilation; Solution One evaluated compilation context. As a candidate it reports at its first ordinary source file."
+    "text": "Name; ProjectPath; TargetFramework; IsTestProject; Packages; ReferencesPackage(id); Properties; SourceRoots; HasType(type); Sources; Compilation; Solution One evaluated compilation context. As a candidate it reports at its first ordinary source file that reporting includes."
   },
   {
     "title": "AnalysisSolution / AnalysisSource · API field guide",

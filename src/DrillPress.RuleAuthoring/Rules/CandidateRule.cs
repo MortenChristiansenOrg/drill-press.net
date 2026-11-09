@@ -19,8 +19,11 @@ internal sealed class CandidateRule<T>(
         ReportingScope reporting
     )
     {
+        // An explicit scope skips projects in which nothing can report.
         if (coverageScope is not null)
-            return coverageScope.In(planning);
+            return coverageScope
+                .In(planning)
+                .Where(project => !reporting.ExcludesAllSourceOf(project));
         if (!query.RequiresCoverage)
             return [];
         return query
@@ -48,16 +51,17 @@ internal sealed class CandidateRule<T>(
     private ReportTarget? Target(T candidate, ReportingScope reporting) =>
         target?.Invoke(candidate) ?? DefaultTarget(candidate, reporting);
 
-    // Null for a project the scope leaves out, so an excluded project needs no ordinary source to report at.
+    // A project reports at its first ordinary source the scope includes. Null for a project in which nothing can
+    // report, so an excluded project needs no ordinary source to report at.
     private static ReportTarget? DefaultTarget(T candidate, ReportingScope reporting) =>
-        candidate is AnalysisProject project && !reporting.Includes(project)
+        candidate is AnalysisProject project && reporting.ExcludesAllSourceOf(project)
             ? null
-            : ReportingLocation.Default(candidate);
+            : ReportingLocation.Default(candidate, reporting.Includes);
 
     // Eligibility follows where a finding lands, so ReportAt cannot anchor findings in generated, non-target or
     // excluded source.
     private static bool IsReportable(ReportingScope reporting, AnalysisSource source) =>
-        !source.Document.IsGenerated && reporting.Includes(source.Project);
+        !source.Document.IsGenerated && reporting.Includes(source);
 
     public override IEnumerable<RuleDiagnostic> Evaluate(
         AnalysisSolution solution,
