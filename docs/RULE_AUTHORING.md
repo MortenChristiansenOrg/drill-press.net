@@ -242,6 +242,12 @@ so excluded projects drop out of it. `RuleTestWorkspace.CheckAsync` and direct
 project is not an error, because a `.csproj` target loads only that project and its
 dependencies.
 
+Paths, such as vendored source or test fixtures, and rules that a repository does not
+enforce yet are the repository's choice rather than the bundle's: commit them as
+`exclude` and `ignore` in `drillpress.json`, or pass `--exclude`, `--select` and
+`--ignore`. Excluded paths behave like excluded projects; see
+[repository setup](REPOSITORY_SETUP.md).
+
 ## Rule fix complexity
 
 Estimate how much context and design judgment an agent needs for a typical fix

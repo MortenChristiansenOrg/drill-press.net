@@ -6,8 +6,8 @@ namespace DrillPress.Engine;
 /// <summary>Removes findings that source comments allow and reports allowances that are malformed or allow nothing.</summary>
 internal static class RuleAllowances
 {
-    public const string UnusedRuleId = RuleCatalog.BuiltInPrefix + "allow-unused";
-    public const string InvalidRuleId = RuleCatalog.BuiltInPrefix + "allow-invalid";
+    public const string UnusedRuleId = RuleCatalog.AllowUnusedId;
+    public const string InvalidRuleId = RuleCatalog.AllowInvalidId;
 
     private static readonly RuleDescriptor _unused = new(
         UnusedRuleId,
@@ -25,11 +25,14 @@ internal static class RuleAllowances
         FixComplexity = RuleFixComplexity.Local,
     };
 
-    /// <summary>Applies the allowances of every reported document to the evaluated diagnostics.</summary>
+    /// <summary>
+    /// Applies the allowances of every reported document to the evaluated diagnostics, and reports allowance problems
+    /// when the catalog selects the built-in allowance rules.
+    /// </summary>
     /// <param name="rules">The catalog that defines which rule IDs an allowance may name.</param>
     /// <param name="solution">The evaluated contexts.</param>
     /// <param name="diagnostics">Every finding of the evaluated rules, before fixes are planned.</param>
-    /// <param name="skippedRules">Rules that were not evaluated, so allowances naming them are neither used nor unused.</param>
+    /// <param name="skippedRules">Rules that were not evaluated, so allowances naming them are neither used nor unused; unselected rules count as skipped too.</param>
     public static IReadOnlyList<RuleDiagnostic> Apply(
         RuleCatalog rules,
         AnalysisSolution solution,
@@ -75,7 +78,11 @@ internal static class RuleAllowances
 
             var unused = allowance
                 .RuleIds.Distinct()
-                .Where(id => !skippedRules.Contains(id) && !used.Contains((allowance.Identity, id)))
+                .Where(id =>
+                    rules.Selects(id)
+                    && !skippedRules.Contains(id)
+                    && !used.Contains((allowance.Identity, id))
+                )
                 .ToArray();
             if (unused.Length == 0)
                 continue;
@@ -97,6 +104,7 @@ internal static class RuleAllowances
         }
 
         return retained
+            .Where(diagnostic => rules.Selects(diagnostic.Descriptor.Id))
             .OrderBy(diagnostic => diagnostic.Descriptor.Id, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.FilePath, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Location.Start)
@@ -108,10 +116,10 @@ internal static class RuleAllowances
         var allowances = new List<RuleAllowance>();
         foreach (
             var source in solution
-                .Projects.Where(rules.Reporting.Includes)
-                .SelectMany(project => project.Sources)
+                .Projects.SelectMany(project => project.Sources)
                 .Where(source =>
-                    !source.Document.IsGenerated
+                    rules.Reporting.Includes(source)
+                    && !source.Document.IsGenerated
                     && source.Document.Text.Contains(RuleAllowance.Marker, StringComparison.Ordinal)
                 )
         )

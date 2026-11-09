@@ -1,5 +1,6 @@
 using System.IO.Abstractions.TestingHelpers;
 using System.Text;
+using DrillPress.Engine;
 using DrillPress.Manifest;
 using DrillPress.UnitTests.TestInfrastructure;
 using Xunit;
@@ -93,6 +94,41 @@ public sealed class CoveragePlanningTests
             .AnalyzeAsync(rules, fixture.Snapshot, TestContext.Current.CancellationToken);
 
         Assert.Empty(diagnostics);
+        Assert.Empty(fixture.Process.Calls);
+    }
+
+    [Fact]
+    public async Task Explicit_collection_scopes_skip_projects_whose_source_is_all_excluded()
+    {
+        var fixture = new CoverageFixture();
+        fixture.Process.Fail = true;
+        await new CompilationSnapshotFile(fixture.FileSystem).WriteAsync(
+            "snapshot.json",
+            fixture.Snapshot,
+            TestContext.Current.CancellationToken
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("SCOPED", "Exercise call.")
+            .For(Code.Calls.ToMethodsNamed("Hit"))
+            .CollectCoverageIn(Code.Projects)
+            .Require(global::DrillPress.Coverage.Executed);
+        var output = new StringWriter();
+
+        var exitCode = await new RuleApplication(fixture.FileSystem, fixture.Process).RunAsync(
+            rules,
+            [
+                "check",
+                "snapshot.json",
+                "--exclude",
+                fixture.FileSystem.Path.GetFullPath("/coverage") + "/**",
+            ],
+            output,
+            TextWriter.Null,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(RuleExitCode.Clean, exitCode);
         Assert.Empty(fixture.Process.Calls);
     }
 

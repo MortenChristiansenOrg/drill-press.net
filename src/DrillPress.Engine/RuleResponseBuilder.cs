@@ -30,7 +30,7 @@ internal sealed class RuleResponseBuilder
         var targetFiles = solution
             .Projects.Where(reporting.Includes)
             .SelectMany(project => project.Snapshot.Documents)
-            .Where(document => !document.IsGenerated)
+            .Where(document => !document.IsGenerated && reporting.IncludesPath(document.Path))
             .Select(document => document.FileIdentity)
             .ToHashSet();
         foreach (var diagnostic in diagnostics)
@@ -56,12 +56,22 @@ internal sealed class RuleResponseBuilder
                 : []
             )
             {
-                if (RegisterProposal(solution, proposal, targetFiles, batches, proposals) is { } id)
+                if (
+                    RegisterProposal(
+                        solution,
+                        reporting,
+                        proposal,
+                        targetFiles,
+                        batches,
+                        proposals
+                    ) is
+                    { } id
+                )
                     batchIds.Add(id);
                 else
                     reasons.Add(
                         proposal.WithheldReason
-                            ?? "the fix edits a file outside the analysis target, in an excluded project, or in generated source"
+                            ?? "the fix edits or moves a file outside the analysis target, in an excluded project or path, or in generated source"
                     );
             }
 
@@ -142,6 +152,7 @@ internal sealed class RuleResponseBuilder
 
     private static string? RegisterProposal(
         AnalysisSolution solution,
+        ReportingScope reporting,
         FixProposal proposal,
         HashSet<string> targetFiles,
         Dictionary<string, FixBatch> batches,
@@ -154,7 +165,10 @@ internal sealed class RuleResponseBuilder
         if (
             (proposal.Edits.Count > 0 || moves.Length > 0)
             && proposal.Edits.All(edit => targetFiles.Contains(edit.FileIdentity))
-            && moves.All(move => targetFiles.Contains(move.FileIdentity))
+            // A move may not carry a file into an excluded path, where it could no longer be reported.
+            && moves.All(move =>
+                targetFiles.Contains(move.FileIdentity) && reporting.IncludesPath(move.Destination)
+            )
         )
         {
             var edits = proposal

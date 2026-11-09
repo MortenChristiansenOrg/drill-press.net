@@ -10,14 +10,21 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status --rules <path> <target> [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
-        drillpress check|fix|status --rules <path> <target> [options]
+        drillpress check|fix|status [--rules <path>] [<target>] [options]
         check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
         status counts violations per project, then per fix complexity.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
         --rules: rules project (.csproj or its directory; restored and built in Release),
           compiled rule DLL, or native executable. --build-host: override the packaged loader.
+        --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
+          rules, target, properties, select, ignore, exclude; its paths are relative to its directory.
+          --rules and <target> replace its values; --property follows its properties.
+        --select <ids>, --ignore <ids>  Report only, or never, these comma-separated rule IDs (repeatable);
+          --select replaces the config's select and ignore; --ignore adds. Unknown IDs fail.
+        --exclude <glob> (repeatable)  No findings, fixes or allowance checks in matching source files, which
+          still inform analysis. Relative to the current directory; adds to the config's exclude.
         --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,
           or a directory holding an accepted copy of the current directory.
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
@@ -31,7 +38,7 @@ public sealed class CliApplication
         --skip-coverage  Skip coverage rules and their test runs; output lists skipped rules.
         --show-fix-complexity  Include assigned agent fix effort once per rule.
         --fix-complexity <levels>  Select comma-separated trivial,local,complex,architectural,unspecified.
-        Complexity selection applies to check, fix, status, and findings exit codes; omitted selects all rules.
+        Rule, path and complexity selection apply to check, fix, status, and findings exit codes.
         --no-optimization  Use exhaustive queries for comparison.  --help  Show this help.
         --version  Show the package and protocol versions.
         drillpress install-skill [<skills-directory>]  Write this version's rule-authoring agent skill
@@ -96,7 +103,25 @@ public sealed class CliApplication
                 cancellationToken
             );
 
-        if (!CliOptions.TryParse(args, out var options, out var optionError))
+        bool parsed;
+        CliOptions options;
+        string? optionError;
+        try
+        {
+            parsed = CliOptions.TryParse(
+                args,
+                new RepositoryConfigFile(_fileSystem),
+                out options,
+                out optionError
+            );
+        }
+        catch (Exception exception)
+            when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            await standardError.WriteLineAsync($"drillpress: {exception.Message}");
+            return CliExitCode.Failure;
+        }
+        if (!parsed)
         {
             if (optionError is not null)
                 await standardError.WriteLineAsync($"drillpress: {optionError}");
@@ -360,6 +385,12 @@ public sealed class CliApplication
             flags.Add("--refresh-coverage");
         if (options.SkipCoverage)
             flags.Add("--skip-coverage");
+        foreach (var id in options.Select ?? [])
+            flags.AddRange(["--select", id]);
+        foreach (var id in options.Ignore)
+            flags.AddRange(["--ignore", id]);
+        foreach (var pattern in options.Exclude)
+            flags.AddRange(["--exclude", pattern]);
         return flags.ToArray();
     }
 

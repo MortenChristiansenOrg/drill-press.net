@@ -1,0 +1,10 @@
+{
+  // Shared by developers, coding agents and CI. Paths are relative to this file.
+  "rules": "eng/Rules",
+  "target": "Shop.slnx",
+  "properties": { "Configuration": "Debug" },
+  // SHOP003 is not enforced yet; run `drillpress check --select SHOP003` to see it.
+  "ignore": ["SHOP003"],
+  // Vendored code and the rules project still load and inform analysis, but report nothing.
+  "exclude": ["third_party/", "eng/"]
+}

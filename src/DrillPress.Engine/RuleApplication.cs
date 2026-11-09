@@ -78,33 +78,19 @@ public sealed class RuleApplication
         standardError ??= Console.Error;
         var generated = args.Length > 0 && args[0] == "check-generated";
         var flagsStart = generated ? 4 : 2;
-        var flags = args.Skip(flagsStart).ToList();
-        var baselineIndex = flags.IndexOf("--baseline");
-        string? baseline = null;
-        if (baselineIndex >= 0 && baselineIndex + 1 < flags.Count)
-        {
-            baseline = flags[baselineIndex + 1];
-            flags.RemoveRange(baselineIndex, 2);
-        }
         if (
             args.Length < flagsStart
             || (!generated && args[0] != "check")
-            || flags.Any(argument =>
-                argument
-                    is not (
-                        "--profile"
-                        or "--no-optimization"
-                        or "--refresh-coverage"
-                        or "--skip-coverage"
-                        or "--explain-coverage"
-                        or "--parallel-queries"
-                    )
+            || !TryParseFlags(
+                args[flagsStart..],
+                out var flags,
+                out var baseline,
+                out var selection
             )
-            || (flags.Contains("--refresh-coverage") && flags.Contains("--skip-coverage"))
         )
         {
             await standardError.WriteLineAsync(
-                "Usage: <rule-bundle> check <snapshot> [--baseline <accepted-sources>] [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
+                "Usage: <rule-bundle> check <snapshot> [--baseline <accepted-sources>] [--select <rule-id>]... [--ignore <rule-id>]... [--exclude <full-path-glob>]... [--profile] [--parallel-queries] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage]"
             );
             return RuleExitCode.Failure;
         }
@@ -112,7 +98,8 @@ public sealed class RuleApplication
         var rules = new RuleCatalogSource(
             _fileSystem,
             createRules,
-            readsBaseline ? baseline : null
+            readsBaseline ? baseline : null,
+            selection
         );
         var profile = new PipelineProfile(flags.Contains("--profile"), standardError, "rules");
         using var total = profile.Measure("total");
@@ -191,5 +178,53 @@ public sealed class RuleApplication
             await standardError.WriteLineAsync($"drillpress-rules: {exception.Message}");
             return RuleExitCode.Failure;
         }
+    }
+
+    // Selection and exclusion values repeat; the baseline appears at most once.
+    private static bool TryParseFlags(
+        string[] arguments,
+        out HashSet<string> switches,
+        out string? baseline,
+        out RuleSelection selection
+    )
+    {
+        switches = [];
+        baseline = null;
+        List<string>? select = null;
+        var ignore = new List<string>();
+        var exclude = new List<string>();
+        selection = RuleSelection.All;
+        for (var index = 0; index < arguments.Length; index++)
+        {
+            var hasValue = index + 1 < arguments.Length;
+            switch (arguments[index])
+            {
+                case "--baseline" when baseline is null && hasValue:
+                    baseline = arguments[++index];
+                    break;
+                case "--select" when hasValue:
+                    (select ??= []).Add(arguments[++index]);
+                    break;
+                case "--ignore" when hasValue:
+                    ignore.Add(arguments[++index]);
+                    break;
+                case "--exclude" when hasValue && !string.IsNullOrWhiteSpace(arguments[index + 1]):
+                    exclude.Add(arguments[++index]);
+                    break;
+                case "--profile"
+                or "--no-optimization"
+                or "--refresh-coverage"
+                or "--skip-coverage"
+                or "--explain-coverage"
+                or "--parallel-queries":
+                    switches.Add(arguments[index]);
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        selection = new(select, ignore, exclude);
+        return !(switches.Contains("--refresh-coverage") && switches.Contains("--skip-coverage"));
     }
 }

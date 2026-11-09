@@ -107,6 +107,14 @@ The `+10:29` location offers a safe correction on line 10, column 29.
 To check your own C# project,
 replace the final argument with the path to its `.csproj` file.
 
+To give developers, coding agents and CI the same check, commit a `drillpress.json`
+with the rules source, target, MSBuild properties, rule selection and reporting
+exclusions; `drillpress check` then needs no arguments, from any subdirectory.
+`--select`, `--ignore` and `--exclude` choose rules by ID and leave paths such as
+vendored code or rule projects out of reporting, while that code still informs analysis.
+See [repository setup](docs/REPOSITORY_SETUP.md) for discovery, precedence,
+exceptions, and the local and CI workflow.
+
 Change-aware rules compare the code with an accepted state. Pass a Git revision
 of the target's repository, or a directory holding an accepted copy of the current
 directory, with `--baseline`. For example, `--baseline origin/main` makes the sample's
@@ -126,7 +134,8 @@ paths, so a line can be passed back as a `check` or `fix` target. A location tha
 several projects report, such as a linked file, counts in each. File and glob
 targets have no project, so their counts are listed per source file. Review findings
 are not counted, and exit codes match `check`. Projects that the rule bundle excludes
-with `RuleCatalog.ExcludeProjects` report nothing, so they are not listed.
+with `RuleCatalog.ExcludeProjects`, or whose files are all excluded with `--exclude`,
+report nothing, so they are not listed.
 
 ```text
 src/App/App.csproj 42
@@ -142,12 +151,16 @@ declaration below it. Allowed findings are not printed, counted or fixed. Allowa
 that allow nothing, or that lack a reason or name an unknown rule, are reported as
 `drillpress-allow-unused` (with a fix that removes them) and `drillpress-allow-invalid`.
 See [allowing individual findings](docs/RULE_AUTHORING.md#allowing-individual-findings).
+Scoped and bulk suppression is tracked in [#28](https://github.com/MortenChristiansenOrg/drill-press.net/issues/28);
+see [exceptions](docs/REPOSITORY_SETUP.md#exceptions) for the other ways to make one.
 
 The CLI captures and validates a versioned internal bundle response before writing
 public diagnostics. Direct bundle execution (`<bundle> check <snapshot>`) is an
 internal JSON protocol, not another public diagnostic format. Use matching CLI,
 BuildHost, and rule-bundle package versions. Snapshot format 6 records analysis
 scope and build overrides; response protocol 11 carries per-occurrence evidence, optional rule fix complexity, skipped coverage rules, why proposed fixes were withheld, and file moves.
+The CLI passes rule selection and reporting exclusions to the bundle as `check`
+options; exact version matching keeps the two sides in step.
 The contracts bind responses to a unique request and preserve compilation and
 document identities. Captured child
 stdout is limited to 64 MiB and stderr to 8 MiB; exceeding either limit stops the

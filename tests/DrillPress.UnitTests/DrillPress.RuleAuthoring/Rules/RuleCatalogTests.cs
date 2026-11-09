@@ -307,7 +307,7 @@ public sealed class RuleCatalogTests
             SEAL Seal the called type.
             Orders.cs
               1:37
-                fix withheld: the fix edits a file outside the analysis target, in an excluded project, or in generated source
+                fix withheld: the fix edits or moves a file outside the analysis target, in an excluded project or path, or in generated source
 
             """.ReplaceLineEndings("\n"),
             result.ExplainedOutput

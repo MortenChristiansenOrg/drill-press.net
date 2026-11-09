@@ -85,6 +85,8 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
         _environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
         _environment["DOTNET_NOLOGO"] = "1";
         _environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        // The repository-defaults sample pins its packages through this property.
+        _environment["DrillPressVersion"] = Version;
         Config = FileSystem.Path.Combine(Consumer, "NuGet.Config");
         var config = new XElement(
             "configuration",
@@ -276,6 +278,31 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
                     TestContext.Current.CancellationToken
                 )
         );
+        return directory;
+    }
+
+    /// <summary>Copies the committed repository-defaults sample to <paramref name="name"/> and restores it.</summary>
+    public async Task<string> CopyRepositorySampleAsync(string name)
+    {
+        var source = RepositoryPath("samples", "RepositoryDefaults");
+        var directory = FileSystem.Path.Combine(Consumer, name);
+        foreach (
+            var file in FileSystem.Directory.GetFiles(source, "*", SearchOption.AllDirectories)
+        )
+        {
+            var relative = FileSystem.Path.GetRelativePath(source, file);
+            if (
+                relative
+                    .Split(FileSystem.Path.DirectorySeparatorChar)
+                    .Any(segment => segment is "bin" or "obj")
+            )
+                continue;
+            await WriteAsync(
+                FileSystem.Path.Combine(directory, relative),
+                await FileSystem.File.ReadAllTextAsync(file, TestContext.Current.CancellationToken)
+            );
+        }
+        await RequireDotnetAsync(directory, "restore", "Shop.slnx");
         return directory;
     }
 

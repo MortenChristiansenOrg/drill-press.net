@@ -198,10 +198,39 @@ load in parallel; failures are reported in snapshot order.
 | `--fix-complexity trivial,local,complex,architectural,unspecified` | Selects levels after full validation; a batch shared with an excluded rule is withheld. |
 | `--explain-coverage` | Prints coverage contexts, reasons and source ranges. |
 | `--refresh-coverage` / `--skip-coverage` | Refreshes cached evidence / skips coverage rules and lists them; mutually exclusive. |
+| `--config path` | Uses this defaults file instead of the nearest `drillpress.json`. |
+| `--select ID[,ID]` / `--ignore ID[,ID]` | Reports only / never these rule IDs; repeatable. Unknown IDs fail with exit 2. |
+| `--exclude glob` | Reports nothing in matching source files, which still inform analysis; repeatable. |
 | `--build-host path` | Selects an explicit BuildHost rather than the installed one. |
 | `--baseline <revision\|directory>` | Supplies an accepted state to a bundle whose `RunAsync` takes a rule factory; see [baselines](queries.md#baselines). |
 | `--parallel-queries` | Prepares the queries of different rules concurrently; see [faster checks](#faster-checks-on-large-solutions). |
 | `--stream-compilation` | Compiles each project in the bundle as soon as capture finishes it; see [faster checks](#faster-checks-on-large-solutions). |
+
+### Repository defaults
+
+A committed `drillpress.json` in the current directory or a parent sets defaults:
+
+```jsonc
+{
+  "rules": "eng/Rules",                    // rules project, its directory, or a built bundle
+  "target": "App.slnx",
+  "properties": { "Configuration": "Debug" },
+  "select": ["TEAM001", "TEAM002"],        // rule IDs to report; omit for all
+  "ignore": ["TEAM003"],                   // rule IDs never reported
+  "exclude": ["third_party/", "eng/", "tests/**/Fixtures/"]
+}
+```
+
+Relative paths resolve against the file's directory; command-line paths against the
+current directory. `--rules` and a target replace the file's values; `--property`
+follows its properties (last wins; loose-file and glob targets get none of them);
+`--select` replaces its `select` and `ignore`; `--ignore` and `--exclude` add to it.
+Unknown keys and invalid values fail with exit 2. Unselected rules are not evaluated,
+and allowances naming them are not reported as unused. `exclude` globs match full
+file paths case-sensitively (`*`, `?`, `**`; a trailing `/` covers a directory).
+Excluded files still load and inform analysis and fix validation, but get no
+findings, no fixes (a fix editing one, or moving a file into one, is withheld) and no
+allowance checks.
 
 Findings use physical line/column coordinates. Calls report at their method name,
 including the final method in a fluent chain; `ReportAt` can choose another span.
