@@ -130,13 +130,15 @@ public sealed class CliApplication
                 if (options.Baseline is not null)
                 {
                     using var baseline = profile.Measure("baseline");
-                    acceptedSources = await new AcceptedSourceResolver(
-                        _fileSystem,
-                        _processRunner
-                    ).WriteAsync(
-                        options.Baseline,
-                        options.Target,
-                        temporaryDirectory.FullName,
+                    acceptedSources = await AlongsideRulesBuildAsync(
+                        rules,
+                        stop =>
+                            new AcceptedSourceResolver(_fileSystem, _processRunner).WriteAsync(
+                                options.Baseline,
+                                options.Target,
+                                temporaryDirectory.FullName,
+                                stop
+                            ),
                         cancellationToken
                     );
                 }
@@ -281,25 +283,16 @@ public sealed class CliApplication
         ChildProcessResult export;
         using (profile.Measure("build-host"))
         {
-            using var stopExport = CancellationTokenSource.CreateLinkedTokenSource(
+            export = await AlongsideRulesBuildAsync(
+                rules,
+                stop =>
+                    _processRunner.CaptureAsync(
+                        options.BuildHost!,
+                        ["export", options.Target, snapshotPath, .. options.ExportArguments],
+                        stop
+                    ),
                 cancellationToken
             );
-            var running = _processRunner.CaptureAsync(
-                options.BuildHost!,
-                ["export", options.Target, snapshotPath, .. options.ExportArguments],
-                stopExport.Token
-            );
-            if (
-                await Task.WhenAny(running, rules) == rules
-                && !rules.IsCompletedSuccessfully
-                && !running.IsCompleted
-            )
-            {
-                await stopExport.CancelAsync();
-                await ((Task)running).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-                await rules;
-            }
-            export = await running;
         }
         await error.WriteAsync(export.StandardError);
         if (export.ExitCode != 0)
@@ -326,6 +319,28 @@ public sealed class CliApplication
         }
         await error.WriteAsync(check.StandardError);
         return ReadEvaluation(options, snapshot, check);
+    }
+
+    // Runs work while the rules build continues; a build failure first stops the work and is thrown.
+    private static async Task<T> AlongsideRulesBuildAsync<T>(
+        Task rules,
+        Func<CancellationToken, Task<T>> work,
+        CancellationToken cancellationToken
+    )
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var running = work(stop.Token);
+        if (
+            await Task.WhenAny(running, rules) == rules
+            && !rules.IsCompletedSuccessfully
+            && !running.IsCompleted
+        )
+        {
+            await stop.CancelAsync();
+            await ((Task)running).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await rules;
+        }
+        return await running;
     }
 
     private static string[] RuleFlags(CliOptions options, string? acceptedSources)

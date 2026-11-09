@@ -66,7 +66,7 @@ internal sealed class RulesSourceResolver(IFileSystem fileSystem, ChildProcessRu
         );
         if (build.ExitCode != 0)
             throw new IOException(
-                $"Rules project '{rules}' failed to build:{Environment.NewLine}{Errors(build)}"
+                $"Rules project '{rules}' failed to build:{Environment.NewLine}{Errors(project, build)}"
             );
         var output = build.StandardOutput.Trim();
         return output.Length > 0 && !output.Contains('\n')
@@ -77,7 +77,7 @@ internal sealed class RulesSourceResolver(IFileSystem fileSystem, ChildProcessRu
     }
 
     // Keeps only error lines, without the project suffix and with paths under the current directory made relative.
-    private string Errors(ChildProcessResult build)
+    private string Errors(string project, ChildProcessResult build)
     {
         var currentDirectory = _fileSystem.Path.TrimEndingDirectorySeparator(
             _fileSystem.Directory.GetCurrentDirectory()
@@ -93,11 +93,6 @@ internal sealed class RulesSourceResolver(IFileSystem fileSystem, ChildProcessRu
         var errors = lines
             .Where(line => line.Contains(": error ", StringComparison.Ordinal))
             .ToArray();
-        if (errors.Length == 0)
-            errors = build.StandardError.Split(
-                '\n',
-                StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries
-            );
         var report = errors
             .Select(line =>
                 line.EndsWith(']')
@@ -111,7 +106,7 @@ internal sealed class RulesSourceResolver(IFileSystem fileSystem, ChildProcessRu
             .ToArray();
         return report.Length > 0
             ? string.Join(Environment.NewLine, report)
-            : $"  dotnet build exited {build.ExitCode}.";
+            : $"  dotnet build exited {build.ExitCode}; run 'dotnet build \"{project}\"' for details.";
     }
 
     private static bool IsProject(string path) =>

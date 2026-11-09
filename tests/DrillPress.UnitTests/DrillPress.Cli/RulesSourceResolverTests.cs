@@ -14,7 +14,7 @@ public sealed class RulesSourceResolverTests
     private readonly string _work;
     private readonly string _project;
     private readonly string _bundle;
-    private readonly TaskCompletionSource _exportStarted = new(
+    private readonly TaskCompletionSource _started = new(
         TaskCreationOptions.RunContinuationsAsynchronously
     );
     private Func<CancellationToken, Task<ChildProcessResult>> _build;
@@ -78,7 +78,7 @@ public sealed class RulesSourceResolverTests
         var error = $"{program}(1,28): error CS1002: ; expected [{_project}]";
         _build = async _ =>
         {
-            await _exportStarted.Task;
+            await _started.Task;
             return new ChildProcessResult(
                 1,
                 _bundle + "\n",
@@ -103,6 +103,69 @@ public sealed class RulesSourceResolverTests
             result
         );
         Assert.True(_stopped);
+    }
+
+    [Fact]
+    public async Task A_failed_rules_build_stops_the_baseline_resolution()
+    {
+        _build = async _ =>
+        {
+            await _started.Task;
+            return new ChildProcessResult(1, "", $"{_project} : error NU1101: Unknown package.\n");
+        };
+        var runner = Runner();
+
+        var result = await RunAsync(
+            runner,
+            "--rules",
+            "rules",
+            "--baseline",
+            "main",
+            "target.csproj"
+        );
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                "",
+                $"""
+                drillpress: Rules project 'rules' failed to build:
+                  {_fileSystem.Path.Combine(
+                    "rules",
+                    "Rules.csproj"
+                )} : error NU1101: Unknown package.
+
+                """.ReplaceLineEndings()
+            ),
+            result
+        );
+        Assert.Equal(["dotnet", "git"], runner.Calls.Select(call => call.Executable));
+        Assert.True(_stopped);
+    }
+
+    [Fact]
+    public async Task A_build_failure_without_error_lines_points_at_the_build_command()
+    {
+        _build = _ =>
+            Task.FromResult(
+                new ChildProcessResult(1, "", "Install a compatible SDK.\n  10.0.100 [/sdk]\n")
+            );
+        var runner = Runner();
+
+        var result = await RunAsync(runner, "--rules", "rules", "target.csproj");
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                "",
+                $"""
+                drillpress: Rules project 'rules' failed to build:
+                  dotnet build exited 1; run 'dotnet build "{_project}"' for details.
+
+                """.ReplaceLineEndings()
+            ),
+            result
+        );
     }
 
     [Fact]
@@ -196,6 +259,7 @@ public sealed class RulesSourceResolverTests
                 {
                     "dotnet" => _build(cancellationToken),
                     "host" => ExportAsync(arguments, cancellationToken),
+                    "git" => GitAsync(cancellationToken),
                     _ when arguments[0] == "check-generated" => GenerateAsync(
                         arguments,
                         cancellationToken
@@ -214,8 +278,14 @@ public sealed class RulesSourceResolverTests
             _snapshot,
             cancellationToken
         );
-        _exportStarted.SetResult();
+        _started.TrySetResult();
         return await _export(cancellationToken);
+    }
+
+    private Task<ChildProcessResult> GitAsync(CancellationToken cancellationToken)
+    {
+        _started.TrySetResult();
+        return Stoppable(cancellationToken);
     }
 
     private async Task<ChildProcessResult> GenerateAsync(
