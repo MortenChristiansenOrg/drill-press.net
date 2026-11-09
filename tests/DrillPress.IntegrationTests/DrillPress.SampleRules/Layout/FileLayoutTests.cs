@@ -29,7 +29,7 @@ public sealed class FileLayoutTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             src/Orders/Misnamed.cs
               +1
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal(
@@ -133,7 +133,7 @@ public sealed class FileLayoutTests(SdkFixture fixture) : IClassFixture<SdkFixtu
             tests/Orders.Tests/OrderServiceTests.cs
               +1
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal(

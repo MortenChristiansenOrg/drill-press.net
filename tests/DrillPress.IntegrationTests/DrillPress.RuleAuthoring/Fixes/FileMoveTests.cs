@@ -31,7 +31,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
             src/Orders/Service.cs
               +1
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.Output
         );
         Assert.Equal("src/Orders/OrderService.cs", result.FixedPath("src/Orders/Service.cs"));
@@ -183,7 +183,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
               1
                 fix withheld: {reason}
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
         Assert.Equal("src/Orders/Service.cs", result.FixedPath("src/Orders/Service.cs"));
@@ -216,7 +216,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
               1
                 fix withheld: Billing (net10.0) compiles the file through a linked or explicit Compile item
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
     }
@@ -255,7 +255,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
               1
                 fix withheld: the move changes the caller file path passed to {method}; use SafeWhen
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
     }
@@ -330,7 +330,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
               1
                 fix withheld: {reason}
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
     }
@@ -388,7 +388,7 @@ public sealed class FileMoveTests(SdkFixture fixture) : IClassFixture<SdkFixture
               1
                 fix withheld: its file move conflicts with another fix's move of the same file or to a colliding path
 
-            """,
+            """.ReplaceLineEndings("\n"),
             result.ExplainedOutput
         );
     }
