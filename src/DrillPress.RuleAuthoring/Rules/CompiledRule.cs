@@ -4,9 +4,15 @@ internal abstract class CompiledRule(string id)
 {
     public string Id { get; } = id;
 
-    public abstract IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution);
+    public abstract IEnumerable<RuleDiagnostic> Evaluate(
+        AnalysisSolution solution,
+        ReportingScope reporting
+    );
 
     public abstract void Prepare(AnalysisSolution solution);
 
-    public virtual IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning) => [];
+    public virtual IEnumerable<AnalysisProject> CoverageContexts(
+        AnalysisSolution planning,
+        ReportingScope reporting
+    ) => [];
 }

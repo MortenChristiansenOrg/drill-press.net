@@ -123,7 +123,8 @@ its total violations, followed by a line per fix complexity. Projects are relati
 paths, so a line can be passed back as a `check` or `fix` target. A location that
 several projects report, such as a linked file, counts in each. File and glob
 targets have no project, so their counts are listed per source file. Review findings
-are not counted, and exit codes match `check`.
+are not counted, and exit codes match `check`. Projects that the rule bundle excludes
+with `RuleCatalog.ExcludeProjects` report nothing, so they are not listed.
 
 ```text
 src/App/App.csproj 42

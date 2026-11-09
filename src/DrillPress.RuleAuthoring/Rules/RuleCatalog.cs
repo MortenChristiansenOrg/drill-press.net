@@ -15,6 +15,10 @@ public sealed class RuleCatalog
     internal const string BuiltInPrefix = "drillpress-";
 
     private readonly List<RuleRegistration> _rules = [];
+    private ReportingScope _reporting = ReportingScope.Targets;
+
+    /// <summary>Where this catalog's findings, fixes and allowance diagnostics may land.</summary>
+    internal ReportingScope Reporting => _reporting;
 
     internal bool Defines(string id) => _rules.Any(rule => rule.Id == id);
 
@@ -41,10 +45,23 @@ public sealed class RuleCatalog
             IsPlanningCoverage = true,
         };
         return _rules
-            .SelectMany(rule => rule.CoverageContexts(planning))
-            .Where(project => project.Snapshot.IsAnalysisTarget)
+            .SelectMany(rule => rule.CoverageContexts(planning, _reporting))
+            .Where(_reporting.Includes)
             .ToHashSet();
     }
+
+    /// <summary>
+    /// Stops every rule from reporting in projects whose name matches a case-sensitive glob, such as
+    /// <c>Contoso.ApiEmulator</c> or <c>Contoso.ApiEmulator.*</c>, with the pattern rules of
+    /// <see cref="ScopeQueries.InProject{T}(CodeQuery{T}, string)"/>. Excluded projects still load and
+    /// contribute compilations and semantic facts, such as implementations, references and fix validation,
+    /// but receive no findings, fixes or allowance diagnostics. A linked file still reports for the projects
+    /// that are not excluded. Repeated calls add patterns.
+    /// </summary>
+    /// <param name="patterns">Project name globs.</param>
+    /// <exception cref="ArgumentException">A pattern is blank.</exception>
+    public void ExcludeProjects(params string[] patterns) =>
+        _reporting = _reporting.ExcludingProjects(patterns);
 
     /// <summary>Reserves a unique rule identity with its single-line remediation message and optional typical agent fix effort. Add clauses with <see cref="RuleDefinition.For{T}(CodeQuery{T})"/>.</summary>
     /// <param name="id">The stable, unique rule identifier shown in output.</param>
@@ -70,7 +87,7 @@ public sealed class RuleCatalog
         return new(registration);
     }
 
-    /// <summary>Evaluates every registered rule over one shared source graph and returns diagnostics in deterministic order. <see cref="AnalysisOptions.SkipCoverage"/> omits coverage rules.</summary>
+    /// <summary>Evaluates every registered rule over one shared source graph and returns diagnostics in deterministic order. <see cref="AnalysisOptions.SkipCoverage"/> omits coverage rules, and <see cref="ExcludeProjects"/> omits findings in excluded projects.</summary>
     /// <exception cref="InvalidOperationException">A rule has no <c>Forbid</c> or <c>Require</c> clause.</exception>
     public IReadOnlyList<RuleDiagnostic> Evaluate(AnalysisSolution solution)
     {
@@ -118,7 +135,7 @@ public sealed class RuleCatalog
                 "rule." + rule.Id,
                 "rule." + rule.Id + ".own"
             );
-            diagnostics.AddRange(rule.Evaluate(solution));
+            diagnostics.AddRange(rule.Evaluate(solution, _reporting));
         }
 
         solution.Options.Profile.WriteShared();

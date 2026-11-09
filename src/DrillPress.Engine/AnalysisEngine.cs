@@ -36,6 +36,7 @@ public sealed class AnalysisEngine
         return new RuleResponseBuilder().Build(
             requestId,
             solution,
+            rules.Reporting,
             RuleAllowances.Apply(rules, solution, rules.Evaluate(solution), []),
             [],
             cancellationToken
@@ -211,6 +212,7 @@ public sealed class AnalysisEngine
         return new RuleResponseBuilder().Build(
             requestId,
             solution,
+            rules.Reporting,
             diagnostics,
             skippedRules,
             cancellationToken
