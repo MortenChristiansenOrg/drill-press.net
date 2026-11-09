@@ -256,6 +256,29 @@ public sealed class PackageFixture : IntegrationTest, IAsyncLifetime
         return target;
     }
 
+    /// <summary>Copies the unbuilt rules project to <paramref name="name"/>, optionally with another program.</summary>
+    public async Task<string> CopyRulesAsync(string name, string? program = null)
+    {
+        var source = FileSystem.Path.Combine(Consumer, "Rules");
+        var directory = FileSystem.Path.Combine(Consumer, name);
+        await WriteAsync(
+            FileSystem.Path.Combine(directory, "Rules.csproj"),
+            await FileSystem.File.ReadAllTextAsync(
+                FileSystem.Path.Combine(source, "Rules.csproj"),
+                TestContext.Current.CancellationToken
+            )
+        );
+        await WriteAsync(
+            FileSystem.Path.Combine(directory, "Program.cs"),
+            program
+                ?? await FileSystem.File.ReadAllTextAsync(
+                    FileSystem.Path.Combine(source, "Program.cs"),
+                    TestContext.Current.CancellationToken
+                )
+        );
+        return directory;
+    }
+
     public string Bundle =>
         FileSystem.Path.Combine(Consumer, "Rules", "bin", "Release", "net10.0", "Rules.dll");
 

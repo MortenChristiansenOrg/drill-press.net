@@ -3,13 +3,13 @@
 ```sh
 dotnet run --project src/DrillPress.Cli -c Release -- \
   fix --build-host src/DrillPress.BuildHost/bin/Release/net10.0/DrillPress.BuildHost.dll \
-  --rules samples/DrillPress.SampleRules/bin/Release/net10.0/DrillPress.SampleRules.dll \
+  --rules samples/DrillPress.SampleRules \
   'Sample Solution/DrillPress.SampleTarget.slnx'
 ```
 
 Use the same target and options as `check`. Restore SDK projects first; BuildHost
-loads their current compilation without restoring or building. Rule bundles are
-trusted local executable code. Review the bundle before running it.
+loads their current compilation without restoring or building. Rules projects and
+bundles are trusted local executable code. Review them before running them.
 
 `fix` analyzes every loaded context, validates the bundle response, and applies
 all retained safe edits and [file moves](#moving-files) once. Reporting contexts must agree on each complete

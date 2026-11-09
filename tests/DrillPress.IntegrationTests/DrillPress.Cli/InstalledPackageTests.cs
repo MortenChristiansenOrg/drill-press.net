@@ -109,6 +109,102 @@ public sealed class InstalledPackageTests(PackageFixture fixture) : IntegrationT
     }
 
     [Fact]
+    public async Task Installed_tool_builds_a_rules_project_to_check_fix_and_recheck_from_another_directory()
+    {
+        var target = await fixture.CreateTargetAsync();
+        var targetDirectory = FileSystem.Path.GetDirectoryName(target)!;
+        await fixture.CopyRulesAsync("ProjectRules");
+
+        var check = await fixture.DotnetAsync(
+            targetDirectory,
+            "tool",
+            "run",
+            "drillpress",
+            "--",
+            "check",
+            "--rules",
+            FileSystem.Path.Combine("..", "ProjectRules"),
+            "Target.csproj"
+        );
+        var fix = await fixture.DotnetAsync(
+            targetDirectory,
+            "tool",
+            "run",
+            "drillpress",
+            "--",
+            "fix",
+            "--rules",
+            FileSystem.Path.Combine("..", "ProjectRules", "Rules.csproj"),
+            "Target.csproj"
+        );
+        var clean = await fixture.GlobalAsync(
+            "check",
+            "--rules",
+            FileSystem.Path.Combine("consumer", "ProjectRules", "Rules.csproj"),
+            target
+        );
+
+        Assert.Equal(
+            (
+                1,
+                """
+                EMPTY Use an empty literal.
+                Source.cs
+                  +3:35
+
+                """.ReplaceLineEndings("\n"),
+                ""
+            ),
+            check
+        );
+        Assert.Equal((0, "", ""), fix);
+        Assert.Equal((0, "", ""), clean);
+        Assert.Equal(
+            """
+            public static class Example
+            {
+                public static string Value => "";
+            }
+            """.ReplaceLineEndings("\n"),
+            await FileSystem.File.ReadAllTextAsync(
+                FileSystem.Path.Combine(targetDirectory, "Source.cs"),
+                TestContext.Current.CancellationToken
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Installed_tool_reports_rules_project_build_errors_without_touching_the_target()
+    {
+        var target = await fixture.CreateTargetAsync();
+        await fixture.CopyRulesAsync("BrokenRules", "return 1");
+        var rules = FileSystem.Path.Combine("consumer", "BrokenRules");
+
+        var result = await fixture.GlobalAsync("fix", "--rules", rules, target);
+
+        Assert.Equal(
+            (
+                2,
+                "",
+                $"drillpress: Rules project '{rules}' failed to build:{Environment.NewLine}  {FileSystem.Path.Combine(rules, "Program.cs")}(1,9): error CS1002: ; expected{Environment.NewLine}"
+            ),
+            result
+        );
+        Assert.Equal(
+            """
+            public static class Example
+            {
+                public static string Value => string.Empty;
+            }
+            """.ReplaceLineEndings("\n"),
+            await FileSystem.File.ReadAllTextAsync(
+                FileSystem.Path.Combine(fixture.Consumer, "Target", "Source.cs"),
+                TestContext.Current.CancellationToken
+            )
+        );
+    }
+
+    [Fact]
     public async Task Local_manifest_restoration_and_global_installation_identify_the_same_release()
     {
         await fixture.RestorePinnedToolAsync();

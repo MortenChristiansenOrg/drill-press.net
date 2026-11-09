@@ -55,6 +55,7 @@ target='Sample Solution/DrillPress.SampleTarget.slnx'
 dotnet restore "$target"
 dotnet "$cli" --help
 dotnet "$cli" check --build-host "$build_host" --rules "$rules" "$target"
+dotnet "$cli" check --build-host "$build_host" --rules samples/DrillPress.SampleRules "$target"
 dotnet "$cli" check --build-host "$build_host" --rules artifacts/native/linux-x64/DrillPress.SampleRules "$target"
 dotnet "$cli" fix --build-host "$build_host" --rules "$rules" "$target"
 dotnet build "$target" -c Release --no-restore
@@ -70,6 +71,7 @@ $target = 'Sample Solution/DrillPress.SampleTarget.slnx'
 dotnet restore $target
 dotnet $cli --help
 dotnet $cli check --build-host $buildHost --rules $rules $target
+dotnet $cli check --build-host $buildHost --rules samples/DrillPress.SampleRules $target
 dotnet $cli check --build-host $buildHost --rules artifacts/native/win-x64/DrillPress.SampleRules.exe $target
 dotnet $cli fix --build-host $buildHost --rules $rules $target
 dotnet build $target -c Release --no-restore

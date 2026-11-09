@@ -4,7 +4,7 @@ using DrillPress.Manifest;
 namespace DrillPress.Cli;
 
 /// <summary>
-/// Coordinates target export and compiled rule execution without loading MSBuild,
+/// Coordinates rules builds, target export and rule execution without loading MSBuild,
 /// Roslyn, or rule assemblies into the CLI process.
 /// </summary>
 public sealed class CliApplication
@@ -16,7 +16,8 @@ public sealed class CliApplication
         check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
         status counts violations per project, then per fix complexity.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
-        --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
+        --rules: rules project (.csproj or its directory; restored and built in Release),
+          compiled rule DLL, or native executable. --build-host: override the packaged loader.
         --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,
           or a directory holding an accepted copy of the current directory.
         --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.
@@ -105,9 +106,18 @@ public sealed class CliApplication
 
         var profile = new PipelineProfile(options.Profile, standardError, "cli");
         using var total = profile.Measure("total");
+        using var rulesBuild = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task<string>? rules = null;
         try
         {
             options = options with { BuildHost = ResolveBuildHost(options.BuildHost) };
+            // A rules project builds while the baseline and target export run; the first failure stops the rest.
+            rules = new RulesSourceResolver(_fileSystem, _processRunner).ResolveAsync(
+                options.Rules,
+                rulesBuild.Token
+            );
+            if (rules.IsFaulted)
+                await rules;
             var temporaryDirectory = _fileSystem.Directory.CreateTempSubdirectory("drillpress-");
             try
             {
@@ -133,6 +143,7 @@ public sealed class CliApplication
                 var ruleFlags = RuleFlags(options, acceptedSources);
                 var evaluation = await EvaluateAsync(
                     options,
+                    rules,
                     snapshotPath,
                     ruleFlags,
                     standardError,
@@ -164,6 +175,7 @@ public sealed class CliApplication
                         {
                             evaluation = await EvaluateAsync(
                                 options,
+                                rules,
                                 snapshotPath,
                                 ruleFlags,
                                 standardError,
@@ -226,10 +238,17 @@ public sealed class CliApplication
             await standardError.WriteLineAsync($"drillpress: {exception.Message}");
             return CliExitCode.Failure;
         }
+        finally
+        {
+            await rulesBuild.CancelAsync();
+            if (rules is not null)
+                await ((Task)rules).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
     }
 
     private async Task<RuleEvaluation> EvaluateAsync(
         CliOptions options,
+        Task<string> rules,
         string snapshotPath,
         string[] ruleFlags,
         TextWriter error,
@@ -241,6 +260,11 @@ public sealed class CliApplication
             options.StreamCompilation && !options.ExportArguments.Contains("--validate-compilation")
         )
         {
+            // The rules process starts first in this mode, so its build must finish before capture.
+            options = options with
+            {
+                Rules = await rules,
+            };
             using var generation = profile.Measure("generation.pipeline");
             var pipeline = await new GeneratorProcessPipeline(
                 _fileSystem,
@@ -257,11 +281,25 @@ public sealed class CliApplication
         ChildProcessResult export;
         using (profile.Measure("build-host"))
         {
-            export = await _processRunner.CaptureAsync(
-                options.BuildHost!,
-                ["export", options.Target, snapshotPath, .. options.ExportArguments],
+            using var stopExport = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken
             );
+            var running = _processRunner.CaptureAsync(
+                options.BuildHost!,
+                ["export", options.Target, snapshotPath, .. options.ExportArguments],
+                stopExport.Token
+            );
+            if (
+                await Task.WhenAny(running, rules) == rules
+                && !rules.IsCompletedSuccessfully
+                && !running.IsCompleted
+            )
+            {
+                await stopExport.CancelAsync();
+                await ((Task)running).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                await rules;
+            }
+            export = await running;
         }
         await error.WriteAsync(export.StandardError);
         if (export.ExitCode != 0)
@@ -278,16 +316,13 @@ public sealed class CliApplication
             );
         }
 
+        var bundle = await rules;
         var ruleArguments = new List<string> { "check", snapshotPath };
         ruleArguments.AddRange(ruleFlags);
         ChildProcessResult check;
         using (profile.Measure("rules"))
         {
-            check = await _processRunner.CaptureAsync(
-                options.Rules,
-                ruleArguments,
-                cancellationToken
-            );
+            check = await _processRunner.CaptureAsync(bundle, ruleArguments, cancellationToken);
         }
         await error.WriteAsync(check.StandardError);
         return ReadEvaluation(options, snapshot, check);

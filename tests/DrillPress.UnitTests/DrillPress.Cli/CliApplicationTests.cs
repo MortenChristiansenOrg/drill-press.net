@@ -139,7 +139,8 @@ public sealed class CliApplicationTests
             check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
             status counts violations per project, then per fix complexity.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
-            --rules: compiled rule DLL or native executable. --build-host: override the packaged loader.
+            --rules: rules project (.csproj or its directory; restored and built in Release),
+              compiled rule DLL, or native executable. --build-host: override the packaged loader.
             --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,
               or a directory holding an accepted copy of the current directory.
             --property Name=Value (repeatable)  Override MSBuild properties; restore SDK targets first.

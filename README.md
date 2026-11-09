@@ -80,12 +80,14 @@ From the repository root, run the included rule against the sample project:
 
 ```sh
 dotnet restore "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
-dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-host src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll --rules samples/DrillPress.SampleRules/bin/Debug/net10.0/DrillPress.SampleRules.dll "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
+dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-host src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll --rules samples/DrillPress.SampleRules "Sample Solution/src/WidgetLibrary/WidgetLibrary.csproj"
 ```
 
 This source-build example selects the project loader with `--build-host`.
 Installed tools need only `--rules` and the target; `--build-host` remains an
-explicit override for development. Rule bundles must already be built.
+explicit override for development. `--rules` takes a rules project or its
+directory, which the CLI restores and builds in Release on each run, or a compiled
+rule DLL or native bundle.
 
 Expected output:
 
