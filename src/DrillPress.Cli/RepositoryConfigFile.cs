@@ -132,6 +132,8 @@ internal sealed class RepositoryConfigFile(IFileSystem fileSystem)
         const string message = "'properties' must map MSBuild property names to string values";
         if (value.ValueKind != JsonValueKind.Object)
             throw Invalid(display, message);
+        // MSBuild property names ignore case, so a second spelling would silently replace the first.
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         return value
             .EnumerateObject()
             .Select(property =>
@@ -142,6 +144,11 @@ internal sealed class RepositoryConfigFile(IFileSystem fileSystem)
                     ? throw Invalid(
                         display,
                         $"'properties' has an invalid name '{Escape(property.Name)}'"
+                    )
+                : !names.Add(property.Name)
+                    ? throw Invalid(
+                        display,
+                        $"'properties' sets '{Escape(property.Name)}' more than once"
                     )
                 : property.Value.ValueKind == JsonValueKind.String
                     ? KeyValuePair.Create(property.Name, property.Value.GetString()!)
@@ -167,11 +174,14 @@ internal sealed class RepositoryConfigFile(IFileSystem fileSystem)
     private string ResolvePath(string directory, string path) =>
         Relative(_fileSystem.Path.GetFullPath(_fileSystem.Path.Combine(directory, path)));
 
-    // A trailing separator, either / or \, selects everything below the directory, including the root.
+    // A trailing separator, either / or \, or a pattern naming an existing directory selects everything below it.
     private string FullGlob(string directory, string pattern)
     {
         var full = _fileSystem.Path.GetFullPath(_fileSystem.Path.Combine(directory, pattern));
-        return pattern.EndsWith('/') || pattern.EndsWith('\\')
+        return
+            pattern.EndsWith('/')
+            || pattern.EndsWith('\\')
+            || (pattern.IndexOfAny(['*', '?']) < 0 && _fileSystem.Directory.Exists(full))
             ? full.TrimEnd('/', '\\') + _fileSystem.Path.DirectorySeparatorChar + "**"
             : full;
     }

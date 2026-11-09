@@ -15,6 +15,7 @@ public sealed class RuleCatalog
     internal const string BuiltInPrefix = "drillpress-";
     internal const string AllowUnusedId = BuiltInPrefix + "allow-unused";
     internal const string AllowInvalidId = BuiltInPrefix + "allow-invalid";
+    private const int MaxListedIds = 20;
 
     private readonly List<RuleRegistration> _rules;
     private readonly IReadOnlySet<string>? _selected;
@@ -111,9 +112,15 @@ public sealed class RuleCatalog
             .Where(id => !known.Contains(id))
             .Distinct()
             .ToArray();
+        // Short catalogs list their IDs; long lists would cost more context than they save.
         if (unknown.Length > 0)
             throw new ArgumentException(
-                $"Rule selection names unknown rule IDs: {string.Join(", ", unknown)}. Known IDs: {string.Join(", ", known.Order(StringComparer.Ordinal))}."
+                $"Rule selection names unknown rule IDs: {string.Join(", ", unknown)}."
+                    + (
+                        known.Count <= MaxListedIds
+                            ? $" Known IDs: {string.Join(", ", known.Order(StringComparer.Ordinal))}."
+                            : $" The bundle defines {known.Count} rule IDs."
+                    )
             );
         return new(
             [.. _rules],

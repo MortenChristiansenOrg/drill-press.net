@@ -198,7 +198,7 @@ load in parallel; failures are reported in snapshot order.
 | `--fix-complexity trivial,local,complex,architectural,unspecified` | Selects levels after full validation; a batch shared with an excluded rule is withheld. |
 | `--explain-coverage` | Prints coverage contexts, reasons and source ranges. |
 | `--refresh-coverage` / `--skip-coverage` | Refreshes cached evidence / skips coverage rules and lists them; mutually exclusive. |
-| `--config path` | Uses this defaults file instead of the nearest `drillpress.json`. |
+| `--config path` / `--no-config` | Uses this defaults file instead of the nearest `drillpress.json` / uses none. |
 | `--select ID[,ID]` / `--ignore ID[,ID]` | Reports only / never these rule IDs; repeatable. Unknown IDs fail with exit 2. |
 | `--exclude glob` | Reports nothing in matching source files, which still inform analysis; repeatable. |
 | `--build-host path` | Selects an explicit BuildHost rather than the installed one. |
@@ -224,10 +224,11 @@ A committed `drillpress.json` in the current directory or a parent sets defaults
 Relative paths resolve against the file's directory; command-line paths against the
 current directory. `--rules` and a target replace the file's values; `--property`
 follows its properties (last wins; loose-file and glob targets get none of them);
-`--select` replaces its `select` and `ignore`; `--ignore` and `--exclude` add to it.
+`--select` or `--rules` drops its `select` and `ignore`; `--ignore` and `--exclude` add to it.
 Unknown keys and invalid values fail with exit 2. Unselected rules are not evaluated,
 and allowances naming them are not reported as unused. `exclude` globs match full
-file paths case-sensitively (`*`, `?`, `**`; a trailing `/` covers a directory).
+file paths case-sensitively (`*`, `?`, `**`; a trailing `/` or an existing directory
+covers everything below it).
 Excluded files still load and inform analysis and fix validation, but get no
 findings, no fixes (a fix editing one, or moving a file into one, is withheld) and no
 allowance checks.

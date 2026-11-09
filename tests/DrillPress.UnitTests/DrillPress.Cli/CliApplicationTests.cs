@@ -143,9 +143,9 @@ public sealed class CliApplicationTests
               compiled rule DLL, or native executable. --build-host: override the packaged loader.
             --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
               rules, target, properties, select, ignore, exclude; its paths are relative to its directory.
-              --rules and <target> replace its values; --property follows its properties.
+              --rules and <target> replace its values; --property follows its properties. --no-config skips it.
             --select <ids>, --ignore <ids>  Report only, or never, these comma-separated rule IDs (repeatable);
-              --select replaces the config's select and ignore; --ignore adds. Unknown IDs fail.
+              --select or --rules drops the config's select and ignore; --ignore adds. Unknown IDs fail.
             --exclude <glob> (repeatable)  No findings, fixes or allowance checks in matching source files, which
               still inform analysis. Relative to the current directory; adds to the config's exclude.
             --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,
@@ -445,7 +445,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -647,7 +647,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --refresh-coverage and --skip-coverage cannot be combined.
-            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -940,7 +940,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -976,7 +976,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             $"""
             drillpress: {selection[0]} requires comma-separated rule IDs.
-            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

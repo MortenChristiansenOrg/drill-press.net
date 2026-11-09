@@ -36,7 +36,8 @@ blank entry fails before anything runs, with exit code 2 and one line such as
 
 - Without `--config`, the CLI uses the nearest `drillpress.json` in the current
   directory or one of its parents, so `check` works from any subdirectory.
-  `--config <path>` names another file instead. The target's location plays no part.
+  `--config <path>` names another file instead, and `--no-config` uses none. The
+  target's location plays no part.
 - Relative paths in the file resolve against the file's directory. Paths given on
   the command line resolve against the current directory. Output paths stay
   relative to the current directory.
@@ -45,7 +46,8 @@ blank entry fails before anything runs, with exit code 2 and one line such as
   of a name wins. Loose-file and glob targets accept no MSBuild properties, so the
   file's properties apply only to solution, project and directory targets.
 - `--select` replaces the file's `select` and `ignore`, so an explicit selection
-  can show a rule that the file ignores. `--ignore` and `--exclude` add to the file's
+  can show a rule that the file ignores. A `--rules` option drops them too, because
+  rule IDs belong to the file's bundle. `--ignore` and `--exclude` add to the file's
   lists.
 - Without a file, `--rules` and a target are required, as before.
 
@@ -54,7 +56,7 @@ blank entry fails before anything runs, with exit code 2 and one line such as
 `select` and `ignore` choose rules by ID; `ignore` wins when both name one. The
 built-in `drillpress-allow-unused` and `drillpress-allow-invalid` checks can be
 selected and ignored like other rules. A rule ID that the bundle does not define
-fails the run with exit code 2 and lists the IDs it does define.
+fails the run with exit code 2; for bundles with up to 20 IDs, the message lists them.
 
 Unselected rules are not evaluated, so a narrow selection is also faster. The
 selection governs `check`, `fix` and `status` output and the findings exit code,
@@ -66,7 +68,7 @@ neither used nor reported as unused.
 `exclude` globs use the same rules as glob targets: `*` matches within a path
 segment, `?` matches one character, `**` crosses segments (and `**/` also matches no
 directory), and matching is case-sensitive on every platform. A pattern ending in
-`/` covers everything below that directory. Patterns are matched against full file
+`/`, or naming an existing directory, covers everything below that directory. Patterns are matched against full file
 paths after resolving them as described above.
 
 Excluded files still load. They keep contributing compilations and semantic facts,

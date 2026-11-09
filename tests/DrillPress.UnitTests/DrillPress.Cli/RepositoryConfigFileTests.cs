@@ -10,7 +10,7 @@ namespace DrillPress.UnitTests.Cli;
 public sealed class RepositoryConfigFileTests
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
 
     private const string Defaults = """
         {
@@ -139,6 +139,51 @@ public sealed class RepositoryConfigFileTests
     }
 
     [Fact]
+    public async Task A_command_line_bundle_drops_the_files_rule_ids_but_keeps_its_exclusions()
+    {
+        Configure("drillpress.json", Defaults);
+        var error = new StringWriter();
+
+        var result = await RunAsync(error, "check", "--build-host", "host", "--rules", "other.dll");
+        var snapshot = _calls[0][3];
+
+        Assert.Equal((CliExitCode.Clean, ""), (result, error.ToString()));
+        Assert.Equal(
+            [
+                "other.dll",
+                "check",
+                snapshot,
+                "--exclude",
+                _fileSystem.Path.Combine(_root, "third_party", "**"),
+                "--exclude",
+                _fileSystem.Path.Combine(_root, "eng", "**"),
+            ],
+            _calls[1]
+        );
+    }
+
+    [Fact]
+    public async Task No_config_ignores_even_an_invalid_file()
+    {
+        Configure("drillpress.json", """{ "unknown": true }""");
+        var error = new StringWriter();
+
+        var result = await RunAsync(
+            error,
+            "check",
+            "--no-config",
+            "--build-host",
+            "host",
+            "--rules",
+            "rules",
+            "target.csproj"
+        );
+
+        Assert.Equal((CliExitCode.Clean, ""), (result, error.ToString()));
+        Assert.Equal(["rules", "check", _calls[0][3]], _calls[1]);
+    }
+
+    [Fact]
     public async Task An_explicit_file_resolves_its_paths_and_keeps_properties_from_loose_targets()
     {
         Configure(
@@ -206,6 +251,10 @@ public sealed class RepositoryConfigFileTests
     [InlineData("""{ "ignore": "DP1" }""", "'ignore' must be an array of rule IDs")]
     [InlineData("""{ "exclude": ["vendor/**", ""] }""", "'exclude' must be an array of path globs")]
     [InlineData("[]", "expected a JSON object")]
+    [InlineData(
+        """{ "properties": { "Configuration": "Debug", "configuration": "Release" } }""",
+        "'properties' sets 'configuration' more than once"
+    )]
     [InlineData(
         """{ "bad\nkey": true }""",
         "unknown key 'bad\\nkey'; use rules, target, properties, select, ignore or exclude"
@@ -290,6 +339,8 @@ public sealed class RepositoryConfigFileTests
     [InlineData("vendor/", "vendor", "**")]
     [InlineData("vendor\\", "vendor", "**")]
     [InlineData("**/Generated/*.cs", "**", "Generated", "*.cs")]
+    [InlineData("src", "src", "**")]
+    [InlineData("missing", "missing")]
     public async Task Command_line_exclusions_resolve_against_the_current_directory(
         string pattern,
         params string[] expected

@@ -10,7 +10,7 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
         drillpress check|fix|status [--rules <path>] [<target>] [options]
         check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
@@ -20,9 +20,9 @@ public sealed class CliApplication
           compiled rule DLL, or native executable. --build-host: override the packaged loader.
         --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
           rules, target, properties, select, ignore, exclude; its paths are relative to its directory.
-          --rules and <target> replace its values; --property follows its properties.
+          --rules and <target> replace its values; --property follows its properties. --no-config skips it.
         --select <ids>, --ignore <ids>  Report only, or never, these comma-separated rule IDs (repeatable);
-          --select replaces the config's select and ignore; --ignore adds. Unknown IDs fail.
+          --select or --rules drops the config's select and ignore; --ignore adds. Unknown IDs fail.
         --exclude <glob> (repeatable)  No findings, fixes or allowance checks in matching source files, which
           still inform analysis. Relative to the current directory; adds to the config's exclude.
         --baseline <revision|directory>  Accepted state for change-aware rules: a Git revision,

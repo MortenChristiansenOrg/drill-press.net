@@ -30,8 +30,8 @@ internal sealed record CliOptions(
 
     /// <summary>
     /// Parses the arguments and applies repository defaults beneath them: an explicit rules source or target replaces
-    /// the file's, command-line properties follow the file's, <c>--select</c> replaces its selection and ignored rules,
-    /// and <c>--ignore</c> and <c>--exclude</c> add to it.
+    /// the file's, command-line properties follow the file's, <c>--select</c> or <c>--rules</c> drops its selection
+    /// and ignored rules, and <c>--ignore</c> and <c>--exclude</c> add to it. <c>--no-config</c> skips the file.
     /// </summary>
     /// <exception cref="FileNotFoundException">An explicit config file does not exist.</exception>
     /// <exception cref="InvalidDataException">The config file is invalid.</exception>
@@ -54,6 +54,7 @@ internal sealed record CliOptions(
         string? target = null;
         string? baseline = null;
         string? config = null;
+        var noConfig = false;
         List<string>? select = null;
         var ignore = new List<string>();
         var exclude = new List<string>();
@@ -88,8 +89,11 @@ internal sealed record CliOptions(
                 case "--rules" when rules is null && index + 1 < args.Length:
                     rules = args[++index];
                     break;
-                case "--config" when config is null && index + 1 < args.Length:
+                case "--config" when config is null && !noConfig && index + 1 < args.Length:
                     config = args[++index];
+                    break;
+                case "--no-config" when config is null:
+                    noConfig = true;
                     break;
                 case "--select":
                 case "--ignore":
@@ -174,7 +178,9 @@ internal sealed record CliOptions(
             return false;
         }
 
-        var defaults = configFile.Load(config);
+        var defaults = noConfig ? null : configFile.Load(config);
+        // Rule IDs belong to a bundle, so another bundle on the command line drops the file's selection.
+        var fileSelection = rules is null && select is null;
         rules ??= defaults?.Rules;
         target ??= defaults?.Target;
         if (rules is null || target is null)
@@ -220,9 +226,8 @@ internal sealed record CliOptions(
             baseline
         )
         {
-            Select = select?.Distinct().ToArray() ?? defaults?.Select,
-            // An explicit selection replaces the file's selection and the rules it ignores.
-            Ignore = [.. (select is null ? defaults?.Ignore ?? [] : []).Concat(ignore).Distinct()],
+            Select = select?.Distinct().ToArray() ?? (fileSelection ? defaults?.Select : null),
+            Ignore = [.. (fileSelection ? defaults?.Ignore ?? [] : []).Concat(ignore).Distinct()],
             Exclude =
             [
                 .. (defaults?.Exclude ?? [])

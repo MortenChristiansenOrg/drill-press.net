@@ -54,6 +54,18 @@ internal sealed class ReportingScope
     public bool Includes(AnalysisSource source) =>
         Includes(source.Project) && IncludesPath(source.Document.Path);
 
+    /// <summary>
+    /// Whether nothing in the project can report: the project is left out, or it has ordinary source and the scope
+    /// excludes all of it. A project with only generated source is not excluded by paths.
+    /// </summary>
+    public bool ExcludesAllSourceOf(AnalysisProject project) =>
+        !Includes(project)
+        || (
+            _pathPatterns.Length > 0
+            && project.Sources.Any(source => !source.Document.IsGenerated)
+            && !project.Sources.Any(source => !source.Document.IsGenerated && Includes(source))
+        );
+
     /// <summary>Whether no excluded path pattern matches this document path.</summary>
     public bool IncludesPath(string path) =>
         _pathPatterns.Length == 0
