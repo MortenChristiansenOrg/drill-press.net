@@ -108,7 +108,7 @@ internal static class RuleAllowances
         var allowances = new List<RuleAllowance>();
         foreach (
             var source in solution
-                .Projects.Where(solution.Reports)
+                .Projects.Where(rules.Reporting.Includes)
                 .SelectMany(project => project.Sources)
                 .Where(source =>
                     !source.Document.IsGenerated

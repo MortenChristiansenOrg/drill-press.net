@@ -17,6 +17,9 @@ public sealed class RuleCatalog
     private readonly List<RuleRegistration> _rules = [];
     private ReportingScope _reporting = ReportingScope.Targets;
 
+    /// <summary>Where this catalog's findings, fixes and allowance diagnostics may land.</summary>
+    internal ReportingScope Reporting => _reporting;
+
     internal bool Defines(string id) => _rules.Any(rule => rule.Id == id);
 
     internal bool RequiresCoverage => _rules.Any(rule => rule.RequiresCoverage);
@@ -32,7 +35,6 @@ public sealed class RuleCatalog
 
     internal IReadOnlySet<AnalysisProject> CoverageContexts(AnalysisSolution solution)
     {
-        solution.ReportWithin(_reporting);
         var planning = new AnalysisSolution(
             solution.Projects,
             solution.Options,
@@ -42,10 +44,9 @@ public sealed class RuleCatalog
         {
             IsPlanningCoverage = true,
         };
-        planning.ReportWithin(_reporting);
         return _rules
-            .SelectMany(rule => rule.CoverageContexts(planning))
-            .Where(planning.Reports)
+            .SelectMany(rule => rule.CoverageContexts(planning, _reporting))
+            .Where(_reporting.Includes)
             .ToHashSet();
     }
 
@@ -95,7 +96,6 @@ public sealed class RuleCatalog
             throw new InvalidOperationException(
                 $"Rule '{empty.Descriptor.Id}' has no clause; end each For(...) with Forbid(...) or Require(...)."
             );
-        solution.ReportWithin(_reporting);
         var diagnostics = new List<RuleDiagnostic>();
         ArgumentOutOfRangeException.ThrowIfLessThan(
             solution.Options.QueryPreparationConcurrency,
@@ -135,7 +135,7 @@ public sealed class RuleCatalog
                 "rule." + rule.Id,
                 "rule." + rule.Id + ".own"
             );
-            diagnostics.AddRange(rule.Evaluate(solution));
+            diagnostics.AddRange(rule.Evaluate(solution, _reporting));
         }
 
         solution.Options.Profile.WriteShared();

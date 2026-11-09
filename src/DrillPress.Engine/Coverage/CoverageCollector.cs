@@ -28,7 +28,7 @@ internal sealed class CoverageCollector(
     {
         var projects = selected
             .Where(project =>
-                solution.Reports(project)
+                project.Snapshot.IsAnalysisTarget
                 && project.TargetFramework.Length > 0
                 && _fileSystem.File.Exists(project.ProjectPath)
             )

@@ -358,6 +358,84 @@ public sealed class RuleCatalogTests
         );
     }
 
+    [Fact]
+    public async Task Excluded_projects_without_ordinary_source_do_not_fail_project_rules()
+    {
+        var workspace = new RuleTestWorkspace([]);
+        workspace.AddProject("Contoso.Empty", []);
+        workspace.AddProject("Contoso.Generated", [new("System.g.cs", Prelude, true)]);
+        workspace.AddProject("Contoso.Orders", [new("System.cs", Prelude)]);
+        var rules = new RuleCatalog();
+        rules.Rule("PROJECT", "Review the project.").For(Code.Projects).Forbid();
+        rules.ExcludeProjects("Contoso.Empty", "Contoso.Generated");
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            PROJECT Review the project.
+            System.cs
+              1
+
+            """.ReplaceLineEndings("\n"),
+            result.Output
+        );
+    }
+
+    [Fact]
+    public void Catalogs_evaluated_within_one_another_keep_their_own_exclusions()
+    {
+        var workspace = new RuleTestWorkspace([]);
+        var emulator = workspace.AddProject(
+            "Contoso.ApiEmulator",
+            [
+                new("System.cs", Prelude),
+                new(
+                    "Clock.cs",
+                    "public class Clock { public static void Hit() { } void Tick() { Hit(); } }"
+                ),
+            ]
+        );
+        workspace.AddProject(
+            "Contoso.Orders",
+            [new("Orders.cs", "class Orders { void Place() { Clock.Hit(); } }")],
+            dependencies: [emulator]
+        );
+        var everything = new RuleCatalog();
+        everything
+            .Rule("ALL", "Do not call Hit anywhere.")
+            .For(Code.Calls.Where(call => call.Target.Name == "Hit"))
+            .Forbid();
+        var inner = new List<RuleDiagnostic>();
+        var excluding = new RuleCatalog();
+        excluding
+            .Rule("HIT", "Do not call Hit.")
+            .For(
+                CodeQuery<CodeInvocation>.Create(solution =>
+                {
+                    inner.AddRange(everything.Evaluate(solution));
+                    return Code.Calls.In(solution).Where(call => call.Target.Name == "Hit");
+                })
+            )
+            .Forbid();
+        excluding.ExcludeProjects("Contoso.ApiEmulator");
+
+        var outer = excluding.Evaluate(workspace.Analyze(TestContext.Current.CancellationToken));
+
+        Assert.Equal(
+            [("HIT", "Orders.cs", 36)],
+            outer.Select(diagnostic =>
+                (diagnostic.Descriptor.Id, diagnostic.Location.FilePath, diagnostic.Location.Start)
+            )
+        );
+        Assert.Equal(
+            [("ALL", "Clock.cs", 64), ("ALL", "Orders.cs", 36)],
+            inner.Select(diagnostic =>
+                (diagnostic.Descriptor.Id, diagnostic.Location.FilePath, diagnostic.Location.Start)
+            )
+        );
+    }
+
     // Pairs each type with the calls to its members from any project, so findings can land in either.
     private static CodeQuery<(CodeTypeDefinition Type, CodeInvocation Call)> Pairs() =>
         CodeQuery<CodeTypeDefinition>

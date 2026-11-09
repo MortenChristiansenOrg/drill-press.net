@@ -16,8 +16,10 @@ internal sealed class RuleRegistration(RuleDescriptor descriptor) : CompiledRule
         RequiresCoverage |= requiresCoverage;
     }
 
-    public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution) =>
-        _clauses.SelectMany(clause => clause.Evaluate(solution));
+    public override IEnumerable<RuleDiagnostic> Evaluate(
+        AnalysisSolution solution,
+        ReportingScope reporting
+    ) => _clauses.SelectMany(clause => clause.Evaluate(solution, reporting));
 
     public override void Prepare(AnalysisSolution solution)
     {
@@ -25,6 +27,8 @@ internal sealed class RuleRegistration(RuleDescriptor descriptor) : CompiledRule
             clause.Prepare(solution);
     }
 
-    public override IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning) =>
-        _clauses.SelectMany(clause => clause.CoverageContexts(planning));
+    public override IEnumerable<AnalysisProject> CoverageContexts(
+        AnalysisSolution planning,
+        ReportingScope reporting
+    ) => _clauses.SelectMany(clause => clause.CoverageContexts(planning, reporting));
 }

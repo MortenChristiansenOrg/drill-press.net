@@ -25,7 +25,6 @@ public sealed class AnalysisSolution
                     RequiresCertainCoverageMatches = !RequiresCertainCoverageMatches,
                 };
                 _oppositeCoveragePlanning._oppositeCoveragePlanning = this;
-                _oppositeCoveragePlanning._reporting = _reporting;
             }
             return _oppositeCoveragePlanning;
         }
@@ -40,34 +39,6 @@ public sealed class AnalysisSolution
     private readonly Dictionary<object, Lazy<object>> _facts = [];
     private readonly Lazy<ProjectGraph> _projectGraph;
     private readonly Lazy<IReadOnlySet<string>> _aliases;
-    private ReportingScope _reporting = ReportingScope.Targets;
-    private IReadOnlySet<AnalysisProject>? _reported;
-
-    // Queries select candidates and facts as they would without the scope; it only drops what would be reported
-    // outside it.
-    internal void ReportWithin(ReportingScope scope)
-    {
-        lock (_facts)
-        {
-            if (scope.SameAs(_reporting))
-                return;
-            _reporting = scope;
-            _reported = null;
-        }
-    }
-
-    /// <summary>Whether findings, fixes and allowance diagnostics may land in the context.</summary>
-    internal bool Reports(AnalysisProject project)
-    {
-        var reported = _reported;
-        if (reported is null)
-            lock (_facts)
-                reported = _reported ??= Projects.Where(_reporting.Includes).ToHashSet();
-        return reported.Contains(project);
-    }
-
-    /// <summary>Whether findings, fixes and allowance diagnostics may land in the document's context.</summary>
-    internal bool Reports(AnalysisSource source) => Reports(source.Project);
 
     internal T Cached<T>(object key, Func<T> create)
         where T : notnull

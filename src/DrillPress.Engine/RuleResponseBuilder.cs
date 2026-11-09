@@ -9,6 +9,7 @@ internal sealed class RuleResponseBuilder
     public BundleResponse Build(
         string requestId,
         AnalysisSolution solution,
+        ReportingScope reporting,
         IReadOnlyList<RuleDiagnostic> diagnostics,
         string[] skippedRules,
         CancellationToken cancellationToken
@@ -27,7 +28,7 @@ internal sealed class RuleResponseBuilder
             _ => new List<Finding>()
         );
         var targetFiles = solution
-            .Projects.Where(solution.Reports)
+            .Projects.Where(reporting.Includes)
             .SelectMany(project => project.Snapshot.Documents)
             .Where(document => !document.IsGenerated)
             .Select(document => document.FileIdentity)

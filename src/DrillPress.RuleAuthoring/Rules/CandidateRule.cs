@@ -14,7 +14,10 @@ internal sealed class CandidateRule<T>(
 {
     public override void Prepare(AnalysisSolution solution) => _ = query.In(solution);
 
-    public override IEnumerable<AnalysisProject> CoverageContexts(AnalysisSolution planning)
+    public override IEnumerable<AnalysisProject> CoverageContexts(
+        AnalysisSolution planning,
+        ReportingScope reporting
+    )
     {
         if (coverageScope is not null)
             return coverageScope.In(planning);
@@ -23,50 +26,56 @@ internal sealed class CandidateRule<T>(
         return query
             .Evaluate(planning)
             .SelectMany(candidate =>
-                PlannedTarget(candidate) switch
+                (target?.Invoke(candidate), candidate) switch
                 {
-                    null => planning.Projects,
-                    { Source: var source } when !IsReportable(planning, source) => [],
-                    var report => candidate switch
+                    // Unlocated candidates without ReportAt fail later in evaluation; plan every context for them.
+                    (null, not (ICodeElement or AnalysisProject)) => planning.Projects,
+                    var (report, _) => (report ?? DefaultTarget(candidate, reporting)) switch
                     {
-                        AnalysisProject project => [project],
-                        ICodeElement element => [element.Source.Project],
-                        _ => [report.Source.Project],
+                        null => [],
+                        { Source: var source } when !IsReportable(reporting, source) => [],
+                        var located => candidate switch
+                        {
+                            AnalysisProject project => [project],
+                            ICodeElement element => [element.Source.Project],
+                            _ => [located.Source.Project],
+                        },
                     },
                 }
             );
     }
 
-    // Unlocated candidates without ReportAt fail later in evaluation; plan every context for them.
-    private ReportTarget? PlannedTarget(T candidate) =>
-        target?.Invoke(candidate)
-        ?? (
-            candidate is ICodeElement or AnalysisProject
-                ? ReportingLocation.Default(candidate)
-                : null
-        );
+    private ReportTarget? Target(T candidate, ReportingScope reporting) =>
+        target?.Invoke(candidate) ?? DefaultTarget(candidate, reporting);
+
+    // Null for a project the scope leaves out, so an excluded project needs no ordinary source to report at.
+    private static ReportTarget? DefaultTarget(T candidate, ReportingScope reporting) =>
+        candidate is AnalysisProject project && !reporting.Includes(project)
+            ? null
+            : ReportingLocation.Default(candidate);
 
     // Eligibility follows where a finding lands, so ReportAt cannot anchor findings in generated, non-target or
     // excluded source.
-    private static bool IsReportable(AnalysisSolution solution, AnalysisSource source) =>
-        !source.Document.IsGenerated && solution.Reports(source);
+    private static bool IsReportable(ReportingScope reporting, AnalysisSource source) =>
+        !source.Document.IsGenerated && reporting.Includes(source.Project);
 
-    public override IEnumerable<RuleDiagnostic> Evaluate(AnalysisSolution solution)
+    public override IEnumerable<RuleDiagnostic> Evaluate(
+        AnalysisSolution solution,
+        ReportingScope reporting
+    )
     {
         var candidates = query
             .Evaluate(solution)
             .Select(candidate =>
             {
                 solution.CancellationToken.ThrowIfCancellationRequested();
-                return (
-                    Candidate: candidate,
-                    Report: target?.Invoke(candidate) ?? ReportingLocation.Default(candidate)
-                );
+                return (Candidate: candidate, Report: Target(candidate, reporting));
             })
-            .Where(item => IsReportable(solution, item.Report.Source))
+            .Where(item => item.Report is not null && IsReportable(reporting, item.Report.Source))
             .Select(item =>
             {
-                var (candidate, report) = item;
+                var candidate = item.Candidate;
+                var report = item.Report!;
                 var proposal = fix?.Invoke(candidate);
                 var outcome = failure?.Invoke(candidate);
                 return (

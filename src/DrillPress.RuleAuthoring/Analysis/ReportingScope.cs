@@ -1,14 +1,18 @@
+using System.Collections.Concurrent;
+
 namespace DrillPress;
 
 /// <summary>
-/// Decides which loaded source can receive findings, fixes and allowance diagnostics. Every loaded
-/// context still contributes compilations and semantic facts; only reporting is limited to the
-/// analysis target, less any excluded projects.
+/// Decides which loaded source can receive findings, fixes and allowance diagnostics: the analysis target, less any
+/// excluded projects. Queries still select candidates and facts as they would without it, so every loaded context
+/// keeps contributing compilations and semantic facts. A scope is immutable, so concurrent evaluations of catalogs
+/// with different scopes over one analysis cannot affect each other.
 /// </summary>
 internal sealed class ReportingScope
 {
     private readonly string[] _excludedProjects;
     private readonly PathPattern[] _projectPatterns;
+    private readonly ConcurrentDictionary<string, bool> _excludedNames = new();
 
     private ReportingScope(string[] excludedProjects)
     {
@@ -31,9 +35,11 @@ internal sealed class ReportingScope
     /// <summary>Whether the context belongs to the analysis target and is not excluded.</summary>
     public bool Includes(AnalysisProject project) =>
         project.Snapshot.IsAnalysisTarget
-        && !_projectPatterns.Any(pattern => pattern.Matches(project.Name));
-
-    /// <summary>Whether two scopes report in the same contexts.</summary>
-    public bool SameAs(ReportingScope other) =>
-        _excludedProjects.ToHashSet().SetEquals(other._excludedProjects);
+        && (
+            _projectPatterns.Length == 0
+            || !_excludedNames.GetOrAdd(
+                project.Name,
+                name => _projectPatterns.Any(pattern => pattern.Matches(name))
+            )
+        );
 }
