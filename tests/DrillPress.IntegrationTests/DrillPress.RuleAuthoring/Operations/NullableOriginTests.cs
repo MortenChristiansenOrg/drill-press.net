@@ -16,6 +16,7 @@ public sealed class NullableOriginTests(SdkFixture fixture) : IClassFixture<SdkF
             public Response Get() => new();
             public Task<Response> GetAsync() => Task.FromResult(new Response());
             public Response[] All = new Response[0];
+            public static Client Shared = new();
         }
         """;
 
@@ -275,6 +276,109 @@ public sealed class NullableOriginTests(SdkFixture fixture) : IClassFixture<SdkF
             [
                 ["Oblivious", "c.Get(): Oblivious"],
                 ["Oblivious", "c.Get(): Oblivious"],
+            ],
+            analyses
+        );
+    }
+
+    [Fact]
+    public void Members_of_generic_types_declared_without_annotations_stay_oblivious_when_constructed()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Inputs",
+            [
+                new(
+                    "Inputs.cs",
+                    """
+                    using System.Threading.Tasks;
+                    #nullable disable
+                    public class Legacy<T>
+                    {
+                        public T Value;
+                        public T Get() => default;
+                        public T Item { get; set; }
+                        public Task<T> GetAsync() => Task.FromResult(default(T));
+                    }
+                    #nullable enable
+                    class Example
+                    {
+                        bool A(Legacy<string> legacy) { return legacy.Get() != null; }
+                        bool B(Legacy<string> legacy) { return legacy.Value != null; }
+                        bool C(Legacy<string> legacy) { return legacy.Item != null; }
+                        async Task<bool> D(Legacy<string> legacy) { var x = await legacy.GetAsync(); return x != null; }
+                        bool E(System.Collections.Generic.List<string> list) { return list[0] != null; }
+                    }
+                    """
+                ),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var origins = Code
+            .NullChecks.In(solution)
+            .Select(check => $"{check.Condition.Syntax}: {check.CheckedValueOrigin}")
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "legacy.Get() != null: Oblivious",
+                "legacy.Value != null: Oblivious",
+                "legacy.Item != null: Oblivious",
+                "x != null: Oblivious",
+                "list[0] != null: Aware",
+            ],
+            origins
+        );
+    }
+
+    [Fact]
+    public void Primary_constructor_parameters_of_types_split_across_files_are_unknown()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Inputs",
+            [
+                new(
+                    "A.cs",
+                    """
+                    partial class Split(string text) { bool Has() => text != null; }
+                    class Whole(string text) { bool Has() => text != null; }
+                    """
+                ),
+                new("B.cs", "partial class Split { void Reset() { text = \"\"; } }"),
+            ]
+        );
+        var solution = workspace.Analyze(TestContext.Current.CancellationToken);
+
+        var origins = Code
+            .NullChecks.In(solution)
+            .Select(check => Describe(check.CheckedValue.NullableOrigins()).ToArray())
+            .ToArray();
+
+        Assert.Equal(
+            [
+                ["Unknown", "text: UntrackedAssignment"],
+                ["Aware", "text: Aware"],
+            ],
+            origins
+        );
+    }
+
+    [Fact]
+    public void A_reassigned_setter_value_follows_its_assignment()
+    {
+        var analyses = Origins(
+            """
+            Response Assigned { set { value = Client.Shared.Get(); _ = value != null; } }
+            Response Plain { set { _ = value != null; } }
+            """
+        );
+
+        Assert.Equal(
+            [
+                ["Oblivious", "Client.Shared.Get(): Oblivious"],
+                ["Aware", "value: Aware"],
             ],
             analyses
         );

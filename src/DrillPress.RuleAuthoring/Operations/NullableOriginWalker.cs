@@ -74,7 +74,12 @@ internal sealed class NullableOriginWalker(int maxDepth, int maxResults)
                     expression.Source.Model.GetAwaitExpressionInfo(awaited).GetResultMethod is
                     { } result
                 )
-                    Add(expression, result.ReturnNullableAnnotation);
+                    Add(
+                        expression,
+                        ReturnsObliviousResult(expression.AwaitedCall())
+                            ? NullableAnnotation.None
+                            : Declared(result)
+                    );
                 else
                     Stop(expression, ExpressionTraversalReason.UnsupportedExpression);
                 break;
@@ -97,20 +102,43 @@ internal sealed class NullableOriginWalker(int maxDepth, int maxResults)
     private static NullableAnnotation? Declared(IOperation operation) =>
         operation switch
         {
-            IInvocationOperation call => call.TargetMethod.ReturnNullableAnnotation,
-            IPropertyReferenceOperation property => property.Property.NullableAnnotation,
-            IFieldReferenceOperation field => field.Field.NullableAnnotation,
-            IEventReferenceOperation member => member.Event.NullableAnnotation,
+            IInvocationOperation call => Declared(call.TargetMethod),
+            IPropertyReferenceOperation property => Declared(property.Property),
+            IFieldReferenceOperation field => Declared(field.Field),
+            IEventReferenceOperation member => Declared(member.Event),
             IArrayElementReferenceOperation { ArrayReference.Type: IArrayTypeSymbol array } =>
                 array.ElementNullableAnnotation,
-            IImplicitIndexerReferenceOperation { IndexerSymbol: IPropertySymbol indexer } =>
-                indexer.NullableAnnotation,
-            IImplicitIndexerReferenceOperation { IndexerSymbol: IMethodSymbol slice } =>
-                slice.ReturnNullableAnnotation,
-            IBinaryOperation { OperatorMethod: { } method } => method.ReturnNullableAnnotation,
-            IUnaryOperation { OperatorMethod: { } method } => method.ReturnNullableAnnotation,
+            IImplicitIndexerReferenceOperation { IndexerSymbol: var indexer } => Declared(indexer),
+            IBinaryOperation { OperatorMethod: { } method } => Declared(method),
+            IUnaryOperation { OperatorMethod: { } method } => Declared(method),
             _ => null,
         };
+
+    // A call declared without annotations returns an unannotated task result, as in Legacy<string>.GetAsync(),
+    // although awaiting the constructed task reads an annotated GetResult.
+    private static bool ReturnsObliviousResult(CodeInvocation? call) =>
+        call?.Target.OriginalDefinition.ReturnType is INamedTypeSymbol task
+        && task.TypeArgumentNullableAnnotations.Contains(NullableAnnotation.None);
+
+    // Substituting a type argument annotates a member of a generic type declared without annotations, as in
+    // Legacy<string>.Get(), so its original declaration counts too.
+    private static NullableAnnotation Declared(ISymbol symbol)
+    {
+        static NullableAnnotation Own(ISymbol symbol) =>
+            symbol switch
+            {
+                IMethodSymbol method => method.ReturnNullableAnnotation,
+                IPropertySymbol property => property.NullableAnnotation,
+                IFieldSymbol field => field.NullableAnnotation,
+                IEventSymbol member => member.NullableAnnotation,
+                IParameterSymbol parameter => parameter.NullableAnnotation,
+                _ => NullableAnnotation.None,
+            };
+        var own = Own(symbol);
+        return Own(symbol.OriginalDefinition) == NullableAnnotation.None
+            ? NullableAnnotation.None
+            : own;
+    }
 
     private void Follow(CodeExpression expression, ISymbol symbol, int depth)
     {
@@ -128,7 +156,7 @@ internal sealed class NullableOriginWalker(int maxDepth, int maxResults)
             return;
         }
         if (reaching.IncludesEntry && _entries.Add(symbol))
-            Add(expression, ((IParameterSymbol)symbol).NullableAnnotation);
+            Add(expression, Declared(symbol));
         foreach (var value in reaching.Assigned)
             Visit(new(expression.Source, value), depth + 1);
     }

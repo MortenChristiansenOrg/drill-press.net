@@ -15,21 +15,24 @@ internal sealed class ReachingAssignments(AnalysisSource source)
     private const int Entry = -1;
 
     private readonly ConcurrentDictionary<SyntaxNode, Lazy<ControlFlowGraph?>> _graphs = new();
+    private readonly ConcurrentDictionary<(SyntaxNode, ISymbol), Lazy<VariableFlow?>> _flows =
+        new();
 
     internal ReachingValues? At(IdentifierNameSyntax read, ISymbol symbol)
     {
         source.Project.CancellationToken.ThrowIfCancellationRequested();
-        if (Declaration(symbol, read) is not { } declaration)
+        if (Resolve(symbol, read) is not { } variable)
             return null;
-        var owner = Function(declaration);
-        var writes = source.LocalAssignments.WritesIn(LocalReferences.Scope(source, declaration));
+        var writes = source.LocalAssignments.WritesIn(variable.Scope);
         if (!writes.IsResolved)
             return null;
         if (!writes.Writes.Contains(symbol))
-            return Unwritten(symbol, declaration);
-        if (Function(read) != owner || !AllWritesTracked(symbol, declaration, owner))
+            return Unwritten(symbol, variable.Declaration);
+        if (Function(read) != variable.Owner)
             return null;
-        return Graph(read, owner) is { } graph ? Reaching(graph, read, symbol) : null;
+        return _flows
+            .GetOrAdd((variable.Owner, symbol), _ => new(() => Analyze(read, symbol, variable)))
+            .Value?.At(read);
     }
 
     // A local declared by a type or property pattern holds the matched non-null value until something writes it.
@@ -45,28 +48,52 @@ internal sealed class ReachingAssignments(AnalysisSource source)
             is { IsResolved: true } writes
         && !writes.Writes.Contains(local);
 
-    private SyntaxNode? Declaration(ISymbol symbol, SyntaxNode read) =>
-        symbol switch
+    private Variable? Resolve(ISymbol symbol, SyntaxNode read)
+    {
+        var cancellationToken = source.Project.CancellationToken;
+        switch (symbol)
         {
-            ILocalSymbol { RefKind: RefKind.None } local => local.DeclaringSyntaxReferences
-                is [var reference]
-            && reference.SyntaxTree == source.Tree
-            && reference.GetSyntax(source.Project.CancellationToken)
-                is VariableDeclaratorSyntax
-                {
-                    Parent.Parent: LocalDeclarationStatementSyntax or ForStatementSyntax
-                } declarator
-                ? declarator
-                : null,
-            IParameterSymbol { RefKind: RefKind.None } parameter =>
-                parameter.DeclaringSyntaxReferences is [var reference]
-                    ? reference.SyntaxTree == source.Tree
-                        ? reference.GetSyntax(source.Project.CancellationToken)
-                        : null
-                    // An implicit parameter, such as a setter's value, belongs to the function reading it.
-                    : Function(read),
-            _ => null,
-        };
+            case ILocalSymbol { RefKind: RefKind.None } local
+                when local.DeclaringSyntaxReferences is [var reference]
+                    && reference.SyntaxTree == source.Tree
+                    && reference.GetSyntax(cancellationToken)
+                        is VariableDeclaratorSyntax
+                        {
+                            Parent.Parent: LocalDeclarationStatementSyntax or ForStatementSyntax
+                        } declarator:
+                return new(
+                    declarator,
+                    Function(declarator),
+                    LocalReferences.Scope(source, declarator)
+                );
+            case IParameterSymbol { RefKind: RefKind.None } parameter
+                when parameter.DeclaringSyntaxReferences is [var reference]:
+                if (
+                    reference.SyntaxTree != source.Tree
+                    || reference.GetSyntax(cancellationToken) is not ParameterSyntax declaration
+                )
+                    return null;
+                // Another part of a partial type can write a primary constructor parameter.
+                if (
+                    declaration.Parent?.Parent is TypeDeclarationSyntax
+                    && parameter.ContainingType.DeclaringSyntaxReferences.Any(part =>
+                        part.SyntaxTree != source.Tree
+                    )
+                )
+                    return null;
+                return new(
+                    declaration,
+                    Function(declaration),
+                    LocalReferences.Scope(source, declaration)
+                );
+            // An implicit parameter, such as a setter's value, belongs to the function reading it.
+            case IParameterSymbol { RefKind: RefKind.None, DeclaringSyntaxReferences: [] }:
+                var owner = Function(read);
+                return new(owner, owner, owner);
+            default:
+                return null;
+        }
+    }
 
     private static ReachingValues? Unwritten(ISymbol symbol, SyntaxNode declaration) =>
         symbol is IParameterSymbol ? new([], true)
@@ -82,14 +109,9 @@ internal sealed class ReachingAssignments(AnalysisSource source)
             )
         ?? LocalReferences.Scope(source, node);
 
-    private bool AllWritesTracked(ISymbol symbol, SyntaxNode declaration, SyntaxNode owner)
+    private bool AllWritesTracked(ISymbol symbol, Variable variable)
     {
-        foreach (
-            var name in LocalReferences
-                .Scope(source, declaration)
-                .DescendantNodes()
-                .OfType<IdentifierNameSyntax>()
-        )
+        foreach (var name in variable.Scope.DescendantNodes().OfType<IdentifierNameSyntax>())
         {
             source.Project.CancellationToken.ThrowIfCancellationRequested();
             if (
@@ -106,7 +128,7 @@ internal sealed class ReachingAssignments(AnalysisSource source)
             if (
                 target.Parent is not ISimpleAssignmentOperation { IsRef: false } assignment
                 || assignment.Target != target
-                || Function(name) != owner
+                || Function(name) != variable.Owner
             )
                 return false;
         }
@@ -191,50 +213,35 @@ internal sealed class ReachingAssignments(AnalysisSource source)
     private static IEnumerable<IOperation> Statements(BasicBlock block) =>
         block.BranchValue is { } branch ? block.Operations.Append(branch) : block.Operations;
 
-    private ReachingValues? Reaching(
-        ControlFlowGraph graph,
-        IdentifierNameSyntax read,
-        ISymbol symbol
-    )
+    private VariableFlow? Analyze(SyntaxNode read, ISymbol symbol, Variable variable)
     {
+        if (!AllWritesTracked(symbol, variable) || Graph(read, variable.Owner) is not { } graph)
+            return null;
         var assignments = new List<ISimpleAssignmentOperation>();
-        var generated = graph
-            .Blocks.Select(block =>
-                Statements(block)
-                    .Select(statement => Assignments(statement, symbol, assignments))
-                    .ToArray()
-            )
-            .ToArray();
-        var incoming = Incoming(graph, symbol, generated, assignments.Count);
+        var reads = new Dictionary<SyntaxNode, (int Block, int Statement)>();
+        var generated = new int[graph.Blocks.Length][][];
         foreach (var block in graph.Blocks)
         {
             var statements = Statements(block).ToArray();
+            generated[block.Ordinal] = new int[statements.Length][];
             for (var index = 0; index < statements.Length; index++)
             {
-                if (
-                    !statements[index]
-                        .DescendantsAndSelf()
-                        .Any(operation =>
-                            operation.Syntax == read
-                            && SymbolEqualityComparer.Default.Equals(Referenced(operation), symbol)
-                        )
-                )
-                    continue;
-                var reaching = new HashSet<int>(incoming[block.Ordinal]);
-                for (var earlier = 0; earlier < index; earlier++)
-                    Apply(reaching, generated[block.Ordinal][earlier]);
-                // Assignments earlier in the reading statement itself, as in (x = Get()) != null && x.Ok.
-                reaching.UnionWith(
-                    generated[block.Ordinal]
-                        [index]
-                        .Where(definition =>
-                            assignments[definition].Syntax.Span.End <= read.SpanStart
-                        )
+                generated[block.Ordinal][index] = Assignments(
+                    statements[index],
+                    symbol,
+                    assignments
                 );
-                return Values(reaching, assignments);
+                foreach (var operation in statements[index].DescendantsAndSelf())
+                    if (SymbolEqualityComparer.Default.Equals(Referenced(operation), symbol))
+                        reads.TryAdd(operation.Syntax, (block.Ordinal, index));
             }
         }
-        return null;
+        return new(
+            assignments,
+            generated,
+            Incoming(graph, symbol, generated, assignments.Count),
+            reads
+        );
     }
 
     // The assignments to a symbol within one statement, numbered in graph order.
@@ -335,20 +342,39 @@ internal sealed class ReachingAssignments(AnalysisSource source)
         return false;
     }
 
-    private static ReachingValues? Values(
-        HashSet<int> reaching,
-        List<ISimpleAssignmentOperation> assignments
+    private sealed record Variable(SyntaxNode Declaration, SyntaxNode Owner, SyntaxNode Scope);
+
+    // Reaching definitions of one variable within its function, computed once for all of its reads.
+    private sealed class VariableFlow(
+        List<ISimpleAssignmentOperation> assignments,
+        int[][][] generated,
+        HashSet<int>[] incoming,
+        Dictionary<SyntaxNode, (int Block, int Statement)> reads
     )
     {
-        var values = new List<ExpressionSyntax>();
-        foreach (var definition in reaching.Where(definition => definition != Entry).Order())
+        internal ReachingValues? At(SyntaxNode read)
         {
-            if (assignments[definition].Value.Syntax is not ExpressionSyntax value)
+            if (!reads.TryGetValue(read, out var position))
                 return null;
-            values.Add(value);
+            var statements = generated[position.Block];
+            var reaching = new HashSet<int>(incoming[position.Block]);
+            for (var earlier = 0; earlier < position.Statement; earlier++)
+                Apply(reaching, statements[earlier]);
+            // Assignments earlier in the reading statement itself, as in (x = Get()) != null && x.Ok.
+            reaching.UnionWith(
+                statements[position.Statement]
+                    .Where(definition => assignments[definition].Syntax.Span.End <= read.SpanStart)
+            );
+            var values = new List<ExpressionSyntax>();
+            foreach (var definition in reaching.Where(definition => definition != Entry).Order())
+            {
+                if (assignments[definition].Value.Syntax is not ExpressionSyntax value)
+                    return null;
+                values.Add(value);
+            }
+            return values.Count == 0 && !reaching.Contains(Entry)
+                ? null
+                : new(values.AsReadOnly(), reaching.Contains(Entry));
         }
-        return values.Count == 0 && !reaching.Contains(Entry)
-            ? null
-            : new(values.AsReadOnly(), reaching.Contains(Entry));
     }
 }
