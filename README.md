@@ -16,6 +16,9 @@ upgrading, check the release's compatibility notes and rebuild your rule bundles
 ## Install packages
 
 The managed tool requires a .NET 10 SDK and bundles its matching BuildHost.
+It also checks solutions whose `global.json` selects the .NET 11 SDK: BuildHost
+then runs on the .NET 11 runtime that comes with that SDK. Rule bundles stay on
+`net10.0`, so the .NET 10 runtime must remain installed.
 The commands below apply after `0.0.1` is published to nuget.org. Before
 publication, follow the [local artifact instructions](docs/DISTRIBUTION.md#build-and-validate-distribution-artifacts).
 From your consuming repository:
@@ -69,7 +72,8 @@ dotnet build DrillPress.slnx
 The SDK version in `global.json` is a minimum, not an exact pin. `latestMinor`
 roll-forward selects the highest installed .NET 10 SDK at or above `10.0.100`,
 including newer feature bands and patches, without rolling forward to .NET 11.
-CI installs the .NET 10 channel (`10.x`) rather than the minimum build.
+CI installs the .NET 10 channel (`10.x`) rather than the minimum build, and
+the .NET 11 channel (`11.x`) for the tests that load a target on SDK 11.
 
 Source builds can run the tool directly as shown below. Installed tools locate
 their packaged BuildHost automatically.
@@ -215,7 +219,9 @@ Pass repeatable `--property Name=Value` options to override MSBuild global
 properties; the last assignment wins. `--property TargetFramework=net10.0`
 selects a framework; otherwise every evaluated framework context is retained.
 The selected target's `global.json` controls SDK discovery, even when invoked
-from another directory. SDK targets must already be restored: BuildHost does
+from another directory. BuildHost loads exactly the SDK that `dotnet` selects
+there, and restarts on the newest installed runtime when that SDK belongs to a
+newer .NET than the one it runs on. SDK targets must already be restored: BuildHost does
 not restore or build them. Source-generator assemblies must also be available.
 Failures explain when to install an SDK or run `dotnet restore`.
 

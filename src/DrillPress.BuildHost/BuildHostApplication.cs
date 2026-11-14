@@ -11,6 +11,7 @@ public sealed class BuildHostApplication
     private readonly IFileSystem _fileSystem;
     private readonly MsBuildSnapshotLoader _snapshotLoader;
     private readonly ProcessProfileProbe _profileProbe;
+    private readonly RuntimeRollForward _rollForward;
 
     /// <summary>Creates the SDK-backed exporter for local C# projects.</summary>
     public BuildHostApplication()
@@ -27,10 +28,19 @@ public sealed class BuildHostApplication
         MsBuildSnapshotLoader snapshotLoader,
         ProcessProfileProbe profileProbe
     )
+        : this(fileSystem, snapshotLoader, profileProbe, new RuntimeRollForward()) { }
+
+    internal BuildHostApplication(
+        IFileSystem fileSystem,
+        MsBuildSnapshotLoader snapshotLoader,
+        ProcessProfileProbe profileProbe,
+        RuntimeRollForward rollForward
+    )
     {
         _fileSystem = fileSystem;
         _snapshotLoader = snapshotLoader;
         _profileProbe = profileProbe;
+        _rollForward = rollForward;
     }
 
     /// <summary>Executes the BuildHost command-line contract.</summary>
@@ -61,6 +71,10 @@ public sealed class BuildHostApplication
             var options = ParseOptions(args[3..]);
             await ExportAsync(args[1], args[2], options, profile, cancellationToken);
             return BuildHostExitCode.Success;
+        }
+        catch (NewerRuntimeRequiredException) when (!_rollForward.IsRolledForward)
+        {
+            return await _rollForward.RestartAsync(args, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

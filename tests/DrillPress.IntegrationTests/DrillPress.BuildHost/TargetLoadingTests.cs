@@ -185,6 +185,52 @@ public sealed class TargetLoadingTests : IntegrationTest
         Assert.False(FileSystem.File.Exists(output));
     }
 
+    // CI installs the .NET 10 and 11 SDKs. BuildHost runs on .NET 10, so it must restart on .NET 11 and load the
+    // SDK 11 that global.json selects, not fall back to SDK 10.
+    [Fact]
+    public async Task Target_on_a_newer_sdk_than_the_runtime_loads_with_the_sdk_its_global_json_selects()
+    {
+        var root = CreateTemporaryDirectory("drillpress-newer-sdk-").FullName;
+        await WriteAsync(
+            root,
+            "global.json",
+            """{"sdk":{"version":"11.0.100","rollForward":"latestFeature"}}"""
+        );
+        await WriteAsync(
+            root,
+            "Target.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>"
+        );
+        await WriteAsync(
+            root,
+            "Status.cs",
+            "using System.Text.Json.Serialization; enum Status { [JsonStringEnumMemberName(\"on\")] On }"
+        );
+        var target = FileSystem.Path.Combine(root, "Target.csproj");
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+        var restore = await RunProcessAsync(
+            "dotnet",
+            ["restore", target, "--nologo"],
+            root,
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await ExportAsync(target, output, "--validate-compilation");
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            output,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(0, restore.ExitCode);
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        var project = Assert.Single(snapshot.Projects);
+        Assert.StartsWith("11.0.", project.SdkVersion);
+        Assert.Equal(
+            (int)Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp15,
+            project.LanguageVersion
+        );
+    }
+
     [Fact]
     public async Task Loose_source_preserves_utf16_bytes_and_bom()
     {

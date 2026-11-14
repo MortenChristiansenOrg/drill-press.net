@@ -78,7 +78,12 @@ public class MsBuildSnapshotLoader
         }
 
         var directory = _fileSystem.Path.GetDirectoryName(target)!;
-        await SdkAvailability.VerifyAsync(directory, cancellationToken);
+        var version = await SdkAvailability.ResolveAsync(directory, cancellationToken);
+        // MSBuild built for a newer .NET can't load into this runtime.
+        if (version.Major > Environment.Version.Major)
+            throw new NewerRuntimeRequiredException(version, directory);
+        // MSBuildLocator lists other installed SDKs after the selected one, and it skips a selected SDK that this
+        // runtime can't load. Loading any other SDK than the one global.json selects would give wrong compilations.
         var sdk =
             MSBuildLocator
                 .QueryVisualStudioInstances(
@@ -88,9 +93,9 @@ public class MsBuildSnapshotLoader
                         WorkingDirectory = directory,
                     }
                 )
-                .FirstOrDefault()
+                .FirstOrDefault(instance => instance.Version == version)
             ?? throw new InvalidOperationException(
-                $"No compatible .NET SDK was found for '{target}'. Install the SDK required by its global.json."
+                $"MSBuild found no .NET SDK {version} for '{target}', although dotnet selects it there. Run Drill Press with the dotnet installation that holds that SDK."
             );
         if (!MSBuildLocator.IsRegistered)
         {
