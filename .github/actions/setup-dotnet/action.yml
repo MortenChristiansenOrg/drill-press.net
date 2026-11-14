@@ -7,7 +7,10 @@ runs:
     - uses: actions/setup-dotnet@v4
       id: sdk
       with:
-        dotnet-version: '10.x'
+        # The repository builds with SDK 10; tests also load a target on SDK 11.
+        dotnet-version: |
+          10.x
+          11.x
     - uses: actions/cache@v5
       with:
         path: ~/.nuget/packages

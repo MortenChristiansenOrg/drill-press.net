@@ -9,7 +9,8 @@ The commands below build and run from source; run them from the repository root.
 Install Git and a .NET 10 SDK. A specific SDK patch or feature-band build is not
 required; [global.json](../global.json) uses `10.0.100` as a minimum and
 `latestMinor` to select the highest installed .NET 10 SDK. It does not require
-that exact build or roll forward to .NET 11. Native
+that exact build or roll forward to .NET 11. The integration tests also load a
+target on SDK 11, so they need the .NET 11 SDK installed beside it. Native
 rule publication also needs the [NativeAOT toolchain](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/):
 Visual Studio 2022 or later with **Desktop development with C++** on Windows;
 Clang and zlib development headers on Ubuntu. Linux measurements also use GNU

@@ -103,6 +103,111 @@ public sealed class BuildHostApplicationTests
     }
 
     [Fact]
+    public async Task Sdk_newer_than_the_runtime_restarts_the_export_on_the_newest_runtime()
+    {
+        _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
+        var sdk = new SelectedSdk(new Version(11, 0, 100), IsPreview: true);
+        var loader = new StubSnapshotLoader(_fileSystem)
+        {
+            Failure = new NewerRuntimeRequiredException(sdk, "repository"),
+        };
+        var rollForward = new RecordingRuntimeRollForward { ExitCode = BuildHostExitCode.Success };
+        var application = new BuildHostApplication(
+            _fileSystem,
+            loader,
+            new ProcessProfileProbe(),
+            rollForward
+        );
+        var error = new StringWriter();
+
+        var result = await application.RunAsync(
+            ["export", "Target.csproj", "snapshot.json", "--validate-compilation"],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(BuildHostExitCode.Success, result);
+        Assert.Equal(
+            [
+                ["export", "Target.csproj", "snapshot.json", "--validate-compilation"],
+            ],
+            rollForward.Restarts.Select(restart => restart.Arguments)
+        );
+        Assert.Equal([sdk], rollForward.Restarts.Select(restart => restart.Sdk));
+        Assert.Equal("", error.ToString());
+    }
+
+    [Fact]
+    public async Task Restart_that_cannot_start_is_reported_as_a_failure()
+    {
+        _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
+        var loader = new StubSnapshotLoader(_fileSystem)
+        {
+            Failure = new NewerRuntimeRequiredException(
+                new SelectedSdk(new Version(11, 0, 100), IsPreview: false),
+                "repository"
+            ),
+        };
+        var rollForward = new RecordingRuntimeRollForward
+        {
+            Failure = new InvalidOperationException("Could not restart BuildHost."),
+        };
+        var application = new BuildHostApplication(
+            _fileSystem,
+            loader,
+            new ProcessProfileProbe(),
+            rollForward
+        );
+        var error = new StringWriter();
+
+        var result = await application.RunAsync(
+            ["export", "Target.csproj", "snapshot.json"],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(BuildHostExitCode.Failure, result);
+        Assert.Equal(
+            $"DrillPress.BuildHost: Could not restart BuildHost.{Environment.NewLine}",
+            error.ToString()
+        );
+    }
+
+    [Fact]
+    public async Task Restarted_export_reports_the_missing_runtime_instead_of_restarting_again()
+    {
+        _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
+        var loader = new StubSnapshotLoader(_fileSystem)
+        {
+            Failure = new NewerRuntimeRequiredException(
+                new SelectedSdk(new Version(11, 0, 100), IsPreview: false),
+                "repository"
+            ),
+        };
+        var rollForward = new RecordingRuntimeRollForward { RolledForward = true };
+        var application = new BuildHostApplication(
+            _fileSystem,
+            loader,
+            new ProcessProfileProbe(),
+            rollForward
+        );
+        var error = new StringWriter();
+
+        var result = await application.RunAsync(
+            ["export", "Target.csproj", "snapshot.json"],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(BuildHostExitCode.Failure, result);
+        Assert.Empty(rollForward.Restarts);
+        Assert.Equal(
+            $"DrillPress.BuildHost: The .NET SDK 11.0.100 selected for 'repository' needs the .NET 11 runtime or newer, but BuildHost runs on .NET {Environment.Version}. Install the .NET 11 runtime.{Environment.NewLine}",
+            error.ToString()
+        );
+    }
+
+    [Fact]
     public async Task Directory_prefers_the_only_solution_over_projects()
     {
         _fileSystem.AddFile("target/App.slnx", new MockFileData("<Solution />"));
