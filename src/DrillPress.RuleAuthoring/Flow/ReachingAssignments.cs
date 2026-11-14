@@ -86,10 +86,10 @@ internal sealed class ReachingAssignments(AnalysisSource source)
                     Function(declaration),
                     LocalReferences.Scope(source, declaration)
                 );
-            // An implicit parameter, such as a setter's value, belongs to the function reading it.
+            // An implicit parameter, such as a setter's value, belongs to the member that declares it.
             case IParameterSymbol { RefKind: RefKind.None, DeclaringSyntaxReferences: [] }:
-                var owner = Function(read);
-                return new(owner, owner, owner);
+                var member = LocalReferences.Scope(source, read);
+                return new(member, member, member);
             default:
                 return null;
         }

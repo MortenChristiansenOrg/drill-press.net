@@ -372,12 +372,16 @@ public sealed class NullableOriginTests(SdkFixture fixture) : IClassFixture<SdkF
             """
             Response Assigned { set { value = Client.Shared.Get(); _ = value != null; } }
             Response Plain { set { _ = value != null; } }
+            Response Captured { set { value = Client.Shared.Get(); System.Func<bool> f = () => value != null; } }
+            Response Unwritten { set { System.Func<bool> f = () => value != null; } }
             """
         );
 
         Assert.Equal(
             [
                 ["Oblivious", "Client.Shared.Get(): Oblivious"],
+                ["Aware", "value: Aware"],
+                ["Unknown", "value: UntrackedAssignment"],
                 ["Aware", "value: Aware"],
             ],
             analyses
