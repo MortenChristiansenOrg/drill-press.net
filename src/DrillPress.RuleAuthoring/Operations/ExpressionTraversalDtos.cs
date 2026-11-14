@@ -28,6 +28,9 @@ public enum ExpressionTraversalReason
     /// <summary>A selected local has no initializer or cannot be proven free of other writes and ref/in/out escapes.</summary>
     LocalNotSingleAssignment,
 
+    /// <summary>A local or parameter is written in a way flow analysis doesn't follow: by reference, in a nested function that runs at another time, through a pattern, <c>out</c>, <c>foreach</c> or <c>catch</c> declaration, or by compound assignment.</summary>
+    UntrackedAssignment,
+
     /// <summary>The next configured step exceeds the maximum depth.</summary>
     DepthLimit,
 

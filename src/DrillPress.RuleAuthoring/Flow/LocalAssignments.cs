@@ -21,12 +21,15 @@ internal sealed class LocalAssignments(AnalysisSource source)
                 is not VariableDeclaratorSyntax { Initializer.Value: { } initializer } declaration
         )
             return null;
-        var scope = LocalReferences.Scope(source, declaration);
-        var writes = _writes.GetOrAdd(scope, node => new(() => FindWrites(node))).Value;
+        var writes = WritesIn(LocalReferences.Scope(source, declaration));
         return !writes.IsResolved || writes.Writes.Contains(local)
             ? null
             : new(source, initializer);
     }
+
+    // The locals and parameters written or passed by reference anywhere in a scope.
+    internal LocalAssignmentEvidence WritesIn(SyntaxNode scope) =>
+        _writes.GetOrAdd(scope, node => new(() => FindWrites(node))).Value;
 
     private LocalAssignmentEvidence FindWrites(SyntaxNode scope)
     {
@@ -36,17 +39,21 @@ internal sealed class LocalAssignments(AnalysisSource source)
         foreach (var identifier in scope.DescendantNodes().OfType<IdentifierNameSyntax>())
         {
             source.Project.CancellationToken.ThrowIfCancellationRequested();
+            var reference = source.Model.GetOperation(identifier, source.Project.CancellationToken);
             if (
-                source.Model.GetOperation(identifier, source.Project.CancellationToken)
-                    is ILocalReferenceOperation reference
+                reference is ILocalReferenceOperation or IParameterReferenceOperation
                 && IsWriteOrEscape(reference)
             )
-                writes.Add(reference.Local);
+                writes.Add(
+                    reference is ILocalReferenceOperation local
+                        ? local.Local
+                        : ((IParameterReferenceOperation)reference).Parameter
+                );
         }
         return new(true, writes);
     }
 
-    private static bool IsWriteOrEscape(ILocalReferenceOperation reference)
+    internal static bool IsWriteOrEscape(IOperation reference)
     {
         if (
             reference

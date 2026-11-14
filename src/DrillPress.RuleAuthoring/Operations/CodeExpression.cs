@@ -23,6 +23,14 @@ public sealed class CodeExpression(AnalysisSource source, ExpressionSyntax synta
         return new ResultValueWalker(maxDepth, maxResults).Analyze(this);
     }
 
+    /// <summary>Whether this value comes from declarations with nullable annotations. Looks through the same expressions as <see cref="ResultValues"/>, follows locals and parameters to the assignments that can reach them on the compiler's control flow graph, and reads the declaration behind each call, await, property, field, indexer and operator. Bounded by local hops and result count; nothing is executed.</summary>
+    public NullableOriginAnalysis NullableOrigins(int maxDepth = 16, int maxResults = 256)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDepth);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxResults, 1);
+        return new NullableOriginWalker(maxDepth, maxResults).Analyze(this);
+    }
+
     /// <summary>Views an explicit bound invocation through parentheses and implicit built-in conversions. Explicit/user conversions and conditional-access envelopes remain unavailable.</summary>
     public CodeInvocation? AsInvocation()
     {

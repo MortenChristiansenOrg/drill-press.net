@@ -245,7 +245,9 @@ parameters, enum members, symbols):
   `Symbol`, `RefersTo(member)`, `IsNameOf(symbol)`, `FlowState`, `MayBeNull`,
   `DeclaredNullability`, `Facts` (`IsInsideNameOf`, `IsInsideExpressionTree`, comments),
   `AsInvocation()`, `AwaitedCall()` (the call an await awaits, through conversions and
-  `ConfigureAwait`), `ResultValues(maxDepth: 16, maxResults: 256)`. String construction
+  `ConfigureAwait`), `ResultValues(maxDepth: 16, maxResults: 256)`,
+  `NullableOrigins(maxDepth: 16, maxResults: 256)` (`Origin`, `Values`, `Boundaries`;
+  follows locals and parameters through reaching assignments). String construction
   and collection selection are below.
 - `ResultValueAnalysis`: `Status`, `IsComplete`, `Values`, `Boundaries`,
   `IsNonNullByLanguage`. Use it on `Initializer` and `DefaultValue` instead of unwrapping
@@ -284,7 +286,10 @@ parameters, enum members, symbols):
 - `element.ExplanatoryComment()` / `HasExplanatoryComment()`, `source.ExplanatoryComment(position)`:
   the ordinary comment on the line, on the line above, or above the statement or member;
   documentation and `drillpress-allow` comments do not count. Use for "explain this `!`".
-- `CodeNullCheck`: `CheckedValue`, `Polarity`, `Domain`, `Form`, `IsKnownNotNullBeforeCheck`.
+- `CodeNullCheck`: `CheckedValue`, `Polarity`, `Domain`, `Form`, `IsKnownNotNullBeforeCheck`,
+  `CheckedValueOrigin` (`Aware`, `Oblivious` or `Unknown`). Not-null flow from an oblivious
+  declaration, such as an unannotated library, is no evidence: require `Aware` before
+  calling a check redundant.
 - `operation.WithoutConversions(includeExplicit: false)`: the operand inside implicit
   conversions; explicit casts and parentheses stay unless casts are requested. Null
   stays null.

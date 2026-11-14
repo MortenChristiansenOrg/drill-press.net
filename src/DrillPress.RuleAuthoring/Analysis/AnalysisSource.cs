@@ -22,6 +22,7 @@ public sealed class AnalysisSource
             );
 
     private readonly Lazy<LocalAssignments> _localAssignments;
+    private readonly Lazy<ReachingAssignments> _reachingAssignments;
     private readonly Lazy<IReadOnlyList<CodeObjectCreation>> _objectCreations;
 
     internal AnalysisSource(
@@ -41,6 +42,7 @@ public sealed class AnalysisSource
                 .ToArray()
         );
         _localAssignments = new(() => new LocalAssignments(this));
+        _reachingAssignments = new(() => new ReachingAssignments(this));
         Operations = new(this);
         _objectCreations = new(() =>
             Array.AsReadOnly(
@@ -70,6 +72,8 @@ public sealed class AnalysisSource
     public SemanticModel Model => _model.Value;
 
     internal LocalAssignments LocalAssignments => _localAssignments.Value;
+
+    internal ReachingAssignments ReachingAssignments => _reachingAssignments.Value;
 
     internal SourceOperations Operations { get; }
 
