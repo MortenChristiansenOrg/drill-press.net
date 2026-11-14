@@ -16,6 +16,33 @@ if (
     return 0;
 }
 
+// Answers BuildHost's SDK probe with a scripted version.
+if (
+    args is ["--version"]
+    && Environment.GetEnvironmentVariable("DRILLPRESS_SDK_PROBE_VERSION") is { } sdkVersion
+)
+{
+    Console.WriteLine(sdkVersion);
+    return 0;
+}
+
+// Stands in for the dotnet muxer that BuildHost restarts on, recording how it was asked to run.
+if (
+    args is ["exec", ..]
+    && Environment.GetEnvironmentVariable("DRILLPRESS_RESTART_LOG") is { } restartLog
+)
+{
+    await fileSystem.File.WriteAllLinesAsync(
+        restartLog,
+        [
+            .. args,
+            $"DOTNET_ROLL_FORWARD_TO_PRERELEASE={Environment.GetEnvironmentVariable("DOTNET_ROLL_FORWARD_TO_PRERELEASE")}",
+            $"DRILLPRESS_BUILDHOST_ROLLED_FORWARD={Environment.GetEnvironmentVariable("DRILLPRESS_BUILDHOST_ROLLED_FORWARD")}",
+        ]
+    );
+    return 3;
+}
+
 if (args is ["bytes"])
 {
     await Console.OpenStandardOutput().WriteAsync(Enumerable.Repeat((byte)255, 200_000).ToArray());

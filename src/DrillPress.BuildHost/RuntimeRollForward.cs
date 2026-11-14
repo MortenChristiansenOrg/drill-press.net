@@ -43,8 +43,8 @@ internal class RuntimeRollForward
         foreach (var argument in args)
             start.ArgumentList.Add(argument);
         start.Environment[RestartedVariable] = "1";
-        if (sdk.IsPreview)
-            start.Environment["DOTNET_ROLL_FORWARD_TO_PRERELEASE"] = "1";
+        // Set either way, so an inherited setting can't put a released SDK on a prerelease runtime.
+        start.Environment["DOTNET_ROLL_FORWARD_TO_PRERELEASE"] = sdk.IsPreview ? "1" : "0";
         using var process =
             Process.Start(start)
             ?? throw new InvalidOperationException("Could not restart BuildHost.");

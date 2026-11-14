@@ -56,6 +56,142 @@ public sealed class SdkAvailabilityTests : IntegrationTest
         Assert.False(FileSystem.File.Exists(snapshot));
     }
 
+    // BuildHost runs on a copied .NET root whose dotnet is a test process, so the restart's command line and
+    // environment can be read back. Only a preview SDK lets the restart choose a prerelease runtime, whatever
+    // BuildHost inherited.
+    [Theory]
+    [InlineData("99.0.100-rc.1.26101.1", "0", "1")]
+    [InlineData("99.0.100", "1", "0")]
+    public async Task Sdk_newer_than_the_runtime_restarts_export_on_the_newest_runtime(
+        string sdkVersion,
+        string inheritedPrerelease,
+        string restartPrerelease
+    )
+    {
+        var root = CreateTemporaryDirectory("drillpress-sdk-restart-").FullName;
+        var probeDirectory = CreateProbeDirectory(root);
+        var dotnetRoot = CreateDotNetRoot(root, probeDirectory);
+        var log = FileSystem.Path.Combine(root, "restart.log");
+        var project = FileSystem.Path.Combine(root, "Target.csproj");
+        var snapshot = FileSystem.Path.Combine(root, "snapshot.json");
+        await FileSystem.File.WriteAllTextAsync(
+            project,
+            "<Project />",
+            TestContext.Current.CancellationToken
+        );
+        var environment = new Dictionary<string, string>
+        {
+            ["PATH"] = probeDirectory,
+            ["DOTNET_ROOT"] = dotnetRoot,
+            // dotnet test sets the architecture's own variable, which takes precedence.
+            [
+                $"DOTNET_ROOT_{System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToUpperInvariant()}"
+            ] = dotnetRoot,
+            ["DOTNET_ROLL_FORWARD_TO_PRERELEASE"] = inheritedPrerelease,
+            ["DRILLPRESS_SDK_PROBE_VERSION"] = sdkVersion,
+            ["DRILLPRESS_RESTART_LOG"] = log,
+        };
+        var host = FileSystem.Path.Combine(
+            probeDirectory,
+            OperatingSystem.IsWindows() ? "DrillPress.BuildHost.exe" : "DrillPress.BuildHost"
+        );
+
+        var result = await RunProcessAsync(
+            host,
+            ["export", project, snapshot, "--validate-compilation"],
+            RepositoryRoot,
+            TestContext.Current.CancellationToken,
+            environment
+        );
+
+        Assert.Equal(new ProcessResult(3, "", ""), result);
+        Assert.Equal(
+            [
+                "exec",
+                "--roll-forward",
+                "LatestMajor",
+                FileSystem.Path.Combine(probeDirectory, "DrillPress.BuildHost.dll"),
+                "export",
+                project,
+                snapshot,
+                "--validate-compilation",
+                $"DOTNET_ROLL_FORWARD_TO_PRERELEASE={restartPrerelease}",
+                "DRILLPRESS_BUILDHOST_ROLLED_FORWARD=1",
+            ],
+            await FileSystem.File.ReadAllLinesAsync(log, TestContext.Current.CancellationToken)
+        );
+    }
+
+    // Copies this test's runtime and host resolver into a new .NET root, with the test process as its dotnet.
+    private static string CreateDotNetRoot(string root, string probeDirectory)
+    {
+        var runtime = FileSystem.DirectoryInfo.New(
+            System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory()
+        );
+        var installation = runtime.Parent!.Parent!.Parent!;
+        var dotnetRoot = FileSystem.Path.Combine(root, "dotnet");
+        Copy(
+            runtime.FullName,
+            FileSystem.Path.Combine(dotnetRoot, "shared", "Microsoft.NETCore.App", runtime.Name)
+        );
+        Copy(
+            FileSystem.Path.Combine(installation.FullName, "host"),
+            FileSystem.Path.Combine(dotnetRoot, "host")
+        );
+        foreach (
+            var path in FileSystem.Directory.EnumerateFiles(
+                FileSystem.Path.GetDirectoryName(GetOutputPath("DrillPress.TestProcess", "tests"))!
+            )
+        )
+        {
+            FileSystem.File.Copy(
+                path,
+                FileSystem.Path.Combine(dotnetRoot, FileSystem.Path.GetFileName(path))
+            );
+        }
+
+        var extension = OperatingSystem.IsWindows() ? ".exe" : "";
+        FileSystem.File.Copy(
+            FileSystem.Path.Combine(probeDirectory, "dotnet" + extension),
+            FileSystem.Path.Combine(dotnetRoot, "dotnet" + extension)
+        );
+        return dotnetRoot;
+    }
+
+    private static void Copy(string source, string destination)
+    {
+        FileSystem.Directory.CreateDirectory(destination);
+        foreach (
+            var directory in FileSystem.Directory.EnumerateDirectories(
+                source,
+                "*",
+                SearchOption.AllDirectories
+            )
+        )
+        {
+            FileSystem.Directory.CreateDirectory(
+                FileSystem.Path.Combine(
+                    destination,
+                    FileSystem.Path.GetRelativePath(source, directory)
+                )
+            );
+        }
+
+        foreach (
+            var file in FileSystem.Directory.EnumerateFiles(
+                source,
+                "*",
+                SearchOption.AllDirectories
+            )
+        )
+        {
+            FileSystem.File.Copy(
+                file,
+                FileSystem.Path.Combine(destination, FileSystem.Path.GetRelativePath(source, file))
+            );
+        }
+    }
+
     private static string CreateProbeDirectory(string root)
     {
         var directory = FileSystem
