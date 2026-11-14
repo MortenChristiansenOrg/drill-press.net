@@ -83,7 +83,9 @@ policy for their `Calls()` and `Nodes<T>()`.
 ```csharp
 var checks = tests.Body().NullChecks();
 var nonNullReferences = checks.Where(check =>
-    check.Domain == NullCheckDomain.Reference && check.IsKnownNotNullBeforeCheck);
+    check.Domain == NullCheckDomain.Reference
+    && check.IsKnownNotNullBeforeCheck
+    && check.CheckedValueOrigin == NullableOrigin.Aware);
 ```
 
 Null checks recognize null patterns, built-in equality in either order, and
@@ -99,6 +101,27 @@ It returns `None` for compound evaluation, loop conditions, arrow bodies and
 other unsupported positions rather than substituting an earlier state. Disabled
 nullable analysis likewise supplies no incoming state. See Roslyn's
 [nullable flow rules](https://github.com/dotnet/roslyn/blob/main/docs/features/nullable-reference-types.md).
+
+Roslyn also gives values from nullable-oblivious declarations, such as a library compiled
+without nullable reference types, a not-null flow state. That state is no evidence, so
+`CheckedValueOrigin` says where the value comes from: `Aware` when every source is a
+language fact or an annotated declaration, `Oblivious` when any source is unannotated,
+and `Unknown` when analysis couldn't follow every source.
+
+`expression.NullableOrigins()` returns the same answer with its `Values` and
+`Boundaries`. It looks through the expressions `ResultValues()` does and follows locals
+and parameters to the assignments that can reach the read on the compiler's control flow
+graph, including a parameter's value on entry. Calls, awaits (through `GetResult`),
+properties, fields, indexers, array elements and operators are read from their declared
+annotation; a type-pattern variable is aware. Writes by reference, `out`, compound
+assignment, deconstruction, from a nested function, or to a `foreach`, `catch` or `var`
+pattern variable stop with `UntrackedAssignment`. Assignments in a `try` reach its
+handlers, and assignments in a `finally` add to what follows without replacing it.
+
+```csharp
+var origin = check.CheckedValue.NullableOrigins();
+var unannotated = origin.Values.Where(value => value.Origin == NullableOrigin.Oblivious);
+```
 
 Neither annotations nor compiler flow establish runtime non-nullness in a program
 violating its contracts. None of these queries authorizes deleting an expression,
@@ -321,7 +344,8 @@ Each `ResultValue` keeps its evidence separate:
 Conditions, call arguments and throw arms are not results. Invalid binding, user-defined
 conversions, dynamic expressions and exhausted bounds (16 steps and 256 results by
 default) become typed `Boundaries`, and `IsNonNullByLanguage` is then false. Locals,
-properties and method bodies aren't followed; they are `Unproven`.
+properties and method bodies aren't followed; they are `Unproven`. `NullableOrigins()`
+follows locals and reads declarations where nullability evidence matters.
 
 ## Multiple argument roles
 

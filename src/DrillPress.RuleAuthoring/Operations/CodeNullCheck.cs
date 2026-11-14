@@ -8,6 +8,7 @@ namespace DrillPress;
 public sealed class CodeNullCheck : ICodeElement
 {
     private readonly Lazy<NullableFlowState> _beforeCheck;
+    private readonly Lazy<NullableOrigin> _origin;
 
     internal CodeNullCheck(
         CodeExpression condition,
@@ -23,18 +24,22 @@ public sealed class CodeNullCheck : ICodeElement
         Domain = domain;
         Form = form;
         _beforeCheck = new(() => NullableProbe.BeforeCheck(value, condition));
+        _origin = new(() => value.NullableOrigins().Origin);
     }
 
     /// <summary>The underlying comparison, pattern or nullable-presence form.</summary>
     public NullCheckForm Form { get; }
 
-    /// <summary>Whether the checked reference declaration has a non-nullable annotation; this is not a runtime guarantee.</summary>
+    /// <summary>Whether the checked reference declaration has a non-nullable annotation; this is not a runtime guarantee. A local declared non-nullable can still hold a value from an oblivious declaration; see <see cref="CheckedValueOrigin"/>.</summary>
     public bool HasNonNullableDeclaration =>
         Domain == NullCheckDomain.Reference
         && CheckedValue.DeclaredNullability == NullableAnnotation.NotAnnotated;
 
-    /// <summary>Whether the compiler knows the operand is non-null before this check; independent from its declaration annotation.</summary>
+    /// <summary>Whether the compiler knows the operand is non-null before this check; independent from its declaration annotation. The compiler also reports values from nullable-oblivious declarations as non-null, so require <see cref="CheckedValueOrigin"/> to be <see cref="NullableOrigin.Aware"/> before treating this as evidence.</summary>
     public bool IsKnownNotNullBeforeCheck => FlowStateBeforeCheck == NullableFlowState.NotNull;
+
+    /// <summary>Whether the checked value comes from declarations with nullable annotations, from <see cref="CodeExpression.NullableOrigins"/>. Oblivious means some source, such as a library compiled without nullable reference types, says nothing about null.</summary>
+    public NullableOrigin CheckedValueOrigin => _origin.Value;
 
     /// <summary>The complete normalized check, including ordinary negation.</summary>
     public CodeExpression Condition { get; }

@@ -217,7 +217,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "Read nullable state at a call site · Calls and flow",
     "url": "analysis.html#nullable",
-    "text": "Find potentially null text receivers using DrillPress; var rules = new RuleCatalog(); var trim = CodeType.Of<string>().Member(nameof(string.Trim)).WithParameters(); rules.Rule(\"TEAM011\", \"Handle missing input before trimming text.\") .For(Code.Calls.To(trim).WhereReceiver(receiver => receiver.MayBeNull)) .Forbid(); CodeExpression.MayBeNull reads the compiler’s nullable flow state at that expression; FlowState and DeclaredNullability expose the raw values. Flow state is a compile-time judgment, not a runtime guarantee, and is None where nullable analysis is disabled. Static calls have no receiver, so WhereReceiver skips them. expression.ResultValues() lists what can supply a value, looking through parentheses, !, conditional and switch arms, ?? and built-in casts. Each result has a Kind such as Null, Constant or Unproven, a Role for ??, and IsSuppressed, so null! is never mistaken for a real default. IsNonNullByLanguage is true only when language rules alone rule out null; unsupported expressions and exhausted limits appear in Boundaries. Code.NullChecks selects written null tests (== null, is null, is not null, ?? and friends) with their checked value, polarity and the flow state before the check, so redundant-check rules need no pattern matching of their own."
+    "text": "Find potentially null text receivers using DrillPress; var rules = new RuleCatalog(); var trim = CodeType.Of<string>().Member(nameof(string.Trim)).WithParameters(); rules.Rule(\"TEAM011\", \"Handle missing input before trimming text.\") .For(Code.Calls.To(trim).WhereReceiver(receiver => receiver.MayBeNull)) .Forbid(); CodeExpression.MayBeNull reads the compiler’s nullable flow state at that expression; FlowState and DeclaredNullability expose the raw values. Flow state is a compile-time judgment, not a runtime guarantee, and is None where nullable analysis is disabled. Static calls have no receiver, so WhereReceiver skips them. expression.ResultValues() lists what can supply a value, looking through parentheses, !, conditional and switch arms, ?? and built-in casts. Each result has a Kind such as Null, Constant or Unproven, a Role for ??, and IsSuppressed, so null! is never mistaken for a real default. IsNonNullByLanguage is true only when language rules alone rule out null; unsupported expressions and exhausted limits appear in Boundaries. Code.NullChecks selects written null tests (== null, is null, is not null, ?? and friends) with their checked value, polarity and the flow state before the check, so redundant-check rules need no pattern matching of their own. The compiler also calls a value from a library without nullable annotations not null, which says nothing. check.CheckedValueOrigin is Aware when every source of the value is annotated, Oblivious when one isn’t and Unknown when analysis couldn’t follow them all, so a redundant-check rule requires Aware. expression.NullableOrigins() lists those sources, following locals through the assignments that reach them."
   },
   {
     "title": "Require test execution · Calls and flow",
@@ -602,7 +602,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeExpression · API field guide",
     "url": "reference.html#api-codeexpression",
-    "text": "Type; TypeIs; ConvertedTypeIs; TypeIsOrDerivesFrom; TypeIsAssignableTo; Constant; Is(value); IsConstant; TextValue; Symbol; RefersTo(member); IsNameOf; FlowState; MayBeNull; Facts; AsInvocation(); AwaitedCall(); AsBuiltString(); expressions.WithCollectionExpressionTarget() A bound expression with type, constant, symbol and nullable facts. AwaitedCall is the call an await awaits, through conversions and ConfigureAwait."
+    "text": "Type; TypeIs; ConvertedTypeIs; TypeIsOrDerivesFrom; TypeIsAssignableTo; Constant; Is(value); IsConstant; TextValue; Symbol; RefersTo(member); IsNameOf; FlowState; MayBeNull; Facts; AsInvocation(); AwaitedCall(); ResultValues(); NullableOrigins(); AsBuiltString(); expressions.WithCollectionExpressionTarget() A bound expression with type, constant, symbol and nullable facts. AwaitedCall is the call an await awaits, through conversions and ConfigureAwait. NullableOrigins says whether the declarations supplying the value are annotated or oblivious."
   },
   {
     "title": "Culture and clock calls · API field guide",
@@ -612,7 +612,7 @@ window.DRILLPRESS_SEARCH = [
   {
     "title": "CodeNullCheck / ConditionPattern · API field guide",
     "url": "reference.html#api-codenullcheck-conditionpattern",
-    "text": "CheckedValue; Polarity; Domain; Form; IsKnownNotNullBeforeCheck / Null; EmptyString; NullOrEmptyString; NullOrWhiteSpaceString; ForCall(...) Written null tests, and semantic condition patterns for bodies.Conditions().Checks(...)."
+    "text": "CheckedValue; Polarity; Domain; Form; IsKnownNotNullBeforeCheck; CheckedValueOrigin / Null; EmptyString; NullOrEmptyString; NullOrWhiteSpaceString; ForCall(...) Written null tests, and semantic condition patterns for bodies.Conditions().Checks(...)."
   },
   {
     "title": "CodeOperation<T> / MethodFlow · API field guide",

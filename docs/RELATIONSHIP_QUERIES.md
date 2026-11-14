@@ -65,9 +65,10 @@ zero-count views. Returned declaration memberships retain their compilation cont
 `view.Interface` names the source interface directly. `DirectlyOverriding(member)` selects
 only an immediate edge; `Overriding(member)` keeps the complete ancestor-chain default.
 
-Null checks expose `Form`, `HasNonNullableDeclaration` and `IsKnownNotNullBeforeCheck`
-separately. The first is syntax classification, the second is annotation evidence, and
-the third is compiler incoming flow evidence. They are never ORed into a runtime
+Null checks expose `Form`, `HasNonNullableDeclaration`, `IsKnownNotNullBeforeCheck` and
+`CheckedValueOrigin` separately. The first is syntax classification, the second is
+annotation evidence, the third is compiler incoming flow evidence, and the fourth says
+whether that evidence comes from annotated declarations or from oblivious ones. They are never ORed into a runtime
 non-null guarantee or used as automatic authority to delete guards.
 
 ## Call paths
