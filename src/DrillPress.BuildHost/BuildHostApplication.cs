@@ -66,15 +66,19 @@ public sealed class BuildHostApplication
             _profileProbe
         );
         using var total = profile.Measure("total");
+        // The outer catch also reports a restart that fails to start.
         try
         {
-            var options = ParseOptions(args[3..]);
-            await ExportAsync(args[1], args[2], options, profile, cancellationToken);
-            return BuildHostExitCode.Success;
-        }
-        catch (NewerRuntimeRequiredException exception) when (!_rollForward.IsRolledForward)
-        {
-            return await _rollForward.RestartAsync(args, exception.Sdk, cancellationToken);
+            try
+            {
+                var options = ParseOptions(args[3..]);
+                await ExportAsync(args[1], args[2], options, profile, cancellationToken);
+                return BuildHostExitCode.Success;
+            }
+            catch (NewerRuntimeRequiredException exception) when (!_rollForward.IsRolledForward)
+            {
+                return await _rollForward.RestartAsync(args, exception.Sdk, cancellationToken);
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

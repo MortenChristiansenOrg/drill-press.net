@@ -138,6 +138,42 @@ public sealed class BuildHostApplicationTests
     }
 
     [Fact]
+    public async Task Restart_that_cannot_start_is_reported_as_a_failure()
+    {
+        _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
+        var loader = new StubSnapshotLoader(_fileSystem)
+        {
+            Failure = new NewerRuntimeRequiredException(
+                new SelectedSdk(new Version(11, 0, 100), IsPreview: false),
+                "repository"
+            ),
+        };
+        var rollForward = new RecordingRuntimeRollForward
+        {
+            Failure = new InvalidOperationException("Could not restart BuildHost."),
+        };
+        var application = new BuildHostApplication(
+            _fileSystem,
+            loader,
+            new ProcessProfileProbe(),
+            rollForward
+        );
+        var error = new StringWriter();
+
+        var result = await application.RunAsync(
+            ["export", "Target.csproj", "snapshot.json"],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(BuildHostExitCode.Failure, result);
+        Assert.Equal(
+            $"DrillPress.BuildHost: Could not restart BuildHost.{Environment.NewLine}",
+            error.ToString()
+        );
+    }
+
+    [Fact]
     public async Task Restarted_export_reports_the_missing_runtime_instead_of_restarting_again()
     {
         _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));

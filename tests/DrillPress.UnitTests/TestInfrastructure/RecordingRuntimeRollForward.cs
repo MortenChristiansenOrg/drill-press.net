@@ -7,6 +7,7 @@ internal sealed class RecordingRuntimeRollForward : RuntimeRollForward
 {
     public bool RolledForward { get; init; }
     public BuildHostExitCode ExitCode { get; init; }
+    public Exception? Failure { get; init; }
     public List<(string[] Arguments, SelectedSdk Sdk)> Restarts { get; } = [];
 
     public override bool IsRolledForward => RolledForward;
@@ -18,6 +19,8 @@ internal sealed class RecordingRuntimeRollForward : RuntimeRollForward
     )
     {
         Restarts.Add((args, sdk));
-        return Task.FromResult(ExitCode);
+        return Failure is null
+            ? Task.FromResult(ExitCode)
+            : Task.FromException<BuildHostExitCode>(Failure);
     }
 }
