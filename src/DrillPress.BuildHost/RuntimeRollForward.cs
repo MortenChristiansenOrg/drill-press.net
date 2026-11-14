@@ -16,9 +16,13 @@ internal class RuntimeRollForward
     public virtual bool IsRolledForward =>
         Environment.GetEnvironmentVariable(RestartedVariable) == "1";
 
-    /// <summary>Runs BuildHost with <paramref name="args"/> on the newest runtime, sharing this process's console.</summary>
+    /// <summary>
+    /// Runs BuildHost with <paramref name="args"/> on the newest runtime, sharing this process's console. Only a
+    /// preview <paramref name="sdk"/>, whose runtime is a prerelease, lets it choose a prerelease runtime.
+    /// </summary>
     public virtual async Task<BuildHostExitCode> RestartAsync(
         string[] args,
+        SelectedSdk sdk,
         CancellationToken cancellationToken
     )
     {
@@ -39,6 +43,8 @@ internal class RuntimeRollForward
         foreach (var argument in args)
             start.ArgumentList.Add(argument);
         start.Environment[RestartedVariable] = "1";
+        if (sdk.IsPreview)
+            start.Environment["DOTNET_ROLL_FORWARD_TO_PRERELEASE"] = "1";
         using var process =
             Process.Start(start)
             ?? throw new InvalidOperationException("Could not restart BuildHost.");

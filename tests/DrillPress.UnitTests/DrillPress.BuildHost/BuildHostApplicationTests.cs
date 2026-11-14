@@ -106,9 +106,10 @@ public sealed class BuildHostApplicationTests
     public async Task Sdk_newer_than_the_runtime_restarts_the_export_on_the_newest_runtime()
     {
         _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
+        var sdk = new SelectedSdk(new Version(11, 0, 100), IsPreview: true);
         var loader = new StubSnapshotLoader(_fileSystem)
         {
-            Failure = new NewerRuntimeRequiredException(new Version(11, 0, 100), "repository"),
+            Failure = new NewerRuntimeRequiredException(sdk, "repository"),
         };
         var rollForward = new RecordingRuntimeRollForward { ExitCode = BuildHostExitCode.Success };
         var application = new BuildHostApplication(
@@ -130,8 +131,9 @@ public sealed class BuildHostApplicationTests
             [
                 ["export", "Target.csproj", "snapshot.json", "--validate-compilation"],
             ],
-            rollForward.Restarts
+            rollForward.Restarts.Select(restart => restart.Arguments)
         );
+        Assert.Equal([sdk], rollForward.Restarts.Select(restart => restart.Sdk));
         Assert.Equal("", error.ToString());
     }
 
@@ -141,7 +143,10 @@ public sealed class BuildHostApplicationTests
         _fileSystem.AddFile("Target.csproj", new MockFileData("<Project />"));
         var loader = new StubSnapshotLoader(_fileSystem)
         {
-            Failure = new NewerRuntimeRequiredException(new Version(11, 0, 100), "repository"),
+            Failure = new NewerRuntimeRequiredException(
+                new SelectedSdk(new Version(11, 0, 100), IsPreview: false),
+                "repository"
+            ),
         };
         var rollForward = new RecordingRuntimeRollForward { RolledForward = true };
         var application = new BuildHostApplication(

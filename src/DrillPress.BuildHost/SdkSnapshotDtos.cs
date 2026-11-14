@@ -6,6 +6,9 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace DrillPress.BuildHost;
 
+/// <summary>The SDK that dotnet selects for a directory; a preview SDK comes with a prerelease runtime.</summary>
+internal sealed record SelectedSdk(Version Version, bool IsPreview);
+
 internal sealed record GeneratedProject(
     string ContextId,
     string[] DiagnosticIds,

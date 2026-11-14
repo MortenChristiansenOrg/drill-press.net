@@ -72,9 +72,9 @@ public sealed class BuildHostApplication
             await ExportAsync(args[1], args[2], options, profile, cancellationToken);
             return BuildHostExitCode.Success;
         }
-        catch (NewerRuntimeRequiredException) when (!_rollForward.IsRolledForward)
+        catch (NewerRuntimeRequiredException exception) when (!_rollForward.IsRolledForward)
         {
-            return await _rollForward.RestartAsync(args, cancellationToken);
+            return await _rollForward.RestartAsync(args, exception.Sdk, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

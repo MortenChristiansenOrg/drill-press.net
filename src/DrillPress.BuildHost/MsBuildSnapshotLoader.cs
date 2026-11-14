@@ -78,10 +78,11 @@ public class MsBuildSnapshotLoader
         }
 
         var directory = _fileSystem.Path.GetDirectoryName(target)!;
-        var version = await SdkAvailability.ResolveAsync(directory, cancellationToken);
+        var selected = await SdkAvailability.ResolveAsync(directory, cancellationToken);
+        var version = selected.Version;
         // MSBuild built for a newer .NET can't load into this runtime.
         if (version.Major > Environment.Version.Major)
-            throw new NewerRuntimeRequiredException(version, directory);
+            throw new NewerRuntimeRequiredException(selected, directory);
         // MSBuildLocator lists other installed SDKs after the selected one, and it skips a selected SDK that this
         // runtime can't load. Loading any other SDK than the one global.json selects would give wrong compilations.
         var sdk =

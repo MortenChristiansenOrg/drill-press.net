@@ -5,7 +5,7 @@ namespace DrillPress.BuildHost;
 internal static class SdkAvailability
 {
     /// <summary>Returns the SDK version that <c>dotnet</c> selects for <paramref name="directory"/>, honoring its global.json.</summary>
-    public static async Task<Version> ResolveAsync(
+    public static async Task<SelectedSdk> ResolveAsync(
         string directory,
         CancellationToken cancellationToken
     )
@@ -71,13 +71,17 @@ internal static class SdkAvailability
 
         var output = (await stdout).Trim();
         // Preview SDKs append a label, such as 11.0.100-rc.2.25502.107, which System.Version can't hold.
-        if (process.ExitCode != 0 || !Version.TryParse(output.Split('-')[0], out var version))
+        var label = output.IndexOf('-');
+        if (
+            process.ExitCode != 0
+            || !Version.TryParse(label < 0 ? output : output[..label], out var version)
+        )
         {
             throw new InvalidOperationException(
                 $"No compatible .NET SDK was found for '{directory}'. Install the SDK required by its global.json."
             );
         }
 
-        return version;
+        return new SelectedSdk(version, label >= 0);
     }
 }
