@@ -37,7 +37,10 @@ public sealed class UserManualFixture : IntegrationTest
             .Emit(image, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(emitted.Success, string.Join('\n', emitted.Diagnostics));
         image.Position = 0;
-        var assembly = new AssemblyLoadContext(name).LoadFromStream(image);
+        // A collectible context unloads once the returned rules are no longer referenced.
+        var context = new AssemblyLoadContext(name, isCollectible: true);
+        var assembly = context.LoadFromStream(image);
+        context.Unload();
         return (RuleCatalog)
             assembly
                 .GetType(factoryType, throwOnError: true)!

@@ -21,7 +21,7 @@ public sealed class UserManualTests(UserManualFixture fixture) : IClassFixture<U
     }
 
     [Fact]
-    public async Task Union_example_reports_once_per_method_and_fixes_both_source_forms()
+    public async Task Union_example_reports_once_per_method_and_fixes_every_source_form()
     {
         var rules = fixture.CreateRules("selections.html#example-union", "ClockRules");
         var workspace = new RuleTestWorkspace();
@@ -35,6 +35,9 @@ public sealed class UserManualTests(UserManualFixture fixture) : IClassFixture<U
                     using System.Threading.Tasks;
                     class Clock(TimeProvider clock)
                     {
+                        DateTimeOffset Created = DateTimeOffset.UtcNow;
+                        DateTimeOffset Updated = DateTimeOffset.UtcNow;
+
                         async Task<DateTimeOffset> Later()
                         {
                             await Task.Delay(TimeSpan.FromSeconds(1));
@@ -52,7 +55,9 @@ public sealed class UserManualTests(UserManualFixture fixture) : IClassFixture<U
             """
             TEAM040 Read time through the injected TimeProvider.
             Clock.cs
-              +7:20
+              +5:30
+              +6:30
+              +10:20
 
             """.Replace("\r\n", "\n"),
             result.Output
@@ -63,6 +68,9 @@ public sealed class UserManualTests(UserManualFixture fixture) : IClassFixture<U
             using System.Threading.Tasks;
             class Clock(TimeProvider clock)
             {
+                DateTimeOffset Created = clock.GetUtcNow();
+                DateTimeOffset Updated = clock.GetUtcNow();
+
                 async Task<DateTimeOffset> Later()
                 {
                     await Task.Delay(TimeSpan.FromSeconds(1), clock);

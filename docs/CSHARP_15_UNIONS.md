@@ -38,9 +38,9 @@ candidates. A union can implement `ICodeElement` itself by forwarding `Location`
 and `Source`, but that is more code than the `ReportAt` line.
 
 The manual example is compiled and run by
-`UserManualTests.Union_example_reports_once_per_method_and_fixes_both_source_forms`:
-a method that waits and reads the clock gets one finding, and the fixes for both
-uses are validated and applied together.
+`UserManualTests.Union_example_reports_once_per_method_and_fixes_every_source_form`:
+a method that waits and reads the clock gets one finding, field initializers keep
+one finding each, and every use's fix is validated and applied.
 
 Closed hierarchies (`closed class`) fit cases the author owns that share data or
 behavior. They cannot close over Drill Press's sealed candidate types, so they do
@@ -67,7 +67,8 @@ return type, a breaking change for all bundles, while adding nothing the validat
 needs. Typed refusal reasons were not adopted either: reasons are single-line text
 for the reader of `--explain-fixes`, they name the failed gate and source position,
 and no consumer branches on them. `RuleTestResult.ExplainedOutput` lets tests assert
-them.
+them. A finding grouped by `ReportOncePer` explains its fixes only when all of
+them are withheld, so test each form on its own as well.
 
 `ProofResult` stays an enum (`Proven`, `Unknown`, `Disproven`). The internal
 `CheckOutcome` already pairs it with an optional reason.
@@ -104,9 +105,11 @@ that nothing regressed; they are not a benchmark.
   snapshot, and reconstruction parses with it. Roslyn 5.9 supports C# 15, so a
   `net11.0` project or `<LangVersion>15.0</LangVersion>` loads unions and closed
   types without changes. The CLI needs the .NET 11 SDK to load a `net11.0` project.
-- **Loose files and globs** now parse as C# 15 instead of C# 14. They compile against
-  the BuildHost runtime: on .NET 10 the sources must declare the union and closed-type
-  attributes themselves, or the compilation reports missing members.
+- **Loose files and globs** now parse as C# 15 instead of C# 14, the default for
+  `net11.0` projects. As in those projects, a member declaration that uses a type
+  named `closed` or `union` must write it as `@closed` or `@union`. Loose files
+  compile against the BuildHost runtime: on .NET 10 they must declare the union and
+  closed-type attributes themselves, or the compilation reports missing members.
 - **Test workspaces.** `RuleTestWorkspace.AddProject` defaults to C# 14 and accepts
   `languageVersion: LanguageVersion.CSharp15`. Its references come from the test
   host, so a .NET 10 host needs the same declarations in the test sources.
