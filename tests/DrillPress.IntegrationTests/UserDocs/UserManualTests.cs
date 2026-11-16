@@ -21,6 +21,60 @@ public sealed class UserManualTests(UserManualFixture fixture) : IClassFixture<U
     }
 
     [Fact]
+    public async Task Union_example_reports_once_per_method_and_fixes_both_source_forms()
+    {
+        var rules = fixture.CreateRules("selections.html#example-union", "ClockRules");
+        var workspace = new RuleTestWorkspace();
+        workspace.AddProject(
+            "Clock",
+            [
+                new(
+                    "Clock.cs",
+                    """
+                    using System;
+                    using System.Threading.Tasks;
+                    class Clock(TimeProvider clock)
+                    {
+                        async Task<DateTimeOffset> Later()
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(1));
+                            return DateTimeOffset.UtcNow;
+                        }
+                    }
+                    """
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            TEAM040 Read time through the injected TimeProvider.
+            Clock.cs
+              +7:20
+
+            """.Replace("\r\n", "\n"),
+            result.Output
+        );
+        Assert.Equal(
+            """
+            using System;
+            using System.Threading.Tasks;
+            class Clock(TimeProvider clock)
+            {
+                async Task<DateTimeOffset> Later()
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), clock);
+                    return clock.GetUtcNow();
+                }
+            }
+            """,
+            result.FixedText("Clock.cs")
+        );
+    }
+
+    [Fact]
     public void Local_navigation_and_assets_resolve()
     {
         var broken = fixture.BrokenLinks();

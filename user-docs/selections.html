@@ -108,6 +108,54 @@ policy.For(Code.Calls.ToMethodsNamed(&quot;ReadQuery&quot;))
 policy.For(Code.Enumerations)
     .Require(Coverage.EnumerationStarted);</code></pre></div>
 <p>Apply your own source filters to both selections. The rule reserves its ID immediately; no other rule can reuse it. Each clause keeps its typed evidence and outcome policy. <code>ReportOncePer</code> groups only its own clause, and every fix still passes conflict and combined validation. See <a href="../docs/RULE_AUTHORING.md">shared-rule reporting and fix behavior</a>.</p>
+<h2 id="union-candidates">Cover several source forms with a union</h2>
+<p>Separate clauses suit forms that need their own conditions or evidence. When the forms share one policy and you want one clause, so that <code>ReportOncePer</code> groups across them or one factory handles every form, declare a C# 15 union of the candidate types.</p>
+<div class="codeblock"><div class="codehead"><span>One clause for clock reads and waits</span></div><pre tabindex="0" data-check="library" id="example-union"><code>using DrillPress;
+
+public union ClockUse(MemberReference, CodeInvocation);
+
+public static class ClockRules
+{
+    public static RuleCatalog Create()
+    {
+        var reads = CodeType.Of&lt;DateTimeOffset&gt;().Member(&quot;UtcNow&quot;).References
+            .Select&lt;ClockUse&gt;(read =&gt; read);
+        var waits = Code.Calls.ToMethodsNamed(&quot;Delay&quot;)
+            .Where(call =&gt; call.WaitsWithoutTimeProvider())
+            .Select&lt;ClockUse&gt;(wait =&gt; wait);
+
+        var rules = new RuleCatalog();
+        rules.Rule(&quot;TEAM040&quot;, &quot;Read time through the injected TimeProvider.&quot;)
+            .For(reads.Concat(waits))
+            .ReportAt(use =&gt; use.Value as ICodeElement)
+            .ReportOncePer(use =&gt; (use.Value as ICodeElement)?.ContainingMethod())
+            .Forbid(fix: use =&gt; use switch
+            {
+                MemberReference read =&gt; Fix.For(read).UseTimeProvider(&quot;clock&quot;).Propose(),
+                CodeInvocation wait =&gt; Fix.For(wait).UseTimeProvider(&quot;clock&quot;).Propose(),
+            });
+        return rules;
+    }
+}</code></pre></div>
+<p>A union has no location of its own, so <code>ReportAt(use =&gt; use.Value as ICodeElement)</code> reports each case at its usual place. Here a method that both waits and reads the clock gets one finding, and the fixes for both uses are applied. The switch lists every case without a discard, so a case added to the union later makes each unhandled switch fail to compile (CS8509 under <code>TreatWarningsAsErrors</code>). Queries never produce the default union value, whose <code>Value</code> is null.</p>
+<p>Handling every case does not make a fix safe. Each proposal still passes its own proof and the combined-batch and compilation checks. When one is withheld, <code>drillpress check --explain-fixes</code> or <code>RuleTestResult.ExplainedOutput</code> shows why; see <a href="fixes.html#test-fixes">test the fixes you withhold</a>.</p>
+<div class="table-wrap"><table><thead><tr><th>Choose</th><th>When</th></tr></thead><tbody>
+<tr><td>Typed clauses</td><td>Each form has its own requirement, condition or coverage evidence.</td></tr>
+<tr><td>A union</td><td>One policy covers types you do not own, such as <code>CodeInvocation</code> and <code>MemberReference</code>.</td></tr>
+<tr><td>A closed class hierarchy</td><td>You own the cases and they share data or behavior.</td></tr>
+<tr><td>An enum</td><td>The cases carry no data.</td></tr>
+</tbody></table></div>
+<p>Unions need C# 15, which comes with the .NET 11 SDK. A bundle that targets <code>net11.0</code> gets the runtime types it needs. A bundle that targets <code>net10.0</code> sets <code>&lt;LangVersion&gt;15.0&lt;/LangVersion&gt;</code> and declares them itself:</p>
+<div class="codeblock"><div class="codehead"><span>Union types for a net10.0 bundle</span></div><pre tabindex="0"><code>namespace System.Runtime.CompilerServices;
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
+public sealed class UnionAttribute : Attribute;
+
+public interface IUnion
+{
+    object? Value { get; }
+}</code></pre></div>
+<p>Drill Press candidates are classes, so a union of them adds no allocation; value-type cases would be boxed. See <a href="../docs/CSHARP_15_UNIONS.md">C# 15 unions in Drill Press</a> for measurements and the choices behind this guidance.</p>
 <h2 id="conditions">Name conditions and exceptions</h2>
 <div class="codeblock"><div class="codehead"><span>Compose a convention and its exception</span></div><pre tabindex="0" data-check="program" id="example-6"><code>using DrillPress;
 
@@ -158,7 +206,7 @@ rules.Rule(&quot;PARAM001&quot;, &quot;Group long parameter lists into a request
 </nav>
 <footer class="footer">Drill Press · Custom rule authoring</footer>
 </article>
-<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#filters">Filter by name, place, and shape</a><a href="#exclude-projects">Leave whole projects out</a><a href="#shared-identity">Give typed clauses one rule identity</a><a href="#conditions">Name conditions and exceptions</a><a href="#report-at">Choose where the finding points</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
+<nav class="toc" aria-label="On this page"><strong>On this page</strong><a href="#roots">Start with the smallest useful selection</a><a href="#require">Forbid or require?</a><a href="#filters">Filter by name, place, and shape</a><a href="#exclude-projects">Leave whole projects out</a><a href="#shared-identity">Give typed clauses one rule identity</a><a href="#union-candidates">Cover several source forms with a union</a><a href="#conditions">Name conditions and exceptions</a><a href="#report-at">Choose where the finding points</a><a href="#composition">Transform and connect selections</a><a href="#reuse">Reuse queries; keep predicates pure</a></nav>
 </main>
 </div>
 <dialog id="search-dialog" aria-labelledby="search-title">

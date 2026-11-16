@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.Loader;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -15,30 +16,39 @@ public sealed class UserManualFixture : IntegrationTest
     public static TheoryData<string, string, string> ReadExamples()
     {
         var examples = new TheoryData<string, string, string>();
-        foreach (var path in Pages())
-        {
-            var html = FileSystem.File.ReadAllText(path);
-            foreach (
-                Match match in Regex.Matches(
-                    html,
-                    """<pre[^>]*data-check="(program|library)"[^>]*id="([^"]+)"[^>]*><code>([\s\S]*?)</code></pre>"""
-                )
-            )
-            {
-                examples.Add(
-                    FileSystem.Path.GetFileName(path) + "#" + match.Groups[2].Value,
-                    match.Groups[1].Value,
-                    WebUtility.HtmlDecode(match.Groups[3].Value)
-                );
-            }
-        }
+        foreach (var (name, kind, code) in Examples())
+            examples.Add(name, kind, code);
         return examples;
     }
 
-    public string[] Compile(string name, string kind, string code)
+    public string[] Compile(string name, string kind, string code) =>
+        Compilation(name, kind, code)
+            .GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.ToString())
+            .ToArray();
+
+    // Runs a library example's rule factory, so the manual's code is exercised as written.
+    public RuleCatalog CreateRules(string name, string factoryType)
     {
-        var options = new CSharpParseOptions(LanguageVersion.CSharp14);
-        var compilation = CSharpCompilation.Create(
+        var (_, kind, code) = Examples().Single(example => example.Name == name);
+        using var image = new MemoryStream();
+        var emitted = Compilation(name, kind, code)
+            .Emit(image, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emitted.Success, string.Join('\n', emitted.Diagnostics));
+        image.Position = 0;
+        var assembly = new AssemblyLoadContext(name).LoadFromStream(image);
+        return (RuleCatalog)
+            assembly
+                .GetType(factoryType, throwOnError: true)!
+                .GetMethod("Create")!
+                .Invoke(null, null)!;
+    }
+
+    private CSharpCompilation Compilation(string name, string kind, string code)
+    {
+        var options = new CSharpParseOptions(LanguageVersion.CSharp15);
+        return CSharpCompilation.Create(
             "ManualExample",
             [
                 CSharpSyntaxTree.ParseText(
@@ -52,6 +62,22 @@ public sealed class UserManualFixture : IntegrationTest
                     """,
                     options
                 ),
+                // The .NET 10 test host lacks the runtime types C# 15 unions need; the manual shows this polyfill.
+                CSharpSyntaxTree.ParseText(
+                    """
+                    namespace System.Runtime.CompilerServices
+                    {
+                        [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
+                        public sealed class UnionAttribute : Attribute;
+
+                        public interface IUnion
+                        {
+                            object? Value { get; }
+                        }
+                    }
+                    """,
+                    options
+                ),
                 CSharpSyntaxTree.ParseText(code, options, name),
             ],
             _references,
@@ -62,11 +88,6 @@ public sealed class UserManualFixture : IntegrationTest
                 nullableContextOptions: NullableContextOptions.Enable
             )
         );
-        return compilation
-            .GetDiagnostics(TestContext.Current.CancellationToken)
-            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .Select(diagnostic => diagnostic.ToString())
-            .ToArray();
     }
 
     public string[] BrokenLinks()
@@ -101,6 +122,23 @@ public sealed class UserManualFixture : IntegrationTest
         }
         return broken.ToArray();
     }
+
+    private static IEnumerable<(string Name, string Kind, string Code)> Examples() =>
+        Pages()
+            .SelectMany(path =>
+                Regex
+                    .Matches(
+                        FileSystem.File.ReadAllText(path),
+                        """<pre[^>]*data-check="(program|library)"[^>]*id="([^"]+)"[^>]*><code>([\s\S]*?)</code></pre>"""
+                    )
+                    .Select(match =>
+                        (
+                            FileSystem.Path.GetFileName(path) + "#" + match.Groups[2].Value,
+                            match.Groups[1].Value,
+                            WebUtility.HtmlDecode(match.Groups[3].Value)
+                        )
+                    )
+            );
 
     private static IEnumerable<string> Pages() =>
         FileSystem.Directory.EnumerateFiles(RepositoryPath("user-docs"), "*.html").Order();

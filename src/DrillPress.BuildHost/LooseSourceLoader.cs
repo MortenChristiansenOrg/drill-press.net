@@ -31,7 +31,7 @@ internal sealed class LooseSourceLoader(IFileSystem fileSystem)
                 using var stream = _fileSystem.File.OpenRead(path);
                 return CSharpSyntaxTree.ParseText(
                     SourceText.From(stream, System.Text.Encoding.UTF8),
-                    new CSharpParseOptions(LanguageVersion.CSharp14),
+                    new CSharpParseOptions(LanguageVersion.CSharp15),
                     path,
                     cancellationToken: cancellationToken
                 );
