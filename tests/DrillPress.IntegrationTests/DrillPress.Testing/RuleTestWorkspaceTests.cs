@@ -120,6 +120,85 @@ public sealed class RuleTestWorkspaceTests(SdkFixture fixture) : IClassFixture<S
     }
 
     [Fact]
+    public async Task Csharp_15_union_members_are_reported_and_fixed()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "Shapes",
+            [
+                new(
+                    "Polyfill.cs",
+                    """
+                    namespace System.Runtime.CompilerServices
+                    {
+                        [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
+                        public sealed class UnionAttribute : Attribute;
+
+                        public interface IUnion
+                        {
+                            object? Value { get; }
+                        }
+                    }
+                    """
+                ),
+                new(
+                    "Shape.cs",
+                    """
+                    public sealed record Circle(double Radius);
+                    public sealed record Square(double Side);
+                    public union Shape(Circle, Square)
+                    {
+                        public string Name => this switch
+                        {
+                            Circle => string.Empty,
+                            Square => "square",
+                        };
+                    }
+                    """
+                ),
+            ],
+            languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp15
+        );
+        var empty = CodeType.Of<string>().Member(nameof(string.Empty));
+        var rules = new RuleCatalog();
+        rules
+            .Rule("EMPTY", "Use \"\" instead of string.Empty.")
+            .For(empty.References)
+            .Forbid(fix: reference =>
+                Fix.For(reference)
+                    .ReplaceWithLiteral("")
+                    .SafeWhen(change => change.Before.RefersTo(empty) && change.After.Is(""))
+            );
+
+        var result = await workspace.CheckAsync(rules, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            EMPTY Use "" instead of string.Empty.
+            Shape.cs
+              +7:19
+
+            """.Replace("\r\n", "\n"),
+            result.Output
+        );
+        Assert.Equal(
+            """
+            public sealed record Circle(double Radius);
+            public sealed record Square(double Side);
+            public union Shape(Circle, Square)
+            {
+                public string Name => this switch
+                {
+                    Circle => "",
+                    Square => "square",
+                };
+            }
+            """,
+            result.FixedText("Shape.cs")
+        );
+    }
+
+    [Fact]
     public void Implicit_usings_match_the_dotnet_sdk_defaults_without_reportable_source()
     {
         var workspace = fixture.Workspace();

@@ -48,6 +48,82 @@ public sealed class TargetLoadingTests : IntegrationTest
     }
 
     [Fact]
+    public async Task Loose_source_compiles_csharp_15_unions_and_closed_types()
+    {
+        var root = CreateTemporaryDirectory("drillpress-loose-csharp15-").FullName;
+        await WriteAsync(
+            root,
+            "Polyfill.cs",
+            """
+            namespace System.Runtime.CompilerServices
+            {
+                [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
+                public sealed class UnionAttribute : Attribute;
+
+                public interface IUnion
+                {
+                    object? Value { get; }
+                }
+
+                [AttributeUsage(AttributeTargets.Class)]
+                public sealed class IsClosedTypeAttribute : Attribute;
+            }
+            """
+        );
+        await WriteAsync(
+            root,
+            "Shapes.cs",
+            """
+            public sealed record Circle(double Radius);
+            public sealed record Square(double Side);
+            public union Shape(Circle, Square)
+            {
+                public string Name => this switch
+                {
+                    Circle => string.Empty,
+                    Square => "square",
+                };
+            }
+            public closed class Outcome;
+            public sealed class Accepted : Outcome;
+            """
+        );
+        var output = FileSystem.Path.Combine(root, "snapshot.json");
+
+        var result = await ExportAsync(
+            FileSystem.Path.Combine(root, "*.cs"),
+            output,
+            "--validate-compilation"
+        );
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            output,
+            TestContext.Current.CancellationToken
+        );
+        var rules = new RuleCatalog();
+        rules
+            .Rule("EMPTY", "Use \"\" instead of string.Empty.")
+            .For(CodeType.Of<string>().Member(nameof(string.Empty)).References)
+            .Forbid();
+        var findings = await new AnalysisEngine().AnalyzeAsync(
+            rules,
+            snapshot,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            (int)Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp15,
+            Assert.Single(snapshot.Projects).LanguageVersion
+        );
+        Assert.Equal(
+            [(FileSystem.Path.Combine(root, "Shapes.cs"), 7, 19)],
+            findings.Select(finding =>
+                (finding.Location.FilePath, finding.Location.Line, finding.Location.Column)
+            )
+        );
+    }
+
+    [Fact]
     public async Task Zero_match_glob_fails_without_creating_a_snapshot()
     {
         var root = CreateTemporaryDirectory("drillpress-zero-glob-").FullName;

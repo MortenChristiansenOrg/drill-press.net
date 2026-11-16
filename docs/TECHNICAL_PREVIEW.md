@@ -117,7 +117,7 @@ built. BuildHost never restores or builds a target implicitly. The target's
 `--property Name=Value` to forward MSBuild global properties; the last assignment
 wins. For example, `--property TargetFramework=net10.0` selects one framework.
 
-Loose files/globs use a C# 14 library compilation with nullable enabled, no
+Loose files/globs use a C# 15 library compilation with nullable enabled, no
 implicit usings or preprocessor symbols, and captured BuildHost runtime platform
 references. Nearby project settings do not affect it, and MSBuild properties
 are rejected in loose mode.

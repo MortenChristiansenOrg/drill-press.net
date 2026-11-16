@@ -225,7 +225,7 @@ newer .NET than the one it runs on. SDK targets must already be restored: BuildH
 not restore or build them. Source-generator assemblies must also be available.
 Failures explain when to install an SDK or run `dotnet restore`.
 
-Loose files and globs always use an ad hoc C# 14 library compilation, even inside
+Loose files and globs always use an ad hoc C# 15 library compilation, even inside
 a project. Nullable annotations and warnings are enabled, there are no
 preprocessor symbols or implicit usings, and references come from the BuildHost
 runtime's trusted platform assembly set (captured with byte fingerprints).
@@ -289,6 +289,8 @@ and line-threshold rules, conservative occurrence evidence, and report reuse.
 
 See [rule authoring](docs/RULE_AUTHORING.md) for reusable queries, the five sample
 rules, semantic type identities, and the exact automatic-fix contracts.
+[C# 15 unions in Drill Press](docs/CSHARP_15_UNIONS.md) covers rules that span
+several candidate types and target code written in C# 15.
 
 The fix guides cover [contextual expression proposals](docs/CONTEXTUAL_FIXES.md),
 [argument, modifier and block edits](docs/STRUCTURED_FIXES.md), and

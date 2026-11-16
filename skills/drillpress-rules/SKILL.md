@@ -126,6 +126,14 @@ candidate types that cannot supply a location, and syntax/token/location selecto
 whose candidate type cannot supply a compilation. `ReportAt` returning null falls
 back to the candidate's location. `ReportOncePer(key)` shows one finding per key.
 
+To cover unrelated candidate types in one clause (C# 15, .NET 11 SDK), declare
+`union ClockUse(MemberReference, CodeInvocation);`, convert each query with
+`.Select<ClockUse>(read => read)`, `Concat` them, report with
+`.ReportAt(use => use.Value as ICodeElement)` and switch over every case without a
+discard. A `net10.0` bundle declares `System.Runtime.CompilerServices.UnionAttribute`
+and `IUnion { object? Value { get; } }` itself. Prefer separate clauses when forms
+need their own conditions or evidence.
+
 ## Fixes
 
 `Fix.For(candidate)` → an edit → `Propose()` when the library owns the proof, or

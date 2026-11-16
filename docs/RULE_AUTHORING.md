@@ -134,6 +134,11 @@ a batch; conflicting or jointly invalid proposals are withheld. A deduplicated
 occurrence receives a fix only when every contributing finding agrees on the
 validated batch. Display grouping never bypasses those checks.
 
+To group or fix several unrelated candidate types in one clause, declare a C# 15
+union of them; see the manual's
+[union section](../user-docs/selections.html#union-candidates) and
+[C# 15 unions in Drill Press](CSHARP_15_UNIONS.md) for the trade-offs.
+
 ### Reporting locations
 
 Without `ReportAt`, methods, types, fields, properties and parameters report at
