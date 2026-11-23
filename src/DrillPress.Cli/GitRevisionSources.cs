@@ -10,6 +10,10 @@ namespace DrillPress.Cli;
 /// </summary>
 internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRunner runner)
 {
+    private static readonly StringComparison _pathComparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
     private readonly IFileSystem _fileSystem = fileSystem;
 
     /// <summary>
@@ -46,7 +50,7 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                 .Select(other =>
                     GitAsync(
                         ["-C", other, "rev-parse", "--show-toplevel"],
-                        unresolved,
+                        $"Baseline '{revision}' needs every target in a Git repository, but '{other}' is outside one.",
                         cancellationToken
                     )
                 )
@@ -54,7 +58,7 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
         for (var index = 0; index < others.Length; index++)
         {
             var otherTopLevel = _fileSystem.Path.GetFullPath(others[index]);
-            if (!string.Equals(otherTopLevel, topLevel, StringComparison.Ordinal))
+            if (!string.Equals(otherTopLevel, topLevel, _pathComparison))
                 throw new IOException(
                     $"Baseline '{revision}' needs every target in one Git repository, but '{starts[index + 1]}' is in '{otherTopLevel}' and '{start}' in '{topLevel}'."
                 );
@@ -69,9 +73,7 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                 .FirstOrDefault(other =>
                     !(other + _fileSystem.Path.DirectorySeparatorChar).StartsWith(
                         prefix,
-                        OperatingSystem.IsWindows()
-                            ? StringComparison.OrdinalIgnoreCase
-                            : StringComparison.Ordinal
+                        _pathComparison
                     )
                 ) is
             { } outside
@@ -181,13 +183,8 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
         foreach (var segment in prefix.Split('/', StringSplitOptions.RemoveEmptyEntries).Reverse())
         {
             if (
-                !string.Equals(
-                    _fileSystem.Path.GetFileName(directory),
-                    segment,
-                    OperatingSystem.IsWindows()
-                        ? StringComparison.OrdinalIgnoreCase
-                        : StringComparison.Ordinal
-                ) || _fileSystem.Path.GetDirectoryName(directory) is not { } parent
+                !string.Equals(_fileSystem.Path.GetFileName(directory), segment, _pathComparison)
+                || _fileSystem.Path.GetDirectoryName(directory) is not { } parent
             )
                 return topLevel;
             directory = parent;

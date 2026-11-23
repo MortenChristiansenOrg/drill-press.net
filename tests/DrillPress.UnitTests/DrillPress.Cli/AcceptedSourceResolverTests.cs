@@ -209,6 +209,31 @@ public sealed class AcceptedSourceResolverTests
     }
 
     [Fact]
+    public async Task A_target_outside_any_repository_fails_before_rules_run()
+    {
+        var outside = _fileSystem.Path.GetFullPath("/outside");
+        _fileSystem.Directory.CreateDirectory(outside);
+        var error = new StringWriter();
+
+        var exit = await RunAsync(
+            error,
+            "--baseline",
+            "main",
+            Work("App.csproj"),
+            Path(outside, "Other.csproj")
+        );
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                $"drillpress: Baseline 'main' needs every target in a Git repository, but '{outside}' is outside one. fatal: not a git repository\n"
+            ),
+            (exit, error.ToString().ReplaceLineEndings("\n"))
+        );
+        Assert.Empty(_acceptedFiles);
+    }
+
+    [Fact]
     public async Task A_target_reaching_the_repository_by_another_path_fails_before_rules_run()
     {
         var alias = _fileSystem.Path.GetFullPath("/alias");
