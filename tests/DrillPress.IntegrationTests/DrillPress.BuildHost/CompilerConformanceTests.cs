@@ -590,7 +590,7 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
                   5:28
                     fix withheld: the original compilation has an error: CS0168 at Context.cs:6:33 The variable 'unused' is declared but never used
 
-                """,
+                """.ReplaceLineEndings("\n"),
                 ""
             ),
             result
