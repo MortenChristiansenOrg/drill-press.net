@@ -180,9 +180,17 @@ internal sealed class RepositoryConfigFile(IFileSystem fileSystem)
             ? text
             : throw Invalid(display, message);
 
-    // Rules and target paths stay relative to the current directory, so messages and output stay short.
-    private string ResolvePath(string directory, string path) =>
-        Relative(_fileSystem.Path.GetFullPath(_fileSystem.Path.Combine(directory, path)));
+    // Rules and target paths stay relative to the current directory, so messages and output stay short. A path that
+    // would start with a dash keeps a leading ./, so no tool reads it as an option.
+    private string ResolvePath(string directory, string path)
+    {
+        var relative = Relative(
+            _fileSystem.Path.GetFullPath(_fileSystem.Path.Combine(directory, path))
+        );
+        return relative.StartsWith('-')
+            ? "." + _fileSystem.Path.DirectorySeparatorChar + relative
+            : relative;
+    }
 
     // A trailing separator, either / or \, or a pattern naming an existing directory selects everything below it.
     private string FullGlob(string directory, string pattern)

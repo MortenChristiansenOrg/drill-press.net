@@ -51,6 +51,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         }
 
         var selection = ProjectSelection.Create(_fileSystem, targets, options);
+        options = options with { Properties = selection.Properties };
         if (options.GenerationPlanDirectory is { } generationDirectory)
         {
             var transport = new GeneratorTransport(_fileSystem, generationDirectory);
@@ -195,12 +196,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     // and a project an earlier one already loaded as a reference is not opened again.
     private async Task<Solution> OpenAsync(
         MSBuildWorkspace workspace,
-        ProjectEntryPoint[] entryPoints,
+        string[] entryPoints,
         CancellationToken cancellationToken
     )
     {
         if (
-            entryPoints is [{ Path: var solution }]
+            entryPoints is [var solution]
             && !_fileSystem
                 .Path.GetExtension(solution)
                 .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
@@ -210,12 +211,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             return workspace.CurrentSolution;
         }
 
-        // The workspace applies one set of global properties to every project.
-        if (entryPoints.FirstOrDefault(entry => entry.Properties.Count > 0) is { } mapped)
-            throw new InvalidOperationException(
-                $"A solution maps '{mapped.Path}' to {string.Join(", ", mapped.Properties.Select(property => $"{property.Key}={property.Value}"))}, which applies beside other targets only when MSBuild's project graph loads them; check that solution on its own."
-            );
-        foreach (var project in entryPoints.Select(entry => entry.Path))
+        foreach (var project in entryPoints)
         {
             if (
                 !workspace.CurrentSolution.Projects.Any(loaded =>

@@ -225,6 +225,37 @@ public sealed class CliProjectScopeTests : IntegrationTest
     }
 
     [Fact]
+    public async Task Solutions_that_build_projects_in_different_configurations_fail_beside_other_targets()
+    {
+        var root = await CreateGraphAsync();
+        await WriteAsync(
+            root,
+            "Retail.slnx",
+            """
+            <Solution>
+              <Configurations><BuildType Name="Retail" /></Configurations>
+              <Project Path="App/App.csproj"><BuildType Solution="Retail|*" Project="Release" /></Project>
+              <Project Path="Dependency/Dependency.csproj" />
+            </Solution>
+            """
+        );
+
+        var result = await RunCliAsync(
+            FileSystem.Path.Combine(root, "Retail.slnx"),
+            FileSystem.Path.Combine(root, "Leaf/Leaf.csproj")
+        );
+
+        Assert.Equal(
+            (
+                2,
+                "",
+                $"DrillPress.BuildHost: The solutions among the targets build their projects in different configurations (Release|AnyCPU for '{FileSystem.Path.Combine(root, "App", "App.csproj")}', Retail|AnyCPU for '{FileSystem.Path.Combine(root, "Dependency", "Dependency.csproj")}'); check such a solution on its own.{Environment.NewLine}drillpress: BuildHost exited 2.{Environment.NewLine}"
+            ),
+            (result.ExitCode, result.StandardOutput, result.StandardError)
+        );
+    }
+
+    [Fact]
     public async Task Project_and_loose_targets_analyse_only_what_they_name()
     {
         var root = await CreateGraphAsync();

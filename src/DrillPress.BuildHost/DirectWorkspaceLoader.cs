@@ -22,7 +22,7 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
 
     internal Solution? Load(
         MSBuildWorkspace workspace,
-        IReadOnlyList<ProjectEntryPoint> entryPoints,
+        IReadOnlyList<string> entryPoints,
         IDictionary<string, string> properties,
         CancellationToken cancellationToken,
         Action<Microsoft.CodeAnalysis.Project>? loaded = null
@@ -44,19 +44,7 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
         try
         {
             graph = new BuildGraph(
-                entryPoints.Select(entryPoint => new ProjectGraphEntryPoint(
-                    entryPoint.Path,
-                    entryPoint.Properties.Count == 0
-                        ? globals
-                        : new Dictionary<string, string>(globals, StringComparer.OrdinalIgnoreCase)
-                            .Concat(entryPoint.Properties)
-                            .GroupBy(property => property.Key, StringComparer.OrdinalIgnoreCase)
-                            .ToDictionary(
-                                group => group.Key,
-                                group => group.Last().Value,
-                                StringComparer.OrdinalIgnoreCase
-                            )
-                )),
+                entryPoints.Select(entryPoint => new ProjectGraphEntryPoint(entryPoint, globals)),
                 collection,
                 (path, globalProperties, projectCollection) =>
                 {

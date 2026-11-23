@@ -298,6 +298,26 @@ public sealed class RepositoryConfigFileTests
         );
     }
 
+    [Fact]
+    public async Task A_target_path_starting_with_a_dash_is_not_passed_as_an_option()
+    {
+        Configure("drillpress.json", """{ "rules": "Rules.dll", "target": "--script.cs" }""");
+        var error = new StringWriter();
+
+        var result = await RunAsync(error, "check", "--build-host", "host");
+
+        Assert.Equal((CliExitCode.Clean, ""), (result, error.ToString()));
+        Assert.Equal(
+            [
+                "host",
+                "export",
+                "." + _fileSystem.Path.DirectorySeparatorChar + "--script.cs",
+                SnapshotPath(_calls[0]),
+            ],
+            _calls[0]
+        );
+    }
+
     [Theory]
     [InlineData(
         """{ "rule": "Rules.dll" }""",

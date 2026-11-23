@@ -12,12 +12,6 @@ namespace DrillPress.BuildHost;
 /// <param name="Name">The full version dotnet reports, with any prerelease label.</param>
 internal sealed record SelectedSdk(Version Version, bool IsPreview, string Name = "");
 
-/// <summary>A project or solution to load, with the global properties its solution's configuration mapping sets.</summary>
-internal sealed record ProjectEntryPoint(
-    string Path,
-    IReadOnlyDictionary<string, string> Properties
-);
-
 internal sealed record GeneratedProject(
     string ContextId,
     string[] DiagnosticIds,
