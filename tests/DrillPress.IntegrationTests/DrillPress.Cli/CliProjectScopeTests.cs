@@ -151,7 +151,7 @@ public sealed class CliProjectScopeTests : IntegrationTest
         var single = await RunCliAsync(FileSystem.Path.Combine(root, "All.slnx"));
         var several = await RunCliAsync(
             FileSystem.Path.Combine(root, "App/App.csproj"),
-            FileSystem.Path.Combine(root, "All.slnx"),
+            FileSystem.Path.Combine(root, "Dependency/Dependency.csproj"),
             FileSystem.Path.Combine(root, "Leaf/Leaf.cs"),
             FileSystem.Path.Combine(root, "Leaf"),
             "--validate-compilation"
@@ -165,91 +165,18 @@ public sealed class CliProjectScopeTests : IntegrationTest
     }
 
     [Fact]
-    public async Task A_solution_beside_other_targets_keeps_its_configuration_mapping()
+    public async Task A_solution_beside_other_targets_fails_before_the_rules_build()
     {
         var root = await CreateGraphAsync();
-        await WriteAsync(
-            root,
-            "App/App.csproj",
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
-              <ItemGroup><ProjectReference Include="../Dependency/Dependency.csproj" /></ItemGroup>
-              <ItemGroup Condition="'$(Configuration)' != 'Release'"><Compile Remove="ReleaseOnly.cs" /></ItemGroup>
-            </Project>
-            """
-        );
-        await WriteAsync(
-            root,
-            "App/ReleaseOnly.cs",
-            "class ReleaseOnly { string Value => string.Empty; }"
-        );
-        await WriteAsync(
-            root,
-            "Retail.slnx",
-            """
-            <Solution>
-              <Configurations><BuildType Name="Retail" /></Configurations>
-              <Project Path="App/App.csproj"><BuildType Solution="Retail|*" Project="Release" /></Project>
-            </Solution>
-            """
-        );
+        var solution = FileSystem.Path.Combine(root, "All.slnx");
 
-        var single = await RunCliAsync(FileSystem.Path.Combine(root, "Retail.slnx"));
-        var several = await RunCliAsync(
-            FileSystem.Path.Combine(root, "Retail.slnx"),
-            FileSystem.Path.Combine(root, "Leaf/Leaf.csproj")
-        );
-
-        Assert.Equal(
-            (
-                1,
-                $"""
-                DP1004 Use the empty string literal "" instead of string.Empty.
-                {Relative(root, "App/ReleaseOnly.cs")}
-                  +1:37
-                {Relative(root, "Dependency/Dependency.cs")}
-                  +1:57
-                {Relative(root, "Leaf/Leaf.cs")}
-                  +1:51
-
-                """.ReplaceLineEndings("\n"),
-                ""
-            ),
-            (single.ExitCode, single.StandardOutput, single.StandardError)
-        );
-        Assert.Equal(
-            (single.ExitCode, single.StandardOutput, single.StandardError),
-            (several.ExitCode, several.StandardOutput, several.StandardError)
-        );
-    }
-
-    [Fact]
-    public async Task Solutions_that_build_projects_in_different_configurations_fail_beside_other_targets()
-    {
-        var root = await CreateGraphAsync();
-        await WriteAsync(
-            root,
-            "Retail.slnx",
-            """
-            <Solution>
-              <Configurations><BuildType Name="Retail" /></Configurations>
-              <Project Path="App/App.csproj"><BuildType Solution="Retail|*" Project="Release" /></Project>
-              <Project Path="Dependency/Dependency.csproj" />
-            </Solution>
-            """
-        );
-
-        var result = await RunCliAsync(
-            FileSystem.Path.Combine(root, "Retail.slnx"),
-            FileSystem.Path.Combine(root, "Leaf/Leaf.csproj")
-        );
+        var result = await RunCliAsync(FileSystem.Path.Combine(root, "Leaf/Leaf.csproj"), solution);
 
         Assert.Equal(
             (
                 2,
                 "",
-                $"DrillPress.BuildHost: The solutions among the targets build their projects in different configurations (Release|AnyCPU for '{FileSystem.Path.Combine(root, "App", "App.csproj")}', Retail|AnyCPU for '{FileSystem.Path.Combine(root, "Dependency", "Dependency.csproj")}'); check such a solution on its own.{Environment.NewLine}drillpress: BuildHost exited 2.{Environment.NewLine}"
+                $"drillpress: Solution target '{solution}' must be the only target; check it on its own or list its projects.{Environment.NewLine}"
             ),
             (result.ExitCode, result.StandardOutput, result.StandardError)
         );

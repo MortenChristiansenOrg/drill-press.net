@@ -284,7 +284,7 @@ public sealed class BuildHostApplicationTests
     public async Task Every_argument_before_the_snapshot_is_a_resolved_target()
     {
         _fileSystem.AddFile("App/App.csproj", new MockFileData("<Project />"));
-        _fileSystem.AddFile("All.slnx", new MockFileData("<Solution />"));
+        _fileSystem.AddFile("Lib/Lib.csproj", new MockFileData("<Project />"));
         _fileSystem.AddFile("Program.cs", new MockFileData("class Program;"));
         var loader = new StubSnapshotLoader(_fileSystem);
         var error = new StringWriter();
@@ -293,7 +293,7 @@ public sealed class BuildHostApplicationTests
             [
                 "export",
                 "App",
-                "All.slnx",
+                "Lib/Lib.csproj",
                 "src/**/*.cs",
                 "Program.cs",
                 "snapshot.json",
@@ -308,7 +308,7 @@ public sealed class BuildHostApplicationTests
         Assert.Equal(
             [
                 _fileSystem.Path.GetFullPath("App/App.csproj"),
-                _fileSystem.Path.GetFullPath("All.slnx"),
+                _fileSystem.Path.GetFullPath("Lib/Lib.csproj"),
                 _fileSystem.Path.GetFullPath("src/**/*.cs"),
                 _fileSystem.Path.GetFullPath("Program.cs"),
             ],

@@ -20,7 +20,7 @@ setup, and an integration test runs it with the packaged tool.
 | Key | Value | Command-line option |
 | --- | --- | --- |
 | `rules` | The rules project, its directory, or a compiled bundle. | `--rules <path>` |
-| `target` | The solution, project, directory, C# file or glob to check, or an array of them to check together. | `<target>...` |
+| `target` | The solution, project, directory, C# file or glob to check, or an array of projects, directories, C# files and globs to check together. A solution must be the only target. | `<target>...` |
 | `properties` | MSBuild global properties, as an object of string values. | `--property Name=Value` |
 | `select` | Rule IDs to report. Omit it to report every rule. | `--select <ids>` |
 | `ignore` | Rule IDs that are never reported. | `--ignore <ids>` |

@@ -51,7 +51,6 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         }
 
         var selection = ProjectSelection.Create(_fileSystem, targets, options);
-        options = options with { Properties = selection.Properties };
         if (options.GenerationPlanDirectory is { } generationDirectory)
         {
             var transport = new GeneratorTransport(_fileSystem, generationDirectory);
@@ -59,7 +58,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 _fileSystem,
                 transport,
                 await transport.ReadCapabilitiesAsync(cancellationToken),
-                selection.IsNamed
+                selection.IsAnalysed
             );
         }
 
@@ -98,7 +97,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             {
                 var directSolution = direct.Load(
                     workspace,
-                    selection.EntryPoints,
+                    targets,
                     options.Properties,
                     cancellationToken,
                     streaming is null
@@ -113,9 +112,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                                 profile
                             )
                 );
-                original =
-                    directSolution
-                    ?? await OpenAsync(workspace, selection.EntryPoints, cancellationToken);
+                original = directSolution ?? await OpenAsync(workspace, targets, cancellationToken);
             }
 
             ThrowLoadFailures(failures);
@@ -152,30 +149,13 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         if (options.GeneratorCatalogPath is { } catalogPath)
             await _generatorBuild.WriteAsync(catalogPath, cancellationToken);
 
-        var analysed = selection.Analysed(
-            direct.References
-                ?? original
-                    .Projects.SelectMany(project =>
-                        project.ProjectReferences.Select(reference =>
-                            (
-                                Project: project.FilePath!,
-                                Reference: original.GetProject(reference.ProjectId)!.FilePath!
-                            )
-                        )
-                    )
-                    .ToLookup(
-                        edge => _fileSystem.Path.GetFullPath(edge.Project),
-                        edge => _fileSystem.Path.GetFullPath(edge.Reference),
-                        PathComparer
-                    )
-        );
         var contexts = captured
             .Select(context =>
                 context with
                 {
                     Snapshot = context.Snapshot with
                     {
-                        IsAnalysisTarget = analysed(context.Snapshot.ProjectPath),
+                        IsAnalysisTarget = selection.IsAnalysed(context.Snapshot.ProjectPath),
                     },
                 }
             )
@@ -192,16 +172,16 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     private static StringComparer PathComparer =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-    // MSBuildWorkspace opens one solution only into an empty workspace, so several targets open as projects,
-    // and a project an earlier one already loaded as a reference is not opened again.
+    // A solution is always the only target. Several project targets open one by one, and a project an earlier one
+    // already loaded as a reference is not opened again.
     private async Task<Solution> OpenAsync(
         MSBuildWorkspace workspace,
-        string[] entryPoints,
+        IReadOnlyList<string> targets,
         CancellationToken cancellationToken
     )
     {
         if (
-            entryPoints is [var solution]
+            targets is [var solution]
             && !_fileSystem
                 .Path.GetExtension(solution)
                 .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
@@ -211,7 +191,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             return workspace.CurrentSolution;
         }
 
-        foreach (var project in entryPoints)
+        foreach (var project in targets)
         {
             if (
                 !workspace.CurrentSolution.Projects.Any(loaded =>

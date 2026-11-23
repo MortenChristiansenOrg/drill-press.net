@@ -252,7 +252,8 @@ nothing but still inform analysis. Put the rules project and its test fixtures i
 `exclude`. Details are in [reference/testing.md](reference/testing.md#repository-defaults).
 
 Targets can be a solution, project, directory, `.cs` file or quoted glob; pass several
-(`fix A.csproj B.csproj`) to check them in one run with one rules build. Exit codes: 0 clean,
+(`fix A.csproj B.csproj`) to check them in one run with one rules build; a solution
+must be the only target. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
 `status` prints only violation counts per project and fix complexity; use it to pick
 the next project or `--fix-complexity` level to work on. `--explain-fixes` explains

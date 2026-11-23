@@ -15,9 +15,6 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
     private readonly IFileSystem _fileSystem = fileSystem;
     private ProjectCollection? _collection;
 
-    /// <summary>Each loaded project's referenced project paths, as MSBuild's graph found them; null before a graph loads.</summary>
-    internal ILookup<string, string>? References { get; private set; }
-
     public void Dispose() => _collection?.Dispose();
 
     internal Solution? Load(
@@ -58,23 +55,6 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
             // Projects the graph cannot evaluate, such as those needing an absent SDK, keep MSBuildWorkspace's handling.
             return null;
         }
-        // Build-only references, which compilations do not show, still put a project in its solution's scope.
-        References = graph
-            .ProjectNodes.SelectMany(node =>
-                node.ProjectReferences.Select(reference =>
-                    (
-                        Project: node.ProjectInstance.FullPath,
-                        Reference: reference.ProjectInstance.FullPath
-                    )
-                )
-            )
-            .ToLookup(
-                edge => edge.Project,
-                edge => edge.Reference,
-                OperatingSystem.IsWindows()
-                    ? StringComparer.OrdinalIgnoreCase
-                    : StringComparer.Ordinal
-            );
         var nodes = graph.ProjectNodesTopologicallySorted.ToArray();
         if (
             nodes.Length == 0

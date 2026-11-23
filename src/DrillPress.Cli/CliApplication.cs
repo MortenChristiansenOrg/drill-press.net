@@ -16,7 +16,8 @@ public sealed class CliApplication
         check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
         status counts violations per project, then per fix complexity.
         Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob. Several targets run as one analysis
-          with one rules build; each keeps its own project scope, and shared files report once.
+          with one rules build; each keeps its own project scope, and shared files report once. A solution
+          must be the only target.
         --rules: rules project (.csproj or its directory; restored and built in Release),
           compiled rule DLL, or native executable. --build-host: override the packaged loader.
         --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
@@ -127,6 +128,14 @@ public sealed class CliApplication
             if (optionError is not null)
                 await standardError.WriteLineAsync($"drillpress: {optionError}");
             await standardError.WriteLineAsync(Usage);
+            return CliExitCode.Failure;
+        }
+
+        if (CombinedSolution(options.Targets) is { } solution)
+        {
+            await standardError.WriteLineAsync(
+                $"drillpress: Solution target '{solution}' must be the only target; check it on its own or list its projects."
+            );
             return CliExitCode.Failure;
         }
 
@@ -373,6 +382,27 @@ public sealed class CliApplication
         }
         return await running;
     }
+
+    // MSBuild sets solution properties only for a solution it loads alone, so a solution must be the only target.
+    // A directory target resolves to its solution when it holds one.
+    private string? CombinedSolution(string[] targets) =>
+        targets.Length > 1
+            ? targets.FirstOrDefault(target =>
+                target.IndexOfAny(['*', '?']) < 0
+                && (
+                    IsSolution(target)
+                    || _fileSystem.Directory.Exists(target)
+                        && _fileSystem.Directory.EnumerateFiles(target).Any(IsSolution)
+                )
+            )
+            : null;
+
+    private bool IsSolution(string path) =>
+        _fileSystem.Path.GetExtension(path) is var extension
+        && (
+            extension.Equals(".sln", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase)
+        );
 
     // A file target that a project also compiles can move with it; the recheck follows it to its new path.
     private string[] MovedTargets(string[] targets, MovedFile[] moves) =>

@@ -235,7 +235,7 @@ public sealed class RepositoryConfigFileTests
             """
             {
               "rules": "Rules.dll",
-              "target": ["App.slnx", "tools/Tool.csproj", "scripts/*.cs"],
+              "target": ["App/App.csproj", "tools/Tool.csproj", "scripts/*.cs"],
               "properties": { "Configuration": "Release" }
             }
             """,
@@ -252,7 +252,7 @@ public sealed class RepositoryConfigFileTests
                 [
                     "host",
                     "export",
-                    _fileSystem.Path.Combine("..", "App.slnx"),
+                    _fileSystem.Path.Combine("..", "App", "App.csproj"),
                     _fileSystem.Path.Combine("..", "tools", "Tool.csproj"),
                     _fileSystem.Path.Combine("..", "scripts", "*.cs"),
                     snapshot,
@@ -273,7 +273,7 @@ public sealed class RepositoryConfigFileTests
             """
             {
               "rules": "Rules.dll",
-              "target": ["App.slnx", "tools/Tool.csproj"],
+              "target": ["App/App.csproj", "tools/Tool.csproj"],
               "properties": { "Configuration": "Release" }
             }
             """
@@ -471,6 +471,28 @@ public sealed class RepositoryConfigFileTests
     }
 
     // BuildHost takes every target, then the snapshot, before its options.
+    [Fact]
+    public async Task A_target_array_with_a_solution_fails_before_starting_tools()
+    {
+        Configure(
+            "drillpress.json",
+            """{ "rules": "Rules.dll", "target": ["tools/Tool.csproj", "App.slnx"] }"""
+        );
+        var error = new StringWriter();
+
+        var result = await RunAsync(error, "check", "--build-host", "host");
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                "drillpress: Solution target 'App.slnx' must be the only target; check it on its own or list its projects."
+                    + Environment.NewLine
+            ),
+            (result, error.ToString())
+        );
+        Assert.Empty(_calls);
+    }
+
     private static string SnapshotPath(string[] call) =>
         call.TakeWhile(argument => !argument.StartsWith("--", StringComparison.Ordinal)).Last();
 

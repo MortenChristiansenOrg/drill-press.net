@@ -164,13 +164,22 @@ public sealed class CliFixTests : IntegrationTest
         await RestoreAsync(solution);
 
         var result = await FixAsync(
-            solution,
-            FileSystem.Path.Combine(root, "src", "Orders", "Misnamed.cs")
+            FileSystem.Path.Combine(root, "tests", "Orders.Tests", "Orders.Tests.csproj"),
+            FileSystem.Path.Combine(root, "src", "Orders", "Misnamed.cs"),
+            "--include-referenced-projects"
         );
 
         Assert.Equal(new ProcessResult(0, "", ""), result);
-        Assert.Contains("src/Orders/Invoice.cs", SourceFiles(root));
-        Assert.DoesNotContain("src/Orders/Misnamed.cs", SourceFiles(root));
+        Assert.Equal(
+            [
+                "src/Orders/Invoice.cs",
+                "src/Orders/Orders.csproj",
+                "src/Orders/Services/OrderService.cs",
+                "tests/Orders.Tests/Orders.Tests.csproj",
+                "tests/Orders.Tests/Services/OrderServiceTests.cs",
+            ],
+            SourceFiles(root)
+        );
     }
 
     [Fact]

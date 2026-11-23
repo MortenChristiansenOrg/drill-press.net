@@ -180,7 +180,8 @@ Run `drillpress check`, `fix` or `status` with `--rules path/to/Rules target...`
 a rules project or its directory, which the CLI restores and builds in Release, or
 a built rule DLL. Targets are solutions, projects, directories,
 loose `.cs` files or quoted globs. Several targets run as one analysis with one rules
-build; each keeps its own scope and shared files report once. The CLI loads the targets with their SDK; the bundle consumes the
+build; each keeps its own scope and shared files report once. A solution must be the
+only target. The CLI loads the targets with their SDK; the bundle consumes the
 captured compilation. Source generators receive additional files in build order,
 and referenced contexts generate before their dependents. Independent contexts can
 load in parallel; failures are reported in snapshot order.
@@ -214,7 +215,7 @@ A committed `drillpress.json` in the current directory or a parent sets defaults
 ```jsonc
 {
   "rules": "eng/Rules",                    // rules project, its directory, or a built bundle
-  "target": "App.slnx",                    // or an array of targets checked together
+  "target": "App.slnx",                    // or an array of non-solution targets checked together
   "properties": { "Configuration": "Debug" },
   "select": ["TEAM001", "TEAM002"],        // rule IDs to report; omit for all
   "ignore": ["TEAM003"],                   // rule IDs never reported

@@ -219,11 +219,10 @@ Several targets, such as `drillpress fix A.csproj B.csproj "tools/**/*.cs"`, run
 one analysis: the rules build once, BuildHost loads every target in one session, and
 `fix` rechecks them all. Each target keeps the scope it has alone, and a file that
 several targets share reports once. Loose files that an analysed project already
-compiles are analysed in that project. A solution among several targets loads as the
-projects its selected configuration builds, and every target then uses the one
-configuration and platform the solution maps them to; a solution that maps its projects
-to different ones must be checked alone. All project targets must select the same
-.NET SDK, and `--baseline` with a Git revision needs them in one repository.
+compiles are analysed in that project. A solution must be the only target, because
+MSBuild sets solution properties only for a solution it loads alone; check it on its
+own or list its projects. All project targets must select the same .NET SDK, and
+`--baseline` with a Git revision needs them in one repository.
 
 Pass repeatable `--property Name=Value` options to override MSBuild global
 properties; the last assignment wins. `--property TargetFramework=net10.0`

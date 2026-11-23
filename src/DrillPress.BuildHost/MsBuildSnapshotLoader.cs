@@ -52,12 +52,15 @@ public class MsBuildSnapshotLoader
     ) => LoadCompilationsAsync([target], options, DisabledProfile(), cancellationToken);
 
     /// <summary>
-    /// Captures several targets in one session, as one snapshot without duplicate contexts. Solution and
-    /// project targets load into one workspace, and each keeps the analysis scope it has alone. Loose files and
-    /// globs form one loose-source context, without files an analysed project already compiles. MSBuild
-    /// properties apply to solution and project targets.
+    /// Captures several targets in one session, as one snapshot without duplicate contexts. Project targets load
+    /// into one workspace, and each keeps the analysis scope it has alone. Loose files and globs form one
+    /// loose-source context, without files an analysed project already compiles. MSBuild properties apply to
+    /// solution and project targets. A solution must be the only target, because MSBuild sets solution properties
+    /// only for a solution it loads alone.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The project targets select different .NET SDKs.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A solution is combined with other targets, or the project targets select different .NET SDKs.
+    /// </exception>
     public Task<SnapshotExport> LoadCompilationsAsync(
         IReadOnlyList<string> targets,
         SnapshotLoadOptions options,
@@ -75,6 +78,10 @@ public class MsBuildSnapshotLoader
             throw new ArgumentException("Specify at least one target.", nameof(targets));
         var resolver = new TargetResolver(_fileSystem);
         var resolved = targets.Select(resolver.Resolve).Distinct(PathComparer).ToArray();
+        if (resolved.Length > 1 && resolved.FirstOrDefault(IsSolution) is { } solution)
+            throw new InvalidOperationException(
+                $"Solution target '{solution}' must be the only target; check it on its own or list its projects."
+            );
         var loose = resolved
             .Where(IsLooseSource)
             .SelectMany(resolver.ExpandSources)
@@ -203,6 +210,14 @@ public class MsBuildSnapshotLoader
 
         return "";
     }
+
+    private bool IsSolution(string target) =>
+        !IsLooseSource(target)
+        && _fileSystem.Path.GetExtension(target) is var extension
+        && (
+            extension.Equals(".sln", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase)
+        );
 
     private bool IsLooseSource(string target) =>
         target.IndexOfAny(['*', '?']) >= 0

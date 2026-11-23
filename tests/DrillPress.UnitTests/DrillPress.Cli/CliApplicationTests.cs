@@ -139,7 +139,8 @@ public sealed class CliApplicationTests
             check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
             status counts violations per project, then per fix complexity.
             Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob. Several targets run as one analysis
-              with one rules build; each keeps its own project scope, and shared files report once.
+              with one rules build; each keeps its own project scope, and shared files report once. A solution
+              must be the only target.
             --rules: rules project (.csproj or its directory; restored and built in Release),
               compiled rule DLL, or native executable. --build-host: override the packaged loader.
             --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
@@ -517,6 +518,48 @@ public sealed class CliApplicationTests
         Assert.Equal(["export", "target.csproj", snapshotPath], calls[0].Arguments);
         Assert.Equal(["check", snapshotPath], calls[1].Arguments);
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
+    }
+
+    [Theory]
+    [InlineData("App.slnx", "Lib/Lib.csproj", "App.slnx")]
+    [InlineData("tools/*.cs", "src", "src")]
+    public async Task A_solution_beside_other_targets_fails_before_starting_tools(
+        string first,
+        string second,
+        string solution
+    )
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("src/App.sln", new MockFileData(""));
+        var calls = new List<string[]>();
+        var runner = new StubChildProcessRunner(
+            (executable, arguments, _) =>
+            {
+                calls.Add([executable, .. arguments]);
+                return Task.FromResult(0);
+            }
+        );
+        var error = new StringWriter();
+
+        var result = await new CliApplication(
+            fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(fileSystem)
+        ).RunAsync(
+            ["check", "--build-host", "host", "--rules", "rules", first, second],
+            error,
+            TestContext.Current.CancellationToken,
+            TextWriter.Null
+        );
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                $"drillpress: Solution target '{solution}' must be the only target; check it on its own or list its projects.{Environment.NewLine}"
+            ),
+            (result, error.ToString())
+        );
+        Assert.Empty(calls);
     }
 
     [Fact]
