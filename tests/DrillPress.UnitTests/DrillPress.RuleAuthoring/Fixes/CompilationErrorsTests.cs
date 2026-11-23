@@ -81,6 +81,36 @@ public sealed class CompilationErrorsTests
     }
 
     [Fact]
+    public void An_edit_moving_a_suppressible_warning_to_another_methods_local_is_withheld()
+    {
+        var project = WarningsAsErrors(
+            """
+            public sealed class C
+            {
+                public int A() { int value = 1; return 0; }
+                public int B() { int value = 1; return value; }
+            }
+            """,
+            "CS0219"
+        );
+        var source = project.Sources.Single();
+        var text = source.Document.Text;
+        var unused = text.IndexOf("return 0;", StringComparison.Ordinal);
+        var used = text.IndexOf("return value;", StringComparison.Ordinal);
+        var proposal = SourceChanges.Propose(
+            [
+                SourceChanges.Replace(source, new(unused, 9), "return value;"),
+                SourceChanges.Replace(source, new(used, 13), "return 0;"),
+            ],
+            _ => true
+        );
+
+        var result = proposal.IsSafeIn(project);
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public void An_error_a_suppressor_names_but_cannot_hide_withholds_fixes()
     {
         var project = WarningsAsErrors(

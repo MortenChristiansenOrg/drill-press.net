@@ -93,25 +93,50 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
         );
     }
 
-    // A suppressor declares SuppressionDescriptors and overrides DiagnosticSuppressor's members, so an assembly
-    // that references none of these types defines none. Skipping it avoids constructing all of its analyzers.
+    // An analyzer type whose base types in its own assembly end at DiagnosticAnalyzer is no suppressor. Skipping an
+    // assembly whose analyzer types all do avoids constructing its analyzers; a base from another assembly may be one.
     private bool MayDefineSuppressors(AnalyzerReference reference) =>
         reference is not AnalyzerFileReference file
         || !_fileSystem.File.Exists(file.FullPath)
         || ReadMetadata(
             file.FullPath,
             reader =>
-                reader.TypeReferences.Any(handle =>
-                {
-                    var type = reader.GetTypeReference(handle);
-                    return reader.GetString(type.Namespace) == "Microsoft.CodeAnalysis.Diagnostics"
-                        && reader.GetString(type.Name)
-                            is "DiagnosticSuppressor"
-                                or "SuppressionDescriptor"
-                                or "SuppressionAnalysisContext";
-                }),
+                reader.TypeDefinitions.Any(type =>
+                    IsAnalyzer(reader, type) && !DerivesFromAnalyzer(reader, type)
+                ),
             true
         );
+
+    private static bool IsAnalyzer(MetadataReader reader, TypeDefinitionHandle type) =>
+        reader
+            .GetTypeDefinition(type)
+            .GetCustomAttributes()
+            .Any(attribute =>
+                AttributeType(reader, reader.GetCustomAttribute(attribute))
+                    is ("Microsoft.CodeAnalysis.Diagnostics", "DiagnosticAnalyzerAttribute")
+            );
+
+    private static bool DerivesFromAnalyzer(MetadataReader reader, TypeDefinitionHandle type)
+    {
+        var visited = new HashSet<TypeDefinitionHandle>();
+        while (visited.Add(type))
+        {
+            var baseType = reader.GetTypeDefinition(type).BaseType;
+            if (baseType.Kind == HandleKind.TypeDefinition)
+            {
+                type = (TypeDefinitionHandle)baseType;
+                continue;
+            }
+
+            if (baseType.Kind != HandleKind.TypeReference)
+                return false;
+            var referenced = reader.GetTypeReference((TypeReferenceHandle)baseType);
+            return reader.GetString(referenced.Namespace) == "Microsoft.CodeAnalysis.Diagnostics"
+                && reader.GetString(referenced.Name) == "DiagnosticAnalyzer";
+        }
+
+        return false;
+    }
 
     // Like the compiler, only assemblies declaring C# analyzers or generators are checked.
     private Version? ReferencedCompiler(string path) =>

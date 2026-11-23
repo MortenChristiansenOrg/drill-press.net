@@ -63,8 +63,8 @@ internal sealed class CompilationErrors
             )
             .FirstOrDefault(error => error is not null);
 
-    // The innermost declared member or variable, so that an edit cannot trade a suppressed warning for one with the
-    // same message on another type's member.
+    // The innermost declared member or variable with its container, so that an edit cannot trade a suppressed
+    // warning for one with the same message on another type's member or another method's local.
     private static string Declaration(
         Compilation compilation,
         Diagnostic error,
@@ -79,8 +79,11 @@ internal sealed class CompilationErrors
                 .AncestorsAndSelf()
                 .Where(node => node is MemberDeclarationSyntax or VariableDeclaratorSyntax)
                 .Select(node => model.GetDeclaredSymbol(node, cancellationToken))
-                .FirstOrDefault(symbol => symbol is not null)
-                ?.ToDisplayString()
+                .OfType<ISymbol>()
+                .Select(symbol =>
+                    $"{symbol.ContainingSymbol?.ToDisplayString()} {symbol.ToDisplayString()}"
+                )
+                .FirstOrDefault()
             ?? "";
     }
 

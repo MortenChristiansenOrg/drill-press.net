@@ -302,6 +302,83 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
         Assert.Equal(source, result.FixedText("A.cs"));
     }
 
+    [Fact]
+    public async Task An_inactive_branch_that_declares_a_namespace_withholds_the_conversion()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            #if EXTRA
+            namespace Hidden { }
+            #else
+            using System
+            #endif
+            ;
+            namespace N
+            {
+                class A { }
+            }
+
+            """;
+        workspace.AddProject("A", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            NS Use a file-scoped namespace.
+            A.cs
+              7
+                fix withheld: the inactive text at 2:1 may declare another namespace or member
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task Conditional_usings_are_kept()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """
+                    #if EXTRA
+                    using System.Text;
+                    #else
+                    using System;
+                    #endif
+                    namespace N
+                    {
+                        class A { }
+                    }
+
+                    """.ReplaceLineEndings("\n")
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            #if EXTRA
+            using System.Text;
+            #else
+            using System;
+            #endif
+            namespace N;
+
+            class A { }
+
+            """.ReplaceLineEndings("\n"),
+            result.FixedText("A.cs")
+        );
+    }
+
     private static RuleCatalog Rules()
     {
         var rules = new RuleCatalog();

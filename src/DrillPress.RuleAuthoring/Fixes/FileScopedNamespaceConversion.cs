@@ -19,7 +19,7 @@ public sealed class FileScopedNamespaceConversion
         _declaration = declaration.Syntax;
     }
 
-    /// <summary>Proposes a file-scoped namespace, retaining declared type names, string values and compiler-supplied arguments such as caller line numbers. Nested namespaces, directives inside the namespace other than <c>#nullable</c>, <c>#pragma warning</c> and <c>#region</c>, multiline text other than raw strings and ambiguous indentation withhold the fix with a reason.</summary>
+    /// <summary>Proposes a file-scoped namespace, retaining declared type names, string values and compiler-supplied arguments such as caller line numbers. Nested namespaces, inactive text before the namespace that declares a namespace or member, directives from the namespace keyword on other than <c>#nullable</c>, <c>#pragma warning</c> and <c>#region</c>, indented multiline text other than raw strings and ambiguous indentation withhold the fix with a reason.</summary>
     public FixProposal Propose() => Convert(_source, _declaration);
 
     private static FixProposal Convert(
@@ -64,6 +64,10 @@ public sealed class FileScopedNamespaceConversion
         if (UnsafeDirective(unit, declaration) is { } directive)
             return FixProposal.Withheld(
                 $"the conversion does not support the directive `{FixReasons.Text(directive.ToString())}` at {FixReasons.Position(source, directive.SpanStart)}"
+            );
+        if (DeclaringInactiveText(declaration) is { } inactive)
+            return FixProposal.Withheld(
+                $"the inactive text at {FixReasons.Position(source, inactive.SpanStart)} may declare another namespace or member"
             );
         var indentation = IndentationOf(text, bodyStart, bodyEnd);
         if (indentation.Length == 0)
@@ -146,17 +150,18 @@ public sealed class FileScopedNamespaceConversion
         return RewriteChecks.CompilerSuppliedArguments(evidence, null).Reason;
     }
 
-    // Removing indentation keeps the meaning of these directives. Others from the namespace on, such as #if, #line
-    // or #error, withhold the conversion: an inactive branch could declare another namespace or member. Those
-    // among the usings stay where they are.
+    // Removing indentation keeps the meaning of these directives. Others from the namespace keyword on, such as #if,
+    // #line or #error, withhold the conversion. Those before it stay where they are.
     private static SyntaxTrivia? UnsafeDirective(
         CompilationUnitSyntax unit,
         NamespaceDeclarationSyntax declaration
     ) =>
-        unit.DescendantTrivia(TextSpan.FromBounds(declaration.FullSpan.Start, unit.FullSpan.End))
+        unit.DescendantTrivia(
+                TextSpan.FromBounds(declaration.NamespaceKeyword.SpanStart, unit.FullSpan.End)
+            )
             .Where(trivia =>
                 trivia.IsDirective
-                && trivia.SpanStart >= declaration.FullSpan.Start
+                && trivia.SpanStart >= declaration.NamespaceKeyword.SpanStart
                 && trivia.Kind()
                     is not (
                         SyntaxKind.NullableDirectiveTrivia
@@ -166,6 +171,20 @@ public sealed class FileScopedNamespaceConversion
                         or SyntaxKind.DefineDirectiveTrivia
                         or SyntaxKind.UndefDirectiveTrivia
                     )
+            )
+            .Select(trivia => (SyntaxTrivia?)trivia)
+            .FirstOrDefault();
+
+    // Inactive branches before the namespace, which other build configurations compile, may hold only usings and
+    // other directives: a namespace or member there would not compile beside a file-scoped namespace.
+    private static SyntaxTrivia? DeclaringInactiveText(NamespaceDeclarationSyntax declaration) =>
+        ((CompilationUnitSyntax)declaration.Parent!)
+            .DescendantTrivia(TextSpan.FromBounds(0, declaration.NamespaceKeyword.SpanStart))
+            .Where(trivia =>
+                trivia.IsKind(SyntaxKind.DisabledTextTrivia)
+                && SyntaxFactory.ParseCompilationUnit(trivia.ToFullString())
+                    is { Members.Count: > 0 }
+                        or { ContainsDiagnostics: true }
             )
             .Select(trivia => (SyntaxTrivia?)trivia)
             .FirstOrDefault();
