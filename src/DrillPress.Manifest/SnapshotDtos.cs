@@ -54,6 +54,9 @@ public sealed record ProjectSnapshot(
     /// <summary>Source compilation edges, preserving evaluated framework mappings.</summary>
     public CompilationReferenceSnapshot[] CompilationReferences { get; init; } = [];
 
+    /// <summary>Diagnostic IDs that the project's diagnostic suppressors declare they can suppress, recorded when the project reports any warning as an error. Fix validation cannot run the suppressors, so it tolerates such warnings reported as errors that an edit leaves unchanged.</summary>
+    public string[] SuppressibleDiagnosticIds { get; init; } = [];
+
     /// <summary>Compiler settings captured from the live compilation.</summary>
     public CompilerOptionsSnapshot CompilerOptions { get; init; } = new();
 

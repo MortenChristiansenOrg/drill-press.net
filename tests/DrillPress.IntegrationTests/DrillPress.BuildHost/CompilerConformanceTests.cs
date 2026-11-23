@@ -490,6 +490,106 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         );
     }
 
+    [Theory]
+    [InlineData("<TreatWarningsAsErrors>true</TreatWarningsAsErrors>", "CS8618")]
+    [InlineData("", "")]
+    public async Task Snapshots_record_suppressible_diagnostics_of_projects_reporting_warnings_as_errors(
+        string properties,
+        string suppressible
+    )
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            properties,
+            "public sealed class Context { }"
+        );
+
+        var result = await ExportAnalyzedAsync(target);
+        var snapshot = await new CompilationSnapshotFile().ReadAsync(
+            FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "snapshot.json"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            suppressible.Split(',', StringSplitOptions.RemoveEmptyEntries),
+            Assert.Single(snapshot.Projects).SuppressibleDiagnosticIds
+        );
+    }
+
+    [Fact]
+    public async Task Fixes_apply_in_a_project_whose_only_errors_are_suppressed()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            """
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsNotAsErrors>CS8032</WarningsNotAsErrors>
+            """,
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+                public string Value => string.Empty;
+            }
+            """
+        );
+
+        var result = await RunCliAsync("fix", target, "--validate-compilation");
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Equal(
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+                public string Value => "";
+            }
+            """,
+            await FileSystem.File.ReadAllTextAsync(
+                FileSystem.Path.Combine(FileSystem.Path.GetDirectoryName(target)!, "Context.cs"),
+                TestContext.Current.CancellationToken
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Fixes_are_withheld_in_a_project_with_an_error_no_suppressor_can_hide()
+    {
+        var target = await CreateAnalyzedProjectAsync(
+            """
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsNotAsErrors>CS8032</WarningsNotAsErrors>
+            """,
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+                public string Value => string.Empty;
+                public void Declare() { int unused; }
+            }
+            """
+        );
+
+        var result = await RunCliAsync("check", target, "--explain-fixes");
+
+        Assert.Equal(
+            new ProcessResult(
+                1,
+                """
+                DP1004 Use the empty string literal "" instead of string.Empty.
+                Context.cs
+                  5:28
+                    fix withheld: the original compilation has an error: CS0168 at Context.cs:6:33 The variable 'unused' is declared but never used
+
+                """,
+                ""
+            ),
+            result
+        );
+    }
+
     [Fact]
     public async Task Validation_reports_analyzer_load_failures_configured_as_errors()
     {
@@ -815,6 +915,27 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
         Assert.True(result.Success, string.Join("; ", result.Diagnostics));
         return image.ToArray();
     }
+
+    private static Task<ProcessResult> RunCliAsync(
+        string command,
+        string target,
+        params string[] options
+    ) =>
+        RunProcessAsync(
+            "dotnet",
+            [
+                GetOutputPath("DrillPress.Cli"),
+                command,
+                "--build-host",
+                GetOutputPath("DrillPress.BuildHost"),
+                "--rules",
+                GetOutputPath("DrillPress.SampleRules", "samples"),
+                target,
+                .. options,
+            ],
+            FileSystem.Path.GetDirectoryName(target)!,
+            TestContext.Current.CancellationToken
+        );
 
     private Task<ProcessResult> ValidateAsync(string target) =>
         ExportAnalyzedAsync(target, "--validate-compilation");

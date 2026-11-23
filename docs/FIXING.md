@@ -113,14 +113,22 @@ Import.cs
 ```
 
 Reasons name the first failed gate: an ineligible source shape found by the
-builder, an edit that overlaps another, a compiler error in the edited compilation
-(with its location), an expression that binds or converts differently, a named
+builder, an edit that overlaps another, a compiler error in the original or edited
+compilation (with its location), an expression that binds or converts differently, a named
 behavior check, or the rule's own `SafeWhen` proof. A fix that is safe alone but
 not together with the other fixes in its compilation says so, and so do conflicts,
 disagreement between linked compilations, and batches shared with a rule excluded by
 `--fix-complexity`. A rule can record its own reason with
 `FixProposal.Withheld("reason")` instead of returning null. In tests,
 `RuleTestResult.ExplainedOutput` renders the same text. Default output is unchanged.
+
+A warning reported as an error, such as CS8618 under `TreatWarningsAsErrors`, does
+not withhold fixes when one of the project's analyzer `DiagnosticSuppressor`s, such
+as EF Core's for `DbSet` properties, declares that it can suppress that warning.
+Rules can run as native code that cannot load suppressors, so the check does not ask
+the suppressor whether it actually hides each warning; `--validate-compilation` does.
+An edit that adds such a warning, in a file or with a message the original did not
+report, is still withheld.
 
 Exit 0 means a completed check without violations, including visible review-only
 findings. Exit 1 means remaining violations, and 2 means an

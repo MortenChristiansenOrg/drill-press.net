@@ -1,20 +1,17 @@
 using DrillPress.Manifest;
-using Microsoft.CodeAnalysis;
 
 namespace DrillPress;
 
 internal sealed class RewriteValidationCache(AnalysisProject project)
 {
     private readonly object _gate = new();
-    private readonly Lazy<bool> _originalHasErrors = new(() =>
-        project
-            .Compilation.GetDiagnostics(project.CancellationToken)
-            .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+    private readonly Lazy<CompilationErrors> _original = new(() =>
+        CompilationErrors.Read(project, project.Compilation)
     );
     private SourceEdit[]? _edits;
     private PreparedRewrite _prepared;
 
-    internal bool OriginalHasErrors => _originalHasErrors.Value;
+    internal CompilationErrors OriginalErrors => _original.Value;
 
     internal PreparedRewrite Get(
         IReadOnlyList<SourceEdit> edits,

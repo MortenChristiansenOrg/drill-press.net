@@ -336,10 +336,14 @@ no `+` and `FixedText` returns the original text.
   element's evaluation count and order. Nonempty dictionary initializers, capacity
   constructors and interface targets changing concrete type are withheld.
 - `Fix.For(namespaceNode).UseFileScopedNamespace().Propose()` converts a file's single
-  block namespace and removes one four-space indentation level. Nested namespaces,
-  directives, multiline text and ambiguous layouts are withheld, and so is a conversion
-  that would change a string's value or a compiler-supplied argument such as a call's
-  caller line number. A consumer must exclude
+  block namespace and removes one four-space indentation level. Directives before the
+  namespace, such as a migration's `#nullable disable`, stay in place, and `#nullable`,
+  `#pragma warning` and `#region` inside it are dedented. Multiline raw strings are
+  dedented with their closing quotes, which keeps their value. Nested namespaces, other
+  directives inside the namespace, other multiline text whose later lines are indented and
+  ambiguous layouts are withheld with a reason, and so is a conversion that would change a
+  string's value or a compiler-supplied argument such as a call's caller line number. A
+  consumer must exclude
   source exported or concatenated into a different compilation.
 - `Fix.For(call).AddArgumentOfType(type, expression, proof)` finds the unique overload
   adding that type and uses the argument-addition validator. Existing parameter names,
