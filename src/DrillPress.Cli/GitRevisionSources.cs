@@ -32,7 +32,7 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
         var location = (
             await GitAsync(
                 ["-C", start, "rev-parse", "--show-toplevel", "--show-prefix"],
-                unresolved,
+                NoRepository(revision, start),
                 cancellationToken
             )
         ).Split('\n');
@@ -50,7 +50,7 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                 .Select(other =>
                     GitAsync(
                         ["-C", other, "rev-parse", "--show-toplevel"],
-                        $"Baseline '{revision}' needs every target in a Git repository, but '{other}' is outside one.",
+                        NoRepository(revision, other),
                         cancellationToken
                     )
                 )
@@ -211,6 +211,9 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
             ? directory
             : topLevel;
     }
+
+    private static string NoRepository(string revision, string start) =>
+        $"Baseline '{revision}' is not a directory, and Git found no repository for '{start}'.";
 
     private async Task<string> GitAsync(
         IReadOnlyList<string> arguments,

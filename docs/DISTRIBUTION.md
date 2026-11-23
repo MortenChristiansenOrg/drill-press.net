@@ -94,8 +94,8 @@ discovery follows the .NET tool manifest's normal directory search rules.
 `--rules` accepts a rules project, a directory holding exactly one, a compiled rule
 DLL, or a native bundle. The CLI restores and builds a rules project in Release
 with `dotnet build` on every run, alongside the target load, and runs its single
-output; MSBuild skips up-to-date work. Pass several targets to one invocation to build
-the rules once for all of them. Its compiler and restore errors go to stderr
+output; MSBuild skips up-to-date work. Pass several projects, files or globs to one
+invocation to build the rules once for all of them; a solution must be the only target. Its compiler and restore errors go to stderr
 with exit code 2. The CLI does not restore or build targets. Managed execution
 needs no native compiler; explicitly supplied native bundles remain supported.
 

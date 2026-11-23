@@ -77,11 +77,12 @@ public class MsBuildSnapshotLoader
         if (targets.Count == 0)
             throw new ArgumentException("Specify at least one target.", nameof(targets));
         var resolver = new TargetResolver(_fileSystem);
-        var resolved = targets.Select(resolver.Resolve).Distinct(PathComparer).ToArray();
+        var resolved = targets.Select(resolver.Resolve).ToArray();
         if (resolved.Length > 1 && resolved.FirstOrDefault(IsSolution) is { } solution)
             throw new InvalidOperationException(
                 $"Solution target '{solution}' must be the only target; check it on its own or list its projects."
             );
+        resolved = resolved.Distinct(PathComparer).ToArray();
         var loose = resolved
             .Where(IsLooseSource)
             .SelectMany(resolver.ExpandSources)

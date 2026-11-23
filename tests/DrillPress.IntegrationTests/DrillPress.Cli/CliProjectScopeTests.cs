@@ -165,6 +165,58 @@ public sealed class CliProjectScopeTests : IntegrationTest
     }
 
     [Fact]
+    public async Task A_solution_target_builds_its_projects_in_the_configurations_it_maps()
+    {
+        var root = await CreateGraphAsync();
+        await WriteAsync(
+            root,
+            "App/App.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup><ProjectReference Include="../Dependency/Dependency.csproj" /></ItemGroup>
+              <ItemGroup Condition="'$(Configuration)' != 'Release'"><Compile Remove="ReleaseOnly.cs" /></ItemGroup>
+            </Project>
+            """
+        );
+        await WriteAsync(
+            root,
+            "App/ReleaseOnly.cs",
+            "class ReleaseOnly { string Value => string.Empty; }"
+        );
+        await WriteAsync(
+            root,
+            "Retail.slnx",
+            """
+            <Solution>
+              <Configurations><BuildType Name="Retail" /></Configurations>
+              <Project Path="App/App.csproj"><BuildType Solution="Retail|*" Project="Release" /></Project>
+            </Solution>
+            """
+        );
+
+        var result = await RunCliAsync(FileSystem.Path.Combine(root, "Retail.slnx"));
+
+        Assert.Equal(
+            (
+                1,
+                $"""
+                DP1004 Use the empty string literal "" instead of string.Empty.
+                {Relative(root, "App/ReleaseOnly.cs")}
+                  +1:37
+                {Relative(root, "Dependency/Dependency.cs")}
+                  +1:57
+                {Relative(root, "Leaf/Leaf.cs")}
+                  +1:51
+
+                """.ReplaceLineEndings("\n"),
+                ""
+            ),
+            (result.ExitCode, result.StandardOutput, result.StandardError)
+        );
+    }
+
+    [Fact]
     public async Task A_solution_beside_other_targets_fails_before_the_rules_build()
     {
         var root = await CreateGraphAsync();

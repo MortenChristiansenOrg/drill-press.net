@@ -124,7 +124,7 @@ public sealed class BuildHostApplication
     }
 
     /// <summary>
-    /// Exports several solution, project, directory, or loose-source targets as one snapshot, as
+    /// Exports several project, directory, or loose-source targets, or one solution, as one snapshot, as
     /// <see cref="MsBuildSnapshotLoader.LoadCompilationsAsync(IReadOnlyList{string}, SnapshotLoadOptions, CancellationToken)"/> describes.
     /// </summary>
     public async Task ExportAsync(

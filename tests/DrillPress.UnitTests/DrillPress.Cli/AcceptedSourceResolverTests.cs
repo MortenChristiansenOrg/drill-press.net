@@ -226,7 +226,7 @@ public sealed class AcceptedSourceResolverTests
         Assert.Equal(
             (
                 CliExitCode.Failure,
-                $"drillpress: Baseline 'main' needs every target in a Git repository, but '{outside}' is outside one. fatal: not a git repository\n"
+                $"drillpress: Baseline 'main' is not a directory, and Git found no repository for '{outside}'. fatal: not a git repository\n"
             ),
             (exit, error.ToString().ReplaceLineEndings("\n"))
         );

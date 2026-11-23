@@ -384,18 +384,25 @@ public sealed class CliApplication
     }
 
     // MSBuild sets solution properties only for a solution it loads alone, so a solution must be the only target.
-    // A directory target resolves to its solution when it holds one.
     private string? CombinedSolution(string[] targets) =>
-        targets.Length > 1
-            ? targets.FirstOrDefault(target =>
-                target.IndexOfAny(['*', '?']) < 0
-                && (
-                    IsSolution(target)
-                    || _fileSystem.Directory.Exists(target)
-                        && _fileSystem.Directory.EnumerateFiles(target).Any(IsSolution)
-                )
-            )
-            : null;
+        targets.Length > 1 ? targets.FirstOrDefault(ResolvesToSolution) : null;
+
+    // A directory target resolves to its solution when it holds one. BuildHost reports a directory it cannot list.
+    private bool ResolvesToSolution(string target)
+    {
+        if (target.IndexOfAny(['*', '?']) >= 0)
+            return false;
+        if (!_fileSystem.Directory.Exists(target))
+            return IsSolution(target);
+        try
+        {
+            return _fileSystem.Directory.EnumerateFiles(target).Any(IsSolution);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     private bool IsSolution(string path) =>
         _fileSystem.Path.GetExtension(path) is var extension
