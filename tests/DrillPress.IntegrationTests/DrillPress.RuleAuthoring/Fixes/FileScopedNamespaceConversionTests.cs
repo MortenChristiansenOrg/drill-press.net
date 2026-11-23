@@ -108,7 +108,7 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
     }
 
     [Fact]
-    public async Task A_multiline_UTF8_raw_string_is_not_reindented()
+    public async Task A_multiline_UTF8_raw_string_whose_value_would_change_withholds_the_conversion()
     {
         var workspace = fixture.Workspace();
         const string source =
@@ -117,8 +117,266 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
 
         var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
 
-        Assert.False(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(
+            """"
+            NS Use a file-scoped namespace.
+            A.cs
+              1
+                fix withheld: `""" abc """u8` at 5:23 changes its value with the indentation
+
+            """".ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
         Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task A_multiline_raw_string_indented_with_the_code_is_converted()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """"
+                    namespace N
+                    {
+                        class A
+                        {
+                            string M() => $"""
+                                {nameof(A)}
+                                  indented
+                                """ + """
+                                    text
+                                    """;
+                        }
+                    }
+
+                    """".ReplaceLineEndings("\n")
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(
+            """"
+            namespace N;
+
+            class A
+            {
+                string M() => $"""
+                    {nameof(A)}
+                      indented
+                    """ + """
+                        text
+                        """;
+            }
+
+            """".ReplaceLineEndings("\n"),
+            result.FixedText("A.cs")
+        );
+    }
+
+    [Fact]
+    public async Task A_verbatim_string_whose_later_lines_are_indented_withholds_the_conversion()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            namespace N
+            {
+                class A
+                {
+                    string M() => @"first
+                        second";
+                }
+            }
+
+            """;
+        workspace.AddProject("A", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            NS Use a file-scoped namespace.
+            A.cs
+              1
+                fix withheld: `@"first second"` at 5:23 is multiline text whose value the indentation change would alter
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task A_migration_with_directives_before_the_namespace_and_documentation_comments_is_converted()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "Migration.cs",
+                    """
+                    using System;
+
+                    #nullable disable
+
+                    namespace App.Migrations
+                    {
+                        /// <inheritdoc />
+                        public partial class InitialCreate : IDisposable
+                        {
+                            #region Disposal
+                            /// <inheritdoc />
+                            public void Dispose() => Name = null;
+                            #endregion
+
+                            string Name { get; set; }
+                        }
+                    }
+
+                    """.ReplaceLineEndings("\n")
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(result.Findings).HasFix);
+        Assert.Equal(
+            """
+            using System;
+
+            #nullable disable
+
+            namespace App.Migrations;
+
+            /// <inheritdoc />
+            public partial class InitialCreate : IDisposable
+            {
+                #region Disposal
+                /// <inheritdoc />
+                public void Dispose() => Name = null;
+                #endregion
+
+                string Name { get; set; }
+            }
+
+            """.ReplaceLineEndings("\n"),
+            result.FixedText("Migration.cs")
+        );
+    }
+
+    [Fact]
+    public async Task A_conditional_directive_inside_the_namespace_withholds_the_conversion()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            namespace N
+            {
+            #if DEBUG
+                class A { }
+            #endif
+            }
+
+            """;
+        workspace.AddProject("A", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            NS Use a file-scoped namespace.
+            A.cs
+              1
+                fix withheld: the conversion does not support the directive `#if DEBUG` at 3:1
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task An_inactive_branch_that_declares_a_namespace_withholds_the_conversion()
+    {
+        var workspace = fixture.Workspace();
+        const string source = """
+            #if EXTRA
+            namespace Hidden { }
+            #else
+            using System
+            #endif
+            ;
+            namespace N
+            {
+                class A { }
+            }
+
+            """;
+        workspace.AddProject("A", [new("A.cs", source)]);
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            NS Use a file-scoped namespace.
+            A.cs
+              7
+                fix withheld: the inactive text at 2:1 may declare another namespace or member
+
+            """.ReplaceLineEndings("\n"),
+            result.ExplainedOutput
+        );
+        Assert.Equal(source, result.FixedText("A.cs"));
+    }
+
+    [Fact]
+    public async Task Conditional_usings_are_kept()
+    {
+        var workspace = fixture.Workspace();
+        workspace.AddProject(
+            "A",
+            [
+                new(
+                    "A.cs",
+                    """
+                    #if EXTRA
+                    using System.Text;
+                    #else
+                    using System;
+                    #endif
+                    namespace N
+                    {
+                        class A { }
+                    }
+
+                    """.ReplaceLineEndings("\n")
+                ),
+            ]
+        );
+
+        var result = await workspace.CheckAsync(Rules(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            """
+            #if EXTRA
+            using System.Text;
+            #else
+            using System;
+            #endif
+            namespace N;
+
+            class A { }
+
+            """.ReplaceLineEndings("\n"),
+            result.FixedText("A.cs")
+        );
     }
 
     private static RuleCatalog Rules()

@@ -30,9 +30,7 @@ internal static class CompilationValidation
         if (!validate)
             return;
 
-        var (suppressors, failures) = analyzers.TryLoad(reference =>
-            reference.GetAnalyzers(LanguageNames.CSharp).OfType<DiagnosticSuppressor>()
-        );
+        var (suppressors, failures) = analyzers.Suppressors;
         // Suppressor exceptions can surface after diagnostics are collected, so capture them explicitly.
         var exceptions = new ConcurrentQueue<Diagnostic>();
         var diagnostics =

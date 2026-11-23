@@ -65,8 +65,8 @@ public static class SourceChanges
             )
         )
             return project.RewriteValidation.Get(edits, batch => Prepare(project, batch));
-        return project.RewriteValidation.OriginalHasErrors
-            ? new(null, "the original compilation has errors")
+        return project.RewriteValidation.OriginalErrors.Blocking is { } error
+            ? new(null, OriginalError(error))
             : new(new(project, project.Compilation, edits), null);
     }
 
@@ -90,8 +90,9 @@ public static class SourceChanges
             .ToArray();
         if (affected.Length == 0)
             return new(null, "no edited file belongs to this compilation");
-        if (project.RewriteValidation.OriginalHasErrors)
-            return new(null, "the original compilation has errors");
+        var original = project.RewriteValidation.OriginalErrors;
+        if (original.Blocking is { } blocking)
+            return new(null, OriginalError(blocking));
 
         foreach (var source in affected)
         {
@@ -123,13 +124,14 @@ public static class SourceChanges
             }
         }
 
-        var error = rewritten
-            .GetDiagnostics(project.CancellationToken)
-            .FirstOrDefault(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        var error = CompilationErrors.Read(project, rewritten).AddedTo(original);
         return error is null
             ? new(new(project, rewritten, Array.AsReadOnly(batch)), null)
             : new(null, "the edited compilation has an error: " + Describe(error));
     }
+
+    private static string OriginalError(Diagnostic error) =>
+        "the original compilation has an error: " + Describe(error);
 
     private static string Describe(Diagnostic error)
     {

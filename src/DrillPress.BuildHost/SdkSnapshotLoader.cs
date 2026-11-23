@@ -412,6 +412,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 ),
                 metadata,
                 edges.ToArray(),
+                analyzers,
                 options,
                 sdkVersion
             );
@@ -496,6 +497,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             ),
             metadata,
             generated.Edges,
+            generated.Analyzers,
             options,
             sdkVersion
         );
@@ -506,11 +508,13 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         ProjectSnapshot snapshot,
         EvaluatedMetadata metadata,
         CompilationReferenceSnapshot[] edges,
+        ProjectAnalyzers analyzers,
         SnapshotLoadOptions options,
         string sdkVersion
     ) =>
         snapshot with
         {
+            SuppressibleDiagnosticIds = SuppressibleErrors(snapshot, analyzers),
             CompilationReferences = edges,
             ReferencedContextIds = edges.Select(edge => edge.ContextId).ToArray(),
             TargetFramework = metadata.TargetFramework,
@@ -533,6 +537,29 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 )
                 .ToArray(),
         };
+
+    // Fix validation sees only compiler diagnostics and tolerates only suppressible warnings reported as errors, so
+    // projects that report no compiler warning as an error skip loading suppressors.
+    private static string[] SuppressibleErrors(ProjectSnapshot snapshot, ProjectAnalyzers analyzers)
+    {
+        var all = snapshot.CompilerOptions.GeneralDiagnosticOption == (int)ReportDiagnostic.Error;
+        var promoted = snapshot
+            .CompilerOptions.SpecificDiagnosticOptions.Concat(
+                snapshot.Documents.SelectMany(document => document.Options?.DiagnosticOptions ?? [])
+            )
+            .Where(option => option.Value == (int)ReportDiagnostic.Error && IsCompiler(option.Key))
+            .Select(option => option.Key)
+            .ToHashSet();
+        return !all && promoted.Count == 0
+            ? []
+            : analyzers
+                .SuppressibleDiagnosticIds.Where(id =>
+                    IsCompiler(id) && (all || promoted.Contains(id))
+                )
+                .ToArray();
+
+        static bool IsCompiler(string id) => id.StartsWith("CS", StringComparison.Ordinal);
+    }
 
     private static GeneratorDriver? CreateGeneratorDriver(
         Project project,
@@ -654,11 +681,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 Match match in Regex.Matches(
                     text.ToString(),
                     @"dotnet_diagnostic\.(CS\d+)\.severity",
-                    RegexOptions.CultureInvariant
+                    RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
                 )
             )
             {
-                ids.Add(match.Groups[1].Value);
+                // Analyzer configuration keys are case-insensitive; compiler IDs are upper case.
+                ids.Add(match.Groups[1].Value.ToUpperInvariant());
             }
         }
 

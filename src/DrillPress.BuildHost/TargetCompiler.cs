@@ -58,11 +58,12 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
             compilerAssemblyPath is not null && _fileSystem.File.Exists(compilerAssemblyPath)
                 ? ReadMetadata(
                     compilerAssemblyPath,
-                    reader => reader.IsAssembly ? reader.GetAssemblyDefinition().Version : null
+                    reader => reader.IsAssembly ? reader.GetAssemblyDefinition().Version : null,
+                    null
                 )
                 : null;
         if (compiler is null)
-            return new ProjectAnalyzers(projectName, all, []);
+            return new ProjectAnalyzers(projectName, all, [], MayDefineSuppressors);
 
         var compatible = new List<AnalyzerReference>();
         var rejections = new List<Diagnostic>();
@@ -84,7 +85,57 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
                 compatible.Add(reference);
         }
 
-        return new ProjectAnalyzers(projectName, compatible.ToArray(), rejections.ToArray());
+        return new ProjectAnalyzers(
+            projectName,
+            compatible.ToArray(),
+            rejections.ToArray(),
+            MayDefineSuppressors
+        );
+    }
+
+    // An analyzer type whose base types in its own assembly end at DiagnosticAnalyzer is no suppressor. Skipping an
+    // assembly whose analyzer types all do avoids constructing its analyzers; a base from another assembly may be one.
+    private bool MayDefineSuppressors(AnalyzerReference reference) =>
+        reference is not AnalyzerFileReference file
+        || !_fileSystem.File.Exists(file.FullPath)
+        || ReadMetadata(
+            file.FullPath,
+            reader =>
+                reader.TypeDefinitions.Any(type =>
+                    IsAnalyzer(reader, type) && !DerivesFromAnalyzer(reader, type)
+                ),
+            true
+        );
+
+    private static bool IsAnalyzer(MetadataReader reader, TypeDefinitionHandle type) =>
+        reader
+            .GetTypeDefinition(type)
+            .GetCustomAttributes()
+            .Any(attribute =>
+                AttributeType(reader, reader.GetCustomAttribute(attribute))
+                    is ("Microsoft.CodeAnalysis.Diagnostics", "DiagnosticAnalyzerAttribute")
+            );
+
+    private static bool DerivesFromAnalyzer(MetadataReader reader, TypeDefinitionHandle type)
+    {
+        var visited = new HashSet<TypeDefinitionHandle>();
+        while (visited.Add(type))
+        {
+            var baseType = reader.GetTypeDefinition(type).BaseType;
+            if (baseType.Kind == HandleKind.TypeDefinition)
+            {
+                type = (TypeDefinitionHandle)baseType;
+                continue;
+            }
+
+            if (baseType.Kind != HandleKind.TypeReference)
+                return false;
+            var referenced = reader.GetTypeReference((TypeReferenceHandle)baseType);
+            return reader.GetString(referenced.Namespace) == "Microsoft.CodeAnalysis.Diagnostics"
+                && reader.GetString(referenced.Name) == "DiagnosticAnalyzer";
+        }
+
+        return false;
     }
 
     // Like the compiler, only assemblies declaring C# analyzers or generators are checked.
@@ -100,7 +151,8 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
                         )
                         .Select(reference => reference.Version)
                         .FirstOrDefault()
-                    : null
+                    : null,
+            null
         );
 
     private static bool HasCSharpAnalyzers(MetadataReader reader) =>
@@ -168,19 +220,19 @@ internal sealed class TargetCompiler(IFileSystem fileSystem)
     }
 
     // Unreadable images keep their analyzers so Roslyn reports its own load failure.
-    private Version? ReadMetadata(string path, Func<MetadataReader, Version?> read)
+    private T ReadMetadata<T>(string path, Func<MetadataReader, T> read, T unreadable)
     {
         try
         {
             using var stream = _fileSystem.File.OpenRead(path);
             using var image = new PEReader(stream);
-            return image.HasMetadata ? read(image.GetMetadataReader()) : null;
+            return image.HasMetadata ? read(image.GetMetadataReader()) : unreadable;
         }
         catch (Exception exception)
             when (exception is BadImageFormatException or IOException or UnauthorizedAccessException
             )
         {
-            return null;
+            return unreadable;
         }
     }
 
