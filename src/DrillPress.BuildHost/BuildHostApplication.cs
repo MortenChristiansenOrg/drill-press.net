@@ -51,11 +51,12 @@ public sealed class BuildHostApplication
     )
     {
         standardError ??= Console.Error;
-        // Every argument before the first option is a target, except the last, which is the snapshot.
-        var positional = args.TakeWhile(argument =>
-                !argument.StartsWith("--", StringComparison.Ordinal)
-            )
-            .Count();
+        // Every argument before the first option is a target, except the last, which is the snapshot. The first
+        // target and the snapshot always take the first two places, as they did before several targets.
+        var positional = Math.Max(
+            Math.Min(args.Length, 3),
+            args.TakeWhile(argument => !argument.StartsWith("--", StringComparison.Ordinal)).Count()
+        );
         if (positional < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(

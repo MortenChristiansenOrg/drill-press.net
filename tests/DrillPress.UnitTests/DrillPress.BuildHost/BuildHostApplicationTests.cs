@@ -319,6 +319,25 @@ public sealed class BuildHostApplicationTests
     }
 
     [Fact]
+    public async Task The_first_target_and_the_snapshot_may_start_with_dashes()
+    {
+        _fileSystem.AddFile("--App.cs", new MockFileData("class App;"));
+        var loader = new StubSnapshotLoader(_fileSystem);
+        var error = new StringWriter();
+
+        var result = await new BuildHostApplication(_fileSystem, loader).RunAsync(
+            ["export", "--App.cs", "--snapshot.json", "--validate-compilation"],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal((BuildHostExitCode.Success, ""), (result, error.ToString()));
+        Assert.Equal([_fileSystem.Path.GetFullPath("--App.cs")], loader.Targets);
+        Assert.True(_fileSystem.File.Exists("--snapshot.json"));
+        Assert.True(loader.Options!.ValidateCompilation);
+    }
+
+    [Fact]
     public async Task Unavailable_profile_file_length_does_not_fail_a_completed_export()
     {
         var fileSystem = new FileLengthFailureFileSystem();
