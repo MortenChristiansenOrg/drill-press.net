@@ -19,7 +19,7 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
 
     internal Solution? Load(
         MSBuildWorkspace workspace,
-        string target,
+        IReadOnlyList<string> entryPoints,
         IDictionary<string, string> properties,
         CancellationToken cancellationToken,
         Action<Microsoft.CodeAnalysis.Project>? loaded = null
@@ -41,7 +41,7 @@ internal sealed class DirectWorkspaceLoader(IFileSystem fileSystem) : IDisposabl
         try
         {
             graph = new BuildGraph(
-                [new ProjectGraphEntryPoint(target, globals)],
+                entryPoints.Select(entryPoint => new ProjectGraphEntryPoint(entryPoint, globals)),
                 collection,
                 (path, globalProperties, projectCollection) =>
                 {

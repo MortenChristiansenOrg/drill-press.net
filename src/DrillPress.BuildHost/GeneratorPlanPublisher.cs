@@ -13,7 +13,7 @@ internal sealed class GeneratorPlanPublisher(
     IFileSystem fileSystem,
     GeneratorTransport transport,
     GeneratorDescription[] supported,
-    string? selectedProject
+    Func<string, bool> isAnalysisTarget
 )
 {
     private readonly IFileSystem _fileSystem = fileSystem;
@@ -57,18 +57,7 @@ internal sealed class GeneratorPlanPublisher(
                     (await document.GetTextAsync(cancellationToken)).ToString()
                 )
             );
-        snapshot = snapshot with
-        {
-            IsAnalysisTarget =
-                selectedProject is null
-                || string.Equals(
-                    _fileSystem.Path.GetFullPath(snapshot.ProjectPath),
-                    selectedProject,
-                    OperatingSystem.IsWindows()
-                        ? StringComparison.OrdinalIgnoreCase
-                        : StringComparison.Ordinal
-                ),
-        };
+        snapshot = snapshot with { IsAnalysisTarget = isAnalysisTarget(snapshot.ProjectPath) };
         await transport.WritePlanAsync(
             new GeneratorProjectPlan(
                 snapshot,

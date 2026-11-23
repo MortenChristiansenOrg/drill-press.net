@@ -176,10 +176,11 @@ evidence, `ForEnumeration(loop).Started()` loop advancement, and
 
 ## Running against real code
 
-Run `drillpress check`, `fix` or `status` with `--rules path/to/Rules target`:
+Run `drillpress check`, `fix` or `status` with `--rules path/to/Rules target...`:
 a rules project or its directory, which the CLI restores and builds in Release, or
-a built rule DLL. Targets are solutions, projects, directories or
-loose `.cs` files. The CLI loads the target with its SDK; the bundle consumes the
+a built rule DLL. Targets are solutions, projects, directories,
+loose `.cs` files or quoted globs. Several targets run as one analysis with one rules
+build; each keeps its own scope and shared files report once. The CLI loads the targets with their SDK; the bundle consumes the
 captured compilation. Source generators receive additional files in build order,
 and referenced contexts generate before their dependents. Independent contexts can
 load in parallel; failures are reported in snapshot order.
@@ -213,7 +214,7 @@ A committed `drillpress.json` in the current directory or a parent sets defaults
 ```jsonc
 {
   "rules": "eng/Rules",                    // rules project, its directory, or a built bundle
-  "target": "App.slnx",
+  "target": "App.slnx",                    // or an array of targets checked together
   "properties": { "Configuration": "Debug" },
   "select": ["TEAM001", "TEAM002"],        // rule IDs to report; omit for all
   "ignore": ["TEAM003"],                   // rule IDs never reported
@@ -222,7 +223,7 @@ A committed `drillpress.json` in the current directory or a parent sets defaults
 ```
 
 Relative paths resolve against the file's directory; command-line paths against the
-current directory. `--rules` and a target replace the file's values; `--property`
+current directory. `--rules` and targets replace the file's values; `--property`
 follows its properties (last wins; loose-file and glob targets get none of them);
 `--select` or `--rules` drops its `select` and `ignore`; `--ignore` and `--exclude` add to it.
 Unknown keys and invalid values fail with exit 2. Unselected rules are not evaluated,

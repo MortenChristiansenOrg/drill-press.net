@@ -10,17 +10,18 @@ namespace DrillPress.Cli;
 public sealed class CliApplication
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status [--rules <path>] [<target>...] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
     private const string Help = """
-        drillpress check|fix|status [--rules <path>] [<target>] [options]
+        drillpress check|fix|status [--rules <path>] [<target>...] [options]
         check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
         status counts violations per project, then per fix complexity.
-        Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
+        Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob. Several targets run as one analysis
+          with one rules build; each keeps its own project scope, and shared files report once.
         --rules: rules project (.csproj or its directory; restored and built in Release),
           compiled rule DLL, or native executable. --build-host: override the packaged loader.
         --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
-          rules, target, properties, select, ignore, exclude; its paths are relative to its directory.
-          --rules and <target> replace its values; --property follows its properties. --no-config skips it.
+          rules, target (a path or array), properties, select, ignore, exclude; its paths are relative to its
+          directory. --rules and targets replace its values; --property follows its properties. --no-config skips it.
         --select <ids>, --ignore <ids>  Report only, or never, these comma-separated rule IDs (repeatable);
           --select or --rules drops the config's select and ignore; --ignore adds. Unknown IDs fail.
         --exclude <glob> (repeatable)  No findings, fixes or allowance checks in matching source files, which
@@ -160,7 +161,7 @@ public sealed class CliApplication
                         stop =>
                             new AcceptedSourceResolver(_fileSystem, _processRunner).WriteAsync(
                                 options.Baseline,
-                                options.Target,
+                                options.Targets,
                                 temporaryDirectory.FullName,
                                 stop
                             ),
@@ -284,7 +285,9 @@ public sealed class CliApplication
     )
     {
         if (
-            options.StreamCompilation && !options.ExportArguments.Contains("--validate-compilation")
+            options.StreamCompilation
+            && !options.ExportArguments.Contains("--validate-compilation")
+            && !options.MixesLooseSources
         )
         {
             // The rules process starts first in this mode, so its build must finish before capture.
@@ -313,7 +316,7 @@ public sealed class CliApplication
                 stop =>
                     _processRunner.CaptureAsync(
                         options.BuildHost!,
-                        ["export", options.Target, snapshotPath, .. options.ExportArguments],
+                        ["export", .. options.Targets, snapshotPath, .. options.ExportArguments],
                         stop
                     ),
                 cancellationToken

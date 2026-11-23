@@ -75,7 +75,7 @@ return (int)await new RuleApplication().RunAsync(rules, args);</code></pre></div
 <div class="codeblock"><div class="codehead"><span>Terminal · repository root</span></div><pre tabindex="0" id="example-4"><code>dotnet build DrillPress.slnx
 dotnet restore samples/MyRuleTarget/MyRuleTarget.csproj
 dotnet src/DrillPress.Cli/bin/Debug/net10.0/DrillPress.Cli.dll check --build-host src/DrillPress.BuildHost/bin/Debug/net10.0/DrillPress.BuildHost.dll --rules samples/MyRules samples/MyRuleTarget/MyRuleTarget.csproj</code></pre></div>
-<p>Replace the last path to check your own project or solution. Quote paths with spaces. The target must be restored first; generated assemblies needed by the target must also be built. The target’s own <code>global.json</code> controls its SDK selection.</p>
+<p>Replace the last path to check your own project or solution, or list several targets to check them in one run with one rules build. Quote paths with spaces. The target must be restored first; generated assemblies needed by the target must also be built. The target’s own <code>global.json</code> controls its SDK selection.</p>
 <div class="note"><strong>The bundle is not the project loader</strong><p>Pass your rules project to the CLI with <code>--rules</code>; do not run it with a target path. The CLI restores and builds the rules project in Release, loads the target, and passes a captured compilation to your bundle. Direct bundle output is an internal protocol, not the human-readable findings.</p></div>
 <h2 id="output">4. Read the result</h2>
 <p>For the target above, the finding points at the name of the called method, <code>WriteLine</code>:</p>

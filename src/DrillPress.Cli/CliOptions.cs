@@ -4,7 +4,7 @@ internal sealed record CliOptions(
     CliCommand Command,
     string? BuildHost,
     string Rules,
-    string Target,
+    string[] Targets,
     string[] ExportArguments,
     bool Profile,
     bool EnableOptimizations,
@@ -29,7 +29,13 @@ internal sealed record CliOptions(
     public string[] Exclude { get; init; } = [];
 
     /// <summary>
-    /// Parses the arguments and applies repository defaults beneath them: an explicit rules source or target replaces
+    /// Whether loose files or globs come with solution or project targets. Streamed generation captures
+    /// project contexts only, so such a mix loads without streaming.
+    /// </summary>
+    public bool MixesLooseSources => Targets.Any(IsLooseSource) && !Targets.All(IsLooseSource);
+
+    /// <summary>
+    /// Parses the arguments and applies repository defaults beneath them: an explicit rules source or targets replace
     /// the file's, command-line properties follow the file's, <c>--select</c> or <c>--rules</c> drops its selection
     /// and ignored rules, and <c>--ignore</c> and <c>--exclude</c> add to it. <c>--no-config</c> skips the file.
     /// </summary>
@@ -51,7 +57,7 @@ internal sealed record CliOptions(
 
         string? buildHost = null;
         string? rules = null;
-        string? target = null;
+        var targets = new List<string>();
         string? baseline = null;
         string? config = null;
         var noConfig = false;
@@ -151,12 +157,12 @@ internal sealed record CliOptions(
                     exportArguments.Add(args[index]);
                     break;
                 default:
-                    if (target is not null || args[index].StartsWith('-'))
+                    if (args[index].StartsWith('-') || string.IsNullOrWhiteSpace(args[index]))
                     {
                         return false;
                     }
 
-                    target = args[index];
+                    targets.Add(args[index]);
                     break;
             }
         }
@@ -164,7 +170,6 @@ internal sealed record CliOptions(
         if (
             (buildHost is not null && string.IsNullOrWhiteSpace(buildHost))
             || (rules is not null && string.IsNullOrWhiteSpace(rules))
-            || (target is not null && string.IsNullOrWhiteSpace(target))
             || (baseline is not null && string.IsNullOrWhiteSpace(baseline))
             || (config is not null && string.IsNullOrWhiteSpace(config))
         )
@@ -182,8 +187,8 @@ internal sealed record CliOptions(
         // Rule IDs belong to a bundle, so another bundle on the command line drops the file's selection.
         var fileSelection = rules is null && select is null;
         rules ??= defaults?.Rules;
-        target ??= defaults?.Target;
-        if (rules is null || target is null)
+        var selected = targets.Count > 0 ? targets.ToArray() : defaults?.Targets;
+        if (rules is null || selected is null)
         {
             if (defaults is not null)
                 error =
@@ -192,7 +197,7 @@ internal sealed record CliOptions(
         }
 
         // Loose files and globs accept no MSBuild properties, so the file's properties apply to project targets only.
-        var configured = IsLooseSource(target) ? [] : defaults?.Properties ?? [];
+        var configured = selected.All(IsLooseSource) ? [] : defaults?.Properties ?? [];
         string[] export =
         [
             .. configured
@@ -211,7 +216,7 @@ internal sealed record CliOptions(
             },
             buildHost,
             rules,
-            target,
+            selected,
             export,
             profile,
             optimize,

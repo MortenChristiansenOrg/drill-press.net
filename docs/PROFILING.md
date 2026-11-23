@@ -71,6 +71,7 @@ reject incomplete profiles rather than treating missing phases as zero cost.
 stream to the bundle as their design-time builds finish. The bundle compiles them,
 runs the generators it links and prepares semantic models once for subsequent rules.
 Any bundle supports the option: without a catalogue, BuildHost runs every generator.
+Loose files or globs listed beside solution or project targets load without streaming.
 Ahead-of-time publication with a catalogue removes the remaining JIT and generator
 round trips. Ordinary rule registration and the program entry point stay unchanged.
 

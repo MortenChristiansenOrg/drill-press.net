@@ -10,17 +10,17 @@ internal sealed class StubSnapshotLoader(IFileSystem fileSystem) : MsBuildSnapsh
         (CompilationSnapshot.Create() with { RequestId = "request" });
     public Exception? Failure { get; init; }
     public SnapshotLoadOptions? Options { get; private set; }
-    public string? ProjectPath { get; private set; }
+    public IReadOnlyList<string>? Targets { get; private set; }
 
     internal override Task<CompilationSnapshot> LoadAsync(
-        string projectPath,
+        IReadOnlyList<string> targets,
         SnapshotLoadOptions options,
         PipelineProfile profile,
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ProjectPath = projectPath;
+        Targets = targets;
         Options = options;
         return Failure is null
             ? Task.FromResult(Snapshot)

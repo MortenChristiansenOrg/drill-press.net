@@ -5,8 +5,8 @@ namespace DrillPress.Cli;
 
 /// <summary>
 /// Resolves a <c>--baseline</c> value into accepted C# sources. An existing directory is an
-/// accepted copy of the current directory; any other value is a Git revision of the target's
-/// repository. Version control stays here, outside the rule model.
+/// accepted copy of the current directory; any other value is a Git revision of the repository
+/// that holds every target. Version control stays here, outside the rule model.
 /// </summary>
 internal sealed class AcceptedSourceResolver(IFileSystem fileSystem, ChildProcessRunner runner)
 {
@@ -14,7 +14,7 @@ internal sealed class AcceptedSourceResolver(IFileSystem fileSystem, ChildProces
 
     internal async Task<string> WriteAsync(
         string baseline,
-        string target,
+        IReadOnlyList<string> targets,
         string directory,
         CancellationToken cancellationToken
     )
@@ -25,7 +25,7 @@ internal sealed class AcceptedSourceResolver(IFileSystem fileSystem, ChildProces
                 _fileSystem.Directory.GetCurrentDirectory(),
                 cancellationToken
             )
-            : await ReadRevisionAsync(baseline, target, directory, cancellationToken);
+            : await ReadRevisionAsync(baseline, targets, directory, cancellationToken);
         var path = _fileSystem.Path.Combine(directory, "accepted.sources.json");
         await new AcceptedSourcesFile(_fileSystem).WriteAsync(path, accepted, cancellationToken);
         return path;
@@ -69,14 +69,17 @@ internal sealed class AcceptedSourceResolver(IFileSystem fileSystem, ChildProces
 
     private async Task<AcceptedSources> ReadRevisionAsync(
         string revision,
-        string target,
+        IReadOnlyList<string> targets,
         string directory,
         CancellationToken cancellationToken
     )
     {
         var (root, files) = await new GitRevisionSources(_fileSystem, runner).ReadAsync(
             revision,
-            NearestDirectory(_fileSystem.Path.GetFullPath(target)),
+            targets
+                .Select(target => NearestDirectory(_fileSystem.Path.GetFullPath(target)))
+                .Distinct()
+                .ToArray(),
             directory,
             cancellationToken
         );

@@ -12,15 +12,19 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
 {
     private readonly IFileSystem _fileSystem = fileSystem;
 
-    /// <summary>Returns the repository root as the target's path spells it, and its C# sources relative to that root.</summary>
+    /// <summary>
+    /// Returns the repository root as the first target's path spells it, and its C# sources relative to that root.
+    /// Every start directory must belong to that repository, because one revision describes one repository.
+    /// </summary>
     internal async Task<(string Root, List<(string Path, byte[] Content)> Files)> ReadAsync(
         string revision,
-        string start,
+        IReadOnlyList<string> starts,
         string directory,
         CancellationToken cancellationToken
     )
     {
         var unresolved = $"Baseline '{revision}' is neither a directory nor a Git revision.";
+        var start = starts[0];
         var location = (
             await GitAsync(
                 ["-C", start, "rev-parse", "--show-toplevel", "--show-prefix"],
@@ -28,13 +32,33 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                 cancellationToken
             )
         ).Split('\n');
+        var topLevel = _fileSystem.Path.GetFullPath(location[0]);
         var root = await RootAsync(
             start,
-            _fileSystem.Path.GetFullPath(location[0]),
+            topLevel,
             location.Length > 1 ? location[1] : "",
             unresolved,
             cancellationToken
         );
+        var others = await Task.WhenAll(
+            starts
+                .Skip(1)
+                .Select(other =>
+                    GitAsync(
+                        ["-C", other, "rev-parse", "--show-toplevel"],
+                        unresolved,
+                        cancellationToken
+                    )
+                )
+        );
+        for (var index = 0; index < others.Length; index++)
+        {
+            var otherTopLevel = _fileSystem.Path.GetFullPath(others[index]);
+            if (!string.Equals(otherTopLevel, topLevel, StringComparison.Ordinal))
+                throw new IOException(
+                    $"Baseline '{revision}' needs every target in one Git repository, but '{starts[index + 1]}' is in '{otherTopLevel}' and '{start}' in '{topLevel}'."
+                );
+        }
         var commit = await GitAsync(
             [
                 "-C",

@@ -135,15 +135,16 @@ public sealed class CliApplicationTests
         Assert.Equal("", error.ToString());
         Assert.Equal(
             """
-            drillpress check|fix|status [--rules <path>] [<target>] [options]
+            drillpress check|fix|status [--rules <path>] [<target>...] [options]
             check reports findings; fix applies common-safe edits and file moves, then reports the recheck;
             status counts violations per project, then per fix complexity.
-            Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob.
+            Targets: .sln, .slnx, .csproj, directory, .cs file, or quoted C# glob. Several targets run as one analysis
+              with one rules build; each keeps its own project scope, and shared files report once.
             --rules: rules project (.csproj or its directory; restored and built in Release),
               compiled rule DLL, or native executable. --build-host: override the packaged loader.
             --config <path>  Repository defaults (default: nearest drillpress.json in this or a parent directory):
-              rules, target, properties, select, ignore, exclude; its paths are relative to its directory.
-              --rules and <target> replace its values; --property follows its properties. --no-config skips it.
+              rules, target (a path or array), properties, select, ignore, exclude; its paths are relative to its
+              directory. --rules and targets replace its values; --property follows its properties. --no-config skips it.
             --select <ids>, --ignore <ids>  Report only, or never, these comma-separated rule IDs (repeatable);
               --select or --rules drops the config's select and ignore; --ignore adds. Unknown IDs fail.
             --exclude <glob> (repeatable)  No findings, fixes or allowance checks in matching source files, which
@@ -445,7 +446,7 @@ public sealed class CliApplicationTests
 
         Assert.Equal(CliExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
+            $"Usage: drillpress check|fix|status [--rules <path>] [<target>...] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -516,6 +517,68 @@ public sealed class CliApplicationTests
         Assert.Equal(["export", "target.csproj", snapshotPath], calls[0].Arguments);
         Assert.Equal(["check", snapshotPath], calls[1].Arguments);
         Assert.False(_fileSystem.Directory.Exists(_fileSystem.Path.GetDirectoryName(snapshotPath)));
+    }
+
+    [Fact]
+    public async Task Loose_sources_beside_project_targets_load_without_streaming()
+    {
+        var snapshot = CompilationSnapshot.Create();
+        var calls = new List<string[]>();
+        var runner = new StubChildProcessRunner(
+            async (executable, arguments, cancellationToken) =>
+            {
+                calls.Add([executable, .. arguments]);
+                if (executable == "host")
+                    await new CompilationSnapshotFile(_fileSystem).WriteAsync(
+                        arguments[^1],
+                        snapshot,
+                        cancellationToken
+                    );
+                return 0;
+            }
+        )
+        {
+            StandardOutput = Encoding.UTF8.GetString(
+                BundleResponseProtocol.Serialize(
+                    new BundleResponse(
+                        BundleResponseProtocol.CurrentVersion,
+                        snapshot.RequestId,
+                        [],
+                        []
+                    )
+                )
+            ),
+        };
+
+        var result = await new CliApplication(
+            _fileSystem,
+            runner,
+            permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
+        ).RunAsync(
+            [
+                "check",
+                "--build-host",
+                "host",
+                "--rules",
+                "rules",
+                "App.csproj",
+                "tools/*.cs",
+                "--stream-compilation",
+            ],
+            TextWriter.Null,
+            TestContext.Current.CancellationToken,
+            TextWriter.Null
+        );
+        var snapshotPath = calls[0][^1];
+
+        Assert.Equal(CliExitCode.Clean, result);
+        Assert.Equal(
+            [
+                ["host", "export", "App.csproj", "tools/*.cs", snapshotPath],
+                ["rules", "check", snapshotPath],
+            ],
+            calls
+        );
     }
 
     [Fact]
@@ -647,7 +710,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --refresh-coverage and --skip-coverage cannot be combined.
-            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>...] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -940,7 +1003,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             """
             drillpress: --fix-complexity requires a comma-separated list of trivial, local, complex, architectural, or unspecified; specify the option once.
-            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>...] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()
@@ -976,7 +1039,7 @@ public sealed class CliApplicationTests
         Assert.Equal(
             $"""
             drillpress: {selection[0]} requires comma-separated rule IDs.
-            Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
+            Usage: drillpress check|fix|status [--rules <path>] [<target>...] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]
 
             """.ReplaceLineEndings(Environment.NewLine),
             error.ToString()

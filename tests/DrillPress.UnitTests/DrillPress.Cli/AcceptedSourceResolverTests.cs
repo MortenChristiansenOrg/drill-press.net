@@ -17,6 +17,7 @@ public sealed class AcceptedSourceResolverTests
     private string? _batchInput;
     private string? _topLevel;
     private string _prefix = "";
+    private readonly Dictionary<string, string> _otherTopLevels = [];
     private (string Metadata, string Path, string Text)[] _tree = [];
     private (string Path, string Text, bool Removed)[] _acceptedFiles = [];
 
@@ -140,6 +141,74 @@ public sealed class AcceptedSourceResolverTests
     }
 
     [Fact]
+    public async Task Targets_in_one_repository_share_its_revision()
+    {
+        var app = Work("src", "App");
+        var tool = Work("tools", "Tool");
+        _fileSystem.Directory.CreateDirectory(app);
+        _fileSystem.Directory.CreateDirectory(tool);
+        _otherTopLevels[tool] = _work;
+        _prefix = "src/App/";
+        _tree = [];
+        var error = new StringWriter();
+
+        var exit = await RunAsync(
+            error,
+            "--baseline",
+            "main",
+            Path(app, "App.csproj"),
+            Path(tool, "Tool.csproj"),
+            Path(app, "Other.cs")
+        );
+
+        Assert.Equal((CliExitCode.Clean, ""), (exit, error.ToString()));
+        Assert.Equal(
+            [
+                ["-C", app, "rev-parse", "--show-toplevel", "--show-prefix"],
+                ["-C", tool, "rev-parse", "--show-toplevel"],
+                [
+                    "-C",
+                    _work,
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    "--end-of-options",
+                    "main^{commit}",
+                ],
+                ["-C", _work, "ls-tree", "-r", "-z", "--full-tree", "abc123"],
+            ],
+            _git
+        );
+        Assert.Equal(_work, _acceptedRoot);
+    }
+
+    [Fact]
+    public async Task Targets_in_different_repositories_fail_before_rules_run()
+    {
+        var other = _fileSystem.Path.GetFullPath("/other");
+        _fileSystem.Directory.CreateDirectory(other);
+        _otherTopLevels[other] = other;
+        var error = new StringWriter();
+
+        var exit = await RunAsync(
+            error,
+            "--baseline",
+            "main",
+            Work("App.csproj"),
+            Path(other, "Other.csproj")
+        );
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                $"drillpress: Baseline 'main' needs every target in one Git repository, but '{other}' is in '{other}' and '{_work}' in '{_work}'.\n"
+            ),
+            (exit, error.ToString().ReplaceLineEndings("\n"))
+        );
+        Assert.Empty(_acceptedFiles);
+    }
+
+    [Fact]
     public async Task An_unknown_revision_fails_before_rules_run()
     {
         var error = new StringWriter();
@@ -156,7 +225,7 @@ public sealed class AcceptedSourceResolverTests
 
     private Task<CliExitCode> RunAsync(StringWriter error, params string[] options)
     {
-        var target = options.Length == 3 ? options[2] : "target.csproj";
+        string[] targets = options.Length > 2 ? options[2..] : ["target.csproj"];
         var runner = new ScriptedChildProcessRunner(
             async (executable, arguments, streams) =>
                 executable switch
@@ -171,7 +240,16 @@ public sealed class AcceptedSourceResolverTests
             runner,
             permissions: new StubSnapshotDirectoryPermissions(_fileSystem)
         ).RunAsync(
-            ["check", "--build-host", "host", "--rules", "rules", options[0], options[1], target],
+            [
+                "check",
+                "--build-host",
+                "host",
+                "--rules",
+                "rules",
+                options[0],
+                options[1],
+                .. targets,
+            ],
             error,
             TestContext.Current.CancellationToken,
             TextWriter.Null
@@ -181,7 +259,7 @@ public sealed class AcceptedSourceResolverTests
     private async Task<ChildProcessResult> ExportAsync(IReadOnlyList<string> arguments)
     {
         await new CompilationSnapshotFile(_fileSystem).WriteAsync(
-            arguments[2],
+            arguments[^1],
             _fixture.Snapshot,
             TestContext.Current.CancellationToken
         );
@@ -198,7 +276,9 @@ public sealed class AcceptedSourceResolverTests
         if (arguments.Contains("--show-prefix"))
             return new(0, $"{topLevel}\n{_prefix}\n", "");
         if (arguments.Contains("--show-toplevel"))
-            return new(128, "", "fatal: not a git repository");
+            return _otherTopLevels.TryGetValue(arguments[1], out var other)
+                ? new(0, other.Replace('\\', '/') + "\n", "")
+                : new(128, "", "fatal: not a git repository");
         if (arguments.Contains("--verify"))
             return arguments[^1] == "main^{commit}" ? new(0, "abc123\n", "") : new(1, "", "");
         if (arguments.Contains("ls-tree"))
