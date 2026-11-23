@@ -114,10 +114,13 @@ public sealed class CompilationErrorsTests
     public void An_error_a_suppressor_names_but_cannot_hide_withholds_fixes()
     {
         var project = WarningsAsErrors(
-            Context.Replace(
-                "public int Count => 1;",
-                "public int Count => 1; int Missing => Absent;"
-            ),
+            """
+            public sealed class Context
+            {
+                public int Count => 1;
+                int Missing => Absent;
+            }
+            """,
             "CS0103"
         );
         var proposal = Replace(project, "1", "2");
