@@ -251,7 +251,9 @@ directory. `--select ID[,ID]` reports only those rules (replacing the file's sel
 nothing but still inform analysis. Put the rules project and its test fixtures in
 `exclude`. Details are in [reference/testing.md](reference/testing.md#repository-defaults).
 
-Targets can be a solution, project, directory or `.cs` file. Exit codes: 0 clean,
+Targets can be a solution, project, directory, `.cs` file or quoted glob; pass several
+(`fix A.csproj B.csproj`) to check them in one run with one rules build; a solution
+must be the only target. Exit codes: 0 clean,
 1 violations, 2 failure. `fix` applies only validated fixes and reports what remains.
 `status` prints only violation counts per project and fix complexity; use it to pick
 the next project or `--fix-complexity` level to work on. `--explain-fixes` explains

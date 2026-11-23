@@ -24,7 +24,7 @@ internal sealed record GeneratorProcessResult(
 /// <summary>Repository defaults from a drillpress.json file, with its relative paths resolved.</summary>
 /// <param name="DisplayPath">The file path relative to the current directory, used in messages.</param>
 /// <param name="Rules">The rules source relative to the current directory, if set.</param>
-/// <param name="Target">The analysis target relative to the current directory, if set.</param>
+/// <param name="Targets">The analysis targets relative to the current directory, if set.</param>
 /// <param name="Properties">MSBuild global properties in file order.</param>
 /// <param name="Select">Rule IDs to report, or null for every rule.</param>
 /// <param name="Ignore">Rule IDs to leave out.</param>
@@ -32,7 +32,7 @@ internal sealed record GeneratorProcessResult(
 internal sealed record RepositoryConfig(
     string DisplayPath,
     string? Rules,
-    string? Target,
+    string[]? Targets,
     KeyValuePair<string, string>[] Properties,
     string[]? Select,
     string[] Ignore,

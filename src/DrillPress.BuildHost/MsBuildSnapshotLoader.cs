@@ -35,58 +35,153 @@ public class MsBuildSnapshotLoader
         string target,
         SnapshotLoadOptions options,
         CancellationToken cancellationToken
-    ) => LoadAsync(target, options, DisabledProfile(), cancellationToken);
+    ) => LoadAsync([target], options, DisabledProfile(), cancellationToken);
 
     internal virtual async Task<CompilationSnapshot> LoadAsync(
-        string target,
+        IReadOnlyList<string> targets,
         SnapshotLoadOptions options,
         PipelineProfile profile,
         CancellationToken cancellationToken
-    ) => (await LoadCompilationsAsync(target, options, profile, cancellationToken)).Snapshot;
+    ) => (await LoadCompilationsAsync(targets, options, profile, cancellationToken)).Snapshot;
 
     /// <summary>Captures live compilations alongside the transport snapshot for conformance and profiling.</summary>
     public Task<SnapshotExport> LoadCompilationsAsync(
         string target,
         SnapshotLoadOptions options,
         CancellationToken cancellationToken = default
-    ) => LoadCompilationsAsync(target, options, DisabledProfile(), cancellationToken);
+    ) => LoadCompilationsAsync([target], options, DisabledProfile(), cancellationToken);
+
+    /// <summary>
+    /// Captures several targets in one session, as one snapshot without duplicate contexts. Project targets load
+    /// into one workspace, and each keeps the analysis scope it has alone. Loose files and globs form one
+    /// loose-source context, without files an analysed project already compiles. MSBuild properties apply to
+    /// solution and project targets. A solution must be the only target, because MSBuild sets solution properties
+    /// only for a solution it loads alone.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// A solution is combined with other targets, or the project targets select different .NET SDKs.
+    /// </exception>
+    public Task<SnapshotExport> LoadCompilationsAsync(
+        IReadOnlyList<string> targets,
+        SnapshotLoadOptions options,
+        CancellationToken cancellationToken = default
+    ) => LoadCompilationsAsync(targets, options, DisabledProfile(), cancellationToken);
 
     private async Task<SnapshotExport> LoadCompilationsAsync(
-        string target,
+        IReadOnlyList<string> targets,
         SnapshotLoadOptions options,
         PipelineProfile profile,
         CancellationToken cancellationToken
     )
     {
+        if (targets.Count == 0)
+            throw new ArgumentException("Specify at least one target.", nameof(targets));
         var resolver = new TargetResolver(_fileSystem);
-        target = resolver.Resolve(target);
-        if (
-            target.IndexOfAny(['*', '?']) >= 0
-            || _fileSystem
-                .Path.GetExtension(target)
-                .Equals(".cs", StringComparison.OrdinalIgnoreCase)
-        )
-        {
+        var resolved = targets.Select(resolver.Resolve).ToArray();
+        if (resolved.Length > 1 && resolved.FirstOrDefault(IsSolution) is { } solution)
+            throw new InvalidOperationException(
+                $"Solution target '{solution}' must be the only target; check it on its own or list its projects."
+            );
+        resolved = resolved.Distinct(PathComparer).ToArray();
+        var loose = resolved
+            .Where(IsLooseSource)
+            .SelectMany(resolver.ExpandSources)
+            .Distinct(PathComparer)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var projects = resolved.Where(target => !IsLooseSource(target)).ToArray();
+        if (projects.Length == 0)
             return Restrict(
                 await new LooseSourceLoader(_fileSystem).LoadAsync(
-                    resolver.ExpandSources(target),
+                    loose,
                     options,
                     cancellationToken
                 ),
                 cancellationToken
             );
+
+        var sdk = await SelectSdkAsync(projects, cancellationToken);
+        if (!MSBuildLocator.IsRegistered)
+        {
+            MSBuildLocator.RegisterInstance(sdk);
         }
 
-        var directory = _fileSystem.Path.GetDirectoryName(target)!;
-        var selected = await SdkAvailability.ResolveAsync(directory, cancellationToken);
+        var export = await new SdkSnapshotLoader(_fileSystem).LoadAsync(
+            projects,
+            options,
+            sdk.Version.ToString(),
+            sdk.MSBuildPath,
+            profile,
+            cancellationToken
+        );
+        // An analysed project already compiles these sources with its references and options.
+        var compiled = export
+            .Snapshot.Projects.Where(project => project.IsAnalysisTarget)
+            .SelectMany(project => project.Documents)
+            .Select(document => document.Path)
+            .ToHashSet(PathComparer);
+        loose = loose.Where(path => !compiled.Contains(path)).ToArray();
+        if (loose.Length > 0)
+        {
+            var sources = await new LooseSourceLoader(_fileSystem).LoadAsync(
+                loose,
+                options with
+                {
+                    Properties = new(StringComparer.OrdinalIgnoreCase),
+                },
+                cancellationToken
+            );
+            var contexts = export
+                .Contexts.Concat(sources.Contexts)
+                .OrderBy(context => context.Snapshot.ProjectPath, StringComparer.Ordinal)
+                .ThenBy(context => context.Snapshot.TargetFramework, StringComparer.Ordinal)
+                .ToArray();
+            export = new SnapshotExport(
+                CompilationSnapshot.Create(contexts.Select(context => context.Snapshot).ToArray()),
+                contexts
+            );
+        }
+
+        return Restrict(export, cancellationToken);
+    }
+
+    // Each project directory selects its SDK through global.json; one MSBuild loads them all, so they must agree.
+    private async Task<VisualStudioInstance> SelectSdkAsync(
+        string[] projects,
+        CancellationToken cancellationToken
+    )
+    {
+        var directories = projects
+            .Select(project => _fileSystem.Path.GetDirectoryName(project)!)
+            .GroupBy(GlobalJson, PathComparer)
+            .Select(group => group.First())
+            .ToArray();
+        var selections = await Task.WhenAll(
+            directories.Select(directory =>
+                SdkAvailability.ResolveAsync(directory, cancellationToken)
+            )
+        );
+        if (selections.Distinct().Skip(1).Any())
+            throw new InvalidOperationException(
+                "The targets select different .NET SDKs ("
+                    + string.Join(
+                        ", ",
+                        directories.Zip(
+                            selections,
+                            (directory, sdk) => $"{sdk.Name} for '{directory}'"
+                        )
+                    )
+                    + "); run them in separate invocations."
+            );
+        var directory = directories[0];
+        var selected = selections[0];
         var version = selected.Version;
         // MSBuild built for a newer .NET can't load into this runtime.
         if (version.Major > Environment.Version.Major)
             throw new NewerRuntimeRequiredException(selected, directory);
         // MSBuildLocator lists other installed SDKs after the selected one, and it skips a selected SDK that this
         // runtime can't load. Loading any other SDK than the one global.json selects would give wrong compilations.
-        var sdk =
-            MSBuildLocator
+        return MSBuildLocator
                 .QueryVisualStudioInstances(
                     new VisualStudioInstanceQueryOptions
                     {
@@ -96,25 +191,41 @@ public class MsBuildSnapshotLoader
                 )
                 .FirstOrDefault(instance => instance.Version == version)
             ?? throw new InvalidOperationException(
-                $"MSBuild found no .NET SDK {version} for '{target}', although dotnet selects it there. Run Drill Press with the dotnet installation that holds that SDK."
+                $"MSBuild found no .NET SDK {version} for '{projects[0]}', although dotnet selects it there. Run Drill Press with the dotnet installation that holds that SDK."
             );
-        if (!MSBuildLocator.IsRegistered)
+    }
+
+    // dotnet uses the nearest global.json, so directories sharing it select the same SDK.
+    private string GlobalJson(string directory)
+    {
+        for (
+            var current = directory;
+            current is not null;
+            current = _fileSystem.Path.GetDirectoryName(current)
+        )
         {
-            MSBuildLocator.RegisterInstance(sdk);
+            var candidate = _fileSystem.Path.Combine(current, "global.json");
+            if (_fileSystem.File.Exists(candidate))
+                return candidate;
         }
 
-        return Restrict(
-            await new SdkSnapshotLoader(_fileSystem).LoadAsync(
-                target,
-                options,
-                sdk.Version.ToString(),
-                sdk.MSBuildPath,
-                profile,
-                cancellationToken
-            ),
-            cancellationToken
-        );
+        return "";
     }
+
+    private bool IsSolution(string target) =>
+        !IsLooseSource(target)
+        && _fileSystem.Path.GetExtension(target) is var extension
+        && (
+            extension.Equals(".sln", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase)
+        );
+
+    private bool IsLooseSource(string target) =>
+        target.IndexOfAny(['*', '?']) >= 0
+        || _fileSystem.Path.GetExtension(target).Equals(".cs", StringComparison.OrdinalIgnoreCase);
+
+    private static StringComparer PathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     private static PipelineProfile DisabledProfile() => new(false, TextWriter.Null, "build-host");
 

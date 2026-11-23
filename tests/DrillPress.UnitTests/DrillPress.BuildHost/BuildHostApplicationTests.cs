@@ -32,7 +32,7 @@ public sealed class BuildHostApplicationTests
 
         Assert.Equal(BuildHostExitCode.Failure, exitCode);
         Assert.Equal(
-            $"Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile]{Environment.NewLine}",
+            $"Usage: DrillPress.BuildHost export <target>... <snapshot> [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile]{Environment.NewLine}",
             error.ToString()
         );
     }
@@ -50,7 +50,7 @@ public sealed class BuildHostApplicationTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(_fileSystem.Path.GetFullPath("Target.csproj"), loader.ProjectPath);
+        Assert.Equal([_fileSystem.Path.GetFullPath("Target.csproj")], loader.Targets);
         Assert.Equal(
             $$"""{"fileIdentifier":"drillpress-compilation","formatVersion":6,"projects":[],"productVersion":"{{ComponentVersion.Current}}","requestId":"request"}""",
             _fileSystem.File.ReadAllText("nested/output/snapshot.json")
@@ -75,7 +75,7 @@ public sealed class BuildHostApplicationTests
             error.Message
         );
         Assert.Equal(_fileSystem.Path.GetFullPath(path), error.FileName);
-        Assert.Null(loader.ProjectPath);
+        Assert.Null(loader.Targets);
         Assert.False(_fileSystem.File.Exists("snapshot.json"));
     }
 
@@ -221,7 +221,7 @@ public sealed class BuildHostApplicationTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(_fileSystem.Path.GetFullPath("target/App.slnx"), loader.ProjectPath);
+        Assert.Equal([_fileSystem.Path.GetFullPath("target/App.slnx")], loader.Targets);
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public sealed class BuildHostApplicationTests
             "Directory 'target' contains 2 eligible targets; specify a .sln, .slnx, or .csproj file.",
             error.Message
         );
-        Assert.Null(loader.ProjectPath);
+        Assert.Null(loader.Targets);
     }
 
     [Fact]
@@ -278,6 +278,63 @@ public sealed class BuildHostApplicationTests
         );
         Assert.True(loader.Options.ValidateCompilation);
         Assert.True(loader.Options.IncludeReferencedProjects);
+    }
+
+    [Fact]
+    public async Task Every_argument_before_the_snapshot_is_a_resolved_target()
+    {
+        _fileSystem.AddFile("App/App.csproj", new MockFileData("<Project />"));
+        _fileSystem.AddFile("Lib/Lib.csproj", new MockFileData("<Project />"));
+        _fileSystem.AddFile("Program.cs", new MockFileData("class Program;"));
+        var loader = new StubSnapshotLoader(_fileSystem);
+        var error = new StringWriter();
+
+        var result = await new BuildHostApplication(_fileSystem, loader).RunAsync(
+            [
+                "export",
+                "App",
+                "Lib/Lib.csproj",
+                "src/**/*.cs",
+                "Program.cs",
+                "snapshot.json",
+                "--include-referenced-projects",
+            ],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(BuildHostExitCode.Success, result);
+        Assert.Equal("", error.ToString());
+        Assert.Equal(
+            [
+                _fileSystem.Path.GetFullPath("App/App.csproj"),
+                _fileSystem.Path.GetFullPath("Lib/Lib.csproj"),
+                _fileSystem.Path.GetFullPath("src/**/*.cs"),
+                _fileSystem.Path.GetFullPath("Program.cs"),
+            ],
+            loader.Targets
+        );
+        Assert.True(_fileSystem.File.Exists("snapshot.json"));
+        Assert.True(loader.Options!.IncludeReferencedProjects);
+    }
+
+    [Fact]
+    public async Task The_first_target_and_the_snapshot_may_start_with_dashes()
+    {
+        _fileSystem.AddFile("--App.cs", new MockFileData("class App;"));
+        var loader = new StubSnapshotLoader(_fileSystem);
+        var error = new StringWriter();
+
+        var result = await new BuildHostApplication(_fileSystem, loader).RunAsync(
+            ["export", "--App.cs", "--snapshot.json", "--validate-compilation"],
+            error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal((BuildHostExitCode.Success, ""), (result, error.ToString()));
+        Assert.Equal([_fileSystem.Path.GetFullPath("--App.cs")], loader.Targets);
+        Assert.True(_fileSystem.File.Exists("--snapshot.json"));
+        Assert.True(loader.Options!.ValidateCompilation);
     }
 
     [Fact]

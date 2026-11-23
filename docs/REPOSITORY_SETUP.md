@@ -20,7 +20,7 @@ setup, and an integration test runs it with the packaged tool.
 | Key | Value | Command-line option |
 | --- | --- | --- |
 | `rules` | The rules project, its directory, or a compiled bundle. | `--rules <path>` |
-| `target` | The solution, project, directory, C# file or glob to check. | `<target>` |
+| `target` | The solution, project, directory, C# file or glob to check, or an array of projects, directories, C# files and globs to check together. A solution must be the only target. | `<target>...` |
 | `properties` | MSBuild global properties, as an object of string values. | `--property Name=Value` |
 | `select` | Rule IDs to report. Omit it to report every rule. | `--select <ids>` |
 | `ignore` | Rule IDs that are never reported. | `--ignore <ids>` |
@@ -41,10 +41,10 @@ blank entry fails before anything runs, with exit code 2 and one line such as
 - Relative paths in the file resolve against the file's directory. Paths given on
   the command line resolve against the current directory. Output paths stay
   relative to the current directory.
-- A `--rules` option or a target on the command line replaces the file's value.
+- A `--rules` option or targets on the command line replace the file's value.
 - `--property` assignments follow the file's `properties`, and the last assignment
   of a name wins. Loose-file and glob targets accept no MSBuild properties, so the
-  file's properties apply only to solution, project and directory targets.
+  file's properties apply only when a solution, project or directory target is among the targets.
 - `--select` replaces the file's `select` and `ignore`, so an explicit selection
   can show a rule that the file ignores. A `--rules` option drops them too, because
   rule IDs belong to the file's bundle. `--ignore` and `--exclude` add to the file's

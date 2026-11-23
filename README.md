@@ -120,7 +120,7 @@ See [repository setup](docs/REPOSITORY_SETUP.md) for discovery, precedence,
 exceptions, and the local and CI workflow.
 
 Change-aware rules compare the code with an accepted state. Pass a Git revision
-of the target's repository, or a directory holding an accepted copy of the current
+of the targets' repository, or a directory holding an accepted copy of the current
 directory, with `--baseline`. For example, `--baseline origin/main` makes the sample's
 SDK2013 rule flag `CodecExamples*` projects' `*.Legacy.cs` files added since `origin/main`.
 The CLI resolves the revision; rules receive only a `SourceBaseline`.
@@ -214,6 +214,15 @@ semantic resolution and fix validation, but do not produce findings or receive
 fixes to dependency-only files. Pass `--include-referenced-projects` to `check` or
 `fix` to include direct and transitive project references. Solution targets retain
 analysis of the loaded project graph; loose-source targets retain their selected files.
+
+Several targets, such as `drillpress fix A.csproj B.csproj "tools/**/*.cs"`, run as
+one analysis: the rules build once, BuildHost loads every target in one session, and
+`fix` rechecks them all. Each target keeps the scope it has alone, and a file that
+several targets share reports once. Loose files that an analysed project already
+compiles are analysed in that project. A solution must be the only target, because
+MSBuild sets solution properties only for a solution it loads alone; check it on its
+own or list its projects. All project targets must select the same .NET SDK, and
+`--baseline` with a Git revision needs them in one repository.
 
 Pass repeatable `--property Name=Value` options to override MSBuild global
 properties; the last assignment wins. `--property TargetFramework=net10.0`

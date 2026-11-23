@@ -7,7 +7,10 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace DrillPress.BuildHost;
 
 /// <summary>The SDK that dotnet selects for a directory; a preview SDK comes with a prerelease runtime.</summary>
-internal sealed record SelectedSdk(Version Version, bool IsPreview);
+/// <param name="Version">The numeric SDK version.</param>
+/// <param name="IsPreview">Whether the SDK version has a prerelease label.</param>
+/// <param name="Name">The full version dotnet reports, with any prerelease label.</param>
+internal sealed record SelectedSdk(Version Version, bool IsPreview, string Name = "");
 
 internal sealed record GeneratedProject(
     string ContextId,

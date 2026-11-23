@@ -47,7 +47,7 @@ internal sealed class GeneratorProcessPipeline(IFileSystem fileSystem, ChildProc
                 options.BuildHost!,
                 [
                     "export",
-                    options.Target,
+                    .. options.Targets,
                     inputPath,
                     "--generation-plan",
                     directory,

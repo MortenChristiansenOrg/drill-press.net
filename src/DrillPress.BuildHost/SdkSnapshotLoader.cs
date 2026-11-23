@@ -24,7 +24,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     public async Task<SnapshotExport> LoadAsync(
-        string target,
+        IReadOnlyList<string> targets,
         SnapshotLoadOptions options,
         string sdkVersion,
         string sdkPath,
@@ -50,6 +50,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             );
         }
 
+        var selection = ProjectSelection.Create(_fileSystem, targets, options);
         if (options.GenerationPlanDirectory is { } generationDirectory)
         {
             var transport = new GeneratorTransport(_fileSystem, generationDirectory);
@@ -57,12 +58,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 _fileSystem,
                 transport,
                 await transport.ReadCapabilitiesAsync(cancellationToken),
-                !options.IncludeReferencedProjects
-                && _fileSystem
-                    .Path.GetExtension(target)
-                    .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
-                    ? _fileSystem.Path.GetFullPath(target)
-                    : null
+                selection.IsAnalysed
             );
         }
 
@@ -101,7 +97,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             {
                 var directSolution = direct.Load(
                     workspace,
-                    target,
+                    targets,
                     options.Properties,
                     cancellationToken,
                     streaming is null
@@ -116,22 +112,7 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                                 profile
                             )
                 );
-                if (directSolution is not null)
-                    original = directSolution;
-                else if (
-                    _fileSystem
-                        .Path.GetExtension(target)
-                        .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
-                )
-                {
-                    await workspace.OpenProjectAsync(target, cancellationToken: cancellationToken);
-                    original = workspace.CurrentSolution;
-                }
-                else
-                {
-                    await workspace.OpenSolutionAsync(target, cancellationToken: cancellationToken);
-                    original = workspace.CurrentSolution;
-                }
+                original = directSolution ?? await OpenAsync(workspace, targets, cancellationToken);
             }
 
             ThrowLoadFailures(failures);
@@ -168,26 +149,13 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         if (options.GeneratorCatalogPath is { } catalogPath)
             await _generatorBuild.WriteAsync(catalogPath, cancellationToken);
 
-        var projectOnly =
-            !options.IncludeReferencedProjects
-            && _fileSystem
-                .Path.GetExtension(target)
-                .Equals(".csproj", StringComparison.OrdinalIgnoreCase);
         var contexts = captured
             .Select(context =>
                 context with
                 {
                     Snapshot = context.Snapshot with
                     {
-                        IsAnalysisTarget =
-                            !projectOnly
-                            || string.Equals(
-                                _fileSystem.Path.GetFullPath(context.Snapshot.ProjectPath),
-                                _fileSystem.Path.GetFullPath(target),
-                                OperatingSystem.IsWindows()
-                                    ? StringComparison.OrdinalIgnoreCase
-                                    : StringComparison.Ordinal
-                            ),
+                        IsAnalysisTarget = selection.IsAnalysed(context.Snapshot.ProjectPath),
                     },
                 }
             )
@@ -199,6 +167,42 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         );
         SnapshotValidation.Validate(envelope);
         return new SnapshotExport(envelope, contexts);
+    }
+
+    private static StringComparer PathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    // A solution is always the only target. Several project targets open one by one, and a project an earlier one
+    // already loaded as a reference is not opened again.
+    private async Task<Solution> OpenAsync(
+        MSBuildWorkspace workspace,
+        IReadOnlyList<string> targets,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            targets is [var solution]
+            && !_fileSystem
+                .Path.GetExtension(solution)
+                .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            await workspace.OpenSolutionAsync(solution, cancellationToken: cancellationToken);
+            return workspace.CurrentSolution;
+        }
+
+        foreach (var project in targets)
+        {
+            if (
+                !workspace.CurrentSolution.Projects.Any(loaded =>
+                    loaded.FilePath is { } path
+                    && PathComparer.Equals(_fileSystem.Path.GetFullPath(path), project)
+                )
+            )
+                await workspace.OpenProjectAsync(project, cancellationToken: cancellationToken);
+        }
+
+        return workspace.CurrentSolution;
     }
 
     private void ScheduleProject(

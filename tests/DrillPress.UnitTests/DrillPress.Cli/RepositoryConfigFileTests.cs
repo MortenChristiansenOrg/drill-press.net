@@ -10,7 +10,7 @@ namespace DrillPress.UnitTests.Cli;
 public sealed class RepositoryConfigFileTests
 {
     private const string Usage =
-        "Usage: drillpress check|fix|status [--rules <path>] [<target>] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
+        "Usage: drillpress check|fix|status [--rules <path>] [<target>...] [--config <path>|--no-config] [--select <ids>] [--ignore <ids>] [--exclude <glob>] [--build-host <path>] [--baseline <revision|directory>] [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile] [--parallel-queries] [--stream-compilation] [--no-optimization] [--refresh-coverage] [--skip-coverage] [--explain-coverage] [--explain-fixes] [--show-fix-complexity] [--fix-complexity <levels>]";
 
     private const string Defaults = """
         {
@@ -227,6 +227,97 @@ public sealed class RepositoryConfigFileTests
         );
     }
 
+    [Fact]
+    public async Task A_target_array_exports_every_target_together_with_the_files_properties()
+    {
+        Configure(
+            "drillpress.json",
+            """
+            {
+              "rules": "Rules.dll",
+              "target": ["App/App.csproj", "tools/Tool.csproj", "scripts/*.cs"],
+              "properties": { "Configuration": "Release" }
+            }
+            """,
+            "src"
+        );
+        var error = new StringWriter();
+
+        var result = await RunAsync(error, "fix", "--build-host", "host");
+        var snapshot = SnapshotPath(_calls[0]);
+
+        Assert.Equal((CliExitCode.Clean, ""), (result, error.ToString()));
+        Assert.Equal(
+            [
+                [
+                    "host",
+                    "export",
+                    _fileSystem.Path.Combine("..", "App", "App.csproj"),
+                    _fileSystem.Path.Combine("..", "tools", "Tool.csproj"),
+                    _fileSystem.Path.Combine("..", "scripts", "*.cs"),
+                    snapshot,
+                    "--property",
+                    "Configuration=Release",
+                ],
+                [_fileSystem.Path.Combine("..", "Rules.dll"), "check", snapshot],
+            ],
+            _calls
+        );
+    }
+
+    [Fact]
+    public async Task Command_line_targets_replace_the_files_targets_and_loose_ones_take_no_properties()
+    {
+        Configure(
+            "drillpress.json",
+            """
+            {
+              "rules": "Rules.dll",
+              "target": ["App/App.csproj", "tools/Tool.csproj"],
+              "properties": { "Configuration": "Release" }
+            }
+            """
+        );
+        var error = new StringWriter();
+
+        var result = await RunAsync(
+            error,
+            "check",
+            "--build-host",
+            "host",
+            "Program.cs",
+            "src/**/*.cs",
+            "Program.cs"
+        );
+        var snapshot = SnapshotPath(_calls[0]);
+
+        Assert.Equal((CliExitCode.Clean, ""), (result, error.ToString()));
+        Assert.Equal(
+            ["host", "export", "Program.cs", "src/**/*.cs", "Program.cs", snapshot],
+            _calls[0]
+        );
+    }
+
+    [Fact]
+    public async Task A_target_path_starting_with_a_dash_is_not_passed_as_an_option()
+    {
+        Configure("drillpress.json", """{ "rules": "Rules.dll", "target": "--script.cs" }""");
+        var error = new StringWriter();
+
+        var result = await RunAsync(error, "check", "--build-host", "host");
+
+        Assert.Equal((CliExitCode.Clean, ""), (result, error.ToString()));
+        Assert.Equal(
+            [
+                "host",
+                "export",
+                "." + _fileSystem.Path.DirectorySeparatorChar + "--script.cs",
+                SnapshotPath(_calls[0]),
+            ],
+            _calls[0]
+        );
+    }
+
     [Theory]
     [InlineData(
         """{ "rule": "Rules.dll" }""",
@@ -237,7 +328,12 @@ public sealed class RepositoryConfigFileTests
         "'rules' is the rules project or bundle path; list rule IDs in 'select'"
     )]
     [InlineData("""{ "rules": " " }""", "'rules' must be a path")]
-    [InlineData("""{ "target": 1 }""", "'target' must be a path")]
+    [InlineData("""{ "target": 1 }""", "'target' must be a path or a non-empty array of paths")]
+    [InlineData("""{ "target": [] }""", "'target' must be a path or a non-empty array of paths")]
+    [InlineData(
+        """{ "target": ["A.slnx", " "] }""",
+        "'target' must be a path or a non-empty array of paths"
+    )]
     [InlineData(
         """{ "target": "A.slnx", "target": "B.slnx" }""",
         "'target' appears more than once"
@@ -374,6 +470,32 @@ public sealed class RepositoryConfigFileTests
         );
     }
 
+    // BuildHost takes every target, then the snapshot, before its options.
+    [Fact]
+    public async Task A_target_array_with_a_solution_fails_before_starting_tools()
+    {
+        Configure(
+            "drillpress.json",
+            """{ "rules": "Rules.dll", "target": ["tools/Tool.csproj", "App.slnx"] }"""
+        );
+        var error = new StringWriter();
+
+        var result = await RunAsync(error, "check", "--build-host", "host");
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                "drillpress: Solution target 'App.slnx' must be the only target; check it on its own or list its projects."
+                    + Environment.NewLine
+            ),
+            (result, error.ToString())
+        );
+        Assert.Empty(_calls);
+    }
+
+    private static string SnapshotPath(string[] call) =>
+        call.TakeWhile(argument => !argument.StartsWith("--", StringComparison.Ordinal)).Last();
+
     // Writes the file under the root and runs from the given directory below the root.
     private void Configure(string path, string content, params string[] currentDirectory)
     {
@@ -392,7 +514,7 @@ public sealed class RepositoryConfigFileTests
                 _calls.Add([executable, .. arguments]);
                 if (executable == "host")
                     await new CompilationSnapshotFile(_fileSystem).WriteAsync(
-                        arguments[2],
+                        SnapshotPath(_calls[^1]),
                         snapshot,
                         cancellationToken
                     );

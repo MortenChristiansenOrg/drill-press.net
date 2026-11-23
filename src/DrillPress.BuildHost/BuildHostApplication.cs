@@ -51,16 +51,22 @@ public sealed class BuildHostApplication
     )
     {
         standardError ??= Console.Error;
-        if (args.Length < 3 || args[0] != "export")
+        // Every argument before the first option is a target, except the last, which is the snapshot. The first
+        // target and the snapshot always take the first two places, as they did before several targets.
+        var positional = Math.Max(
+            Math.Min(args.Length, 3),
+            args.TakeWhile(argument => !argument.StartsWith("--", StringComparison.Ordinal)).Count()
+        );
+        if (positional < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(
-                "Usage: DrillPress.BuildHost export <target> <snapshot> [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile]"
+                "Usage: DrillPress.BuildHost export <target>... <snapshot> [--property Name=Value] [--validate-compilation] [--include-referenced-projects] [--profile]"
             );
             return BuildHostExitCode.Failure;
         }
 
         var profile = new PipelineProfile(
-            args.Skip(3).Contains("--profile"),
+            args.Skip(positional).Contains("--profile"),
             standardError,
             "build-host",
             _profileProbe
@@ -71,8 +77,14 @@ public sealed class BuildHostApplication
         {
             try
             {
-                var options = ParseOptions(args[3..]);
-                await ExportAsync(args[1], args[2], options, profile, cancellationToken);
+                var options = ParseOptions(args[positional..]);
+                await ExportAsync(
+                    args[1..(positional - 1)],
+                    args[positional - 1],
+                    options,
+                    profile,
+                    cancellationToken
+                );
                 return BuildHostExitCode.Success;
             }
             catch (NewerRuntimeRequiredException exception) when (!_rollForward.IsRolledForward)
@@ -108,8 +120,22 @@ public sealed class BuildHostApplication
         CancellationToken cancellationToken = default
     )
     {
+        await ExportAsync([target], outputPath, options, cancellationToken);
+    }
+
+    /// <summary>
+    /// Exports several project, directory, or loose-source targets, or one solution, as one snapshot, as
+    /// <see cref="MsBuildSnapshotLoader.LoadCompilationsAsync(IReadOnlyList{string}, SnapshotLoadOptions, CancellationToken)"/> describes.
+    /// </summary>
+    public async Task ExportAsync(
+        IReadOnlyList<string> targets,
+        string outputPath,
+        SnapshotLoadOptions options,
+        CancellationToken cancellationToken = default
+    )
+    {
         await ExportAsync(
-            target,
+            targets,
             outputPath,
             options,
             new PipelineProfile(false, TextWriter.Null, "build-host", _profileProbe),
@@ -118,21 +144,24 @@ public sealed class BuildHostApplication
     }
 
     private async Task ExportAsync(
-        string target,
+        IReadOnlyList<string> targets,
         string outputPath,
         SnapshotLoadOptions options,
         PipelineProfile profile,
         CancellationToken cancellationToken
     )
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(target);
+        if (targets.Count == 0)
+            throw new ArgumentException("Specify at least one target.", nameof(targets));
+        foreach (var target in targets)
+            ArgumentException.ThrowIfNullOrWhiteSpace(target, nameof(targets));
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         CompilationSnapshot snapshot;
         using (profile.Measure("loading"))
         {
-            var resolved = new TargetResolver(_fileSystem).Resolve(target);
+            var resolver = new TargetResolver(_fileSystem);
             snapshot = await _snapshotLoader.LoadAsync(
-                resolved,
+                targets.Select(resolver.Resolve).ToArray(),
                 options,
                 profile,
                 cancellationToken
