@@ -8,8 +8,9 @@ namespace DrillPress.BuildHost;
 /// loaded projects to analyse. A project target analyses that project, or with
 /// <see cref="SnapshotLoadOptions.IncludeReferencedProjects"/> everything it loads. A solution target
 /// analyses its projects and the projects they reference. With several targets each one keeps its own
-/// scope; a solution then loads as the projects its selected configuration builds, without its project
-/// configuration mapping, because MSBuild's project graph accepts a solution only as its sole entry point.
+/// scope; a solution then loads as the projects its selected configuration builds, each with the configuration
+/// and platform the solution maps it to, because MSBuild's project graph accepts a solution only as its sole
+/// entry point.
 /// </summary>
 internal sealed class ProjectSelection
 {
@@ -24,7 +25,7 @@ internal sealed class ProjectSelection
 
     private ProjectSelection(
         IFileSystem fileSystem,
-        string[] entryPoints,
+        ProjectEntryPoint[] entryPoints,
         bool all,
         HashSet<string> projects,
         HashSet<string> solutionProjects
@@ -38,7 +39,7 @@ internal sealed class ProjectSelection
     }
 
     /// <summary>The solution or project files to load; a single target loads as given.</summary>
-    internal string[] EntryPoints { get; }
+    internal ProjectEntryPoint[] EntryPoints { get; }
 
     /// <summary>Selects from resolved, distinct solution and project targets. Must run after MSBuild registration.</summary>
     internal static ProjectSelection Create(
@@ -52,7 +53,7 @@ internal sealed class ProjectSelection
             var isProject = IsProject(fileSystem, target);
             return new ProjectSelection(
                 fileSystem,
-                [target],
+                [new ProjectEntryPoint(target, new Dictionary<string, string>())],
                 options.IncludeReferencedProjects || !isProject,
                 isProject ? new(_pathComparer) { fileSystem.Path.GetFullPath(target) } : [],
                 []
@@ -61,20 +62,22 @@ internal sealed class ProjectSelection
 
         var projects = new HashSet<string>(_pathComparer);
         var solutionProjects = new HashSet<string>(_pathComparer);
-        var entryPoints = new List<string>();
+        var entryPoints = new List<ProjectEntryPoint>();
         foreach (var path in targets.Select(fileSystem.Path.GetFullPath))
         {
             var isProject = IsProject(fileSystem, path);
-            var expanded = isProject
-                ? [path]
+            ProjectEntryPoint[] expanded = isProject
+                ? [new ProjectEntryPoint(path, new Dictionary<string, string>())]
                 : SolutionProjects(fileSystem, path, options.Properties);
-            (isProject ? projects : solutionProjects).UnionWith(expanded);
+            (isProject ? projects : solutionProjects).UnionWith(
+                expanded.Select(entry => entry.Path)
+            );
             entryPoints.AddRange(expanded);
         }
 
         return new ProjectSelection(
             fileSystem,
-            entryPoints.Distinct(_pathComparer).ToArray(),
+            entryPoints.DistinctBy(entry => entry.Path, _pathComparer).ToArray(),
             options.IncludeReferencedProjects,
             projects,
             solutionProjects
@@ -114,8 +117,9 @@ internal sealed class ProjectSelection
     private static bool IsProject(IFileSystem fileSystem, string path) =>
         fileSystem.Path.GetExtension(path).Equals(".csproj", StringComparison.OrdinalIgnoreCase);
 
-    // Mirrors MSBuild's project graph: the requested or default solution configuration selects the projects it builds.
-    private static string[] SolutionProjects(
+    // Mirrors MSBuild's project graph: the requested or default solution configuration selects the projects it
+    // builds, and each project gets the configuration and platform it maps to where they differ from the defaults.
+    private static ProjectEntryPoint[] SolutionProjects(
         IFileSystem fileSystem,
         string solutionPath,
         IDictionary<string, string> properties
@@ -131,13 +135,48 @@ internal sealed class ProjectSelection
                 ? selected
                 : solution.GetDefaultPlatformName();
         var fullName = configuration + "|" + platform;
-        return solution
-            .ProjectsInOrder.Where(project =>
-                project.ProjectType == SolutionProjectType.KnownToBeMSBuildFormat
-                && project.ProjectConfigurations.TryGetValue(fullName, out var mapping)
-                && mapping.IncludeInBuild
+        var defaults = new Dictionary<string, string>
+        {
+            ["Configuration"] = properties.TryGetValue("Configuration", out var global)
+                ? global
+                : "Debug",
+            ["Platform"] = properties.TryGetValue("Platform", out var globalPlatform)
+                ? PlatformName(globalPlatform)
+                : "AnyCPU",
+        };
+        var entryPoints = new List<ProjectEntryPoint>();
+        foreach (var project in solution.ProjectsInOrder)
+        {
+            if (
+                project.ProjectType != SolutionProjectType.KnownToBeMSBuildFormat
+                || !project.ProjectConfigurations.TryGetValue(fullName, out var mapping)
+                || !mapping.IncludeInBuild
             )
-            .Select(project => fileSystem.Path.GetFullPath(project.AbsolutePath))
-            .ToArray();
+                continue;
+            var mapped = new Dictionary<string, string>
+            {
+                ["Configuration"] = mapping.ConfigurationName,
+                ["Platform"] = PlatformName(mapping.PlatformName),
+            };
+            entryPoints.Add(
+                new ProjectEntryPoint(
+                    fileSystem.Path.GetFullPath(project.AbsolutePath),
+                    mapped
+                        .Where(property =>
+                            !property.Value.Equals(
+                                defaults[property.Key],
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        )
+                        .ToDictionary()
+                )
+            );
+        }
+
+        return entryPoints.ToArray();
     }
+
+    // Solutions spell the platform of .NET projects "Any CPU"; the projects themselves use "AnyCPU".
+    private static string PlatformName(string platform) =>
+        platform.Equals("Any CPU", StringComparison.OrdinalIgnoreCase) ? "AnyCPU" : platform;
 }

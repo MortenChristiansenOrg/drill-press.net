@@ -29,10 +29,11 @@ internal sealed record CliOptions(
     public string[] Exclude { get; init; } = [];
 
     /// <summary>
-    /// Whether loose files or globs come with solution or project targets. Streamed generation captures
-    /// project contexts only, so such a mix loads without streaming.
+    /// Whether several targets include a loose file or glob. Streamed generation expects a plan for every
+    /// context, which a loose-source context beside project contexts lacks, so such a set loads without streaming.
+    /// A directory can resolve to a project whatever its name, so only a single target is known to be uniform.
     /// </summary>
-    public bool MixesLooseSources => Targets.Any(IsLooseSource) && !Targets.All(IsLooseSource);
+    public bool CombinesLooseSources => Targets.Length > 1 && Targets.Any(IsLooseSource);
 
     /// <summary>
     /// Parses the arguments and applies repository defaults beneath them: an explicit rules source or targets replace

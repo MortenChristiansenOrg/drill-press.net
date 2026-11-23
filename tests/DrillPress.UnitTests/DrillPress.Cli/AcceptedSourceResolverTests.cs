@@ -209,6 +209,32 @@ public sealed class AcceptedSourceResolverTests
     }
 
     [Fact]
+    public async Task A_target_reaching_the_repository_by_another_path_fails_before_rules_run()
+    {
+        var alias = _fileSystem.Path.GetFullPath("/alias");
+        _fileSystem.Directory.CreateDirectory(alias);
+        _otherTopLevels[alias] = _work;
+        var error = new StringWriter();
+
+        var exit = await RunAsync(
+            error,
+            "--baseline",
+            "main",
+            Work("App.csproj"),
+            Path(alias, "Other.csproj")
+        );
+
+        Assert.Equal(
+            (
+                CliExitCode.Failure,
+                $"drillpress: Baseline 'main' needs every target under '{_work}', the root '{_work}' names; '{alias}' reaches the repository by another path.\n"
+            ),
+            (exit, error.ToString().ReplaceLineEndings("\n"))
+        );
+        Assert.Empty(_acceptedFiles);
+    }
+
+    [Fact]
     public async Task An_unknown_revision_fails_before_rules_run()
     {
         var error = new StringWriter();

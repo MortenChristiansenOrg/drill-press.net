@@ -152,20 +152,21 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             await _generatorBuild.WriteAsync(catalogPath, cancellationToken);
 
         var analysed = selection.Analysed(
-            original
-                .Projects.SelectMany(project =>
-                    project.ProjectReferences.Select(reference =>
-                        (
-                            Project: project.FilePath!,
-                            Reference: original.GetProject(reference.ProjectId)!.FilePath!
+            direct.References
+                ?? original
+                    .Projects.SelectMany(project =>
+                        project.ProjectReferences.Select(reference =>
+                            (
+                                Project: project.FilePath!,
+                                Reference: original.GetProject(reference.ProjectId)!.FilePath!
+                            )
                         )
                     )
-                )
-                .ToLookup(
-                    edge => _fileSystem.Path.GetFullPath(edge.Project),
-                    edge => _fileSystem.Path.GetFullPath(edge.Reference),
-                    PathComparer
-                )
+                    .ToLookup(
+                        edge => _fileSystem.Path.GetFullPath(edge.Project),
+                        edge => _fileSystem.Path.GetFullPath(edge.Reference),
+                        PathComparer
+                    )
         );
         var contexts = captured
             .Select(context =>
@@ -194,12 +195,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
     // and a project an earlier one already loaded as a reference is not opened again.
     private async Task<Solution> OpenAsync(
         MSBuildWorkspace workspace,
-        string[] entryPoints,
+        ProjectEntryPoint[] entryPoints,
         CancellationToken cancellationToken
     )
     {
         if (
-            entryPoints is [var solution]
+            entryPoints is [{ Path: var solution }]
             && !_fileSystem
                 .Path.GetExtension(solution)
                 .Equals(".csproj", StringComparison.OrdinalIgnoreCase)
@@ -209,7 +210,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
             return workspace.CurrentSolution;
         }
 
-        foreach (var project in entryPoints)
+        // The workspace applies one set of global properties to every project.
+        if (entryPoints.FirstOrDefault(entry => entry.Properties.Count > 0) is { } mapped)
+            throw new InvalidOperationException(
+                $"A solution maps '{mapped.Path}' to {string.Join(", ", mapped.Properties.Select(property => $"{property.Key}={property.Value}"))}, which applies beside other targets only when MSBuild's project graph loads them; check that solution on its own."
+            );
+        foreach (var project in entryPoints.Select(entry => entry.Path))
         {
             if (
                 !workspace.CurrentSolution.Projects.Any(loaded =>

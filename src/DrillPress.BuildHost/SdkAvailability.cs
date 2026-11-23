@@ -82,6 +82,6 @@ internal static class SdkAvailability
             );
         }
 
-        return new SelectedSdk(version, label >= 0);
+        return new SelectedSdk(version, label >= 0, output);
     }
 }

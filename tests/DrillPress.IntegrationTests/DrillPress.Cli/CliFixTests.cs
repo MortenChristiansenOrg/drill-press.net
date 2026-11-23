@@ -157,6 +157,23 @@ public sealed class CliFixTests : IntegrationTest
     }
 
     [Fact]
+    public async Task A_file_target_that_its_project_moves_is_rechecked_at_its_new_path()
+    {
+        var root = await WriteLayoutSolutionAsync("drillpress-move-target-fix-");
+        var solution = FileSystem.Path.Combine(root, "Orders.slnx");
+        await RestoreAsync(solution);
+
+        var result = await FixAsync(
+            solution,
+            FileSystem.Path.Combine(root, "src", "Orders", "Misnamed.cs")
+        );
+
+        Assert.Equal(new ProcessResult(0, "", ""), result);
+        Assert.Contains("src/Orders/Invoice.cs", SourceFiles(root));
+        Assert.DoesNotContain("src/Orders/Misnamed.cs", SourceFiles(root));
+    }
+
+    [Fact]
     public async Task A_move_to_a_path_created_after_analysis_stops_before_any_write()
     {
         var root = await WriteLayoutSolutionAsync("drillpress-move-collision-");

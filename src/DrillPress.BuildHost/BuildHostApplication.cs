@@ -8,6 +8,16 @@ namespace DrillPress.BuildHost;
 /// </summary>
 public sealed class BuildHostApplication
 {
+    private static readonly string[] _options =
+    [
+        "--property",
+        "--validate-compilation",
+        "--include-referenced-projects",
+        "--profile",
+        "--generation-plan",
+        "--generator-catalog",
+    ];
+
     private readonly IFileSystem _fileSystem;
     private readonly MsBuildSnapshotLoader _snapshotLoader;
     private readonly ProcessProfileProbe _profileProbe;
@@ -52,10 +62,7 @@ public sealed class BuildHostApplication
     {
         standardError ??= Console.Error;
         // Every argument before the first option is a target, except the last, which is the snapshot.
-        var positional = args.TakeWhile(argument =>
-                !argument.StartsWith("--", StringComparison.Ordinal)
-            )
-            .Count();
+        var positional = args.TakeWhile(argument => !_options.Contains(argument)).Count();
         if (positional < 3 || args[0] != "export")
         {
             await standardError.WriteLineAsync(

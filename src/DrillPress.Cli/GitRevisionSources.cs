@@ -59,6 +59,26 @@ internal sealed class GitRevisionSources(IFileSystem fileSystem, ChildProcessRun
                     $"Baseline '{revision}' needs every target in one Git repository, but '{starts[index + 1]}' is in '{otherTopLevel}' and '{start}' in '{topLevel}'."
                 );
         }
+        // Accepted paths take the root's spelling, so a target that reaches the checkout through a link would match none.
+        var prefix =
+            _fileSystem.Path.TrimEndingDirectorySeparator(root)
+            + _fileSystem.Path.DirectorySeparatorChar;
+        if (
+            starts
+                .Skip(1)
+                .FirstOrDefault(other =>
+                    !(other + _fileSystem.Path.DirectorySeparatorChar).StartsWith(
+                        prefix,
+                        OperatingSystem.IsWindows()
+                            ? StringComparison.OrdinalIgnoreCase
+                            : StringComparison.Ordinal
+                    )
+                ) is
+            { } outside
+        )
+            throw new IOException(
+                $"Baseline '{revision}' needs every target under '{root}', the root '{start}' names; '{outside}' reaches the repository by another path."
+            );
         var commit = await GitAsync(
             [
                 "-C",

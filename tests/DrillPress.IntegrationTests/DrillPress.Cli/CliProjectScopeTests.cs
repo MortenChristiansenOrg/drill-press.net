@@ -165,6 +165,66 @@ public sealed class CliProjectScopeTests : IntegrationTest
     }
 
     [Fact]
+    public async Task A_solution_beside_other_targets_keeps_its_configuration_mapping()
+    {
+        var root = await CreateGraphAsync();
+        await WriteAsync(
+            root,
+            "App/App.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup><ProjectReference Include="../Dependency/Dependency.csproj" /></ItemGroup>
+              <ItemGroup Condition="'$(Configuration)' != 'Release'"><Compile Remove="ReleaseOnly.cs" /></ItemGroup>
+            </Project>
+            """
+        );
+        await WriteAsync(
+            root,
+            "App/ReleaseOnly.cs",
+            "class ReleaseOnly { string Value => string.Empty; }"
+        );
+        await WriteAsync(
+            root,
+            "Retail.slnx",
+            """
+            <Solution>
+              <Configurations><BuildType Name="Retail" /></Configurations>
+              <Project Path="App/App.csproj"><BuildType Solution="Retail|*" Project="Release" /></Project>
+            </Solution>
+            """
+        );
+
+        var single = await RunCliAsync(FileSystem.Path.Combine(root, "Retail.slnx"));
+        var several = await RunCliAsync(
+            FileSystem.Path.Combine(root, "Retail.slnx"),
+            FileSystem.Path.Combine(root, "Leaf/Leaf.csproj")
+        );
+
+        Assert.Equal(
+            (
+                1,
+                $"""
+                DP1004 Use the empty string literal "" instead of string.Empty.
+                {Relative(root, "App/ReleaseOnly.cs")}
+                  +1:37
+                {Relative(root, "Dependency/Dependency.cs")}
+                  +1:57
+                {Relative(root, "Leaf/Leaf.cs")}
+                  +1:51
+
+                """.ReplaceLineEndings("\n"),
+                ""
+            ),
+            (single.ExitCode, single.StandardOutput, single.StandardError)
+        );
+        Assert.Equal(
+            (single.ExitCode, single.StandardOutput, single.StandardError),
+            (several.ExitCode, several.StandardOutput, several.StandardError)
+        );
+    }
+
+    [Fact]
     public async Task Project_and_loose_targets_analyse_only_what_they_name()
     {
         var root = await CreateGraphAsync();

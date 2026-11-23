@@ -160,7 +160,7 @@ public class MsBuildSnapshotLoader
                         ", ",
                         directories.Zip(
                             selections,
-                            (directory, sdk) => $"{sdk.Version} for '{directory}'"
+                            (directory, sdk) => $"{sdk.Name} for '{directory}'"
                         )
                     )
                     + "); run them in separate invocations."

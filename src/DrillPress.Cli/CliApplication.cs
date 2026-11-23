@@ -202,7 +202,10 @@ public sealed class CliApplication
                         try
                         {
                             evaluation = await EvaluateAsync(
-                                options,
+                                options with
+                                {
+                                    Targets = MovedTargets(options.Targets, application.Moved),
+                                },
                                 rules,
                                 snapshotPath,
                                 ruleFlags,
@@ -287,7 +290,7 @@ public sealed class CliApplication
         if (
             options.StreamCompilation
             && !options.ExportArguments.Contains("--validate-compilation")
-            && !options.MixesLooseSources
+            && !options.CombinesLooseSources
         )
         {
             // The rules process starts first in this mode, so its build must finish before capture.
@@ -370,6 +373,25 @@ public sealed class CliApplication
         }
         return await running;
     }
+
+    // A file target that a project also compiles can move with it; the recheck follows it to its new path.
+    private string[] MovedTargets(string[] targets, MovedFile[] moves) =>
+        targets
+            .Select(target =>
+                moves.LastOrDefault(move =>
+                    string.Equals(
+                        move.From,
+                        _fileSystem.Path.GetFullPath(target),
+                        OperatingSystem.IsWindows()
+                            ? StringComparison.OrdinalIgnoreCase
+                            : StringComparison.Ordinal
+                    )
+                )
+                    is { } move
+                    ? move.To
+                    : target
+            )
+            .ToArray();
 
     private static string[] RuleFlags(CliOptions options, string? acceptedSources)
     {
