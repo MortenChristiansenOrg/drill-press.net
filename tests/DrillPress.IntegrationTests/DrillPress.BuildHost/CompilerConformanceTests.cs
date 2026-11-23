@@ -491,16 +491,23 @@ public sealed class CompilerConformanceTests(CompilerFixture fixture)
     }
 
     [Theory]
-    [InlineData("<TreatWarningsAsErrors>true</TreatWarningsAsErrors>", "CS8618")]
-    [InlineData("", "")]
-    public async Task Snapshots_record_suppressible_diagnostics_of_projects_reporting_warnings_as_errors(
+    [InlineData("<TreatWarningsAsErrors>true</TreatWarningsAsErrors>", "", "CS8618")]
+    [InlineData("", "dotnet_diagnostic.cs8618.severity = error", "CS8618")]
+    [InlineData("<WarningsAsErrors>CS0168</WarningsAsErrors>", "", "")]
+    [InlineData("", "", "")]
+    public async Task Snapshots_record_suppressible_diagnostics_that_projects_report_as_errors(
         string properties,
+        string configuration,
         string suppressible
     )
     {
         var target = await CreateAnalyzedProjectAsync(
             properties,
-            "public sealed class Context { }"
+            "public sealed class Context { }",
+            $"""
+            is_global = true
+            {configuration}
+            """
         );
 
         var result = await ExportAnalyzedAsync(target);

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DrillPress;
 
@@ -8,14 +9,11 @@ namespace DrillPress;
 // so fix validation tolerates those errors as long as an edit adds none.
 internal sealed class CompilationErrors
 {
-    private readonly Dictionary<
-        (string Path, string Id, string Message),
-        List<Diagnostic>
-    > _suppressible;
+    private readonly Dictionary<SuppressibleError, List<Diagnostic>> _suppressible;
 
     private CompilationErrors(
         Diagnostic? blocking,
-        Dictionary<(string Path, string Id, string Message), List<Diagnostic>> suppressible
+        Dictionary<SuppressibleError, List<Diagnostic>> suppressible
     )
     {
         Blocking = blocking;
@@ -29,7 +27,7 @@ internal sealed class CompilationErrors
     {
         var ids = project.Snapshot.SuppressibleDiagnosticIds;
         Diagnostic? blocking = null;
-        var suppressible = new Dictionary<(string, string, string), List<Diagnostic>>();
+        var suppressible = new Dictionary<SuppressibleError, List<Diagnostic>>();
         foreach (var error in compilation.GetDiagnostics(project.CancellationToken))
         {
             if (error.Severity != DiagnosticSeverity.Error)
@@ -40,8 +38,9 @@ internal sealed class CompilationErrors
                 break;
             }
 
-            var key = (
+            var key = new SuppressibleError(
                 error.Location.SourceTree?.FilePath ?? "",
+                Declaration(compilation, error, project.CancellationToken),
                 error.Id,
                 error.GetMessage(CultureInfo.InvariantCulture)
             );
@@ -53,7 +52,7 @@ internal sealed class CompilationErrors
         return new(blocking, suppressible);
     }
 
-    /// <summary>The first error this edited compilation adds to the original: one no suppressor can hide, or a suppressible one beyond those the same file already reports with the same message.</summary>
+    /// <summary>The first error this edited compilation adds to the original: one no suppressor can hide, or a suppressible one beyond those the same declaration already reports with the same message.</summary>
     internal Diagnostic? AddedTo(CompilationErrors original) =>
         Blocking
         ?? _suppressible
@@ -63,4 +62,32 @@ internal sealed class CompilationErrors
                 )
             )
             .FirstOrDefault(error => error is not null);
+
+    // The innermost declared member or variable, so that an edit cannot trade a suppressed warning for one with the
+    // same message on another type's member.
+    private static string Declaration(
+        Compilation compilation,
+        Diagnostic error,
+        CancellationToken cancellationToken
+    )
+    {
+        if (error.Location.SourceTree is not { } tree)
+            return "";
+        var model = compilation.GetSemanticModel(tree);
+        return tree.GetRoot(cancellationToken)
+                .FindNode(error.Location.SourceSpan, getInnermostNodeForTie: true)
+                .AncestorsAndSelf()
+                .Where(node => node is MemberDeclarationSyntax or VariableDeclaratorSyntax)
+                .Select(node => model.GetDeclaredSymbol(node, cancellationToken))
+                .FirstOrDefault(symbol => symbol is not null)
+                ?.ToDisplayString()
+            ?? "";
+    }
+
+    private sealed record SuppressibleError(
+        string Path,
+        string Declaration,
+        string Id,
+        string Message
+    );
 }

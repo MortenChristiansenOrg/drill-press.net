@@ -294,7 +294,7 @@ public sealed class FileScopedNamespaceConversionTests(SdkFixture fixture)
             NS Use a file-scoped namespace.
             A.cs
               1
-                fix withheld: the namespace contains the directive `#if DEBUG` at 3:1
+                fix withheld: the conversion does not support the directive `#if DEBUG` at 3:1
 
             """.ReplaceLineEndings("\n"),
             result.ExplainedOutput

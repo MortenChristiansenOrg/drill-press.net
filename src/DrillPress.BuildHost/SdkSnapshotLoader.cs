@@ -553,8 +553,9 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
         return !all && promoted.Count == 0
             ? []
             : analyzers
-                .SuppressibleDiagnosticIds()
-                .Where(id => IsCompiler(id) && (all || promoted.Contains(id)))
+                .SuppressibleDiagnosticIds.Where(id =>
+                    IsCompiler(id) && (all || promoted.Contains(id))
+                )
                 .ToArray();
 
         static bool IsCompiler(string id) => id.StartsWith("CS", StringComparison.Ordinal);
@@ -680,11 +681,12 @@ internal sealed class SdkSnapshotLoader(IFileSystem fileSystem)
                 Match match in Regex.Matches(
                     text.ToString(),
                     @"dotnet_diagnostic\.(CS\d+)\.severity",
-                    RegexOptions.CultureInvariant
+                    RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
                 )
             )
             {
-                ids.Add(match.Groups[1].Value);
+                // Analyzer configuration keys are case-insensitive; compiler IDs are upper case.
+                ids.Add(match.Groups[1].Value.ToUpperInvariant());
             }
         }
 

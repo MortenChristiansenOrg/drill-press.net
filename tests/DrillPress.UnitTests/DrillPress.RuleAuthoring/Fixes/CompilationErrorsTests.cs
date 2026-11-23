@@ -47,6 +47,40 @@ public sealed class CompilationErrorsTests
     }
 
     [Fact]
+    public void An_edit_moving_a_suppressible_warning_to_another_declaration_is_withheld()
+    {
+        var project = WarningsAsErrors(
+            """
+            public sealed class FixtureSet<T> { }
+            public sealed class Context
+            {
+                public FixtureSet<string> Items { get; set; }
+            }
+            public sealed class Other
+            {
+                public FixtureSet<string> Items { get; set; } = new();
+            }
+            """,
+            "CS8618"
+        );
+        var source = project.Sources.Single();
+        var text = source.Document.Text;
+        var initialized = text.IndexOf(" = new();", StringComparison.Ordinal);
+        var uninitialized = text.IndexOf("{ get; set; }", StringComparison.Ordinal);
+        var proposal = SourceChanges.Propose(
+            [
+                SourceChanges.Replace(source, new(uninitialized, 13), "{ get; set; } = new();"),
+                SourceChanges.Replace(source, new(initialized, 9), ""),
+            ],
+            _ => true
+        );
+
+        var result = proposal.IsSafeIn(project);
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public void An_error_a_suppressor_names_but_cannot_hide_withholds_fixes()
     {
         var project = WarningsAsErrors(

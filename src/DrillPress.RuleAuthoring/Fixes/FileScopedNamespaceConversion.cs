@@ -61,9 +61,9 @@ public sealed class FileScopedNamespaceConversion
             return FixProposal.Withheld("the namespace's closing brace shares its line");
         if (lineBreak.Length == 0 || bodyStart > bodyEnd)
             return FixProposal.Withheld("the namespace body is empty");
-        if (UnsafeDirective(declaration) is { } directive)
+        if (UnsafeDirective(unit, declaration) is { } directive)
             return FixProposal.Withheld(
-                $"the namespace contains the directive `{FixReasons.Text(directive.ToString())}` at {FixReasons.Position(source, directive.SpanStart)}"
+                $"the conversion does not support the directive `{FixReasons.Text(directive.ToString())}` at {FixReasons.Position(source, directive.SpanStart)}"
             );
         var indentation = IndentationOf(text, bodyStart, bodyEnd);
         if (indentation.Length == 0)
@@ -146,23 +146,26 @@ public sealed class FileScopedNamespaceConversion
         return RewriteChecks.CompilerSuppliedArguments(evidence, null).Reason;
     }
 
-    // Removing indentation keeps the meaning of these directives. Other directives, such as #if, #line or #error,
-    // withhold the conversion; those before the namespace keyword, such as a migration's #nullable disable, stay
-    // where they are.
-    private static SyntaxTrivia? UnsafeDirective(NamespaceDeclarationSyntax declaration) =>
-        declaration
-            .DescendantTrivia(
-                TextSpan.FromBounds(
-                    declaration.OpenBraceToken.Span.End,
-                    declaration.CloseBraceToken.SpanStart
-                )
-            )
+    // Removing indentation keeps the meaning of these directives. Others from the namespace on, such as #if, #line
+    // or #error, withhold the conversion: an inactive branch could declare another namespace or member. Those
+    // among the usings stay where they are.
+    private static SyntaxTrivia? UnsafeDirective(
+        CompilationUnitSyntax unit,
+        NamespaceDeclarationSyntax declaration
+    ) =>
+        unit.DescendantTrivia(TextSpan.FromBounds(declaration.FullSpan.Start, unit.FullSpan.End))
             .Where(trivia =>
                 trivia.IsDirective
-                && !trivia.IsKind(SyntaxKind.NullableDirectiveTrivia)
-                && !trivia.IsKind(SyntaxKind.PragmaWarningDirectiveTrivia)
-                && !trivia.IsKind(SyntaxKind.RegionDirectiveTrivia)
-                && !trivia.IsKind(SyntaxKind.EndRegionDirectiveTrivia)
+                && trivia.SpanStart >= declaration.FullSpan.Start
+                && trivia.Kind()
+                    is not (
+                        SyntaxKind.NullableDirectiveTrivia
+                        or SyntaxKind.PragmaWarningDirectiveTrivia
+                        or SyntaxKind.RegionDirectiveTrivia
+                        or SyntaxKind.EndRegionDirectiveTrivia
+                        or SyntaxKind.DefineDirectiveTrivia
+                        or SyntaxKind.UndefDirectiveTrivia
+                    )
             )
             .Select(trivia => (SyntaxTrivia?)trivia)
             .FirstOrDefault();

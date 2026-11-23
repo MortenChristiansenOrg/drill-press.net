@@ -127,8 +127,8 @@ not withhold fixes when one of the project's analyzer `DiagnosticSuppressor`s, s
 as EF Core's for `DbSet` properties, declares that it can suppress that warning.
 Rules can run as native code that cannot load suppressors, so the check does not ask
 the suppressor whether it actually hides each warning; `--validate-compilation` does.
-An edit that adds such a warning, in a file or with a message the original did not
-report, is still withheld.
+An edit that adds such a warning, on a declaration or with a message the original
+did not report, is still withheld.
 
 Exit 0 means a completed check without violations, including visible review-only
 findings. Exit 1 means remaining violations, and 2 means an
